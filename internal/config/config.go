@@ -1,0 +1,58 @@
+// Package config resolves Kuraki's runtime configuration.
+//
+// Kuraki is zero-config by design (F-02): with no flags and no environment
+// variables it picks sensible defaults so a new user never edits YAML to get
+// started. Precedence is defaults < environment < explicit flags, with flag
+// wiring handled by the CLI layer.
+package config
+
+import (
+	"path/filepath"
+)
+
+// Config holds everything the server and CLI need to locate data and listen
+// for connections. It is intentionally small; anything derivable is derived.
+type Config struct {
+	// DataDir is the root of the Kuraki library: database, originals,
+	// derivatives, trash, and pre-migration snapshots all live under it.
+	DataDir string
+
+	// Addr is the HTTP listen address, e.g. ":3000".
+	Addr string
+}
+
+// Default returns the zero-config configuration used when nothing overrides it.
+func Default() Config {
+	return Config{
+		DataDir: "./kuraki-data",
+		Addr:    ":3000",
+	}
+}
+
+// Load returns Default() with any KURAKI_* environment overrides applied.
+// Flags are layered on top of this by the CLI.
+func Load(getenv func(string) string) Config {
+	c := Default()
+	if v := getenv("KURAKI_DATA_DIR"); v != "" {
+		c.DataDir = v
+	}
+	if v := getenv("KURAKI_ADDR"); v != "" {
+		c.Addr = v
+	}
+	return c
+}
+
+// DBPath is the SQLite database file inside the data directory.
+func (c Config) DBPath() string { return filepath.Join(c.DataDir, "kuraki.db") }
+
+// OriginalsDir is where write-once original files are stored (F-03).
+func (c Config) OriginalsDir() string { return filepath.Join(c.DataDir, "originals") }
+
+// DerivativesDir is where generated thumbnails/previews/posters live (F-07).
+func (c Config) DerivativesDir() string { return filepath.Join(c.DataDir, "derivatives") }
+
+// TrashDir holds soft-deleted originals during the 30-day retention window (F-10).
+func (c Config) TrashDir() string { return filepath.Join(c.DataDir, "trash") }
+
+// SnapshotsDir holds timestamped DB backups taken before each migration (F-11).
+func (c Config) SnapshotsDir() string { return filepath.Join(c.DataDir, "snapshots") }

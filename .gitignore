@@ -1,0 +1,29 @@
+# Docs (kept local, not published to the public repo)
+docs/
+
+# macOS
+.DS_Store
+
+# Go build output
+/bin/
+/kuraki
+/kuraki.exe
+*.test
+*.out
+
+# Runtime data
+/kuraki-data/
+*.db
+*.db-wal
+*.db-shm
+
+# Frontend
+web/node_modules/
+web/.svelte-kit/
+web/build/
+web/dist/
+
+# Editor / tooling
+.idea/
+.vscode/
+*.log
