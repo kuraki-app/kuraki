@@ -3,6 +3,9 @@
 > **Living document.** This is the single source of truth for what's built and what's next.
 > Update the checkboxes and the "Status" line as work completes. Full rationale lives in
 > `docs/` (PRD/BRD) — kept local, gitignored.
+>
+> 🤖 **AI agents:** read [AGENTS.md](./AGENTS.md) first — it holds the hard rules,
+> commands, and the multi-agent coordination protocol. Keep it in sync with this file.
 
 **Legend:** `[ ]` todo · `[~]` in progress · `[x]` done · 🔒 locked decision
 
