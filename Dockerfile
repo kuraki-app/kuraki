@@ -52,7 +52,7 @@ ENV KURAKI_DATA_DIR=/data \
     KURAKI_ADDR=:3000
 EXPOSE 3000
 
-# Self-probe via the single binary — no curl/wget needed in the image.
+# Self-probe via the kuraki binary — no curl/wget needed in the image.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD ["kuraki", "healthcheck"]
 

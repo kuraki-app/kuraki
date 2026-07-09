@@ -9,7 +9,7 @@
 
 **Legend:** `[ ]` todo · `[~]` in progress · `[x]` done · 🔒 locked decision
 
-**Status:** M0 ✅ · M1 ✅ · M2 backend ✅ · **P1 backend ✅** — watch-folder (F-20), favorites, "on this day" (F-26), batch ops + zip (F-23), albums API (F-21), Docker polish (F-25). Remaining is **frontend** (wire new endpoints, video player, albums/map UI) + env-gated (F-24 RAW, HEIC, Pi benchmark) + docs site.
+**Status:** M0 ✅ · M1 ✅ · M2 backend ✅ · **P1 backend ✅** — watch-folder (F-20), favorites, "on this day" (F-26), batch ops + zip (F-23), albums API (F-21), Docker polish (F-25). Remaining is **frontend** (wire new endpoints, video player, albums/map UI) + env-gated (F-24 RAW, HEIC, resource benchmark) + docs site.
 
 ---
 
@@ -53,7 +53,7 @@
 - [x] `internal/app/processor_vips.go` (`//go:build vips`) — wire libvips backend
 - [x] EXIF extraction (`evanoberholster/imagemeta`): taken_at, camera, GPS
 - [x] ffmpeg poster generation, feature-detected (**F-13 groundwork**)
-- [x] Bounded worker pool for thumbnails (GOMAXPROCS-aware, configurable) — Pi-safe (**F-07**)
+- [x] Bounded worker pool for thumbnails (GOMAXPROCS-aware, configurable) — resource-bounded (**F-07**)
 
 ### Import & storage (F-03, F-04, F-05)
 - [x] `internal/importer` — recursive walk, ext filter
@@ -74,7 +74,7 @@
 ### M1 exit
 - [~] Import a real mixed library, browse timeline + viewer — **JPEG/PNG/MP4 verified end-to-end locally**
   (import → BLAKE3 dedup → thumbnails + video poster → `/api/assets` timeline → thumb serving →
-  prefix search → first-run setup + session auth). HEIC + actual Pi-class hardware still pending.
+  prefix search → first-run setup + session auth). HEIC + low-resource-hardware benchmark still pending.
 - [ ] Verify `-tags vips` build in an environment with `pkg-config` + libvips installed (fails locally only
   because libvips/pkg-config absent — not a code error; govips dep present)
 - [x] `go test -race ./...` green
@@ -84,7 +84,7 @@
 
 ## M2 — Beta hardening (F-10…F-14)
 
-_Backend complete & verified end-to-end. Remaining: in-browser `<video>` player UI (frontend), docs site, HEIC/Pi verification._
+_Backend complete & verified end-to-end. Remaining: in-browser `<video>` player UI (frontend), docs site, HEIC/resource verification._
 
 - [x] **F-10** Trash: `internal/trash` (delete → `trash/`, restore, 30-day retention, purge janitor at
   startup + daily); `DELETE /api/assets/:id`, `POST /:id/restore`, `GET /api/trash`. Verified (delete→trash→restore).
@@ -103,7 +103,7 @@ _Backend complete & verified end-to-end. Remaining: in-browser `<video>` player 
 
 ## M3 — v1.0 (hardening & launch)
 
-- [ ] Benchmarks vs Immich published (idle RAM <100MB, 10k import on Pi 4 without UI downtime)
+- [ ] Benchmarks published (idle-RAM and large-library import behavior)
 - [ ] Semver commitment; zero open data-loss bugs
 - [ ] Launch posts (X / HN / r/selfhosted)
 

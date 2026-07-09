@@ -13,16 +13,17 @@
 
 ## 1. What Kuraki is (30-second version)
 
-A lightweight, self-hosted photo backup & sync server. **Thesis: operational
-calm on minimal hardware** — one binary, plain-file storage, runs on a Raspberry
-Pi, boring upgrades, zero lock-in. It targets the gap between Immich (heavy) and
-Ente (hard to self-host). Phase 1 = single-owner personal backup.
+A self-hosted photo & video backup server with a Google-Photos-style web library.
+**Thesis: own your library** — originals kept intact on disk in a readable layout,
+boring snapshot-protected upgrades, zero lock-in. Docker-first (libvips + ffmpeg
+bundled). It targets the gap between Immich (heavy) and Ente (hard to self-host).
+Phase 1 = single-owner personal backup.
 
 ## 2. Current state (as of M1 core-alpha working tree)
 
 - **Milestone:** M0 **complete**. M1 **complete & verified**. **M2 backend complete & verified** —
   F-10 trash, F-12 verify, F-13 video upload+Range, F-14 login rate-limit, /metrics all done + exercised E2E.
-  Remaining: in-browser `<video>` player UI (frontend), docs site. (M1 leftovers: HEIC needs libvips env; Pi benchmark.)
+  Remaining: in-browser `<video>` player UI (frontend), docs site. (M1 leftovers: HEIC needs libvips env; resource benchmark.)
 - **Builds & tests:** `go build ./...` clean, `go vet ./...` clean, `gofmt` clean, `go test -race ./...` green.
 - **E2E verified (JPEG/PNG/MP4):** `kuraki import` of a mixed dir → 4 imported + 1 byte-dedup,
   write-once `originals/YYYY/MM/`, 3 thumbs + 1 ffmpeg poster in `derivatives`, resume re-run skipped all 5;
@@ -46,20 +47,20 @@ Ente (hard to self-host). Phase 1 = single-owner personal backup.
   setup/login, searchable grouped timeline with bounded visible-window rendering,
   infinite scroll, progressive viewer, EXIF panel, keyboard navigation, download,
   and logout.
-- **Not yet verified:** real mixed-library import/browse on Pi-class hardware;
+- **Not yet verified:** real mixed-library import/browse on low-resource hardware;
   tagged libvips build on a machine with libvips development packages.
 
 ## 3. Locked decisions (do NOT relitigate without human sign-off)
 
 | Area | Decision |
 |---|---|
-| Language/server | Go, single binary, embedded UI via `go:embed` |
+| Language/server | Go server, embedded UI via `go:embed` |
 | Frontend | SvelteKit + adapter-static (SPA), built into `internal/httpapi/assets/` |
 | Database | `modernc.org/sqlite` (pure-Go, WAL, FTS5). Keep the DB layer CGO-free. |
 | Migrations | `pressly/goose`, embedded, **append-only** |
 | Media | libvips (govips) + ffmpeg behind `media.Processor`; pure-Go fallback |
 | Build tags | default = pure-Go (`CGO_ENABLED=0`); `-tags vips` = libvips (CGO on) |
-| Storage | plain filesystem behind `storage.Storage`; S3 later |
+| Storage | filesystem behind `storage.Storage`; S3 later |
 | IDs / schema | UUIDv7 PKs, `owner_id` on every asset, soft deletes, BLAKE3 hashes, `change_log` |
 | License | AGPL-3.0 |
 | Distribution | Docker image (bundles libvips+ffmpeg) primary; native binaries secondary |
@@ -102,7 +103,7 @@ docs/                  PRD/BRD — gitignored, local only
 5. **Default build must stay pure-Go.** Anything needing libvips goes behind
    `//go:build vips`. `go build ./...` (no tags) must always succeed without libvips.
 6. **Weight is the product.** New dependencies and features need justification
-   against the "runs on a Pi" thesis. When unsure, ask the human / open an issue.
+   against Kuraki's scope. When unsure, ask the human / open an issue.
 7. **Structured logging only** (`log/slog`); no stray `fmt.Println` in libraries.
 8. **Wrap errors** with context: `fmt.Errorf("pkg: doing X: %w", err)`.
 
@@ -136,7 +137,7 @@ Fine-grained checkboxes live in [ROADMAP.md](./ROADMAP.md) — keep both in sync
 ## 9. Next up (suggested order for M1)
 
 1. Run M1 exit verification with a real mixed library (JPEG/HEIC/PNG/MP4), including
-   timeline/viewer browsing on Pi-class hardware.
+   timeline/viewer browsing on low-resource hardware.
 2. Verify `make build-vips` / `go test -tags vips ./...` on a machine or container
    with `pkg-config` and libvips development packages installed.
 3. If exit verification passes, mark M1 done and start M2 auth hardening/trash/verify.

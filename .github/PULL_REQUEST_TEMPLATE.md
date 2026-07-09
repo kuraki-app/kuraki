@@ -15,7 +15,7 @@
 ## Checklist
 
 - [ ] `make check` passes (fmt, vet, `go test -race ./...`)
-- [ ] Fits Kuraki's "keep it light" thesis (or discussed in an issue first)
+- [ ] Fits Kuraki's scope (or discussed in an issue first)
 - [ ] `internal/domain` still does no I/O; file/image access goes through interfaces
 - [ ] New migrations are additive (never edited a released migration)
 - [ ] Updated `CHANGELOG.md` (Unreleased) and `ROADMAP.md` if user-facing
@@ -23,4 +23,4 @@
 
 ## Notes for reviewer
 
-<!-- Anything about data safety, performance on Pi-class hardware, or trade-offs. -->
+<!-- Anything about data safety, performance and resource use, or trade-offs. -->

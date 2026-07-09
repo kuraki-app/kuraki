@@ -29,5 +29,5 @@ body:
     attributes:
       label: Fit check
       options:
-        - label: This keeps Kuraki light (single binary, low resource use, no lock-in)
+        - label: This fits Kuraki's focus (self-hostable, no lock-in)
         - label: I understand it may be declined to protect scope/simplicity

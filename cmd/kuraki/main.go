@@ -37,7 +37,7 @@ func main() {
 func rootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "kuraki",
-		Short:         "Kuraki — lightweight self-hosted photo backup",
+		Short:         "Kuraki — self-hosted photo backup & sync",
 		SilenceUsage:  true,
 		SilenceErrors: false,
 		Version:       version,
@@ -47,7 +47,7 @@ func rootCmd() *cobra.Command {
 }
 
 // healthcheckCmd probes the local server's /healthz and exits non-zero if
-// unhealthy. It uses the single binary itself, so a container HEALTHCHECK needs
+// unhealthy. It uses the kuraki binary itself, so a container HEALTHCHECK needs
 // no extra tools (curl/wget) installed in the image.
 func healthcheckCmd() *cobra.Command {
 	var addr string

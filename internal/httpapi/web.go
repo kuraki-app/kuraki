@@ -7,7 +7,7 @@ import (
 
 // assetsFS embeds the built web UI. In M0 this is a placeholder page; M1
 // replaces internal/httpapi/assets with the SvelteKit static build so the
-// entire UI ships inside the single binary (F-01).
+// entire UI ships embedded in the server (F-01).
 //
 //go:embed all:assets
 var assetsFS embed.FS

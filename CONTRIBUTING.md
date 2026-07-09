@@ -4,7 +4,7 @@ Thanks for your interest in Kuraki! This is an early-stage, solo-maintained proj
 
 ## Guiding principles
 
-Kuraki exists to be **light**. Before proposing a feature, ask whether it fits the thesis: *single binary, near-zero config, plain-filesystem storage, runs on a Pi, boring upgrades*. Weight is the product. We say no to a lot — see the Non-Goals in the PRD. When in doubt, open an issue to discuss before writing code.
+Kuraki aims to be a focused, self-hosted photo backup you actually enjoy running: near-zero configuration, your originals kept intact on disk, and boring, snapshot-protected upgrades. Before proposing a feature, ask whether it fits that focus. We say no to a lot — see the Non-Goals in the PRD. When in doubt, open an issue to discuss before writing code.
 
 ## Getting started
 
@@ -39,7 +39,7 @@ make test        # go test -race ./...
 - **Errors:** wrap with context (`fmt.Errorf("pkg: doing X: %w", err)`).
 - **Logging:** structured `log/slog`; no `fmt.Println` in library code.
 - **Tests:** table-driven where it helps; cover the behavior, not the implementation. New logic ships with tests.
-- **Dependencies:** be conservative. A new dependency needs justification — weight is the product.
+- **Dependencies:** be conservative. A new dependency needs justification — keep the dependency footprint deliberate.
 - **SQL:** migrations are append-only and versioned (`internal/db/migrations`). Never edit a released migration; add a new one.
 
 ## Commit messages

@@ -14,7 +14,7 @@ import (
 // Originals are write-once (F-03), so callers treat this as "already stored".
 var ErrExists = errors.New("storage: blob already exists")
 
-// FS is a plain-filesystem Storage rooted at Base. All relative paths are
+// FS is a filesystem Storage rooted at Base. All relative paths are
 // cleaned and confined to Base to prevent traversal.
 type FS struct {
 	Base string

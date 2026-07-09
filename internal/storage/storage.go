@@ -1,5 +1,5 @@
 // Package storage abstracts file access behind an interface so domain logic
-// never calls os.* directly. Phase 1 ships a plain-filesystem implementation;
+// never calls os.* directly. Phase 1 ships a filesystem implementation;
 // an S3 backend (F-34) can be added later without touching callers.
 package storage
 

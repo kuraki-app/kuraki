@@ -2,7 +2,7 @@
 #
 #   docker compose up -d      # build + start, then open http://localhost:3000
 #
-# Your photos live in ./kuraki-data (plain files: originals/, derivatives/, the
+# Your photos live in ./kuraki-data (originals/, derivatives/, the
 # SQLite DB, and pre-migration snapshots) — back that directory up and you have
 # your whole library. Point an optional watch folder at anything Syncthing syncs.
 

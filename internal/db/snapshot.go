@@ -10,7 +10,7 @@ import (
 )
 
 // Snapshot writes a consistent copy of the database into snapshotsDir using
-// SQLite's `VACUUM INTO`, which safely captures WAL contents (a plain file copy
+// SQLite's `VACUUM INTO`, which safely captures WAL contents (a naive file copy
 // would not). Returns the snapshot path. This is the pre-migration backup that
 // makes upgrades boring (F-11).
 func Snapshot(ctx context.Context, db *sql.DB, snapshotsDir string) (string, error) {
