@@ -9,7 +9,7 @@
 
 **Legend:** `[ ]` todo · `[~]` in progress · `[x]` done · 🔒 locked decision
 
-**Status:** M0 ✅ · M1 ✅ · **M2 backend ✅** · **P1 backend in progress** — watch-folder (F-20), favorites, "on this day" (F-26), batch ops (F-23) done. Remaining: frontend (video player, albums UI, map, zip download), docs site, HEIC/Pi verification.
+**Status:** M0 ✅ · M1 ✅ · M2 backend ✅ · **P1 backend ✅** — watch-folder (F-20), favorites, "on this day" (F-26), batch ops + zip (F-23), albums API (F-21), Docker polish (F-25). Remaining is **frontend** (wire new endpoints, video player, albums/map UI) + env-gated (F-24 RAW, HEIC, Pi benchmark) + docs site.
 
 ---
 
@@ -118,8 +118,9 @@ _Backend complete & verified end-to-end. Remaining: in-browser `<video>` player 
 - [ ] **F-22** Map view from GPS EXIF (client clustering, OSM tiles) — frontend
 - [x] **F-23** Multi-select batch ops — `POST /api/assets/batch` (delete/restore/favorite/unfavorite) +
   `POST /api/assets/zip` (stream zip of selected originals). Verified.
-- [ ] **F-24** RAW import + embedded-preview extraction
-- [ ] **F-25** Docker image polish as alternative install path
+- [ ] **F-24** RAW import + embedded-preview extraction (needs libvips/external tool + RAW samples — env-gated)
+- [x] **F-25** Docker polish — container `HEALTHCHECK` (binary self-probe, no curl needed), non-root user,
+  OCI labels, and `docker-compose.yml` for one-command self-hosting. Healthcheck verified (up→0, down→1).
 - [x] **F-26** "On this day" memories — `GET /api/memories` (today's month/day across years, optional `?date=`). Verified.
 - [x] **Favorites** — `POST /api/assets/:id/favorite` toggle + `GET /api/favorites` feed. Verified.
 

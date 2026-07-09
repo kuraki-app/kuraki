@@ -156,7 +156,11 @@ Fine-grained checkboxes live in [ROADMAP.md](./ROADMAP.md) — keep both in sync
 
 ## 11. Handoff log (append newest at top)
 
-- `HEAD` — **P1 backend cont. (Claude):** F-23 batch **zip download** (`POST /api/assets/zip` streams a zip of
+- `HEAD` — **F-25 Docker polish (Claude):** container `HEALTHCHECK` via a hidden `kuraki healthcheck`
+  self-probe (no curl/wget in image), non-root `kuraki` user, OCI labels, and root `docker-compose.yml`.
+  Verified: healthcheck exits 0 when server up, 1 when down. **Backend for P0 + P1 is now complete;
+  remaining work is frontend UI + env-gated (F-24 RAW, HEIC/vips, Pi) + docs site.**
+- `HEAD~` — **P1 backend cont. (Claude):** F-23 batch **zip download** (`POST /api/assets/zip` streams a zip of
   selected originals) and **F-21 albums** full backend API (`/api/albums` CRUD + `/{id}/assets` add/remove).
   Both verified E2E, committed separately. Albums/map/video **UI** remain frontend follow-ups.
 - `HEAD~` — **P1 backend (Claude), committed granularly:** F-20 watch-folder (`import --watch`),
