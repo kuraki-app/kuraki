@@ -156,6 +156,11 @@ Fine-grained checkboxes live in [ROADMAP.md](./ROADMAP.md) — keep both in sync
 
 ## 11. Handoff log (append newest at top)
 
+- `HEAD` — **P1 backend (Claude), committed granularly:** F-20 watch-folder (`import --watch`),
+  favorites (`POST /assets/:id/favorite` + `GET /favorites`), F-26 "on this day" (`GET /memories`),
+  F-23 batch ops (`POST /assets/batch`). All verified E2E; fmt/vet/-race green. The whole prior M1+M2
+  pile was also committed in 9 logical commits (deps→importer→verify→trash→auth→media→api→app→docs).
+  **Not pushed yet** (no remote; visibility decision pending).
 - Working tree — **M2 backend (Claude): F-10 trash, F-13 video, F-14 rate-limit, /metrics.**
   New `internal/trash` (delete/restore/purge + tests) with `DELETE /api/assets/:id`, `POST /:id/restore`,
   `GET /api/trash`, and a startup+daily purge janitor in `app`. `POST /api/assets` multipart upload runs the

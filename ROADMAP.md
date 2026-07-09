@@ -9,7 +9,7 @@
 
 **Legend:** `[ ]` todo · `[~]` in progress · `[x]` done · 🔒 locked decision
 
-**Status:** M0 ✅ · M1 ✅ · **M2 backend ✅** (trash, verify, video upload+range, rate limit, /metrics — all verified end-to-end). Remaining: in-browser video player UI, docs site, HEIC/Pi verification.
+**Status:** M0 ✅ · M1 ✅ · **M2 backend ✅** · **P1 backend in progress** — watch-folder (F-20), favorites, "on this day" (F-26), batch ops (F-23) done. Remaining: frontend (video player, albums UI, map, zip download), docs site, HEIC/Pi verification.
 
 ---
 
@@ -111,13 +111,16 @@ _Backend complete & verified end-to-end. Remaining: in-browser `<video>` player 
 
 ## P1 — Fast-follows (post-beta, not on critical path)
 
-- [ ] **F-20** Watch-folder ingestion (pairs with Syncthing/rsync)
+- [x] **F-20** Watch-folder ingestion — `kuraki import --watch [--watch-interval]` rescans and auto-imports
+  new files (import_state makes rescans cheap; pairs with Syncthing/rsync). Verified.
 - [ ] **F-21** Albums UI (schema already ships in v1)
-- [ ] **F-22** Map view from GPS EXIF (client clustering, OSM tiles)
-- [ ] **F-23** Multi-select batch ops (zip download, delete, favorite)
+- [ ] **F-22** Map view from GPS EXIF (client clustering, OSM tiles) — frontend
+- [~] **F-23** Multi-select batch ops — `POST /api/assets/batch` (delete/restore/favorite/unfavorite) done + verified.
+  Batch **zip download** still pending.
 - [ ] **F-24** RAW import + embedded-preview extraction
 - [ ] **F-25** Docker image polish as alternative install path
-- [ ] **F-26** "On this day" memories view
+- [x] **F-26** "On this day" memories — `GET /api/memories` (today's month/day across years, optional `?date=`). Verified.
+- [x] **Favorites** — `POST /api/assets/:id/favorite` toggle + `GET /api/favorites` feed. Verified.
 
 ---
 
