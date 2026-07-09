@@ -55,6 +55,7 @@ func NewRouter(d Deps) http.Handler {
 			r.Get("/assets", d.listAssets)
 			r.Post("/assets", d.uploadAsset)
 			r.Post("/assets/batch", d.batchAssets)
+			r.Post("/assets/zip", d.downloadZip)
 			r.Get("/assets/{id}", d.getAsset)
 			r.Delete("/assets/{id}", d.deleteAsset)
 			r.Post("/assets/{id}/restore", d.restoreAsset)
