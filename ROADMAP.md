@@ -1,148 +1,115 @@
-# Kuraki — Build Roadmap & Progress Tracker
+# Kuraki Roadmap
 
-> **Living document.** This is the single source of truth for what's built and what's next.
-> Update the checkboxes and the "Status" line as work completes. Full rationale lives in
-> `docs/` (PRD/BRD) — kept local, gitignored.
->
-> 🤖 **AI agents:** read [AGENTS.md](./AGENTS.md) first — it holds the hard rules,
-> commands, and the multi-agent coordination protocol. Keep it in sync with this file.
+> Forward-looking plan for where Kuraki is headed. For a record of what has
+> already been built and fixed, see **[CHANGELOG.md](./CHANGELOG.md)**.
 
-**Legend:** `[ ]` todo · `[~]` in progress · `[x]` done · 🔒 locked decision
+Kuraki today is a working, single-owner, self-hosted photo & video backup server:
+CLI and browser import with content-hash dedup, a searchable web timeline and
+viewer, favorites, albums, "on this day", trash with retention, integrity
+verification, video with in-browser playback, and Docker-first deployment. The
+server-side foundation is in place; the web UI is catching up to it, and the
+items below are where we go next.
 
-**Status:** M0 ✅ · M1 ✅ · M2 backend ✅ · **P1 backend ✅** — watch-folder (F-20), favorites, "on this day" (F-26), batch ops + zip (F-23), albums API (F-21), Docker polish (F-25). Remaining is **frontend** (wire new endpoints, video player, albums/map UI) + env-gated (F-24 RAW, HEIC, resource benchmark) + docs site.
+## Design decisions (context)
 
----
-
-## 🔒 Locked decisions
-
-| Decision | Choice |
+| Area | Choice |
 |---|---|
-| Frontend | SvelteKit + adapter-static (SPA), embedded via `go:embed` |
-| Media pipeline | libvips (govips) + ffmpeg behind a `Processor` interface; pure-Go fallback |
-| Distribution | Docker image (bundles libvips+ffmpeg) primary; native binaries from CI secondary |
+| Server | Go, embedded SvelteKit web UI |
+| Database | SQLite (WAL) with FTS5 search and versioned, snapshot-protected migrations |
+| Media | libvips + ffmpeg, behind an interface with a pure-Go fallback |
+| Storage | Filesystem, write-once originals, behind a storage interface (object storage later) |
+| Identity | UUIDv7 keys and `owner_id` on every asset from day one |
+| Distribution | Docker image with the media toolchain bundled |
 | License | AGPL-3.0 |
-| Database | `modernc.org/sqlite` (pure-Go, WAL, FTS5) |
-| Build tags | default = pure-Go/CGO-off; `-tags vips` = libvips backend (CGO on) |
 
 ---
 
-## M0 — Scaffold ✅ (committed)
+## Near-term — finish and polish the current experience
 
-- [x] `git init`, `.gitignore` (ignores `docs/` + artifacts), AGPL-3.0 `LICENSE`, `go.mod`
-- [x] `internal/config` — zero-config defaults + `KURAKI_*` env/flag overrides (**F-02**)
-- [x] `internal/db` — WAL open, embedded goose migrations, **schema v1**, pre-migration snapshot (**F-11 infra**)
-- [x] `internal/storage` — `Storage` interface + write-once atomic `FS` impl (**F-03 groundwork**)
-- [x] `internal/media` — `Processor` interface + pure-Go fallback backend
-- [x] `cmd/kuraki` — cobra CLI (`serve`/`import`/`verify`/`version`) + `internal/app` wiring
-- [x] `internal/httpapi` — chi router, `/healthz`, `/api/status`, embedded UI shell + SPA fallback
-- [x] Dockerfile (libvips+ffmpeg runtime) + `.dockerignore` + GitHub Actions CI (test/race + cross-compile matrix + GHCR)
-- [x] Unit tests (config, db migrate/snapshot, storage write-once/dedup/traversal) — `go test -race ./...` green
-- [x] Verified: cross-compile linux/amd64+arm64, darwin/arm64, windows/amd64
+Achievable now with the existing architecture:
 
----
+- **Complete the web UI** so it surfaces everything the API already supports:
+  favorites, albums, trash & restore, "on this day", multi-select batch actions,
+  zip export, drag-and-drop upload with progress, and the in-browser video player.
+- **Full HEIC / AVIF / RAW previews** by shipping the libvips-backed build as the
+  default container image (iPhone HEIC is the common case).
+- **Map view** from GPS EXIF, with client-side clustering, plus **reverse
+  geocoding** so photos gain human-readable place names.
+- **Tags / keywords** and **saved searches** (smart albums) for richer organization.
+- **Duplicate review dashboard** — surface exact and near-duplicate candidates for
+  the user to resolve, building on the existing content-hash dedup.
+- **Google Takeout import** that reads the JSON sidecars so dates, captions, and
+  geolocation survive the migration — a key path for people leaving Google Photos.
+- **Bulk metadata tools**: correct capture dates, shift timezones, set or clear GPS.
+- **Library dashboard**: storage usage, counts by type and year, import history.
+- **Slideshow** mode and a one-click **download / export** of the whole library.
+- **Configurable** trash retention and thumbnail sizes.
+- **Import queue** with retries, a jobs view, and clearer per-file error reporting.
 
-## M1 — Core alpha (F-01…F-09)
+## Planned — parity with other photo apps
 
-### Frontend
-- [x] Scaffold SvelteKit app under `web/` (adapter-static, TypeScript, Vite)
-- [x] Build pipeline outputs to `internal/httpapi/assets/` for `go:embed` (**F-01**)
-- [x] Add Node build stage to Dockerfile before Go build
+### Organization & discovery
+- **Archive / hidden** section to keep clutter out of the main timeline.
+- **Stacks**: group burst shots and RAW+JPEG pairs into a single tile.
+- **Live / motion photo** pairing (image + short clip shown together).
+- **Ratings** alongside favorites, and manual + auto-generated albums.
 
-### Media backend
-- [x] `internal/media/vips.go` (`//go:build vips`) — govips Thumbnail (WebP) + Probe
-- [x] `internal/app/processor_vips.go` (`//go:build vips`) — wire libvips backend
-- [x] EXIF extraction (`evanoberholster/imagemeta`): taken_at, camera, GPS
-- [x] ffmpeg poster generation, feature-detected (**F-13 groundwork**)
-- [x] Bounded worker pool for thumbnails (GOMAXPROCS-aware, configurable) — resource-bounded (**F-07**)
+### Sharing & multi-user
+- **Multi-user accounts** with an admin role (schema already carries `owner_id`).
+- **Shared albums** between users and **partner sharing** of a whole library.
+- **Public share links** with optional password and expiry.
+- **OIDC / OAuth** single sign-on for households already running an identity provider.
+- Album **activity** (comments / reactions) for shared albums.
 
-### Import & storage (F-03, F-04, F-05)
-- [x] `internal/importer` — recursive walk, ext filter
-- [x] BLAKE3 stream-hash (`zeebo/blake3`) + dedup via `assets` unique index (**F-05**)
-- [x] EXIF-date organization → `originals/YYYY/MM/` write-once (**F-03**)
-- [x] Resume-on-interrupt via `import_state`; `--dry-run`; progress bar (**F-04**)
-- [x] Populate `assets_fts` on import
-- [x] `kuraki import <dir>` wired to command
+### Intelligence (opt-in, external — never bundled by default)
+- **Natural-language / semantic search** ("red car", "beach at sunset") via an
+  optional CLIP sidecar; embedding columns are already reserved in the schema.
+- **Face detection & people grouping** through an opt-in sidecar.
+- **Scene / object tagging** and **quality flags** (blurry, duplicate, screenshot).
 
-### API & UI (F-06, F-08, F-09)
-- [x] `GET /api/assets` — cursor-paginated, day/month grouped timeline
-- [x] `GET /api/assets/:id`, `/original`, `/thumb?size=` handlers
-- [x] `GET /api/search?q=&from=&to=&type=&camera=` over FTS5 (**F-09**)
-- [x] Timeline UI — bounded visible window, infinite scroll, responsive grid (**F-06**)
-- [x] Photo viewer — progressive full-size, EXIF panel, keyboard nav, download (**F-08**)
-- [x] First-run admin setup flow + login (basic; hardened in M2) (**F-02**)
+### Media handling
+- **Adaptive video transcoding** so clips play on any device, not just when the
+  original is web-compatible.
+- **Deeper RAW support** (embedded-preview extraction now; optional develop later).
+- **Basic non-destructive editing**: crop, rotate, straighten, light adjustments,
+  keeping the original untouched.
 
-### M1 exit
-- [~] Import a real mixed library, browse timeline + viewer — **JPEG/PNG/MP4 verified end-to-end locally**
-  (import → BLAKE3 dedup → thumbnails + video poster → `/api/assets` timeline → thumb serving →
-  prefix search → first-run setup + session auth). HEIC + low-resource-hardware benchmark still pending.
-- [ ] Verify `-tags vips` build in an environment with `pkg-config` + libvips installed (fails locally only
-  because libvips/pkg-config absent — not a code error; govips dep present)
-- [x] `go test -race ./...` green
-- [x] Fixed: filename search now uses FTS5 prefix matching so `photo` finds `photo3.jpg` (F-09)
+### Mobile & desktop
+- **Mobile apps** (iOS / Android) with automatic background backup — the biggest
+  driver of daily use. The sync API (change log + per-device cursors) is already
+  reserved in the schema.
+- **Desktop background uploader** for folks who live on a laptop.
 
----
+## Exploring — infrastructure & scale
 
-## M2 — Beta hardening (F-10…F-14)
+- **Object-storage backend** (S3-compatible) behind the storage interface.
+- **Postgres driver** for hosted / multi-tenant deployments.
+- **External libraries**: index files in place without copying them in.
+- **WebDAV / rsync** ingestion endpoints.
+- **Encryption at rest** as an option (distinct from end-to-end encryption).
 
-_Backend complete & verified end-to-end. Remaining: in-browser `<video>` player UI (frontend), docs site, HEIC/resource verification._
+## Improving how it works (quality & reliability)
 
-- [x] **F-10** Trash: `internal/trash` (delete → `trash/`, restore, 30-day retention, purge janitor at
-  startup + daily); `DELETE /api/assets/:id`, `POST /:id/restore`, `GET /api/trash`. Verified (delete→trash→restore).
-- [x] **F-11** Auto pre-migration snapshot (M0) runs + logs before every migrate; trash janitor logs purges
-- [x] **F-12** `kuraki verify` — re-checksums originals via `storage.Storage`, reports MISMATCH
-  (path + expected/actual hash), MISSING, and ERROR; exits non-zero on any problem. `internal/verify`
-  package + `App.Verify` + CLI. Verified end-to-end (healthy→exit 0; corrupted original→flagged, exit 1).
-- [~] **F-13** Video: `POST /api/assets` multipart upload → importer, ffmpeg poster, HTTP **Range** on
-  `/original` for seeking. Backend done + verified (206 partial content). In-browser `<video>` player UI = frontend follow-up.
-- [x] **F-14** Auth hardening — HttpOnly/SameSite cookies + argon2id (M1) + per-IP login **rate limit**
-  (`x/time/rate`, ~10 then 429). Verified (10 allowed → 429).
-- [x] `/metrics` real metrics — mem/goroutines/uptime/GC + `assets_total`/`assets_trashed`/`library_bytes`
-- [ ] Docs site + install demo GIF; 50 external installs target
+- Cache-friendly derivative responses and **blurhash/placeholder** thumbnails for
+  instant-feeling scrolling.
+- **Prometheus** exposition format for `/metrics`, with import and verify counters.
+- **API tokens** for scripting and third-party clients.
+- **Backup & restore** command that bundles the database and configuration.
+- Graceful degradation and clear messaging when ffmpeg or libvips is unavailable.
+- **Internationalization**, accessibility, and dark mode across the UI.
+- End-to-end and load tests, plus published large-library performance numbers.
+- Broader rate limiting and an optional **audit log** of sensitive actions.
 
----
+## Explicit non-goals
 
-## M3 — v1.0 (hardening & launch)
-
-- [ ] Benchmarks published (idle-RAM and large-library import behavior)
-- [ ] Semver commitment; zero open data-loss bugs
-- [ ] Launch posts (X / HN / r/selfhosted)
-
----
-
-## P1 — Fast-follows (post-beta, not on critical path)
-
-- [x] **F-20** Watch-folder ingestion — `kuraki import --watch [--watch-interval]` rescans and auto-imports
-  new files (import_state makes rescans cheap; pairs with Syncthing/rsync). Verified.
-- [~] **F-21** Albums — full backend API done + verified (`/api/albums` CRUD, `/{id}/assets` add/remove,
-  membership counts). Albums **UI** is a frontend follow-up.
-- [ ] **F-22** Map view from GPS EXIF (client clustering, OSM tiles) — frontend
-- [x] **F-23** Multi-select batch ops — `POST /api/assets/batch` (delete/restore/favorite/unfavorite) +
-  `POST /api/assets/zip` (stream zip of selected originals). Verified.
-- [ ] **F-24** RAW import + embedded-preview extraction (needs libvips/external tool + RAW samples — env-gated)
-- [x] **F-25** Docker polish — container `HEALTHCHECK` (binary self-probe, no curl needed), non-root user,
-  OCI labels, and `docker-compose.yml` for one-command self-hosting. Healthcheck verified (up→0, down→1).
-- [x] **F-26** "On this day" memories — `GET /api/memories` (today's month/day across years, optional `?date=`). Verified.
-- [x] **Favorites** — `POST /api/assets/:id/favorite` toggle + `GET /api/favorites` feed. Verified.
+- **Server-side end-to-end encryption** — it conflicts with server-side thumbnails
+  and search; people who need E2EE are better served by Ente.
+- **Bundling ML by default** — intelligence stays optional and external so a base
+  install remains simple.
+- **Chasing feature-count parity for its own sake** — every addition should earn
+  its place against simplicity and reliability.
 
 ---
 
-## Phase 2 — Sharing (Q2–Q3 2027)
-
-- [ ] Multi-user accounts (owner_id already on every row — **F-30**)
-- [ ] Albums UI complete
-- [ ] Public share links (token-based access — **F-31**)
-
-## Phase 3 — Mobile & ML (Q4 2027+)
-
-- [ ] Flutter mobile app with background backup (sync API: change_log + per-device cursors — **F-33**)
-- [ ] Optional ML sidecar: CLIP semantic search + faces (embedding BLOBs reserved — **F-32**)
-- [ ] S3/object storage backend behind `Storage` interface (**F-34**)
-- [ ] Postgres driver for hosted/multi-tenant scale (**F-35**)
-
----
-
-## Open questions still to resolve
-
-- [ ] HEIC/HEIF decode strategy across platforms (libvips build flags) — spike in M1
-- [ ] Name availability: GitHub org / domain / trademark for "Kuraki" — before public beta
-- [ ] Opt-in anonymous version-check ping — decide with community
+*Have an idea or a gap you want closed? Open an issue — see
+[CONTRIBUTING.md](./CONTRIBUTING.md).*

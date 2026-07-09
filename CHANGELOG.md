@@ -1,36 +1,81 @@
 # Changelog
 
-All notable changes to this project are documented here.
+All notable changes to Kuraki are recorded here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning moves to
+[Semantic Versioning](https://semver.org/) once the first tagged release lands.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
-from v1.0.0 onward (pre-1.0 is unstable and may change).
+Each entry describes **what was added, changed, or fixed** in plain terms. Add a
+line under `Unreleased` as part of the same change that introduces it.
 
 ## [Unreleased]
 
-### Added — M0 scaffold
-- Zero-config server (`kuraki serve`): sensible defaults for data dir, port, and DB location; `KURAKI_*` env + flag overrides.
-- SQLite (WAL) via pure-Go `modernc.org/sqlite`, embedded versioned `goose` migrations, and schema v1 (users, assets, derivatives, albums, sessions, import_state, change_log, FTS5).
-- Automatic pre-migration database snapshot (`VACUUM INTO`) for safe upgrades.
-- `Storage` interface with a write-once, atomic, traversal-safe filesystem implementation.
-- `Processor` interface with a pure-Go media backend (libvips backend behind `-tags vips`, to follow).
-- Cobra CLI: `serve`, `import` (stub), `verify` (stub), `version`.
-- HTTP layer (chi): `/healthz`, `/api/status`, embedded UI shell with SPA fallback.
-- Dockerfile (runtime bundles libvips + ffmpeg), `.dockerignore`, and GitHub Actions CI (test/race, cross-compile matrix, GHCR image).
-- Project docs: README, ROADMAP tracker, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, issue/PR templates, Makefile.
+The initial development version — the full server-side foundation for a
+self-hosted photo & video backup, with a Docker-first deployment and an embedded
+web UI that is still being fleshed out.
 
-### Added — M1 core alpha
-- CLI bulk import (`kuraki import`): recursive walk, BLAKE3 content-hash dedup, EXIF-date `originals/YYYY/MM/` organization, resume via `import_state`, `--dry-run`, progress output, bounded thumbnail/poster worker pool.
-- Media pipeline: pure-Go JPEG thumbnails + EXIF probe; libvips WebP backend behind `-tags vips`; ffmpeg video posters.
-- Web API (chi): cursor-paginated day/month timeline, asset detail, original + thumbnail serving, FTS5 search (prefix matching) with date/type/camera filters.
-- Auth: first-run admin setup, argon2id password hashing, HttpOnly/SameSite session cookies.
-- Embedded SvelteKit SPA (virtualized timeline, photo viewer) built into the binary; Docker Node build stage.
+### Added
 
-### Added — M2 beta hardening
-- `kuraki verify`: re-checksums originals, reports mismatch/missing with expected/actual hash, non-zero exit on problems.
-- Trash (F-10): soft-delete to `trash/` with 30-day retention, restore, `GET /api/trash`, and a startup + daily purge janitor.
-- Video (F-13): browser upload via `POST /api/assets`, HTTP Range support on originals for in-browser seeking.
-- Login rate limiting (F-14): per-IP token bucket on `/api/login`.
-- Real `/metrics`: runtime memory/goroutines/uptime plus library asset counts and size.
+**Setup & operations**
+- Zero-config server: run it with no config file and it picks a data directory,
+  port, and database location, and prompts for an admin account on first visit.
+- Admin account creation and login, with argon2id password hashing and
+  HttpOnly/SameSite session cookies. Failed logins are rate-limited per IP.
+- Automatic database snapshot taken before every schema migration, so upgrades
+  are safe and reversible.
+- `/healthz` liveness endpoint and a `/metrics` endpoint reporting memory,
+  goroutines, uptime, and library counts.
+- Docker image with libvips and ffmpeg bundled, a `docker-compose.yml` for
+  one-command hosting, a container health check that self-probes via the binary,
+  a non-root runtime user, and OCI image labels.
+
+**Import & backup**
+- Command-line bulk import: recursive, with a progress bar, a dry-run mode, and
+  resume-on-interrupt so an interrupted import continues without redoing work.
+- Content-hash deduplication (BLAKE3): the same file in two places is stored once.
+- Originals are written once into a readable `originals/YYYY/MM/` layout, based on
+  EXIF capture date, and are never modified after import.
+- Watch-folder mode that rescans a directory on an interval and auto-imports new
+  files — pairs with folder-sync tools like Syncthing and rsync.
+- Browser drag-and-drop upload that runs through the same import pipeline.
+
+**Browsing & search**
+- Virtualized, day- and month-grouped timeline that stays smooth on large libraries.
+- Full-screen viewer with an EXIF panel, keyboard navigation, and original download.
+- Search by filename, date range, media type, and camera model, with prefix
+  matching so partial words find results.
+- Favorites with a dedicated feed, albums with membership management, and an
+  "on this day" memories view.
+- Multi-select batch actions (delete, restore, favorite) and a zip export of any
+  selected originals.
+
+**Media**
+- Thumbnail generation through libvips (HEIC/AVIF/RAW previews) with a pure-Go
+  fallback, driven by a bounded worker pool.
+- Video support: upload, ffmpeg-generated poster frames, and in-browser playback
+  with HTTP range requests for seeking.
+
+**Trust & integrity**
+- Trash with a 30-day retention window, restore, and an automatic purge that runs
+  at startup and daily.
+- `kuraki verify` re-checksums every original and reports corruption, missing
+  files, and read errors, exiting non-zero when problems are found.
+
+**Project & foundation**
+- Filesystem storage and media processing behind interfaces, keeping domain logic
+  free of direct I/O and leaving room for an object-storage backend later.
+- SQLite (WAL) with full-text search and versioned migrations.
+- Schema built for the future: stable UUID keys, an owner on every asset, soft
+  deletes, content hashes, and a change log for eventual device sync.
+- Cross-platform builds, continuous integration, and open-source project docs
+  (README, contributing guide, code of conduct, security policy, issue and PR
+  templates).
+
+### Fixed
+- Filename search returned nothing for partial words (for example, searching
+  "photo" missed "photo3.jpg"); search now matches on prefixes.
+
+### Changed
+- Positioned as a Docker-first, self-hosted application built around a libvips +
+  ffmpeg media pipeline.
 
 [Unreleased]: https://github.com/kuraki-app/kuraki/commits/main
