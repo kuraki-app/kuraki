@@ -4,7 +4,7 @@
 
 **Lightweight, self-hosted photo backup & sync — one binary, plain files, runs on a Raspberry Pi.**
 
-[![CI](https://github.com/saranshh/kuraki/actions/workflows/ci.yml/badge.svg)](https://github.com/saranshh/kuraki/actions/workflows/ci.yml)
+[![CI](https://github.com/saranshhardaha/kuraki/actions/workflows/ci.yml/badge.svg)](https://github.com/saranshhardaha/kuraki/actions/workflows/ci.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](./LICENSE)
 [![Go](https://img.shields.io/badge/go-1.26+-00ADD8.svg?logo=go&logoColor=white)](https://go.dev)
 [![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)](./ROADMAP.md)

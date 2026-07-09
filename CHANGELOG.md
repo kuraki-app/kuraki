@@ -19,4 +19,4 @@ from v1.0.0 onward (pre-1.0 is unstable and may change).
 - Dockerfile (runtime bundles libvips + ffmpeg), `.dockerignore`, and GitHub Actions CI (test/race, cross-compile matrix, GHCR image).
 - Project docs: README, ROADMAP tracker, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, issue/PR templates, Makefile.
 
-[Unreleased]: https://github.com/saranshh/kuraki/commits/main
+[Unreleased]: https://github.com/saranshhardaha/kuraki/commits/main

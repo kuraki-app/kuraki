@@ -2,7 +2,7 @@
 
 package app
 
-import "github.com/saranshh/kuraki/internal/media"
+import "github.com/saranshhardaha/kuraki/internal/media"
 
 // newProcessor returns the CGO-free pure-Go media backend. This is the default
 // build. Build with `-tags vips` (M1) to link the libvips backend instead.

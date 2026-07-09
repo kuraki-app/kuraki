@@ -15,7 +15,7 @@ Kuraki is pre-1.0. Security fixes are applied to the latest release and `main` o
 
 Report privately via one of:
 
-- GitHub's [private vulnerability reporting](https://github.com/saranshh/kuraki/security/advisories/new) (preferred), or
+- GitHub's [private vulnerability reporting](https://github.com/saranshhardaha/kuraki/security/advisories/new) (preferred), or
 - Email **saranshhardaha05@gmail.com** with subject `SECURITY: Kuraki`.
 
 Please include:

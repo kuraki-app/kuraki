@@ -14,8 +14,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/saranshh/kuraki/internal/app"
-	"github.com/saranshh/kuraki/internal/config"
+	"github.com/saranshhardaha/kuraki/internal/app"
+	"github.com/saranshhardaha/kuraki/internal/config"
 
 	"github.com/spf13/cobra"
 )

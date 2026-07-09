@@ -13,7 +13,7 @@ import (
 	"math"
 
 	"github.com/pressly/goose/v3"
-	"github.com/saranshh/kuraki/internal/db/migrations"
+	"github.com/saranshhardaha/kuraki/internal/db/migrations"
 
 	_ "modernc.org/sqlite"
 )

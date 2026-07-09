@@ -13,7 +13,7 @@ import (
 	_ "image/gif"
 	_ "image/png"
 
-	"github.com/saranshh/kuraki/internal/domain"
+	"github.com/saranshhardaha/kuraki/internal/domain"
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp" // decode-only WebP support
 )

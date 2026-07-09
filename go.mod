@@ -1,4 +1,4 @@
-module github.com/saranshh/kuraki
+module github.com/saranshhardaha/kuraki
 
 go 1.26.2
 

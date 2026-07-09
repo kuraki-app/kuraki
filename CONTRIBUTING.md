@@ -11,7 +11,7 @@ Kuraki exists to be **light**. Before proposing a feature, ask whether it fits t
 Requirements: **Go 1.26+**. libvips + ffmpeg are optional (only for the full media pipeline; the default build is pure-Go).
 
 ```sh
-git clone https://github.com/saranshh/kuraki
+git clone https://github.com/saranshhardaha/kuraki
 cd kuraki
 make build       # -> ./bin/kuraki
 make run         # build + serve on :3000

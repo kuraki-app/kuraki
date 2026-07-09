@@ -12,11 +12,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/saranshh/kuraki/internal/config"
-	"github.com/saranshh/kuraki/internal/db"
-	"github.com/saranshh/kuraki/internal/httpapi"
-	"github.com/saranshh/kuraki/internal/media"
-	"github.com/saranshh/kuraki/internal/storage"
+	"github.com/saranshhardaha/kuraki/internal/config"
+	"github.com/saranshhardaha/kuraki/internal/db"
+	"github.com/saranshhardaha/kuraki/internal/httpapi"
+	"github.com/saranshhardaha/kuraki/internal/media"
+	"github.com/saranshhardaha/kuraki/internal/storage"
 
 	"database/sql"
 )
