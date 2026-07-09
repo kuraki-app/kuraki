@@ -38,24 +38,24 @@ type User struct {
 // Asset is one imported photo or video. Originals are write-once (F-03): once
 // OriginalPath is set at import, the bytes and path never change.
 type Asset struct {
-	ID          string    // UUIDv7
-	OwnerID     string    // FK -> users.id
-	ContentHash string    // BLAKE3 hex; dedup key (F-05)
-	OriginalPath string   // relative to the originals root, e.g. 2026/07/IMG_1234.jpg
-	Filename    string
-	MimeType    string
-	MediaType   MediaType
-	Width       int
-	Height      int
-	SizeBytes   int64
-	TakenAt     *time.Time // from EXIF; nil if unknown
-	CameraMake  string
-	CameraModel string
-	GPSLat      *float64
-	GPSLon      *float64
-	DurationMS  int64  // videos only
-	Favorite    bool
-	Embedding   []byte // reserved for ML (F-32); always nil in Phase 1
-	CreatedAt   time.Time
-	DeletedAt   *time.Time // soft delete -> trash (F-10)
+	ID           string // UUIDv7
+	OwnerID      string // FK -> users.id
+	ContentHash  string // BLAKE3 hex; dedup key (F-05)
+	OriginalPath string // relative to the originals root, e.g. 2026/07/IMG_1234.jpg
+	Filename     string
+	MimeType     string
+	MediaType    MediaType
+	Width        int
+	Height       int
+	SizeBytes    int64
+	TakenAt      *time.Time // from EXIF; nil if unknown
+	CameraMake   string
+	CameraModel  string
+	GPSLat       *float64
+	GPSLon       *float64
+	DurationMS   int64 // videos only
+	Favorite     bool
+	Embedding    []byte // reserved for ML (F-32); always nil in Phase 1
+	CreatedAt    time.Time
+	DeletedAt    *time.Time // soft delete -> trash (F-10)
 }

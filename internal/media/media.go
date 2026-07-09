@@ -47,3 +47,9 @@ type Processor interface {
 	// ErrUnsupported if unavailable.
 	Poster(ctx context.Context, videoPath string, dst io.Writer) error
 }
+
+// ThumbnailFormatter may be implemented by processors that can report the
+// concrete thumbnail encoding they write.
+type ThumbnailFormatter interface {
+	ThumbnailFormat() (format string, extension string)
+}
