@@ -14,13 +14,17 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/saranshhardaha/kuraki/internal/media"
+	"github.com/saranshhardaha/kuraki/internal/storage"
+	"golang.org/x/time/rate"
 )
 
-// Deps are the collaborators the HTTP layer needs. Kept minimal in M0; grows
-// as handlers land (auth, assets, search).
+// Deps are the collaborators the HTTP layer needs.
 type Deps struct {
 	Version string
 	DB      *sql.DB
+	Store   storage.Storage
+	Media   media.Processor
 	Logger  *slog.Logger
 }
 
@@ -32,11 +36,32 @@ func NewRouter(d Deps) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
 
+	// Login throttle: ~10 attempts then 1 per 6s per IP (F-14).
+	loginLimiter := newIPLimiter(rate.Every(6*time.Second), 10, 10*time.Minute)
+
 	r.Get("/healthz", d.healthz)
-	r.Get("/metrics", d.metrics) // expvar-backed; expanded later
+	r.Get("/metrics", d.metrics)
 
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/status", d.status)
+		r.Get("/setup", d.setupStatus)
+		r.Post("/setup", d.setup)
+		r.With(loginLimiter.middleware).Post("/login", d.login)
+		r.Post("/logout", d.logout)
+		r.Get("/me", d.me)
+
+		r.Group(func(r chi.Router) {
+			r.Use(d.requireAuth)
+			r.Get("/assets", d.listAssets)
+			r.Post("/assets", d.uploadAsset)
+			r.Get("/assets/{id}", d.getAsset)
+			r.Delete("/assets/{id}", d.deleteAsset)
+			r.Post("/assets/{id}/restore", d.restoreAsset)
+			r.Get("/assets/{id}/original", d.serveOriginal)
+			r.Get("/assets/{id}/thumb", d.serveThumb)
+			r.Get("/search", d.searchAssets)
+			r.Get("/trash", d.listTrash)
+		})
 	})
 
 	// Everything else falls through to the embedded SPA.
@@ -61,11 +86,6 @@ func (d Deps) status(w http.ResponseWriter, r *http.Request) {
 		"name":    "kuraki",
 		"version": d.Version,
 	})
-}
-
-func (d Deps) metrics(w http.ResponseWriter, r *http.Request) {
-	// Placeholder; a real /metrics (idle-RAM, import counters) lands in M2.
-	writeJSON(w, http.StatusOK, map[string]string{"metrics": "not_yet_implemented"})
 }
 
 // spaHandler serves static files from the embedded UI, falling back to

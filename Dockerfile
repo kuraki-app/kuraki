@@ -4,17 +4,26 @@
 # baked into the runtime image so the media pipeline (HEIC/AVIF/RAW previews,
 # video posters) works out of the box.
 #
-# M0 builds the pure-Go binary (CGO off). M1 flips the build to `-tags vips`
-# with CGO + libvips-dev in the build stage to link the libvips backend, and
-# adds a Node stage that compiles the SvelteKit UI into internal/httpapi/assets
-# before the Go build embeds it.
+# M1 compiles the SvelteKit UI into internal/httpapi/assets before the Go build
+# embeds it. The default binary stays pure-Go; the libvips backend remains a
+# build-tagged follow-up.
 
-# --- build stage ---
+# --- web build stage ---
+FROM node:24-bookworm-slim AS web
+WORKDIR /src
+COPY web/package.json web/package-lock.json ./web/
+RUN cd web && npm ci
+COPY web ./web
+COPY internal/httpapi/assets ./internal/httpapi/assets
+RUN cd web && npm run build
+
+# --- Go build stage ---
 FROM golang:1.26-bookworm AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
+COPY --from=web /src/internal/httpapi/assets ./internal/httpapi/assets
 ARG VERSION=dev
 RUN CGO_ENABLED=0 go build -trimpath \
       -ldflags "-s -w -X main.version=${VERSION}" \

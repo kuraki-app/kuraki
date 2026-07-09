@@ -27,6 +27,10 @@ build-vips: ## Build with the libvips backend (needs libvips-dev)
 run: build ## Build and start the server
 	$(BIN_DIR)/$(BINARY) serve
 
+.PHONY: web
+web: ## Build SvelteKit UI into embedded assets
+	cd web && npm run build
+
 .PHONY: test
 test: ## Run tests with the race detector
 	go test -race ./...
