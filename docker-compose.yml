@@ -1,0 +1,27 @@
+# Kuraki — one-command self-hosting.
+#
+#   docker compose up -d      # build + start, then open http://localhost:3000
+#
+# Your photos live in ./kuraki-data (plain files: originals/, derivatives/, the
+# SQLite DB, and pre-migration snapshots) — back that directory up and you have
+# your whole library. Point an optional watch folder at anything Syncthing syncs.
+
+services:
+  kuraki:
+    build:
+      context: .
+      args:
+        VERSION: compose
+    image: ghcr.io/saranshhardaha/kuraki:latest
+    container_name: kuraki
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./kuraki-data:/data
+      # Optional: mount a folder Syncthing/rsync writes into, then run
+      #   docker compose exec kuraki kuraki import /inbox --watch
+      # - ./inbox:/inbox:ro
+    environment:
+      KURAKI_DATA_DIR: /data
+      KURAKI_ADDR: ":3000"

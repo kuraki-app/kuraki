@@ -10,8 +10,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -40,8 +42,42 @@ func rootCmd() *cobra.Command {
 		SilenceErrors: false,
 		Version:       version,
 	}
-	root.AddCommand(serveCmd(), importCmd(), verifyCmd(), versionCmd())
+	root.AddCommand(serveCmd(), importCmd(), verifyCmd(), healthcheckCmd(), versionCmd())
 	return root
+}
+
+// healthcheckCmd probes the local server's /healthz and exits non-zero if
+// unhealthy. It uses the single binary itself, so a container HEALTHCHECK needs
+// no extra tools (curl/wget) installed in the image.
+func healthcheckCmd() *cobra.Command {
+	var addr string
+	cmd := &cobra.Command{
+		Use:    "healthcheck",
+		Short:  "Probe the local server's /healthz (for container HEALTHCHECK)",
+		Hidden: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := config.Load(os.Getenv)
+			if cmd.Flags().Changed("addr") {
+				cfg.Addr = addr
+			}
+			hostport := cfg.Addr
+			if strings.HasPrefix(hostport, ":") {
+				hostport = "127.0.0.1" + hostport
+			}
+			client := &http.Client{Timeout: 5 * time.Second}
+			resp, err := client.Get("http://" + hostport + "/healthz")
+			if err != nil {
+				return err
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("unhealthy: status %d", resp.StatusCode)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&addr, "addr", config.Default().Addr, "server address to probe")
+	return cmd
 }
 
 // newLogger builds a structured slog logger (F: clear structured logs).

@@ -31,15 +31,30 @@ RUN CGO_ENABLED=0 go build -trimpath \
 
 # --- runtime stage ---
 FROM debian:bookworm-slim
+
+LABEL org.opencontainers.image.title="Kuraki" \
+      org.opencontainers.image.description="Lightweight self-hosted photo backup & sync" \
+      org.opencontainers.image.source="https://github.com/saranshhardaha/kuraki" \
+      org.opencontainers.image.licenses="AGPL-3.0"
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libvips42 ffmpeg ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /out/kuraki /usr/local/bin/kuraki
 
+# Run as an unprivileged user; /data is owned by it so the volume is writable.
+RUN useradd --system --uid 10001 --home /data kuraki \
+    && mkdir -p /data && chown kuraki:kuraki /data
+USER kuraki
+
 VOLUME ["/data"]
 ENV KURAKI_DATA_DIR=/data \
     KURAKI_ADDR=:3000
 EXPOSE 3000
+
+# Self-probe via the single binary — no curl/wget needed in the image.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["kuraki", "healthcheck"]
 
 ENTRYPOINT ["kuraki"]
 CMD ["serve"]
