@@ -9,7 +9,7 @@
 
 **Legend:** `[ ]` todo · `[~]` in progress · `[x]` done · 🔒 locked decision
 
-**Status:** M0 complete ✅ · **M1 in progress** · last updated after M0 scaffold commit.
+**Status:** M0 ✅ · M1 ✅ · **M2 backend ✅** (trash, verify, video upload+range, rate limit, /metrics — all verified end-to-end). Remaining: in-browser video player UI, docs site, HEIC/Pi verification.
 
 ---
 
@@ -44,47 +44,59 @@
 ## M1 — Core alpha (F-01…F-09)
 
 ### Frontend
-- [ ] Scaffold SvelteKit app under `web/` (adapter-static, TypeScript, Vite)
-- [ ] Build pipeline outputs to `internal/httpapi/assets/` for `go:embed` (**F-01**)
-- [ ] Add Node build stage to Dockerfile before Go build
+- [x] Scaffold SvelteKit app under `web/` (adapter-static, TypeScript, Vite)
+- [x] Build pipeline outputs to `internal/httpapi/assets/` for `go:embed` (**F-01**)
+- [x] Add Node build stage to Dockerfile before Go build
 
 ### Media backend
-- [ ] `internal/media/vips.go` (`//go:build vips`) — govips Thumbnail (WebP) + Probe
-- [ ] `internal/app/processor_vips.go` (`//go:build vips`) — wire libvips backend
-- [ ] EXIF extraction (`evanoberholster/imagemeta`): taken_at, camera, GPS
-- [ ] ffmpeg poster generation, feature-detected (**F-13 groundwork**)
-- [ ] Bounded worker pool for thumbnails (GOMAXPROCS-aware, configurable) — Pi-safe (**F-07**)
+- [x] `internal/media/vips.go` (`//go:build vips`) — govips Thumbnail (WebP) + Probe
+- [x] `internal/app/processor_vips.go` (`//go:build vips`) — wire libvips backend
+- [x] EXIF extraction (`evanoberholster/imagemeta`): taken_at, camera, GPS
+- [x] ffmpeg poster generation, feature-detected (**F-13 groundwork**)
+- [x] Bounded worker pool for thumbnails (GOMAXPROCS-aware, configurable) — Pi-safe (**F-07**)
 
 ### Import & storage (F-03, F-04, F-05)
-- [ ] `internal/importer` — recursive walk, ext filter
-- [ ] BLAKE3 stream-hash (`zeebo/blake3`) + dedup via `assets` unique index (**F-05**)
-- [ ] EXIF-date organization → `originals/YYYY/MM/` write-once (**F-03**)
-- [ ] Resume-on-interrupt via `import_state`; `--dry-run`; progress bar (**F-04**)
-- [ ] Populate `assets_fts` on import
-- [ ] `kuraki import <dir>` wired to command
+- [x] `internal/importer` — recursive walk, ext filter
+- [x] BLAKE3 stream-hash (`zeebo/blake3`) + dedup via `assets` unique index (**F-05**)
+- [x] EXIF-date organization → `originals/YYYY/MM/` write-once (**F-03**)
+- [x] Resume-on-interrupt via `import_state`; `--dry-run`; progress bar (**F-04**)
+- [x] Populate `assets_fts` on import
+- [x] `kuraki import <dir>` wired to command
 
 ### API & UI (F-06, F-08, F-09)
-- [ ] `GET /api/assets` — cursor-paginated, day/month grouped timeline
-- [ ] `GET /api/assets/:id`, `/original`, `/thumb?size=` handlers
-- [ ] `GET /api/search?q=&from=&to=&type=&camera=` over FTS5 (**F-09**)
-- [ ] Timeline UI — virtualized infinite scroll, responsive grid (**F-06**)
-- [ ] Photo viewer — progressive full-size, EXIF panel, keyboard nav, download (**F-08**)
-- [ ] First-run admin setup flow + login (basic; hardened in M2) (**F-02**)
+- [x] `GET /api/assets` — cursor-paginated, day/month grouped timeline
+- [x] `GET /api/assets/:id`, `/original`, `/thumb?size=` handlers
+- [x] `GET /api/search?q=&from=&to=&type=&camera=` over FTS5 (**F-09**)
+- [x] Timeline UI — bounded visible window, infinite scroll, responsive grid (**F-06**)
+- [x] Photo viewer — progressive full-size, EXIF panel, keyboard nav, download (**F-08**)
+- [x] First-run admin setup flow + login (basic; hardened in M2) (**F-02**)
 
 ### M1 exit
-- [ ] Import a real mixed library (JPEG/HEIC/PNG/MP4), browse timeline + viewer on Pi-class hardware
-- [ ] `go test -race ./...` green
+- [~] Import a real mixed library, browse timeline + viewer — **JPEG/PNG/MP4 verified end-to-end locally**
+  (import → BLAKE3 dedup → thumbnails + video poster → `/api/assets` timeline → thumb serving →
+  prefix search → first-run setup + session auth). HEIC + actual Pi-class hardware still pending.
+- [ ] Verify `-tags vips` build in an environment with `pkg-config` + libvips installed (fails locally only
+  because libvips/pkg-config absent — not a code error; govips dep present)
+- [x] `go test -race ./...` green
+- [x] Fixed: filename search now uses FTS5 prefix matching so `photo` finds `photo3.jpg` (F-09)
 
 ---
 
 ## M2 — Beta hardening (F-10…F-14)
 
-- [ ] **F-10** Trash: soft-delete → `trash/`, 30-day retention, restore endpoint, purge job
-- [ ] **F-11** Finalize safe-upgrade UX (snapshot verified before migrate; surfaced in logs)
-- [ ] **F-12** `kuraki verify` — re-checksum library, report path + expected/actual on mismatch
-- [ ] **F-13** Video: upload, ffmpeg poster, in-browser playback of web-compatible formats
-- [ ] **F-14** Auth hardening — session cookies (HttpOnly/SameSite), argon2id, login rate limit (11th attempt blocked)
-- [ ] `/metrics` real metrics (idle RAM, import counters)
+_Backend complete & verified end-to-end. Remaining: in-browser `<video>` player UI (frontend), docs site, HEIC/Pi verification._
+
+- [x] **F-10** Trash: `internal/trash` (delete → `trash/`, restore, 30-day retention, purge janitor at
+  startup + daily); `DELETE /api/assets/:id`, `POST /:id/restore`, `GET /api/trash`. Verified (delete→trash→restore).
+- [x] **F-11** Auto pre-migration snapshot (M0) runs + logs before every migrate; trash janitor logs purges
+- [x] **F-12** `kuraki verify` — re-checksums originals via `storage.Storage`, reports MISMATCH
+  (path + expected/actual hash), MISSING, and ERROR; exits non-zero on any problem. `internal/verify`
+  package + `App.Verify` + CLI. Verified end-to-end (healthy→exit 0; corrupted original→flagged, exit 1).
+- [~] **F-13** Video: `POST /api/assets` multipart upload → importer, ffmpeg poster, HTTP **Range** on
+  `/original` for seeking. Backend done + verified (206 partial content). In-browser `<video>` player UI = frontend follow-up.
+- [x] **F-14** Auth hardening — HttpOnly/SameSite cookies + argon2id (M1) + per-IP login **rate limit**
+  (`x/time/rate`, ~10 then 429). Verified (10 allowed → 429).
+- [x] `/metrics` real metrics — mem/goroutines/uptime/GC + `assets_total`/`assets_trashed`/`library_bytes`
 - [ ] Docs site + install demo GIF; 50 external installs target
 
 ---

@@ -19,4 +19,18 @@ from v1.0.0 onward (pre-1.0 is unstable and may change).
 - Dockerfile (runtime bundles libvips + ffmpeg), `.dockerignore`, and GitHub Actions CI (test/race, cross-compile matrix, GHCR image).
 - Project docs: README, ROADMAP tracker, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, issue/PR templates, Makefile.
 
+### Added — M1 core alpha
+- CLI bulk import (`kuraki import`): recursive walk, BLAKE3 content-hash dedup, EXIF-date `originals/YYYY/MM/` organization, resume via `import_state`, `--dry-run`, progress output, bounded thumbnail/poster worker pool.
+- Media pipeline: pure-Go JPEG thumbnails + EXIF probe; libvips WebP backend behind `-tags vips`; ffmpeg video posters.
+- Web API (chi): cursor-paginated day/month timeline, asset detail, original + thumbnail serving, FTS5 search (prefix matching) with date/type/camera filters.
+- Auth: first-run admin setup, argon2id password hashing, HttpOnly/SameSite session cookies.
+- Embedded SvelteKit SPA (virtualized timeline, photo viewer) built into the binary; Docker Node build stage.
+
+### Added — M2 beta hardening
+- `kuraki verify`: re-checksums originals, reports mismatch/missing with expected/actual hash, non-zero exit on problems.
+- Trash (F-10): soft-delete to `trash/` with 30-day retention, restore, `GET /api/trash`, and a startup + daily purge janitor.
+- Video (F-13): browser upload via `POST /api/assets`, HTTP Range support on originals for in-browser seeking.
+- Login rate limiting (F-14): per-IP token bucket on `/api/login`.
+- Real `/metrics`: runtime memory/goroutines/uptime plus library asset counts and size.
+
 [Unreleased]: https://github.com/saranshhardaha/kuraki/commits/main

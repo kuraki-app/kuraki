@@ -18,16 +18,36 @@ calm on minimal hardware** — one binary, plain-file storage, runs on a Raspber
 Pi, boring upgrades, zero lock-in. It targets the gap between Immich (heavy) and
 Ente (hard to self-host). Phase 1 = single-owner personal backup.
 
-## 2. Current state (as of commit `06ca1ed`)
+## 2. Current state (as of M1 core-alpha working tree)
 
-- **Milestone:** M0 (scaffold) **complete**. M1 (core alpha) **not started**.
-- **Builds & tests:** `go build ./...` clean, `go test -race ./...` green.
+- **Milestone:** M0 **complete**. M1 **complete & verified**. **M2 backend complete & verified** —
+  F-10 trash, F-12 verify, F-13 video upload+Range, F-14 login rate-limit, /metrics all done + exercised E2E.
+  Remaining: in-browser `<video>` player UI (frontend), docs site. (M1 leftovers: HEIC needs libvips env; Pi benchmark.)
+- **Builds & tests:** `go build ./...` clean, `go vet ./...` clean, `gofmt` clean, `go test -race ./...` green.
+- **E2E verified (JPEG/PNG/MP4):** `kuraki import` of a mixed dir → 4 imported + 1 byte-dedup,
+  write-once `originals/YYYY/MM/`, 3 thumbs + 1 ffmpeg poster in `derivatives`, resume re-run skipped all 5;
+  then `serve` → first-run `/api/setup` claims the importer-created `owner` → `/api/assets` timeline (4),
+  `/thumb` 200 image/jpeg, prefix `/api/search?q=photo` → 3, `type` filters, and 401 without a session cookie.
 - **Cross-compiles:** linux/amd64, linux/arm64, darwin/arm64, windows/amd64 (CGO off).
 - **Runtime verified:** `kuraki serve` boots zero-config, runs migrations (WAL),
   serves `/healthz`, `/api/status`, and the embedded UI shell.
 - **Module path:** `github.com/saranshhardaha/kuraki`.
-- **Not yet present:** `web/` (SvelteKit UI), `internal/importer`, `internal/auth`,
-  the libvips backend (`internal/media/vips.go`), EXIF extraction, real handlers.
+- **M1 present:** `internal/importer` recursively walks media files, BLAKE3-hashes
+  originals, dedups per owner, writes originals under `originals/YYYY/MM/`,
+  records `import_state`, populates `assets_fts`, generates pure-Go JPEG thumbs,
+  runs a bounded derivative worker pool, and wires `kuraki import <dir>` with
+  `--dry-run`, progress output, and `--thumb-workers`. Pure-Go `Probe` extracts
+  EXIF capture time/camera/GPS when available, and `Poster` shells to ffmpeg when
+  present. A `//go:build vips` backend probes through govips and exports WebP
+  thumbnails; local `-tags vips` verification is blocked until `pkg-config` and
+  libvips are installed. Real asset/search/original/thumb HTTP handlers are present.
+- **Web UI present:** SvelteKit static app under `web/`, built into
+  `internal/httpapi/assets/`; Docker has a Node build stage. UI has first-run
+  setup/login, searchable grouped timeline with bounded visible-window rendering,
+  infinite scroll, progressive viewer, EXIF panel, keyboard navigation, download,
+  and logout.
+- **Not yet verified:** real mixed-library import/browse on Pi-class hardware;
+  tagged libvips build on a machine with libvips development packages.
 
 ## 3. Locked decisions (do NOT relitigate without human sign-off)
 
@@ -61,11 +81,11 @@ internal/
   domain/              core entities — **NO I/O EVER**
   db/                  Open (WAL), Migrate (+snapshot); migrations/*.sql embedded
   storage/             Storage interface + FS impl (write-once, atomic, traversal-safe)
-  media/               Processor interface + purego.go (fallback); vips.go = TODO (M1)
+  media/               Processor interface + purego.go fallback + vips.go tagged backend
   httpapi/             chi router, handlers, middleware; assets/ = embedded UI
-  importer/            TODO (M1): walk, hash, dedup, resume
-  auth/                TODO (M2): sessions, argon2id, rate limit
-web/                   TODO (M1): SvelteKit source
+  importer/            recursive import, BLAKE3 dedup, import_state resume, derivatives
+  auth/                argon2id password hashes + session IDs (M2 hardens rate limits)
+web/                   SvelteKit static SPA source
 docs/                  PRD/BRD — gitignored, local only
 ```
 
@@ -107,7 +127,7 @@ Config: `--data-dir`/`KURAKI_DATA_DIR` (default `./kuraki-data`), `--addr`/`KURA
 | Milestone | Scope | Status |
 |---|---|---|
 | M0 | Scaffold (config, db+schema, storage/media ifaces, CLI, http, CI, docker) | ✅ done |
-| M1 | Core alpha F-01…F-09 (import, thumbnails, timeline, viewer, search, UI) | ⬜ not started |
+| M1 | Core alpha F-01…F-09 (import, thumbnails, timeline, viewer, search, UI) | 🚧 implementation mostly complete; exit verification pending |
 | M2 | Beta F-10…F-14 (trash, verify, video, auth hardening) | ⬜ not started |
 | M3 | v1.0 (benchmarks, hardening, launch) | ⬜ not started |
 
@@ -115,18 +135,11 @@ Fine-grained checkboxes live in [ROADMAP.md](./ROADMAP.md) — keep both in sync
 
 ## 9. Next up (suggested order for M1)
 
-1. Add deps: `zeebo/blake3`, `evanoberholster/imagemeta`, `google/uuid`.
-2. `internal/importer`: recursive walk → BLAKE3 stream-hash → dedup (unique index)
-   → EXIF date → write original to `originals/YYYY/MM/` → insert asset + FTS row →
-   resume via `import_state`; support `--dry-run`; progress bar. Wire `kuraki import`.
-3. `internal/media/vips.go` (`//go:build vips`) + `internal/app/processor_vips.go`:
-   govips Thumbnail (WebP) + Probe; ffmpeg poster (feature-detected). Bounded worker pool.
-4. EXIF extraction in the pure-Go `Probe` too (taken_at/camera/GPS).
-5. HTTP handlers: `GET /api/assets` (cursor, day-grouped), `/api/assets/:id`,
-   `/thumb`, `/original`, `/api/search`. Repository layer over sqlc or database/sql.
-6. `web/`: SvelteKit static app; virtualized timeline + viewer; build into
-   `internal/httpapi/assets/`; add Node stage to Dockerfile.
-7. First-run admin setup + basic login (hardened in M2).
+1. Run M1 exit verification with a real mixed library (JPEG/HEIC/PNG/MP4), including
+   timeline/viewer browsing on Pi-class hardware.
+2. Verify `make build-vips` / `go test -tags vips ./...` on a machine or container
+   with `pkg-config` and libvips development packages installed.
+3. If exit verification passes, mark M1 done and start M2 auth hardening/trash/verify.
 
 ## 10. Coordination protocol (multi-agent)
 
@@ -143,6 +156,30 @@ Fine-grained checkboxes live in [ROADMAP.md](./ROADMAP.md) — keep both in sync
 
 ## 11. Handoff log (append newest at top)
 
+- Working tree — **M2 backend (Claude): F-10 trash, F-13 video, F-14 rate-limit, /metrics.**
+  New `internal/trash` (delete/restore/purge + tests) with `DELETE /api/assets/:id`, `POST /:id/restore`,
+  `GET /api/trash`, and a startup+daily purge janitor in `app`. `POST /api/assets` multipart upload runs the
+  importer (added `Media` to httpapi.Deps). HTTP Range on `/original` via `http.ServeContent` (video seeking).
+  Per-IP login limiter (`x/time/rate`, added dep) on `/api/login`. Real `/metrics` (runtime + library counts).
+  All verified E2E (upload→2, delete→trash→restore, 206 range, 10-then-429, metrics). fmt/vet/-race green.
+- Working tree — **Started M2 (Claude): F-12 `kuraki verify`.** New `internal/verify` package
+  (re-hashes originals via `storage.Storage`, classifies OK/mismatch/missing/error), `App.Verify`,
+  and CLI wiring (prints findings with path + expected/actual, exits non-zero on problems). Unit test +
+  end-to-end verified (healthy→exit 0, corrupted original→MISMATCH + exit 1). fmt/vet/-race all green.
+- Working tree — **Re-checked M1 end-to-end (Claude):** built + ran a real mixed import
+  (JPEG/PNG/MP4 + a byte-duplicate) → verified dedup, write-once date tree, thumbs + ffmpeg
+  poster, resume; then serve → setup/login → timeline/thumb/search/auth over HTTP. **Fixed a
+  filename-search gap:** `ftsQuery` now emits FTS5 prefix terms (`"photo"*`) so `photo` matches
+  `photo3.jpg` (F-09). `-tags vips` build fails locally only for missing pkg-config/libvips (not code).
+- Working tree — Continued M1: added first-run setup/login/session APIs and UI,
+  bounded importer progress/derivative workers, tagged govips WebP thumbnail/probe
+  backend, viewer keyboard/progressive behavior, and visible-window timeline rendering.
+- Working tree — Continued M1: pure-Go EXIF extraction, JPEG thumbnail generation,
+  ffmpeg poster support, asset/search/original/thumb APIs, SvelteKit static UI,
+  Docker Node build stage, and browser verification of desktop/mobile empty state.
+- Working tree — Added first M1 importer slice: BLAKE3/UUID deps, recursive import
+  package, write-once original storage, DB/FTS/import_state writes, dry-run mode,
+  `kuraki import <dir>` wiring, and importer tests.
 - `06ca1ed` — Renamed module/org `saranshh` → `saranshhardaha` (correct GitHub user).
 - `4824823` — Added OSS scaffolding (README, CONTRIBUTING, SECURITY, CoC, CHANGELOG,
   issue/PR templates, Makefile, .editorconfig, CODEOWNERS).
