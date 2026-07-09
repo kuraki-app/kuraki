@@ -16,6 +16,8 @@ import (
 
 	"github.com/saranshhardaha/kuraki/internal/app"
 	"github.com/saranshhardaha/kuraki/internal/config"
+	"github.com/saranshhardaha/kuraki/internal/importer"
+	"github.com/saranshhardaha/kuraki/internal/verify"
 
 	"github.com/spf13/cobra"
 )
@@ -83,27 +85,106 @@ func serveCmd() *cobra.Command {
 }
 
 func importCmd() *cobra.Command {
+	var (
+		dataDir      string
+		dryRun       bool
+		watch        bool
+		thumbWorkers int
+	)
 	cmd := &cobra.Command{
 		Use:   "import <dir>",
 		Short: "Bulk-import a directory of photos/videos (M1)",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("import is implemented in M1 (F-04); not yet available")
+			if watch {
+				return fmt.Errorf("watch import is not implemented yet")
+			}
+
+			cfg := config.Load(os.Getenv)
+			if cmd.Flags().Changed("data-dir") {
+				cfg.DataDir = dataDir
+			}
+
+			log := newLogger()
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+
+			a, err := app.New(ctx, cfg, version, log)
+			if err != nil {
+				return err
+			}
+			defer a.Close()
+
+			result, err := a.Import(ctx, importer.Options{
+				SourceDir:        args[0],
+				DryRun:           dryRun,
+				Progress:         cmd.OutOrStdout(),
+				ThumbnailWorkers: thumbWorkers,
+			})
+			if err != nil {
+				return err
+			}
+			for _, fileErr := range result.Errors {
+				log.Error("import file failed", "path", fileErr.Path, "err", fileErr.Err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(),
+				"scanned=%d imported=%d skipped=%d duplicates=%d errors=%d bytes=%d\n",
+				result.Scanned, result.Imported, result.Skipped, result.Duplicates, len(result.Errors), result.Bytes)
+			return nil
 		},
 	}
-	cmd.Flags().Bool("dry-run", false, "scan and report without writing")
-	cmd.Flags().Bool("watch", false, "keep watching the directory for new files")
+	cmd.Flags().StringVar(&dataDir, "data-dir", config.Default().DataDir, "library data directory")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "scan and report without writing")
+	cmd.Flags().BoolVar(&watch, "watch", false, "keep watching the directory for new files")
+	cmd.Flags().IntVar(&thumbWorkers, "thumb-workers", 0, "thumbnail/poster workers (default: min(GOMAXPROCS, 2))")
 	return cmd
 }
 
 func verifyCmd() *cobra.Command {
-	return &cobra.Command{
+	var dataDir string
+	cmd := &cobra.Command{
 		Use:   "verify",
-		Short: "Re-checksum the library and report mismatches (M2)",
+		Short: "Re-checksum the library and report mismatches",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("verify is implemented in M2 (F-12); not yet available")
+			cfg := config.Load(os.Getenv)
+			if cmd.Flags().Changed("data-dir") {
+				cfg.DataDir = dataDir
+			}
+
+			log := newLogger()
+			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+
+			a, err := app.New(ctx, cfg, version, log)
+			if err != nil {
+				return err
+			}
+			defer a.Close()
+
+			out := cmd.OutOrStdout()
+			result, err := a.Verify(ctx, nil)
+			if err != nil {
+				return err
+			}
+			for _, p := range result.Problems {
+				switch p.Status {
+				case verify.StatusMismatch:
+					fmt.Fprintf(out, "MISMATCH %s (%s)\n  expected %s\n  actual   %s\n", p.Filename, p.Path, p.Expected, p.Actual)
+				case verify.StatusMissing:
+					fmt.Fprintf(out, "MISSING  %s (%s)\n", p.Filename, p.Path)
+				default:
+					fmt.Fprintf(out, "ERROR    %s (%s): %s\n", p.Filename, p.Path, p.Err)
+				}
+			}
+			fmt.Fprintf(out, "checked=%d ok=%d problems=%d\n", result.Checked, result.OK, len(result.Problems))
+			if !result.Healthy() {
+				return fmt.Errorf("verify found %d problem(s)", len(result.Problems))
+			}
+			return nil
 		},
 	}
+	cmd.Flags().StringVar(&dataDir, "data-dir", config.Default().DataDir, "library data directory")
+	return cmd
 }
 
 func versionCmd() *cobra.Command {

@@ -15,8 +15,11 @@ import (
 	"github.com/saranshhardaha/kuraki/internal/config"
 	"github.com/saranshhardaha/kuraki/internal/db"
 	"github.com/saranshhardaha/kuraki/internal/httpapi"
+	"github.com/saranshhardaha/kuraki/internal/importer"
 	"github.com/saranshhardaha/kuraki/internal/media"
 	"github.com/saranshhardaha/kuraki/internal/storage"
+	"github.com/saranshhardaha/kuraki/internal/trash"
+	"github.com/saranshhardaha/kuraki/internal/verify"
 
 	"database/sql"
 )
@@ -75,12 +78,64 @@ func New(ctx context.Context, cfg config.Config, version string, log *slog.Logge
 	}, nil
 }
 
+// Import walks a source directory into the local library.
+func (a *App) Import(ctx context.Context, opts importer.Options) (importer.Result, error) {
+	runner := importer.Importer{
+		DB:    a.DB,
+		Store: a.Store,
+		Media: a.Media,
+	}
+	return runner.Run(ctx, opts)
+}
+
+// Verify re-checksums every original against its stored BLAKE3 hash (F-12).
+func (a *App) Verify(ctx context.Context, progress func(done, total int)) (verify.Result, error) {
+	v := verify.Verifier{DB: a.DB, Store: a.Store}
+	return v.Run(ctx, progress)
+}
+
+// PurgeTrash permanently removes assets whose retention window has elapsed (F-10).
+func (a *App) PurgeTrash(ctx context.Context) (int, error) {
+	return trash.PurgeExpired(ctx, a.DB, a.Store, time.Now().Add(-trash.Retention))
+}
+
+// startTrashJanitor purges expired trash once at startup and daily thereafter.
+func (a *App) startTrashJanitor(ctx context.Context) {
+	run := func() {
+		n, err := a.PurgeTrash(ctx)
+		if err != nil {
+			a.Log.Warn("trash purge failed", "err", err)
+			return
+		}
+		if n > 0 {
+			a.Log.Info("purged expired trash", "count", n)
+		}
+	}
+	run()
+	go func() {
+		t := time.NewTicker(24 * time.Hour)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				run()
+			}
+		}
+	}()
+}
+
 // Serve starts the HTTP server and blocks until ctx is cancelled, then shuts
 // down gracefully.
 func (a *App) Serve(ctx context.Context) error {
+	a.startTrashJanitor(ctx)
+
 	handler := httpapi.NewRouter(httpapi.Deps{
 		Version: a.Version,
 		DB:      a.DB,
+		Store:   a.Store,
+		Media:   a.Media,
 		Logger:  a.Log,
 	})
 	srv := &http.Server{
