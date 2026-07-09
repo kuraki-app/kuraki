@@ -113,10 +113,11 @@ _Backend complete & verified end-to-end. Remaining: in-browser `<video>` player 
 
 - [x] **F-20** Watch-folder ingestion — `kuraki import --watch [--watch-interval]` rescans and auto-imports
   new files (import_state makes rescans cheap; pairs with Syncthing/rsync). Verified.
-- [ ] **F-21** Albums UI (schema already ships in v1)
+- [~] **F-21** Albums — full backend API done + verified (`/api/albums` CRUD, `/{id}/assets` add/remove,
+  membership counts). Albums **UI** is a frontend follow-up.
 - [ ] **F-22** Map view from GPS EXIF (client clustering, OSM tiles) — frontend
-- [~] **F-23** Multi-select batch ops — `POST /api/assets/batch` (delete/restore/favorite/unfavorite) done + verified.
-  Batch **zip download** still pending.
+- [x] **F-23** Multi-select batch ops — `POST /api/assets/batch` (delete/restore/favorite/unfavorite) +
+  `POST /api/assets/zip` (stream zip of selected originals). Verified.
 - [ ] **F-24** RAW import + embedded-preview extraction
 - [ ] **F-25** Docker image polish as alternative install path
 - [x] **F-26** "On this day" memories — `GET /api/memories` (today's month/day across years, optional `?date=`). Verified.

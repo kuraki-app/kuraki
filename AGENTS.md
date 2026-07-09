@@ -156,7 +156,10 @@ Fine-grained checkboxes live in [ROADMAP.md](./ROADMAP.md) — keep both in sync
 
 ## 11. Handoff log (append newest at top)
 
-- `HEAD` — **P1 backend (Claude), committed granularly:** F-20 watch-folder (`import --watch`),
+- `HEAD` — **P1 backend cont. (Claude):** F-23 batch **zip download** (`POST /api/assets/zip` streams a zip of
+  selected originals) and **F-21 albums** full backend API (`/api/albums` CRUD + `/{id}/assets` add/remove).
+  Both verified E2E, committed separately. Albums/map/video **UI** remain frontend follow-ups.
+- `HEAD~` — **P1 backend (Claude), committed granularly:** F-20 watch-folder (`import --watch`),
   favorites (`POST /assets/:id/favorite` + `GET /favorites`), F-26 "on this day" (`GET /memories`),
   F-23 batch ops (`POST /assets/batch`). All verified E2E; fmt/vet/-race green. The whole prior M1+M2
   pile was also committed in 9 logical commits (deps→importer→verify→trash→auth→media→api→app→docs).
