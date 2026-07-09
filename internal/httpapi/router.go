@@ -66,6 +66,14 @@ func NewRouter(d Deps) http.Handler {
 			r.Get("/favorites", d.listFavorites)
 			r.Get("/memories", d.onThisDay)
 			r.Get("/trash", d.listTrash)
+
+			r.Get("/albums", d.listAlbums)
+			r.Post("/albums", d.createAlbum)
+			r.Get("/albums/{id}", d.getAlbum)
+			r.Patch("/albums/{id}", d.renameAlbum)
+			r.Delete("/albums/{id}", d.deleteAlbum)
+			r.Post("/albums/{id}/assets", d.addAlbumAssets)
+			r.Delete("/albums/{id}/assets", d.removeAlbumAssets)
 		})
 	})
 
