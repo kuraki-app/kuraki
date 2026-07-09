@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/saranshhardaha/kuraki/internal/app"
 	"github.com/saranshhardaha/kuraki/internal/config"
@@ -86,20 +87,17 @@ func serveCmd() *cobra.Command {
 
 func importCmd() *cobra.Command {
 	var (
-		dataDir      string
-		dryRun       bool
-		watch        bool
-		thumbWorkers int
+		dataDir       string
+		dryRun        bool
+		watch         bool
+		watchInterval time.Duration
+		thumbWorkers  int
 	)
 	cmd := &cobra.Command{
 		Use:   "import <dir>",
-		Short: "Bulk-import a directory of photos/videos (M1)",
+		Short: "Bulk-import a directory of photos/videos",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if watch {
-				return fmt.Errorf("watch import is not implemented yet")
-			}
-
 			cfg := config.Load(os.Getenv)
 			if cmd.Flags().Changed("data-dir") {
 				cfg.DataDir = dataDir
@@ -115,12 +113,41 @@ func importCmd() *cobra.Command {
 			}
 			defer a.Close()
 
-			result, err := a.Import(ctx, importer.Options{
+			opts := importer.Options{
 				SourceDir:        args[0],
 				DryRun:           dryRun,
 				Progress:         cmd.OutOrStdout(),
 				ThumbnailWorkers: thumbWorkers,
-			})
+			}
+
+			// Watch mode: rescan on an interval and auto-import new files (F-20).
+			// The importer's import_state skip makes each rescan cheap, so this
+			// pairs cleanly with folder-sync tools like Syncthing.
+			if watch {
+				opts.Progress = nil
+				log.Info("watching for new media", "dir", opts.SourceDir, "interval", watchInterval.String())
+				ticker := time.NewTicker(watchInterval)
+				defer ticker.Stop()
+				for {
+					result, err := a.Import(ctx, opts)
+					if err != nil {
+						if ctx.Err() != nil {
+							return nil
+						}
+						log.Error("watch import pass failed", "err", err)
+					} else if result.Imported > 0 || len(result.Errors) > 0 {
+						log.Info("watch import", "imported", result.Imported,
+							"duplicates", result.Duplicates, "errors", len(result.Errors))
+					}
+					select {
+					case <-ctx.Done():
+						return nil
+					case <-ticker.C:
+					}
+				}
+			}
+
+			result, err := a.Import(ctx, opts)
 			if err != nil {
 				return err
 			}
@@ -135,7 +162,8 @@ func importCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&dataDir, "data-dir", config.Default().DataDir, "library data directory")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "scan and report without writing")
-	cmd.Flags().BoolVar(&watch, "watch", false, "keep watching the directory for new files")
+	cmd.Flags().BoolVar(&watch, "watch", false, "keep watching the directory and auto-import new files")
+	cmd.Flags().DurationVar(&watchInterval, "watch-interval", 15*time.Second, "rescan interval in --watch mode")
 	cmd.Flags().IntVar(&thumbWorkers, "thumb-workers", 0, "thumbnail/poster workers (default: min(GOMAXPROCS, 2))")
 	return cmd
 }
