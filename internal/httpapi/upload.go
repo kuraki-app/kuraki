@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/saranshhardaha/kuraki/internal/importer"
+	"github.com/kuraki-app/kuraki/internal/importer"
 )
 
 // maxUploadBytes caps a single multipart upload request.

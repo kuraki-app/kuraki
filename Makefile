@@ -6,7 +6,7 @@ CMD         := ./cmd/kuraki
 BIN_DIR     := bin
 VERSION     ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS     := -s -w -X main.version=$(VERSION)
-IMAGE       := ghcr.io/saranshhardaha/kuraki
+IMAGE       := ghcr.io/kuraki-app/kuraki
 
 .DEFAULT_GOAL := help
 

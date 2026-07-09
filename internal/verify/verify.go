@@ -13,7 +13,7 @@ import (
 	"io"
 	"io/fs"
 
-	"github.com/saranshhardaha/kuraki/internal/storage"
+	"github.com/kuraki-app/kuraki/internal/storage"
 	"github.com/zeebo/blake3"
 )
 

@@ -19,9 +19,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/saranshhardaha/kuraki/internal/domain"
-	"github.com/saranshhardaha/kuraki/internal/media"
-	"github.com/saranshhardaha/kuraki/internal/storage"
+	"github.com/kuraki-app/kuraki/internal/domain"
+	"github.com/kuraki-app/kuraki/internal/media"
+	"github.com/kuraki-app/kuraki/internal/storage"
 	"github.com/zeebo/blake3"
 )
 

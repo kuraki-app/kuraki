@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/saranshhardaha/kuraki/internal/trash"
+	"github.com/kuraki-app/kuraki/internal/trash"
 )
 
 const maxBatchIDs = 1000

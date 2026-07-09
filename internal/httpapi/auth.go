@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/saranshhardaha/kuraki/internal/auth"
+	"github.com/kuraki-app/kuraki/internal/auth"
 )
 
 const sessionCookieName = "kuraki_session"

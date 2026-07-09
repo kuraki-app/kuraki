@@ -31,7 +31,7 @@ Ente (hard to self-host). Phase 1 = single-owner personal backup.
 - **Cross-compiles:** linux/amd64, linux/arm64, darwin/arm64, windows/amd64 (CGO off).
 - **Runtime verified:** `kuraki serve` boots zero-config, runs migrations (WAL),
   serves `/healthz`, `/api/status`, and the embedded UI shell.
-- **Module path:** `github.com/saranshhardaha/kuraki`.
+- **Module path:** `github.com/kuraki-app/kuraki`.
 - **M1 present:** `internal/importer` recursively walks media files, BLAKE3-hashes
   originals, dedups per owner, writes originals under `originals/YYYY/MM/`,
   records `import_state`, populates `assets_fts`, generates pure-Go JPEG thumbs,

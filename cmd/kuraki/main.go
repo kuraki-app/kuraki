@@ -17,10 +17,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/saranshhardaha/kuraki/internal/app"
-	"github.com/saranshhardaha/kuraki/internal/config"
-	"github.com/saranshhardaha/kuraki/internal/importer"
-	"github.com/saranshhardaha/kuraki/internal/verify"
+	"github.com/kuraki-app/kuraki/internal/app"
+	"github.com/kuraki-app/kuraki/internal/config"
+	"github.com/kuraki-app/kuraki/internal/importer"
+	"github.com/kuraki-app/kuraki/internal/verify"
 
 	"github.com/spf13/cobra"
 )

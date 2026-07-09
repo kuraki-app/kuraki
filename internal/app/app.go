@@ -12,14 +12,14 @@ import (
 	"os"
 	"time"
 
-	"github.com/saranshhardaha/kuraki/internal/config"
-	"github.com/saranshhardaha/kuraki/internal/db"
-	"github.com/saranshhardaha/kuraki/internal/httpapi"
-	"github.com/saranshhardaha/kuraki/internal/importer"
-	"github.com/saranshhardaha/kuraki/internal/media"
-	"github.com/saranshhardaha/kuraki/internal/storage"
-	"github.com/saranshhardaha/kuraki/internal/trash"
-	"github.com/saranshhardaha/kuraki/internal/verify"
+	"github.com/kuraki-app/kuraki/internal/config"
+	"github.com/kuraki-app/kuraki/internal/db"
+	"github.com/kuraki-app/kuraki/internal/httpapi"
+	"github.com/kuraki-app/kuraki/internal/importer"
+	"github.com/kuraki-app/kuraki/internal/media"
+	"github.com/kuraki-app/kuraki/internal/storage"
+	"github.com/kuraki-app/kuraki/internal/trash"
+	"github.com/kuraki-app/kuraki/internal/verify"
 
 	"database/sql"
 )

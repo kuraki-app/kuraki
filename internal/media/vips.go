@@ -12,7 +12,7 @@ import (
 
 	"github.com/davidbyttow/govips/v2/vips"
 	"github.com/evanoberholster/imagemeta"
-	"github.com/saranshhardaha/kuraki/internal/domain"
+	"github.com/kuraki-app/kuraki/internal/domain"
 )
 
 // Vips is the libvips-backed Processor. It handles broader image formats than

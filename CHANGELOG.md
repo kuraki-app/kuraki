@@ -33,4 +33,4 @@ from v1.0.0 onward (pre-1.0 is unstable and may change).
 - Login rate limiting (F-14): per-IP token bucket on `/api/login`.
 - Real `/metrics`: runtime memory/goroutines/uptime plus library asset counts and size.
 
-[Unreleased]: https://github.com/saranshhardaha/kuraki/commits/main
+[Unreleased]: https://github.com/kuraki-app/kuraki/commits/main

@@ -14,8 +14,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/saranshhardaha/kuraki/internal/media"
-	"github.com/saranshhardaha/kuraki/internal/storage"
+	"github.com/kuraki-app/kuraki/internal/media"
+	"github.com/kuraki-app/kuraki/internal/storage"
 	"golang.org/x/time/rate"
 )
 

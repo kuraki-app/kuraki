@@ -16,7 +16,7 @@ import (
 	_ "image/png"
 
 	"github.com/evanoberholster/imagemeta"
-	"github.com/saranshhardaha/kuraki/internal/domain"
+	"github.com/kuraki-app/kuraki/internal/domain"
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp" // decode-only WebP support
 )

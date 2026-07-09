@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/saranshhardaha/kuraki/internal/trash"
+	"github.com/kuraki-app/kuraki/internal/trash"
 )
 
 // deleteAsset soft-deletes an asset into the trash (F-10).

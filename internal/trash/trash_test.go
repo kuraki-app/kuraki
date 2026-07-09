@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/saranshhardaha/kuraki/internal/db"
-	"github.com/saranshhardaha/kuraki/internal/storage"
+	"github.com/kuraki-app/kuraki/internal/db"
+	"github.com/kuraki-app/kuraki/internal/storage"
 )
 
 func setup(t *testing.T) (context.Context, *sql.DB, storage.Storage) {

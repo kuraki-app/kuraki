@@ -16,7 +16,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/saranshhardaha/kuraki/internal/domain"
+	"github.com/kuraki-app/kuraki/internal/domain"
 )
 
 // Meta is the metadata extracted from a source file during a Probe.

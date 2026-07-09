@@ -34,7 +34,7 @@ FROM debian:bookworm-slim
 
 LABEL org.opencontainers.image.title="Kuraki" \
       org.opencontainers.image.description="Lightweight self-hosted photo backup & sync" \
-      org.opencontainers.image.source="https://github.com/saranshhardaha/kuraki" \
+      org.opencontainers.image.source="https://github.com/kuraki-app/kuraki" \
       org.opencontainers.image.licenses="AGPL-3.0"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

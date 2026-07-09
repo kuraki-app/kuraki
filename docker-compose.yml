@@ -12,7 +12,7 @@ services:
       context: .
       args:
         VERSION: compose
-    image: ghcr.io/saranshhardaha/kuraki:latest
+    image: ghcr.io/kuraki-app/kuraki:latest
     container_name: kuraki
     restart: unless-stopped
     ports:

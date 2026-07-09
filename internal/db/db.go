@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/kuraki-app/kuraki/internal/db/migrations"
 	"github.com/pressly/goose/v3"
-	"github.com/saranshhardaha/kuraki/internal/db/migrations"
 
 	_ "modernc.org/sqlite"
 )

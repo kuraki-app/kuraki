@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/saranshhardaha/kuraki/internal/storage"
+	"github.com/kuraki-app/kuraki/internal/storage"
 )
 
 // Retention is how long a trashed asset is restorable before purge (F-10).
