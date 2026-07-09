@@ -1,0 +1,33 @@
+name: ✨ Feature request
+description: Suggest an idea for Kuraki
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Kuraki's north star is staying **light**. Features are weighed against that.
+        Please check the [ROADMAP](../../ROADMAP.md) and existing issues first.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the use case and the pain today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: fit
+    attributes:
+      label: Fit check
+      options:
+        - label: This keeps Kuraki light (single binary, low resource use, no lock-in)
+        - label: I understand it may be declined to protect scope/simplicity

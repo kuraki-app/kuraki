@@ -1,0 +1,26 @@
+<!-- Thanks for contributing to Kuraki! -->
+
+## What & why
+
+<!-- What does this change do, and what problem does it solve? Link the issue: Closes #123 -->
+
+## Type of change
+
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Refactor / cleanup
+- [ ] Docs
+- [ ] CI / tooling
+
+## Checklist
+
+- [ ] `make check` passes (fmt, vet, `go test -race ./...`)
+- [ ] Fits Kuraki's "keep it light" thesis (or discussed in an issue first)
+- [ ] `internal/domain` still does no I/O; file/image access goes through interfaces
+- [ ] New migrations are additive (never edited a released migration)
+- [ ] Updated `CHANGELOG.md` (Unreleased) and `ROADMAP.md` if user-facing
+- [ ] Added/updated tests
+
+## Notes for reviewer
+
+<!-- Anything about data safety, performance on Pi-class hardware, or trade-offs. -->
