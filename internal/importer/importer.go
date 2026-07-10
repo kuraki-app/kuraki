@@ -756,7 +756,7 @@ func (i *Importer) insertAsset(ctx context.Context, row assetRow) error {
 		takenText = row.TakenAt.UTC().Format("2006-01-02")
 	}
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO assets_fts (asset_id, filename, camera_model, taken_text, description) VALUES (?, ?, ?, ?, ?)`,
+		`INSERT INTO assets_fts (asset_id, filename, camera_model, taken_text, description, ocr_text) VALUES (?, ?, ?, ?, ?, '')`,
 		row.ID, row.Filename, row.CameraModel, takenText, row.Description); err != nil {
 		return fmt.Errorf("importer: insert asset fts: %w", err)
 	}

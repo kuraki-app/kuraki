@@ -169,10 +169,10 @@ func (d Deps) shiftTime(w http.ResponseWriter, r *http.Request) {
 // rebuildAssetFTS refreshes the search row for one asset from its current values.
 func rebuildAssetFTS(ctx context.Context, tx *sql.Tx, id string) error {
 	var filename, camera string
-	var takenAt, desc sql.NullString
+	var takenAt, desc, ocr sql.NullString
 	if err := tx.QueryRowContext(ctx,
-		`SELECT filename, camera_model, taken_at, description FROM assets WHERE id = ?`, id).
-		Scan(&filename, &camera, &takenAt, &desc); err != nil {
+		`SELECT filename, camera_model, taken_at, description, ocr_text FROM assets WHERE id = ?`, id).
+		Scan(&filename, &camera, &takenAt, &desc, &ocr); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM assets_fts WHERE asset_id = ?`, id); err != nil {
@@ -183,8 +183,8 @@ func rebuildAssetFTS(ctx context.Context, tx *sql.Tx, id string) error {
 		takenText = takenAt.String[:10]
 	}
 	_, err := tx.ExecContext(ctx,
-		`INSERT INTO assets_fts (asset_id, filename, camera_model, taken_text, description) VALUES (?, ?, ?, ?, ?)`,
-		id, filename, camera, takenText, desc.String)
+		`INSERT INTO assets_fts (asset_id, filename, camera_model, taken_text, description, ocr_text) VALUES (?, ?, ?, ?, ?, ?)`,
+		id, filename, camera, takenText, desc.String, ocr.String)
 	return err
 }
 

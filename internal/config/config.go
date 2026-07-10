@@ -9,6 +9,7 @@ package config
 import (
 	"path/filepath"
 	"strconv"
+	"strings"
 )
 
 // Config holds everything the server and CLI need to locate data and listen
@@ -26,6 +27,10 @@ type Config struct {
 
 	// ThumbnailSize is the longest-edge pixel size for generated thumbnails.
 	ThumbnailSize int
+
+	// OCREnabled turns on the opt-in local OCR worker (requires the tesseract
+	// binary on PATH). Off by default; nothing leaves the machine.
+	OCREnabled bool
 }
 
 // Default returns the zero-config configuration used when nothing overrides it.
@@ -54,7 +59,20 @@ func Load(getenv func(string) string) Config {
 	if n, ok := positiveInt(getenv("KURAKI_THUMBNAIL_SIZE")); ok {
 		c.ThumbnailSize = n
 	}
+	if boolEnv(getenv("KURAKI_OCR")) {
+		c.OCREnabled = true
+	}
 	return c
+}
+
+// boolEnv reads a truthy environment value (1/true/yes/on).
+func boolEnv(s string) bool {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func positiveInt(s string) (int, bool) {

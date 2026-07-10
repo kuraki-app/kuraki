@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/kuraki-app/kuraki/internal/config"
@@ -19,6 +20,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/httpapi"
 	"github.com/kuraki-app/kuraki/internal/importer"
 	"github.com/kuraki-app/kuraki/internal/media"
+	"github.com/kuraki-app/kuraki/internal/ocr"
 	"github.com/kuraki-app/kuraki/internal/queue"
 	"github.com/kuraki-app/kuraki/internal/stacks"
 	"github.com/kuraki-app/kuraki/internal/storage"
@@ -372,12 +374,142 @@ func (a *App) startCaptureJanitor(ctx context.Context) {
 	}()
 }
 
+// startOCRWorker, when OCR is enabled and tesseract is present, recognises text
+// in images that have not been processed yet and indexes it so a search finds
+// words inside screenshots and documents. It processes small batches with a
+// pause between them to stay light, and stops when the library is caught up.
+func (a *App) startOCRWorker(ctx context.Context) {
+	if !a.Cfg.OCREnabled {
+		return
+	}
+	if !ocr.Available() {
+		a.Log.Warn("OCR requested but tesseract not found on PATH; skipping")
+		return
+	}
+	go func() {
+		a.Log.Info("OCR worker started")
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			n, err := a.ocrBatch(ctx, 20)
+			if err != nil {
+				a.Log.Warn("OCR batch failed", "err", err)
+			}
+			if n == 0 {
+				// Caught up; check again in a while for newly imported images.
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(5 * time.Minute):
+				}
+				continue
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Second):
+			}
+		}
+	}()
+}
+
+// ocrBatch processes up to limit unprocessed images and returns how many it
+// handled. An image with no text still gets an empty marker so it is not retried.
+func (a *App) ocrBatch(ctx context.Context, limit int) (int, error) {
+	rows, err := a.DB.QueryContext(ctx, `
+		SELECT a.id, d.path FROM assets a
+		JOIN derivatives d ON d.asset_id = a.id AND d.kind = 'thumb'
+		WHERE a.media_type = 'image' AND a.deleted_at IS NULL AND a.ocr_text IS NULL
+		LIMIT ?`, limit)
+	if err != nil {
+		return 0, fmt.Errorf("app: query ocr candidates: %w", err)
+	}
+	type candidate struct{ id, path string }
+	var todo []candidate
+	for rows.Next() {
+		var c candidate
+		if err := rows.Scan(&c.id, &c.path); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		todo = append(todo, c)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	for _, c := range todo {
+		text := a.recognizeDerivative(ctx, c.path)
+		if err := a.storeOCR(ctx, c.id, text); err != nil {
+			a.Log.Warn("OCR store failed", "asset", c.id, "err", err)
+		}
+	}
+	return len(todo), nil
+}
+
+func (a *App) recognizeDerivative(ctx context.Context, relPath string) string {
+	f, err := a.Store.Open(ctx, "derivatives/"+relPath)
+	if err != nil {
+		a.Log.Warn("OCR read derivative failed", "path", relPath, "err", err)
+		return ""
+	}
+	data, err := io.ReadAll(f)
+	f.Close()
+	if err != nil {
+		return ""
+	}
+	text, err := ocr.RecognizeBytes(ctx, data, filepath.Ext(relPath))
+	if err != nil {
+		a.Log.Warn("OCR recognize failed", "path", relPath, "err", err)
+		return ""
+	}
+	return text
+}
+
+// storeOCR saves the recognised text (possibly empty, marking the image done)
+// and refreshes the asset's full-text index row.
+func (a *App) storeOCR(ctx context.Context, id, text string) error {
+	tx, err := a.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, `UPDATE assets SET ocr_text = ? WHERE id = ?`, text, id); err != nil {
+		return err
+	}
+	var filename, camera string
+	var takenAt, desc sql.NullString
+	if err := tx.QueryRowContext(ctx,
+		`SELECT filename, camera_model, taken_at, description FROM assets WHERE id = ?`, id).
+		Scan(&filename, &camera, &takenAt, &desc); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM assets_fts WHERE asset_id = ?`, id); err != nil {
+		return err
+	}
+	takenText := ""
+	if takenAt.Valid && len(takenAt.String) >= 10 {
+		takenText = takenAt.String[:10]
+	}
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO assets_fts (asset_id, filename, camera_model, taken_text, description, ocr_text) VALUES (?, ?, ?, ?, ?, ?)`,
+		id, filename, camera, takenText, desc.String, text); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 // Serve starts the HTTP server and blocks until ctx is cancelled, then shuts
 // down gracefully.
 func (a *App) Serve(ctx context.Context) error {
 	a.startTrashJanitor(ctx)
 	a.startCaptureJanitor(ctx)
 	a.startIntegrityScheduler(ctx)
+	a.startOCRWorker(ctx)
 	go a.backfillPlaces(ctx)
 	go a.backfillPHashes(ctx)
 	go func() {

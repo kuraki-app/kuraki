@@ -24,8 +24,15 @@ func TestLoadEnvOverride(t *testing.T) {
 		"KURAKI_ADDR":                 ":8080",
 		"KURAKI_TRASH_RETENTION_DAYS": "7",
 		"KURAKI_THUMBNAIL_SIZE":       "1024",
+		"KURAKI_OCR":                  "true",
 	}
 	c := Load(func(k string) string { return env[k] })
+	if !c.OCREnabled {
+		t.Error("OCREnabled = false, want true for KURAKI_OCR=true")
+	}
+	if Default().OCREnabled {
+		t.Error("OCR should be off by default")
+	}
 	if c.DataDir != "/srv/photos" {
 		t.Errorf("DataDir = %q", c.DataDir)
 	}
