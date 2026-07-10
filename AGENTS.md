@@ -35,7 +35,7 @@ Phase 1 = single-owner personal backup.
 - **R1 media core (2026-07-10):** current import admission covers JPEG/PNG/GIF/WebP/HEIC/HEIF/AVIF/TIFF plus MP4/M4V/MOV/WebM. A per-asset capability flag now prevents the viewer from rendering known-incompatible originals: libvips/pure-Go creates image previews where possible, ffprobe identifies browser-compatible video codecs, and ffmpeg creates H.264/AAC playback derivatives otherwise. Failed derivatives remain downloadable and appear in Activity's Media health section. Cross-engine and libvips fixture certification remains env-gated.
 - **R1 content admission (2026-07-10):** standard image/video signatures now determine media type before the filename extension; renamed valid media imports with its detected MIME, while mismatched advertised media is recorded as an import error. Opaque camera RAW files retain an extension-based admission exception until a fixture-backed decoder policy is available.
 - **Import/export safety (2026-07-10):** browser queue staging isolates each uploaded file, so repeated filenames cannot overwrite one another. Portable backup format v2 records an archive manifest; restore validates it in a temporary sibling directory before swapping into an empty target. `kuraki backup` takes an online SQLite snapshot before packaging a live library. ZIP exports preflight originals and bypass the normal API deadline, so they no longer quietly omit unavailable files or time out at 60 seconds.
-- **Capture foundation (2026-07-10):** migration `00012` adds revocable devices and resumable upload sessions. Browser-authenticated users create a device token; `POST/PATCH/complete /api/capture/uploads` writes bounded chunks to staging and hands a complete file to the existing queue/importer. `mobile/` is an Expo/React Native iOS+Android client with SecureStore settings, status receipts, and manual photo selection/upload. Automatic camera-roll album backup, QR pairing, and background scheduling remain next.
+- **Capture foundation (2026-07-10):** migration `00012` adds revocable devices and resumable upload sessions. Browser-authenticated users create a device token; `POST/PATCH/complete /api/capture/uploads` writes bounded chunks to staging and hands a complete file to the existing queue/importer. `mobile/` is an Expo/React Native iOS+Android client with SecureStore settings, status receipts, and manual photo selection/upload. It also does automatic camera-roll backup (persisted, restart/network-loss safe), OS background scheduling, streamed large-file uploads, QR pairing, and per-album selection — the Capture loop is functionally complete.
 - **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00013`.
 - **Not browser-click-tested:** the SvelteKit UI compiles and serves and all endpoints are E2E-verified
   via curl, but no headless-browser pass has been run (per human request).
@@ -146,7 +146,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | R2 remaining (nice-to-haves): XMP sidecars, non-destructive edit, burst grouping, slideshow/jump-to-date/grid-density/dark-mode/a11y polish | ⬜ roadmap |
 | libvips-default Docker image / HEIC verified, low-resource benchmark | ⬜ env-gated |
 | QR device pairing: web mints code + QR, mobile scans to claim its own token | ✅ done |
-| Per-album selection | ⬜ next Capture milestone |
+| Per-album backup selection (choose device albums; default whole library) | ✅ done |
 | Sharing, optional ML, and scale deployment profiles | ⬜ later phases |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
@@ -173,6 +173,14 @@ Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./R
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `HEAD` — **Per-album backup selection (Claude).** The last open Capture milestone, client-only. Added
+  `albumIds` to the persisted backup state; `backupEngine.listAlbums()` (via `MediaLibrary.getAlbumsAsync`,
+  non-empty albums only) and `setAlbums()`; `collectNewAssets` now scans only the selected albums when any
+  are chosen (deduping an asset that appears in several) and falls back to the whole library otherwise. New
+  `AlbumPicker` modal (albums with toggles + an "All photos & videos" option) opened from a Backup-screen row
+  that shows the current scope. `tsc --noEmit` and `expo lint` clean. The Capture roadmap loop
+  (Capture → Find → Share → Maintain, section 1) is now functionally complete. No co-author trailer.
 
 - `HEAD` — **QR device pairing across server, web, and mobile (Claude).** A phone can now pair by scanning a
   QR instead of pasting a token. Server: migration `00013` adds single-use `pairing_codes`; `POST /api/devices/pair`

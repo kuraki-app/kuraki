@@ -11,6 +11,8 @@ type LibraryAsset = Awaited<ReturnType<typeof MediaLibrary.getAssetsAsync>>['ass
 
 export type PermissionState = 'unknown' | 'granted' | 'denied';
 
+export type BackupAlbum = { id: string; title: string; assetCount: number };
+
 export type BackupProgress = {
   running: boolean;
   auto: boolean;
@@ -21,6 +23,7 @@ export type BackupProgress = {
   currentFile: string;
   currentPercent: number;
   lastSuccess: { filename: string; at: number } | null;
+  albumIds: string[];
   message: string;
 };
 
@@ -36,7 +39,7 @@ const pageSize = 100;
  * restart or a retry can never create a duplicate asset.
  */
 class BackupEngine {
-  private state: BackupState = { auto: false, doneIds: [], failed: [], lastSuccess: null };
+  private state: BackupState = { auto: false, doneIds: [], failed: [], lastSuccess: null, albumIds: [] };
   private done = new Set<string>();
   private loaded = false;
   private running = false;
@@ -67,8 +70,28 @@ class BackupEngine {
       currentFile: this.currentFile,
       currentPercent: this.currentPercent,
       lastSuccess: this.state.lastSuccess,
+      albumIds: this.state.albumIds,
       message: this.message,
     };
+  }
+
+  /** listAlbums returns the device's albums so the user can choose which to back up. */
+  async listAlbums(): Promise<BackupAlbum[]> {
+    await this.ensureLoaded();
+    if (!(await this.ensurePermission())) return [];
+    const albums = await MediaLibrary.getAlbumsAsync({ includeSmartAlbums: true });
+    return albums
+      .filter((a) => a.assetCount > 0)
+      .map((a) => ({ id: a.id, title: a.title, assetCount: a.assetCount }))
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  async setAlbums(ids: string[]): Promise<void> {
+    await this.ensureLoaded();
+    this.state.albumIds = ids;
+    await this.persist();
+    this.emit();
+    if (this.state.auto) void this.run();
   }
 
   async setAuto(auto: boolean): Promise<void> {
@@ -162,23 +185,36 @@ class BackupEngine {
     }
   }
 
-  /** collectNewAssets pages the library newest-first, keeping only un-backed items. */
+  /**
+   * collectNewAssets pages newest-first, keeping only un-backed items. When the
+   * user has picked albums, only those are scanned (an asset in several selected
+   * albums is uploaded once); otherwise the whole library is scanned.
+   */
   private async collectNewAssets(signal: AbortSignal): Promise<LibraryAsset[]> {
+    const albums = this.state.albumIds;
+    const scopes: (string | undefined)[] = albums.length ? albums : [undefined];
     const fresh: LibraryAsset[] = [];
-    let after: string | undefined;
-    for (;;) {
-      if (signal.aborted) break;
-      const page = await MediaLibrary.getAssetsAsync({
-        first: pageSize,
-        after,
-        mediaType: ['photo', 'video'],
-        sortBy: [['creationTime', false]],
-      });
-      for (const asset of page.assets) {
-        if (!this.done.has(asset.id)) fresh.push(asset);
+    const seen = new Set<string>();
+    for (const album of scopes) {
+      let after: string | undefined;
+      for (;;) {
+        if (signal.aborted) return fresh;
+        const page = await MediaLibrary.getAssetsAsync({
+          first: pageSize,
+          after,
+          album,
+          mediaType: ['photo', 'video'],
+          sortBy: [['creationTime', false]],
+        });
+        for (const asset of page.assets) {
+          if (!this.done.has(asset.id) && !seen.has(asset.id)) {
+            seen.add(asset.id);
+            fresh.push(asset);
+          }
+        }
+        if (!page.hasNextPage) break;
+        after = page.endCursor;
       }
-      if (!page.hasNextPage) break;
-      after = page.endCursor;
     }
     return fresh;
   }

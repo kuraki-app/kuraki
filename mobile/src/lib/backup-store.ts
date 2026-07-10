@@ -20,9 +20,11 @@ export type BackupState = {
   doneIds: string[];
   failed: FailedItem[];
   lastSuccess: { filename: string; at: number } | null;
+  // Device album IDs to back up. Empty means the whole library.
+  albumIds: string[];
 };
 
-const empty: BackupState = { auto: false, doneIds: [], failed: [], lastSuccess: null };
+const empty: BackupState = { auto: false, doneIds: [], failed: [], lastSuccess: null, albumIds: [] };
 
 export async function loadBackupState(): Promise<BackupState> {
   const raw = await AsyncStorage.getItem(stateKey);
@@ -34,6 +36,7 @@ export async function loadBackupState(): Promise<BackupState> {
       doneIds: parsed.doneIds ?? [],
       failed: parsed.failed ?? [],
       lastSuccess: parsed.lastSuccess ?? null,
+      albumIds: parsed.albumIds ?? [],
     };
   } catch {
     return { ...empty };

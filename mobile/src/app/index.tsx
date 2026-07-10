@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
+import AlbumPicker from '@/components/album-picker';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
@@ -67,6 +68,8 @@ export default function BackupScreen() {
 
   const running = progress?.running ?? false;
   const [bgNote, setBgNote] = useState('');
+  const [pickingAlbums, setPickingAlbums] = useState(false);
+  const albumCount = progress?.albumIds.length ?? 0;
 
   async function toggleAuto(next: boolean) {
     await backupEngine.setAuto(next);
@@ -114,6 +117,12 @@ export default function BackupScreen() {
           {bgNote ? (
             <ThemedText type="small" themeColor="textSecondary" selectable>{bgNote}</ThemedText>
           ) : null}
+          <Pressable style={styles.albumRow} onPress={() => setPickingAlbums(true)}>
+            <ThemedText type="small" themeColor="textSecondary">Albums</ThemedText>
+            <ThemedText type="smallBold">
+              {albumCount ? `${albumCount} selected` : 'All photos & videos'}
+            </ThemedText>
+          </Pressable>
           <View style={styles.actions}>
             <Pressable disabled={running} style={styles.buttonSmall} onPress={() => void backupEngine.run()}>
               <ThemedText type="smallBold">{running ? 'Backing up…' : 'Back up new photos'}</ThemedText>
@@ -178,6 +187,9 @@ export default function BackupScreen() {
         </Pressable>
         {uploading ? <ThemedText themeColor="textSecondary" selectable>{uploading}</ThemedText> : null}
       </ThemedView>
+      <Modal visible={pickingAlbums} animationType="slide" onRequestClose={() => setPickingAlbums(false)}>
+        <AlbumPicker selected={progress?.albumIds ?? []} onClose={() => setPickingAlbums(false)} />
+      </Modal>
     </ScrollView>
   );
 }
@@ -198,6 +210,7 @@ const styles = StyleSheet.create({
   count: { fontSize: 30, fontVariant: ['tabular-nums'] },
   card: { padding: Spacing.three, borderRadius: Spacing.three, gap: Spacing.two },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  albumRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
   rowText: { flex: 1, gap: Spacing.half },
   actions: { flexDirection: 'row', gap: Spacing.two },
   session: { gap: Spacing.half },

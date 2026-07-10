@@ -33,7 +33,11 @@ app's **Devices** page. The phone claims its own revocable device token and
 stores the server address — no token copying by hand. Manual entry (server
 address + token) remains available as a fallback.
 
-Per-album selection is the next milestone.
+## Choosing what backs up
+
+On the Backup tab, the **Albums** row opens a picker: back up everything
+(default) or select specific device albums. An item that appears in several
+selected albums is uploaded once.
 
 ## Run in Expo Go
 
