@@ -157,7 +157,15 @@ Fine-grained checkboxes live in [ROADMAP.md](./ROADMAP.md) — keep both in sync
 
 ## 11. Handoff log (append newest at top)
 
-- `HEAD` — **Web experience + Places (Claude).** (1) Places backend: new `internal/geo` offline reverse
+- `HEAD` — **Near-term batch (Claude):** four roadmap "doable now" items. (1) **Google Takeout import**:
+  new `internal/takeout` sidecar parser (title-index fallback for truncated names), applied on import
+  (date authoritative, GPS/caption/favorite fill-in), `00003_description` migration + searchable captions.
+  (2) **Configurable** trash retention + thumbnail size (`KURAKI_TRASH_RETENTION_DAYS`, `KURAKI_THUMBNAIL_SIZE`).
+  (3) **Library dashboard**: `GET /api/stats` + `/stats` page. (4) **Metadata tools**: `PATCH /api/assets/:id`
+  (date/GPS/caption + re-geocode + FTS refresh), `POST /api/assets/shift-time` (batch timezone), viewer edit form.
+  All backend E2E-verified; `go test -race` + `npm run build` green. Deferred (noted to human): tags/saved-searches,
+  duplicate review, import queue, slideshow, libvips-default Docker image.
+- `HEAD~` — **Web experience + Places (Claude).** (1) Places backend: new `internal/geo` offline reverse
   geocoder (embedded GeoNames cities/countries, grid-indexed nearest-city), migration `00002_places`,
   geocode-on-import + startup backfill, place name on the asset DTO, and `GET /api/places` +
   `/api/places/summary`. (2) Frontend rebuilt into a multi-route SPA (`web/src/lib` api/stores/types +

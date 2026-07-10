@@ -34,12 +34,7 @@ Achievable now with the existing architecture:
 - **Tags / keywords** and **saved searches** (smart albums) for richer organization.
 - **Duplicate review dashboard** — surface exact and near-duplicate candidates for
   the user to resolve, building on the existing content-hash dedup.
-- **Google Takeout import** that reads the JSON sidecars so dates, captions, and
-  geolocation survive the migration — a key path for people leaving Google Photos.
-- **Bulk metadata tools**: correct capture dates, shift timezones, set or clear GPS.
-- **Library dashboard**: storage usage, counts by type and year, import history.
 - **Slideshow** mode and a one-click **download / export** of the whole library.
-- **Configurable** trash retention and thumbnail sizes.
 - **Import queue** with retries, a jobs view, and clearer per-file error reporting.
 
 ## Planned — parity with other photo apps

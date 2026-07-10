@@ -23,6 +23,8 @@ Docker-first deployment and a full browser experience over an embedded web UI.
   are safe and reversible.
 - `/healthz` liveness endpoint and a `/metrics` endpoint reporting memory,
   goroutines, uptime, and library counts.
+- Configurable trash retention and thumbnail size via `KURAKI_TRASH_RETENTION_DAYS`
+  and `KURAKI_THUMBNAIL_SIZE`.
 - Docker image with libvips and ffmpeg bundled, a `docker-compose.yml` for
   one-command hosting, a container health check that self-probes via the binary,
   a non-root runtime user, and OCI image labels.
@@ -36,6 +38,9 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - Watch-folder mode that rescans a directory on an interval and auto-imports new
   files — pairs with folder-sync tools like Syncthing and rsync.
 - Browser drag-and-drop upload that runs through the same import pipeline.
+- Google Takeout import: reads the JSON sidecars (tolerant of Google's naming
+  variants) so capture dates, locations, captions, and favorites survive a
+  migration from Google Photos.
 
 **Browsing & search**
 - Virtualized, day- and month-grouped timeline that stays smooth on large libraries.
@@ -51,6 +56,10 @@ Docker-first deployment and a full browser experience over an embedded web UI.
   action bar; a lightbox with in-browser video playback and per-item favorite,
   delete, and restore; drag-and-drop upload with a progress indicator; and album
   create/rename/delete with add and remove.
+- A library dashboard with totals (photos, videos, favorites, albums, places,
+  size) and a per-year breakdown.
+- Editing a photo's capture date, location, and caption — re-geocoding on a
+  location change — plus batch capture-time shifting to correct camera timezones.
 
 **Places**
 - A map of geotagged photos (Leaflet + OpenStreetMap) with clustered thumbnails.
