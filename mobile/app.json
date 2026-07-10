@@ -32,6 +32,14 @@
         }
       ],
       [
+        "expo-media-library",
+        {
+          "photosPermission": "Kuraki reads your photos and videos to back them up to your own server.",
+          "savePhotosPermission": "Kuraki does not save photos back to your library.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#208AEF",

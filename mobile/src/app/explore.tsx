@@ -28,7 +28,7 @@ export default function SettingsScreen() {
       <ThemedView style={styles.content}>
         <ThemedText type="title">Settings</ThemedText>
         <ThemedText themeColor="textSecondary" selectable>
-          Create a device token in Kuraki’s web app, then paste it here. QR pairing and album selection are the next Capture milestones.
+          Create a device token in Kuraki’s web app, then paste it here. Then enable Automatic backup on the Backup tab. QR pairing and per-album selection are the next Capture milestones.
         </ThemedText>
         <ThemedText type="smallBold">Server address</ThemedText>
         <TextInput

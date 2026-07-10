@@ -47,6 +47,10 @@ Docker-first deployment and a full browser experience over an embedded web UI.
   uploads do not leak staging directories or rows.
 - Added `mobile/`, a shared Expo/React Native iOS and Android client with
   SecureStore-backed device settings, backup receipts, and manual photo upload.
+- Automatic camera-roll backup in the mobile client: a persisted queue uploads
+  every new photo and video, remembers what the server already accepted so a
+  restart never re-uploads, retries each chunk with backoff through a network
+  drop, and surfaces per-item failures under "Needs attention".
 - Uploads are processed by a background import queue: the request returns
   immediately, a worker imports each job with retries and crash recovery, and the
   UI polls progress. A self-refreshing Activity page lists recent import jobs with

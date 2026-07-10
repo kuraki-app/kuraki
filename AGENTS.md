@@ -138,11 +138,13 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | R2: duplicate review (exact + near-duplicate by hamming), stacks (RAW+JPEG / Live-Motion), whole-library export, scheduled integrity verification | ✅ done |
 | Import/export safety: duplicate upload basenames preserved; live backup snapshot; restore staged and manifest-validated; ZIP exports preflighted and unbounded | ✅ done |
 | Capture foundation: device tokens, resumable server sessions, React Native status/manual-upload client | ✅ initial slice |
+| Automatic camera-roll backup: persisted queue, chunk retry/backoff, restart-safe dedup, needs-attention surface | ✅ done (client) |
+| Capture-session expiry sweep (startup + hourly janitor) | ✅ done |
 | R1/R2 exit criteria | ✅ met (Takeout + mounted folder re-import without metadata loss; backup/restore on clean instance; org actions on indexed queries) |
 | R1 full fixture matrix across libvips and Chromium/Firefox/WebKit | ⬜ env-gated release certification |
 | R2 remaining (nice-to-haves): XMP sidecars, non-destructive edit, burst grouping, slideshow/jump-to-date/grid-density/dark-mode/a11y polish | ⬜ roadmap |
 | libvips-default Docker image / HEIC verified, low-resource benchmark | ⬜ env-gated |
-| QR pairing, camera-roll album backup, persisted client retry queue, and background scheduling | ⬜ next Capture milestones |
+| QR pairing, per-album selection, OS background scheduling, streamed large-video reads | ⬜ next Capture milestones |
 | Sharing, optional ML, and scale deployment profiles | ⬜ later phases |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
@@ -169,6 +171,20 @@ Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./R
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `HEAD` — **Automatic camera-roll backup in the mobile client (Claude).** Built the daily-habit Capture
+  loop on top of Codex's resumable API. New `mobile/src/lib`: `backup-store.ts` persists backup state via
+  `@react-native-async-storage/async-storage` (a `doneIds` set + failed items + last success); `backup-engine.ts`
+  is a singleton that pages the camera roll newest-first with `expo-media-library`, uploads every asset the
+  server hasn't accepted, records progress after each item, retries on the next run, and exposes a subscribable
+  progress snapshot. Refactored `capture-api.ts` into a shared `uploadFile` with per-chunk retry/backoff that
+  realigns to the server's `Upload-Offset` after a drop (manual `uploadPhoto` now wraps it). The Backup screen
+  gained an auto-backup switch, a "Back up new photos" / Pause control, Waiting/Backed-up/Needs-attention counts,
+  and a per-item failure list. Added the `expo-media-library` permission plugin to `app.json`. Satisfies the
+  roadmap Capture exit criteria: a completed item is remembered across restart (no re-upload), a network drop
+  resumes from the acknowledged offset, and content-hash dedup guarantees no duplicate asset ever. `tsc --noEmit`
+  and `expo lint` are clean. Known limits (noted): large videos buffer per file (streamed reads planned); no OS
+  background scheduling yet (foreground/manual run only). No co-author trailer.
 
 - `HEAD` — **Reviewed Codex's Capture branch + expiry sweep (Claude).** Read through the capture API,
   migration `00012`, queue `EnqueueStagedDirectory`, router wiring, and the `mobile/` client; confirmed

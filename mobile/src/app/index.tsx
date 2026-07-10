@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
+import { backupEngine, type BackupProgress } from '@/lib/backup-engine';
 import { getCaptureStatus, uploadPhoto, type CaptureStatus } from '@/lib/capture-api';
 import { loadCaptureSettings } from '@/lib/settings';
 
 export default function BackupScreen() {
+  const [progress, setProgress] = useState<BackupProgress | null>(null);
   const [status, setStatus] = useState<CaptureStatus | null>(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+
+  useEffect(() => backupEngine.subscribe(setProgress), []);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -53,6 +57,9 @@ export default function BackupScreen() {
     }
   }
 
+  const auto = progress?.auto ?? false;
+  const running = progress?.running ?? false;
+
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
@@ -62,42 +69,92 @@ export default function BackupScreen() {
         <ThemedText themeColor="textSecondary" selectable>
           Your phone will show every item waiting for Kuraki, not just a generic sync spinner.
         </ThemedText>
+
         {error ? (
           <ThemedView type="backgroundElement" style={styles.card}>
             <ThemedText type="subtitle">Connect this device</ThemedText>
             <ThemedText themeColor="textSecondary" selectable>{error}</ThemedText>
           </ThemedView>
-        ) : (
-          <>
-            <View style={styles.counts}>
-              <StatusCard label="Uploading" value={status?.receiving ?? 0} />
-              <StatusCard label="Queued" value={status?.queued ?? 0} />
-              <StatusCard label="Needs attention" value={status?.failed ?? 0} />
+        ) : null}
+
+        <ThemedView type="backgroundElement" style={styles.card}>
+          <View style={styles.row}>
+            <View style={styles.rowText}>
+              <ThemedText type="subtitle">Automatic backup</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Back up new photos and videos from this phone.
+              </ThemedText>
             </View>
-            <ThemedView type="backgroundElement" style={styles.card}>
-              <ThemedText type="subtitle">Recent activity</ThemedText>
-              {status?.sessions.length ? (
-                status.sessions.slice(0, 8).map((session) => (
-                  <View key={session.id} style={styles.session}>
-                    <ThemedText selectable>{session.filename}</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary" selectable>
-                      {session.status} · {Math.round((session.received_bytes / session.size_bytes) * 100)}%
-                    </ThemedText>
-                  </View>
-                ))
-              ) : (
-                <ThemedText themeColor="textSecondary">No recent uploads from this device.</ThemedText>
-              )}
-            </ThemedView>
-          </>
+            <Switch value={auto} onValueChange={(next) => void backupEngine.setAuto(next)} />
+          </View>
+          {progress?.permission === 'denied' && (
+            <ThemedText type="small" themeColor="textSecondary" selectable>
+              Photo access is off. Enable it in system settings to back up automatically.
+            </ThemedText>
+          )}
+          <View style={styles.actions}>
+            <Pressable disabled={running} style={styles.buttonSmall} onPress={() => void backupEngine.run()}>
+              <ThemedText type="smallBold">{running ? 'Backing up…' : 'Back up new photos'}</ThemedText>
+            </Pressable>
+            {running && (
+              <Pressable style={styles.buttonGhost} onPress={() => backupEngine.stop()}>
+                <ThemedText type="smallBold">Pause</ThemedText>
+              </Pressable>
+            )}
+          </View>
+          {progress?.message ? (
+            <ThemedText type="small" themeColor="textSecondary" selectable>
+              {running && progress.currentFile
+                ? `${progress.currentFile} · ${progress.currentPercent}%`
+                : progress.message}
+            </ThemedText>
+          ) : null}
+        </ThemedView>
+
+        <View style={styles.counts}>
+          <StatusCard label="Waiting" value={progress?.pending ?? 0} />
+          <StatusCard label="Backed up" value={progress?.done ?? 0} />
+          <StatusCard label="Needs attention" value={progress?.failed.length ?? 0} />
+        </View>
+
+        {progress?.lastSuccess && (
+          <ThemedText type="small" themeColor="textSecondary" selectable>
+            Last backed up: {progress.lastSuccess.filename}
+          </ThemedText>
         )}
-        <Pressable style={styles.button} onPress={refresh}>
-          <ThemedText type="smallBold">Refresh status</ThemedText>
-        </Pressable>
+
+        {progress?.failed.length ? (
+          <ThemedView type="backgroundElement" style={styles.card}>
+            <ThemedText type="subtitle">Needs attention</ThemedText>
+            {progress.failed.slice(0, 8).map((item) => (
+              <View key={item.localId} style={styles.session}>
+                <ThemedText selectable>{item.filename}</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary" selectable>{item.error}</ThemedText>
+              </View>
+            ))}
+          </ThemedView>
+        ) : null}
+
+        <ThemedView type="backgroundElement" style={styles.card}>
+          <ThemedText type="subtitle">Server activity</ThemedText>
+          {status?.sessions.length ? (
+            status.sessions.slice(0, 8).map((session) => (
+              <View key={session.id} style={styles.session}>
+                <ThemedText selectable>{session.filename}</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary" selectable>
+                  {session.status} · {Math.round((session.received_bytes / session.size_bytes) * 100)}%
+                </ThemedText>
+              </View>
+            ))
+          ) : (
+            <ThemedText themeColor="textSecondary">No recent uploads from this device.</ThemedText>
+          )}
+        </ThemedView>
+
         <Pressable disabled={isUploading} style={styles.button} onPress={() => void chooseAndUpload()}>
-          <ThemedText type="smallBold">{isUploading ? 'Backing up…' : 'Choose photo to back up'}</ThemedText>
+          <ThemedText type="smallBold">{isUploading ? 'Backing up…' : 'Choose a single photo'}</ThemedText>
         </Pressable>
-        {uploading && <ThemedText themeColor="textSecondary" selectable>{uploading}</ThemedText>}
+        {uploading ? <ThemedText themeColor="textSecondary" selectable>{uploading}</ThemedText> : null}
       </ThemedView>
     </ScrollView>
   );
@@ -118,6 +175,11 @@ const styles = StyleSheet.create({
   countCard: { flex: 1, padding: Spacing.three, borderRadius: Spacing.three, gap: Spacing.one },
   count: { fontSize: 30, fontVariant: ['tabular-nums'] },
   card: { padding: Spacing.three, borderRadius: Spacing.three, gap: Spacing.two },
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  rowText: { flex: 1, gap: Spacing.half },
+  actions: { flexDirection: 'row', gap: Spacing.two },
   session: { gap: Spacing.half },
   button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three, backgroundColor: '#cde7f7' },
+  buttonSmall: { flex: 1, alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three, backgroundColor: '#cde7f7' },
+  buttonGhost: { alignItems: 'center', borderRadius: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: Spacing.three, borderWidth: 1, borderColor: '#b8b9be' },
 });
