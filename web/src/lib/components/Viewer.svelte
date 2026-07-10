@@ -8,7 +8,8 @@
     ChevronLeft,
     ChevronRight,
     RotateCcw,
-    MapPin
+    MapPin,
+    Pencil
   } from '@lucide/svelte';
   import type { Asset } from '$lib/types';
   import { fileSize, placeLabel } from '$lib/format';
@@ -16,11 +17,48 @@
   export let assets: Asset[] = [];
   export let index = 0;
   export let trashMode = false;
+  export let editable = false;
 
   const dispatch = createEventDispatcher();
   $: asset = assets[index];
   let imgLoaded = false;
-  $: if (index >= 0) imgLoaded = false;
+  let editing = false;
+  let editDate = '';
+  let editCaption = '';
+  let editLat = '';
+  let editLon = '';
+  $: if (index >= 0) {
+    imgLoaded = false;
+    editing = false;
+  }
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  function toLocalInput(iso: string) {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  function startEdit() {
+    editDate = asset.taken_at ? toLocalInput(asset.taken_at) : '';
+    editCaption = asset.description ?? '';
+    editLat = asset.gps_lat != null ? String(asset.gps_lat) : '';
+    editLon = asset.gps_lon != null ? String(asset.gps_lon) : '';
+    editing = true;
+  }
+  function saveEdit() {
+    const patch: Record<string, unknown> = { id: asset.id, description: editCaption };
+    patch.taken_at = editDate ? new Date(editDate).toISOString() : '';
+    const lat = parseFloat(editLat);
+    const lon = parseFloat(editLon);
+    if (!isNaN(lat) && !isNaN(lon)) {
+      patch.gps_lat = lat;
+      patch.gps_lon = lon;
+    } else if (editLat.trim() === '' && editLon.trim() === '') {
+      patch.clear_gps = true;
+    }
+    editing = false;
+    dispatch('patch', patch);
+  }
 
   function move(delta: number) {
     const n = index + delta;
@@ -79,6 +117,9 @@
           <Star size={17} fill={asset.favorite ? 'currentColor' : 'none'} />
           {asset.favorite ? 'Favorited' : 'Favorite'}
         </button>
+        {#if editable && !trashMode}
+          <button class="act" type="button" on:click={startEdit}><Pencil size={16} /> Edit</button>
+        {/if}
         {#if trashMode}
           <button class="act" type="button" on:click={() => dispatch('restore', asset)}>
             <RotateCcw size={17} /> Restore
@@ -89,20 +130,35 @@
           </button>
         {/if}
       </div>
-      <dl>
-        {#if asset.taken_at}
-          <div><dt>Taken</dt><dd>{new Date(asset.taken_at).toLocaleString()}</dd></div>
-        {/if}
-        {#if asset.camera_model}
-          <div><dt>Camera</dt><dd>{asset.camera_make} {asset.camera_model}</dd></div>
-        {/if}
-        {#if placeLabel(asset)}
-          <div><dt>Place</dt><dd class="place"><MapPin size={13} /> {placeLabel(asset)}</dd></div>
-        {/if}
-        {#if asset.gps_lat && asset.gps_lon}
-          <div><dt>GPS</dt><dd>{asset.gps_lat.toFixed(5)}, {asset.gps_lon.toFixed(5)}</dd></div>
-        {/if}
-      </dl>
+      {#if editing}
+        <form class="edit" on:submit|preventDefault={saveEdit}>
+          <label>Date<input type="datetime-local" bind:value={editDate} /></label>
+          <label>Caption<input type="text" bind:value={editCaption} placeholder="Add a caption" /></label>
+          <div class="gps">
+            <label>Latitude<input type="text" inputmode="decimal" bind:value={editLat} placeholder="—" /></label>
+            <label>Longitude<input type="text" inputmode="decimal" bind:value={editLon} placeholder="—" /></label>
+          </div>
+          <div class="edit-actions">
+            <button type="button" class="ghost" on:click={() => (editing = false)}>Cancel</button>
+            <button type="submit">Save</button>
+          </div>
+        </form>
+      {:else}
+        <dl>
+          {#if asset.taken_at}
+            <div><dt>Taken</dt><dd>{new Date(asset.taken_at).toLocaleString()}</dd></div>
+          {/if}
+          {#if asset.camera_model}
+            <div><dt>Camera</dt><dd>{asset.camera_make} {asset.camera_model}</dd></div>
+          {/if}
+          {#if placeLabel(asset)}
+            <div><dt>Place</dt><dd class="place"><MapPin size={13} /> {placeLabel(asset)}</dd></div>
+          {/if}
+          {#if asset.gps_lat && asset.gps_lon}
+            <div><dt>GPS</dt><dd>{asset.gps_lat.toFixed(5)}, {asset.gps_lon.toFixed(5)}</dd></div>
+          {/if}
+        </dl>
+      {/if}
       <a class="download" href={asset.original_url} download>
         <Download size={18} /> Download
       </a>
@@ -204,8 +260,8 @@
     font-size: 15px;
   }
   .actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-wrap: wrap;
     gap: 8px;
   }
   .act {
@@ -213,13 +269,59 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
+    flex: 1 1 auto;
     min-height: 40px;
+    padding: 0 12px;
     border: 1px solid #ffffff2a;
     border-radius: 8px;
     background: #ffffff12;
     color: #f7f3ec;
     cursor: pointer;
     font-size: 14px;
+  }
+  .edit {
+    display: grid;
+    gap: 10px;
+  }
+  .edit label {
+    display: grid;
+    gap: 4px;
+    font-size: 12px;
+    text-transform: uppercase;
+    color: #8f8579;
+  }
+  .edit input {
+    height: 38px;
+    padding: 0 10px;
+    border: 1px solid #ffffff2a;
+    border-radius: 8px;
+    background: #ffffff10;
+    color: #f7f3ec;
+    font-size: 14px;
+    text-transform: none;
+  }
+  .edit .gps {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .edit-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .edit-actions button {
+    min-height: 40px;
+    border: 0;
+    border-radius: 8px;
+    background: #f6f3ee;
+    color: #171717;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .edit-actions .ghost {
+    background: #ffffff14;
+    color: #f7f3ec;
   }
   .act.on {
     color: #ffd35c;

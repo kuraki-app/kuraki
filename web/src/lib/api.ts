@@ -1,5 +1,13 @@
 import { session } from './stores';
-import type { Album, AssetList, LibraryStats, PlaceGroup, SetupStatus } from './types';
+import type { Album, Asset, AssetList, LibraryStats, PlaceGroup, SetupStatus } from './types';
+
+export type AssetPatch = {
+  taken_at?: string;
+  description?: string;
+  gps_lat?: number;
+  gps_lon?: number;
+  clear_gps?: boolean;
+};
 
 function jsonBody(obj: unknown, method = 'POST'): RequestInit {
   return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) };
@@ -51,6 +59,9 @@ export const api = {
 
   setFavorite: (id: string, favorite: boolean) =>
     req<void>(`/api/assets/${id}/favorite`, jsonBody({ favorite })),
+  patchAsset: (id: string, patch: AssetPatch) => req<Asset>(`/api/assets/${id}`, jsonBody(patch, 'PATCH')),
+  shiftTime: (ids: string[], minutes: number) =>
+    req<{ updated: number }>('/api/assets/shift-time', jsonBody({ ids, minutes })),
   remove: (id: string) => req<void>(`/api/assets/${id}`, { method: 'DELETE' }),
   restore: (id: string) => req<void>(`/api/assets/${id}/restore`, { method: 'POST' }),
   batch: (op: 'delete' | 'restore' | 'favorite' | 'unfavorite', ids: string[]) =>

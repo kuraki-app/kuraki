@@ -114,6 +114,16 @@
       showToast(msg(e));
     }
   }
+  async function patchOne(patch: Record<string, unknown>) {
+    const { id, ...rest } = patch as { id: string };
+    try {
+      const updated = await api.patchAsset(id, rest);
+      assets = assets.map((a) => (a.id === updated.id ? updated : a));
+      showToast('Updated');
+    } catch (e) {
+      showToast(msg(e));
+    }
+  }
   async function removeOne(asset: Asset) {
     try {
       await api.remove(asset.id);
@@ -245,11 +255,13 @@
     {assets}
     index={viewerIndex}
     {trashMode}
+    editable={!trashMode}
     on:navigate={(e) => (viewerIndex = e.detail)}
     on:close={() => (viewerIndex = -1)}
     on:favorite={(e) => favoriteOne(e.detail)}
     on:remove={(e) => removeOne(e.detail)}
     on:restore={(e) => restoreOne(e.detail)}
+    on:patch={(e) => patchOne(e.detail)}
   />
 {/if}
 
