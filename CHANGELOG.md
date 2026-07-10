@@ -40,6 +40,13 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - Browser drag-and-drop upload that runs through the same import pipeline.
 - Browser uploads preserve every selected file even when several share a
   filename, instead of overwriting earlier staged files.
+- Capture protocol foundation: authenticated web sessions can issue revocable
+  device tokens; mobile clients create resumable upload sessions, append by byte
+  offset, and queue completed originals through the standard importer. Abandoned
+  sessions expire and are swept, at startup and hourly, so never-completed
+  uploads do not leak staging directories or rows.
+- Added `mobile/`, a shared Expo/React Native iOS and Android client with
+  SecureStore-backed device settings, backup receipts, and manual photo upload.
 - Uploads are processed by a background import queue: the request returns
   immediately, a worker imports each job with retries and crash recovery, and the
   UI polls progress. A self-refreshing Activity page lists recent import jobs with

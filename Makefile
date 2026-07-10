@@ -7,6 +7,9 @@ BIN_DIR     := bin
 VERSION     ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS     := -s -w -X main.version=$(VERSION)
 IMAGE       := ghcr.io/kuraki-app/kuraki
+# Expo dependencies occasionally contain Go fixtures. They are not part of
+# Kuraki's module and must not become accidental Go test/vet packages.
+GO_PACKAGES := $(shell go list ./... | grep -v '/node_modules/')
 
 .DEFAULT_GOAL := help
 
@@ -33,11 +36,11 @@ web: ## Build SvelteKit UI into embedded assets
 
 .PHONY: test
 test: ## Run tests with the race detector
-	go test -race ./...
+	go test -race $(GO_PACKAGES)
 
 .PHONY: vet
 vet: ## Run go vet
-	go vet ./...
+	go vet $(GO_PACKAGES)
 
 .PHONY: fmt
 fmt: ## Format all Go code

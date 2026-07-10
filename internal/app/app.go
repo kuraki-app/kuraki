@@ -299,10 +299,79 @@ func (a *App) startTrashJanitor(ctx context.Context) {
 	}()
 }
 
+// purgeExpiredCaptures removes capture upload sessions that were never
+// completed before their expiry, along with their staging directories, so an
+// abandoned mobile upload does not leak disk or database rows. Sessions that
+// have already been handed to the importer (job_id set) are left alone.
+func (a *App) purgeExpiredCaptures(ctx context.Context) (int, error) {
+	rows, err := a.DB.QueryContext(ctx, `
+		SELECT id, source_dir FROM upload_sessions
+		WHERE status = 'receiving' AND expires_at < ?`, time.Now().UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return 0, fmt.Errorf("app: query expired captures: %w", err)
+	}
+	type expired struct{ id, dir string }
+	var stale []expired
+	for rows.Next() {
+		var e expired
+		if err := rows.Scan(&e.id, &e.dir); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("app: scan expired capture: %w", err)
+		}
+		stale = append(stale, e)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("app: iterate expired captures: %w", err)
+	}
+	n := 0
+	for _, e := range stale {
+		if err := os.RemoveAll(e.dir); err != nil {
+			a.Log.Warn("capture staging cleanup failed", "session", e.id, "err", err)
+			continue
+		}
+		if _, err := a.DB.ExecContext(ctx, `DELETE FROM upload_sessions WHERE id = ? AND status = 'receiving'`, e.id); err != nil {
+			a.Log.Warn("capture session delete failed", "session", e.id, "err", err)
+			continue
+		}
+		n++
+	}
+	return n, nil
+}
+
+// startCaptureJanitor removes expired, never-completed capture sessions at
+// startup and hourly thereafter.
+func (a *App) startCaptureJanitor(ctx context.Context) {
+	run := func() {
+		n, err := a.purgeExpiredCaptures(ctx)
+		if err != nil {
+			a.Log.Warn("capture purge failed", "err", err)
+			return
+		}
+		if n > 0 {
+			a.Log.Info("purged expired capture sessions", "count", n)
+		}
+	}
+	run()
+	go func() {
+		t := time.NewTicker(time.Hour)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				run()
+			}
+		}
+	}()
+}
+
 // Serve starts the HTTP server and blocks until ctx is cancelled, then shuts
 // down gracefully.
 func (a *App) Serve(ctx context.Context) error {
 	a.startTrashJanitor(ctx)
+	a.startCaptureJanitor(ctx)
 	a.startIntegrityScheduler(ctx)
 	go a.backfillPlaces(ctx)
 	go a.backfillPHashes(ctx)

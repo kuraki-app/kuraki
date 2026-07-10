@@ -61,6 +61,8 @@ func NewRouter(d Deps) http.Handler {
 		r.Group(func(r chi.Router) {
 			r.Use(d.requireAuth)
 			r.Get("/assets", d.listAssets)
+			r.Post("/devices", d.registerDevice)
+			r.Delete("/devices/{id}", d.revokeDevice)
 			r.Post("/assets", d.uploadAsset)
 			r.Post("/assets/batch", d.batchAssets)
 			r.Post("/assets/zip", d.downloadZip)
@@ -108,6 +110,14 @@ func NewRouter(d Deps) http.Handler {
 			r.Delete("/albums/{id}", d.deleteAlbum)
 			r.Post("/albums/{id}/assets", d.addAlbumAssets)
 			r.Delete("/albums/{id}/assets", d.removeAlbumAssets)
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(d.requireDeviceAuth)
+			r.Get("/capture/status", d.captureStatus)
+			r.Post("/capture/uploads", d.captureStart)
+			r.Patch("/capture/uploads/{id}", d.captureAppend)
+			r.Post("/capture/uploads/{id}/complete", d.captureComplete)
 		})
 	})
 

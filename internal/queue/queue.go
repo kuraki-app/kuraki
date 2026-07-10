@@ -93,15 +93,40 @@ func (q *Queue) EnqueueUpload(ctx context.Context, owner string, files []*multip
 			return "", err
 		}
 	}
+	if err := q.enqueueStagedDirectory(ctx, jobID, owner, dir, len(files), "upload"); err != nil {
+		os.RemoveAll(dir)
+		return "", err
+	}
+	return jobID, nil
+}
+
+// EnqueueStagedDirectory queues an already-uploaded directory. Capture clients
+// use resumable writes directly into staging, then hand the completed directory
+// to the same importer and crash-recovery path as browser uploads.
+func (q *Queue) EnqueueStagedDirectory(ctx context.Context, owner, dir string, total int) (string, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return "", err
+	}
+	jobID := id.String()
+	if err := q.enqueueStagedDirectory(ctx, jobID, owner, dir, total, "capture"); err != nil {
+		return "", err
+	}
+	return jobID, nil
+}
+
+func (q *Queue) enqueueStagedDirectory(ctx context.Context, jobID, owner, dir string, total int, kind string) error {
+	if total < 1 {
+		return fmt.Errorf("queue: staged job has no files")
+	}
 	if _, err := q.DB.ExecContext(ctx, `
 		INSERT INTO jobs (id, kind, owner, source, status, total, next_attempt_at)
-		VALUES (?, 'upload', ?, ?, 'queued', ?, ?)`,
-		jobID, owner, dir, len(files), nowText()); err != nil {
-		os.RemoveAll(dir)
-		return "", fmt.Errorf("queue: insert job: %w", err)
+		VALUES (?, ?, ?, ?, 'queued', ?, ?)`,
+		jobID, kind, owner, dir, total, nowText()); err != nil {
+		return fmt.Errorf("queue: insert job: %w", err)
 	}
 	q.signal()
-	return jobID, nil
+	return nil
 }
 
 func stage(dir string, fh *multipart.FileHeader) error {

@@ -35,7 +35,8 @@ Phase 1 = single-owner personal backup.
 - **R1 media core (2026-07-10):** current import admission covers JPEG/PNG/GIF/WebP/HEIC/HEIF/AVIF/TIFF plus MP4/M4V/MOV/WebM. A per-asset capability flag now prevents the viewer from rendering known-incompatible originals: libvips/pure-Go creates image previews where possible, ffprobe identifies browser-compatible video codecs, and ffmpeg creates H.264/AAC playback derivatives otherwise. Failed derivatives remain downloadable and appear in Activity's Media health section. Cross-engine and libvips fixture certification remains env-gated.
 - **R1 content admission (2026-07-10):** standard image/video signatures now determine media type before the filename extension; renamed valid media imports with its detected MIME, while mismatched advertised media is recorded as an import error. Opaque camera RAW files retain an extension-based admission exception until a fixture-backed decoder policy is available.
 - **Import/export safety (2026-07-10):** browser queue staging isolates each uploaded file, so repeated filenames cannot overwrite one another. Portable backup format v2 records an archive manifest; restore validates it in a temporary sibling directory before swapping into an empty target. `kuraki backup` takes an online SQLite snapshot before packaging a live library. ZIP exports preflight originals and bypass the normal API deadline, so they no longer quietly omit unavailable files or time out at 60 seconds.
-- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00011`.
+- **Capture foundation (2026-07-10):** migration `00012` adds revocable devices and resumable upload sessions. Browser-authenticated users create a device token; `POST/PATCH/complete /api/capture/uploads` writes bounded chunks to staging and hands a complete file to the existing queue/importer. `mobile/` is an Expo/React Native iOS+Android client with SecureStore settings, status receipts, and manual photo selection/upload. Automatic camera-roll album backup, QR pairing, and background scheduling remain next.
+- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00012`.
 - **Not browser-click-tested:** the SvelteKit UI compiles and serves and all endpoints are E2E-verified
   via curl, but no headless-browser pass has been run (per human request).
 - **Env-gated / pending:** `-tags vips` build (needs libvips + `pkg-config`), HEIC out of the box,
@@ -74,7 +75,7 @@ internal/
   app/                 composition root — wires everything; owns server lifecycle + workers
   config/              zero-config defaults + KURAKI_* env resolution
   domain/              core entities — **NO I/O EVER**
-  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00011)
+  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00012)
   storage/             Storage interface + FS impl (write-once, atomic, traversal-safe)
   media/               Processor interface + purego.go fallback + vips.go tagged backend, ffmpeg, EXIF
   importer/            recursive import, BLAKE3 dedup, import_state resume, derivatives; Takeout + geocode
@@ -86,6 +87,7 @@ internal/
   auth/                argon2id password hashes + session IDs
   httpapi/             chi router, handlers, middleware; assets/ = embedded UI
 web/                   SvelteKit SPA (routes: timeline/search/favorites/albums/memories/places/duplicates/stats/activity/archive/hidden/trash)
+mobile/                Expo / React Native iOS+Android Capture client (Backup + Settings initial scope)
 docs/                  PRD/BRD + local plans — gitignored, local only
 ```
 
@@ -135,11 +137,13 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | R2: tags/hierarchical tags, saved searches, ratings, archive/hidden, external libraries, backup/restore | ✅ done |
 | R2: duplicate review (exact + near-duplicate by hamming), stacks (RAW+JPEG / Live-Motion), whole-library export, scheduled integrity verification | ✅ done |
 | Import/export safety: duplicate upload basenames preserved; live backup snapshot; restore staged and manifest-validated; ZIP exports preflighted and unbounded | ✅ done |
+| Capture foundation: device tokens, resumable server sessions, React Native status/manual-upload client | ✅ initial slice |
 | R1/R2 exit criteria | ✅ met (Takeout + mounted folder re-import without metadata loss; backup/restore on clean instance; org actions on indexed queries) |
 | R1 full fixture matrix across libvips and Chromium/Firefox/WebKit | ⬜ env-gated release certification |
 | R2 remaining (nice-to-haves): XMP sidecars, non-destructive edit, burst grouping, slideshow/jump-to-date/grid-density/dark-mode/a11y polish | ⬜ roadmap |
 | libvips-default Docker image / HEIC verified, low-resource benchmark | ⬜ env-gated |
-| Multi-user & sharing (R3), mobile/desktop clients (R4), optional ML (R5), scale (R6) | ⬜ later phases |
+| QR pairing, camera-roll album backup, persisted client retry queue, and background scheduling | ⬜ next Capture milestones |
+| Sharing, optional ML, and scale deployment profiles | ⬜ later phases |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 
@@ -166,13 +170,24 @@ Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./R
 
 ## 11. Handoff log (append newest at top)
 
+- `HEAD` — **Reviewed Codex's Capture branch + expiry sweep (Claude).** Read through the capture API,
+  migration `00012`, queue `EnqueueStagedDirectory`, router wiring, and the `mobile/` client; confirmed
+  `jobs.kind` is unconstrained TEXT (so `'capture'` jobs are valid), the nested `mobile/.gitignore`
+  excludes `node_modules`/`.expo`/`.DS_Store` (only 31 real source files stage), and the full resumable
+  flow is tested. Fixed a stray-space gofmt issue in `router.go`. **Closed the roadmap's "expiry cleanup"
+  gap:** added `app.startCaptureJanitor` (startup + hourly) which sweeps `status='receiving'` sessions past
+  `expires_at`, removing their staging directories and rows so abandoned uploads don't leak. `go build`,
+  `go vet`, and `go test -race` (excluding `mobile/node_modules`) all green. No co-author trailer.
+
+- `HEAD` — **Daily-use roadmap + Capture foundation (Codex).** Replaced the feature-parity roadmap with Capture → Find → Share → Maintain user loops; Capture is now the active priority. Migration `00012` adds `devices` (revocable SHA-256 token credential) and `upload_sessions`; the device-authenticated capture API starts a session, accepts bounded `Upload-Offset` chunks, and idempotently queues its finished staging directory through the existing import worker. Capture status reports receiving/queued/failed sessions. Added a tested Expo/React Native iOS+Android client in `mobile/`: SecureStore-backed server/token setup, backup receipts, and a manual Image Picker photo upload through the resumable API. Expo lint and focused Go tests pass. Next: QR pairing, camera-roll album enumeration, persisted client retry queue, and native background scheduling constraints.
+
 - `HEAD` — **R1 content-aware import admission (Codex).** `media.ClassifyFile` reads standard JPEG/PNG/GIF/WebP/BMP/TIFF/JXL/JP2, ISO-BMFF (AVIF/HEIC/MP4/MOV/3GP), EBML (WebM/Matroska), AVI/WMV/MPEG/TS signatures before a file enters the importer. A valid JPEG renamed `.bin` now imports as `image/jpeg`; plain text renamed `.jpg` is surfaced as an import error rather than retained as corrupt media. Camera RAW remains the deliberate extension-based exception until fixture-backed decoding is available. Focused media/importer tests and `make check` are green.
 
 - `HEAD` — **Live backup consistency (Codex).** `kuraki backup` now opens the existing SQLite database and uses `VACUUM INTO` to create a point-in-time temporary snapshot before archiving the data directory. The backup archives that snapshot as `kuraki.db` and excludes mutable `kuraki.db-wal`/`kuraki.db-shm` files, while originals are copied afterwards (write-once import order guarantees every snapshot-referenced original already exists). A backup→post-snapshot mutation→restore test verifies the restored database holds only the snapshot state and no WAL is archived. Focused backup/CLI tests are green.
 
 - `HEAD` — **ZIP export reliability (Codex).** Selected and whole-library ZIP endpoints now check every original before committing download headers, return an explicit conflict when one is unavailable, check database rows and stream-copy/close errors, and log an interrupted stream instead of silently omitting data. `/api/assets/zip` and `/api/export` bypass only the normal 60-second request timeout, preserving it for every other route. Added authenticated HTTP coverage for whole-library ZIP bytes, missing-original rejection, and timeout exemption. `make check` is green.
 
-- `HEAD` — **Import/export safety hardening (Codex).** Browser upload staging now gives every multipart file its own numbered directory, preventing same-basename uploads from overwriting one another before import; a queue regression test uploads two different `IMG_0001.jpg` files and verifies two assets. Backup format v2 writes a file-count/byte-count manifest and restore extracts into a sibling temporary directory, rejects missing/mismatched/unsafe archives, then swaps only a validated archive into an empty target (with rollback for the existing empty directory). Format v1 restore compatibility remains. Focused queue/backup tests plus `make check` and the web build are green. **Live-server SQLite snapshot consistency remains outstanding.**
+- `HEAD` — **Import/export safety hardening (Codex).** Browser upload staging now gives every multipart file its own numbered directory, preventing same-basename uploads from overwriting one another before import; a queue regression test uploads two different `IMG_0001.jpg` files and verifies two assets. Backup format v2 writes a file-count/byte-count manifest and restore extracts into a sibling temporary directory, rejects missing/mismatched/unsafe archives, then swaps only a validated archive into an empty target (with rollback for the existing empty directory). Format v1 restore compatibility remains. The later live-backup snapshot work closes the remaining SQLite-consistency gap.
 
 - `HEAD` — **R2 completion: near-duplicate grouping, stacks, whole-library export, scheduled verify (Claude).**
   `GET /api/duplicates` now clusters exact **and** near-duplicates via union-find over hamming distance
