@@ -35,8 +35,6 @@ Achievable now with the existing architecture:
 - **Duplicate review dashboard** — surface exact and near-duplicate candidates for
   the user to resolve, building on the existing content-hash dedup.
 - **Slideshow** mode and a one-click **download / export** of the whole library.
-- Clearer **per-file import error** surfacing (the queue, `/api/jobs`, and an
-  Activity page exist; per-file error detail within a job is still coarse).
 
 ## Planned — parity with other photo apps
 
