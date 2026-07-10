@@ -51,6 +51,14 @@ export type Album = {
   created_at?: string;
 };
 
+export type DupAsset = {
+  id: string;
+  filename: string;
+  size_bytes: number;
+  taken_at?: string;
+  thumbnail_url?: string;
+};
+
 export type Tag = { id: string; name: string; parent_id?: string };
 export type SavedSearch = { id: string; name: string; query: Record<string, string>; created_at?: string };
 

@@ -1,1 +1,0 @@
-import"../chunks/Dh69keDv.js";import{i as e,a as o}from"../chunks/sdWo1slg.js";import{p as a,k as p}from"../chunks/CxpKcNzy.js";import{L as s}from"../chunks/B62pTxIF.js";function f(i,t){a(t,!1),e(),s(i,{load:()=>o.hidden(),title:"Hidden",subtitle:"Hidden items stay out of everyday browsing",emptyText:"No hidden items"}),p()}export{f as component};

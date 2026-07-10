@@ -10,6 +10,7 @@
     Trash2,
     BarChart3,
     Activity,
+    Copy,
     Upload,
     LogOut,
     Lock,
@@ -36,6 +37,7 @@
     { href: '/places', label: 'Places', icon: MapPin },
     { href: '/archive', label: 'Archive', icon: Archive },
     { href: '/hidden', label: 'Hidden', icon: EyeOff },
+    { href: '/duplicates', label: 'Duplicates', icon: Copy },
     { href: '/stats', label: 'Library', icon: BarChart3 },
     { href: '/activity', label: 'Activity', icon: Activity },
     { href: '/trash', label: 'Trash', icon: Trash2 }

@@ -376,9 +376,16 @@ func (i *Importer) createThumbnail(ctx context.Context, assetID, srcPath string,
 		return fmt.Errorf("create thumbnail: encode derivative: %w", err)
 	}
 
+	// Perceptual hash from the thumbnail bytes (works for any image type since
+	// the thumbnail is a web-decodable format) — powers duplicate review.
+	data := buf.Bytes()
+	if h, ok := media.PerceptualHash(data); ok {
+		_, _ = i.DB.ExecContext(ctx, `UPDATE assets SET phash = ? WHERE id = ?`, int64(h), assetID)
+	}
+
 	format, ext := thumbnailFormat(i.Media)
 	rel := fmt.Sprintf("derivatives/%s/thumb_%d.%s", assetID, edge, ext)
-	if _, err := i.Store.Write(ctx, rel, &buf); err != nil {
+	if _, err := i.Store.Write(ctx, rel, bytes.NewReader(data)); err != nil {
 		return fmt.Errorf("create thumbnail: write derivative: %w", err)
 	}
 	tw, th := thumbSize(meta.Width, meta.Height, edge)

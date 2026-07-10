@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -157,6 +158,56 @@ func (a *App) backfillPlaces(ctx context.Context) {
 	}
 }
 
+// backfillPHashes computes perceptual hashes for images imported before duplicate
+// review existed, reading each asset's thumbnail. Runs once in the background.
+func (a *App) backfillPHashes(ctx context.Context) {
+	rows, err := a.DB.QueryContext(ctx, `
+		SELECT a.id, d.path FROM assets a
+		JOIN derivatives d ON d.asset_id = a.id AND d.kind = 'thumb'
+		WHERE a.media_type = 'image' AND a.phash IS NULL AND a.deleted_at IS NULL`)
+	if err != nil {
+		a.Log.Warn("phash backfill query failed", "err", err)
+		return
+	}
+	type item struct{ id, thumb string }
+	var todo []item
+	for rows.Next() {
+		var it item
+		if err := rows.Scan(&it.id, &it.thumb); err != nil {
+			rows.Close()
+			return
+		}
+		todo = append(todo, it)
+	}
+	rows.Close()
+	if len(todo) == 0 {
+		return
+	}
+
+	updated := 0
+	for _, it := range todo {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		rc, err := a.Store.Open(ctx, "derivatives/"+it.thumb)
+		if err != nil {
+			continue
+		}
+		data, _ := io.ReadAll(rc)
+		rc.Close()
+		if h, ok := media.PerceptualHash(data); ok {
+			if _, err := a.DB.ExecContext(ctx, `UPDATE assets SET phash = ? WHERE id = ?`, int64(h), it.id); err == nil {
+				updated++
+			}
+		}
+	}
+	if updated > 0 {
+		a.Log.Info("backfilled perceptual hashes", "count", updated)
+	}
+}
+
 // PurgeTrash permanently removes assets whose retention window has elapsed (F-10).
 func (a *App) PurgeTrash(ctx context.Context) (int, error) {
 	days := a.Cfg.TrashRetentionDays
@@ -198,6 +249,7 @@ func (a *App) startTrashJanitor(ctx context.Context) {
 func (a *App) Serve(ctx context.Context) error {
 	a.startTrashJanitor(ctx)
 	go a.backfillPlaces(ctx)
+	go a.backfillPHashes(ctx)
 	go a.Queue.Start(ctx)
 
 	handler := httpapi.NewRouter(httpapi.Deps{
