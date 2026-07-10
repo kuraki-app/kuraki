@@ -87,6 +87,19 @@ Docker-first deployment and a full browser experience over an embedded web UI.
   If no local decoder/transcoder can make a derivative, the UI keeps the
   original download available, avoids a broken viewer, and reports the issue in
   Activity's Media health section.
+- One-click rebuild: `POST /api/assets/:id/rebuild` regenerates an asset's
+  derivatives from the stored original and clears resolved media-health issues,
+  surfaced as a Rebuild button in Activity.
+
+**Organize**
+- Tags and hierarchical tags, per-asset tagging, and tag-aware search.
+- Saved searches over date/type/camera/place/rating/favorite state.
+- Ratings, plus Archive and Hidden sections to keep the main timeline focused.
+
+**Migration & recovery**
+- Read-only external libraries: register a folder, scan it, and browse its media
+  in place without copying originals in.
+- Portable library backup and restore (`kuraki backup` / `kuraki restore`).
 
 **Trust & integrity**
 - Trash with a 30-day retention window, restore, and an automatic purge that runs

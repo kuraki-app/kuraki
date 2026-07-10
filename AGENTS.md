@@ -159,6 +159,15 @@ Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./R
 
 ## 11. Handoff log (append newest at top)
 
+- `HEAD` — **Consolidated Codex branch + media-health rebuild (Claude).** Reviewed the Codex work
+  (all builds/vets/tests green; migrations `00006`–`00008`; new `backup`/`external` packages; tags,
+  saved searches, ratings, archive/hidden, external libraries, media compatibility). Fast-forwarded
+  `main` to the `codex/roadmap-media-contract` branch and pushed (remote is now
+  `kuraki-app/kuraki-photos`). Then implemented the roadmap's R1 "one-click retry/rebuild":
+  `Importer.RebuildDerivatives` (regenerate thumbnail/poster/preview/playback from the stored original,
+  clear resolved `media_issues`) + `POST /api/assets/:id/rebuild` + a Rebuild button on Activity's media
+  health. Verified E2E (deleted thumb + issue → rebuild → thumb back, issue cleared). `go test -race` +
+  `npm run build` green. **No co-author trailer on commits (user request).**
 - Working tree — **R1 media compatibility core (Codex).** Added migration `00006` with `web_viewable` and durable `media_issues`; a `media.Capability` registry; ffprobe codec/dimension/duration inspection; bounded ffmpeg H.264/AAC playback derivatives; and image preview derivatives for non-web originals. The viewer uses `/preview` only when safe and shows an original-download fallback otherwise; Activity exposes durable media-health errors. Added unit/API/import tests, including a synthetic MPEG-4 input that is transcoded and verified in the in-app browser as a `/preview` source. `make check` and `npm run build` pass. Full libvips fixtures and multi-engine certification remain environment-gated. **Do not add a co-author trailer to commits: user explicitly requested none.**
 - Working tree — **Product/compatibility planning audit (Codex).** Reviewed the shipped roadmap/changelog and the importer, media processors, HTTP serving, and Svelte viewer. Current extension admission is narrower than broad photo apps and direct browser rendering cannot guarantee HEIC/HEIF/TIFF/RAW or codec-dependent video playback. Replaced `ROADMAP.md` with a staged, lightweight product plan: R1 is a content-detected, fixture- and three-browser-tested media contract with safe previews and playback derivatives; R2 organization/migration/recovery; R3 household sharing; R4 mobile/desktop backup; R5 opt-in ML; R6 scale. Research references and explicit non-goals are in the roadmap. No production code changed.
 - `HEAD` — **Import queue + serving perf (Claude).** New `internal/queue`: uploads staged to
