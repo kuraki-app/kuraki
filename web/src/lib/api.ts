@@ -1,5 +1,5 @@
 import { session } from './stores';
-import type { Album, Asset, AssetList, Job, LibraryStats, MediaIssue, PlaceGroup, SetupStatus } from './types';
+import type { Album, Asset, AssetList, Job, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SetupStatus, Tag } from './types';
 
 export type AssetPatch = {
   taken_at?: string;
@@ -35,6 +35,9 @@ export type SearchParams = {
   to?: string;
   type?: string;
   camera?: string;
+  rating?: string;
+  archived?: string;
+  hidden?: string;
 };
 
 export const api = {
@@ -56,6 +59,8 @@ export const api = {
   memories: (date = '') =>
     req<AssetList>(`/api/memories?limit=500${date ? `&date=${date}` : ''}`),
   trash: () => req<AssetList>('/api/trash?limit=500'),
+  archived: () => req<AssetList>('/api/assets?archived=1&limit=500'),
+  hidden: () => req<AssetList>('/api/assets?hidden=1&limit=500'),
 
   setFavorite: (id: string, favorite: boolean) =>
     req<void>(`/api/assets/${id}/favorite`, jsonBody({ favorite })),
@@ -64,7 +69,7 @@ export const api = {
     req<{ updated: number }>('/api/assets/shift-time', jsonBody({ ids, minutes })),
   remove: (id: string) => req<void>(`/api/assets/${id}`, { method: 'DELETE' }),
   restore: (id: string) => req<void>(`/api/assets/${id}/restore`, { method: 'POST' }),
-  batch: (op: 'delete' | 'restore' | 'favorite' | 'unfavorite', ids: string[]) =>
+  batch: (op: 'delete' | 'restore' | 'favorite' | 'unfavorite' | 'archive' | 'unarchive' | 'hide' | 'unhide', ids: string[]) =>
     req<{ succeeded: number }>('/api/assets/batch', jsonBody({ op, ids })),
 
   albums: () => req<{ albums: Album[] }>('/api/albums'),
@@ -83,7 +88,15 @@ export const api = {
   stats: () => req<LibraryStats>('/api/stats'),
   jobs: () => req<{ jobs: Job[] }>('/api/jobs'),
   job: (id: string) => req<Job>(`/api/jobs/${id}`),
-  mediaIssues: () => req<{ issues: MediaIssue[] }>('/api/media/issues')
+  mediaIssues: () => req<{ issues: MediaIssue[] }>('/api/media/issues'),
+  tags: () => req<{ tags: Tag[] }>('/api/tags'),
+  createTag: (name: string, parent_id?: string) => req<Tag>('/api/tags', jsonBody({ name, parent_id })),
+  deleteTag: (id: string) => req<void>(`/api/tags/${id}`, { method: 'DELETE' }),
+  assetTags: (id: string) => req<{ tags: Tag[] }>(`/api/assets/${id}/tags`),
+  setAssetTags: (id: string, ids: string[]) => req<{ tags: Tag[] }>(`/api/assets/${id}/tags`, jsonBody({ ids }, 'PUT')),
+  savedSearches: () => req<{ saved_searches: SavedSearch[] }>('/api/saved-searches'),
+  createSavedSearch: (name: string, query: Record<string, string>) => req<SavedSearch>('/api/saved-searches', jsonBody({ name, query })),
+  deleteSavedSearch: (id: string) => req<void>(`/api/saved-searches/${id}`, { method: 'DELETE' })
 };
 
 // downloadZip streams a zip of the given originals to a browser download.

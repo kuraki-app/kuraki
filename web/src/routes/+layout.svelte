@@ -12,7 +12,9 @@
     Activity,
     Upload,
     LogOut,
-    Lock
+    Lock,
+    Archive,
+    EyeOff
   } from '@lucide/svelte';
   import { api, uploadFiles } from '$lib/api';
   import { session, bumpLibrary, toast, showToast } from '$lib/stores';
@@ -32,6 +34,8 @@
     { href: '/albums', label: 'Albums', icon: FolderOpen },
     { href: '/memories', label: 'On this day', icon: CalendarClock },
     { href: '/places', label: 'Places', icon: MapPin },
+    { href: '/archive', label: 'Archive', icon: Archive },
+    { href: '/hidden', label: 'Hidden', icon: EyeOff },
     { href: '/stats', label: 'Library', icon: BarChart3 },
     { href: '/activity', label: 'Activity', icon: Activity },
     { href: '/trash', label: 'Trash', icon: Trash2 }

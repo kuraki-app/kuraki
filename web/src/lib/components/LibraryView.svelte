@@ -170,6 +170,10 @@
     batch(() => api.batch('delete', [...selected]), () => removeMany([...selected]), 'Moved {n} to trash');
   const batchRestore = () =>
     batch(() => api.batch('restore', [...selected]), () => removeMany([...selected]), 'Restored {n}');
+  const batchArchive = () =>
+    batch(() => api.batch('archive', [...selected]), () => removeMany([...selected]), 'Archived {n}');
+  const batchHide = () =>
+    batch(() => api.batch('hide', [...selected]), () => removeMany([...selected]), 'Hidden {n}');
   const batchRemoveFromAlbum = () =>
     albumId &&
     batch(() => api.removeFromAlbum(albumId!, [...selected]), () => removeMany([...selected]), 'Removed {n}');
@@ -273,6 +277,8 @@
   on:favorite={batchFavorite}
   on:delete={batchDelete}
   on:restore={batchRestore}
+  on:archive={batchArchive}
+  on:hide={batchHide}
   on:download={batchDownload}
   on:album={openPicker}
   on:albumRemove={batchRemoveFromAlbum}

@@ -15,6 +15,9 @@ export type Asset = {
   gps_lon?: number;
   duration_ms: number;
   favorite: boolean;
+  rating: number;
+  archived: boolean;
+  hidden: boolean;
   description?: string;
   place_city?: string;
   place_country?: string;
@@ -47,6 +50,9 @@ export type Album = {
   asset_count?: number;
   created_at?: string;
 };
+
+export type Tag = { id: string; name: string; parent_id?: string };
+export type SavedSearch = { id: string; name: string; query: Record<string, string>; created_at?: string };
 
 export type PlaceGroup = {
   city: string;

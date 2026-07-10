@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { Star, Trash2, Download, FolderPlus, FolderMinus, RotateCcw, X } from '@lucide/svelte';
+  import { Star, Trash2, Download, FolderPlus, FolderMinus, RotateCcw, X, Archive, EyeOff } from '@lucide/svelte';
 
   export let count = 0;
   export let trashMode = false;
@@ -20,6 +20,8 @@
         <button type="button" on:click={() => dispatch('restore')}><RotateCcw size={16} /> Restore</button>
       {:else}
         <button type="button" on:click={() => dispatch('favorite')}><Star size={16} /> Favorite</button>
+        <button type="button" on:click={() => dispatch('archive')}><Archive size={16} /> Archive</button>
+        <button type="button" on:click={() => dispatch('hide')}><EyeOff size={16} /> Hide</button>
         {#if albumMode}
           <button type="button" on:click={() => dispatch('albumRemove')}><FolderMinus size={16} /> Remove</button>
         {:else}
