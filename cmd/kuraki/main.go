@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/kuraki-app/kuraki/internal/app"
+	"github.com/kuraki-app/kuraki/internal/backup"
 	"github.com/kuraki-app/kuraki/internal/config"
 	"github.com/kuraki-app/kuraki/internal/importer"
 	"github.com/kuraki-app/kuraki/internal/verify"
@@ -42,8 +43,34 @@ func rootCmd() *cobra.Command {
 		SilenceErrors: false,
 		Version:       version,
 	}
-	root.AddCommand(serveCmd(), importCmd(), verifyCmd(), healthcheckCmd(), versionCmd())
+	root.AddCommand(serveCmd(), importCmd(), verifyCmd(), backupCmd(), restoreCmd(), healthcheckCmd(), versionCmd())
 	return root
+}
+
+func backupCmd() *cobra.Command {
+	var dataDir string
+	cmd := &cobra.Command{Use: "backup <archive.tar.gz>", Short: "Create a portable library backup", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		cfg := config.Load(os.Getenv)
+		if cmd.Flags().Changed("data-dir") {
+			cfg.DataDir = dataDir
+		}
+		return backup.Create(cmd.Context(), cfg.DataDir, args[0])
+	}}
+	cmd.Flags().StringVar(&dataDir, "data-dir", config.Default().DataDir, "library data directory")
+	return cmd
+}
+
+func restoreCmd() *cobra.Command {
+	var dataDir string
+	cmd := &cobra.Command{Use: "restore <archive.tar.gz>", Short: "Restore a backup into an empty library data directory", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		cfg := config.Load(os.Getenv)
+		if cmd.Flags().Changed("data-dir") {
+			cfg.DataDir = dataDir
+		}
+		return backup.Restore(cmd.Context(), args[0], cfg.DataDir)
+	}}
+	cmd.Flags().StringVar(&dataDir, "data-dir", config.Default().DataDir, "empty target library data directory")
+	return cmd
 }
 
 // healthcheckCmd probes the local server's /healthz and exits non-zero if
