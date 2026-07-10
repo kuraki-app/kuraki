@@ -13,7 +13,7 @@ const maxBatchIDs = 1000
 
 type batchRequest struct {
 	IDs []string `json:"ids"`
-	Op  string   `json:"op"` // delete | restore | favorite | unfavorite
+	Op  string   `json:"op"` // delete | restore | favorite | unfavorite | archive | unarchive | hide | unhide
 }
 
 type batchResponse struct {
@@ -47,6 +47,14 @@ func (d Deps) batchAssets(w http.ResponseWriter, r *http.Request) {
 		apply = func(ctx context.Context, id string) error { return d.updateFavorite(ctx, id, true) }
 	case "unfavorite":
 		apply = func(ctx context.Context, id string) error { return d.updateFavorite(ctx, id, false) }
+	case "archive":
+		apply = func(ctx context.Context, id string) error { return d.updateLibraryState(ctx, id, "archived", true) }
+	case "unarchive":
+		apply = func(ctx context.Context, id string) error { return d.updateLibraryState(ctx, id, "archived", false) }
+	case "hide":
+		apply = func(ctx context.Context, id string) error { return d.updateLibraryState(ctx, id, "hidden", true) }
+	case "unhide":
+		apply = func(ctx context.Context, id string) error { return d.updateLibraryState(ctx, id, "hidden", false) }
 	default:
 		writeError(w, http.StatusBadRequest, "invalid_op")
 		return
@@ -64,6 +72,24 @@ func (d Deps) batchAssets(w http.ResponseWriter, r *http.Request) {
 		resp.Failed = nil
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (d Deps) updateLibraryState(ctx context.Context, id, column string, value bool) error {
+	if column != "archived" && column != "hidden" {
+		return fmt.Errorf("invalid library state")
+	}
+	v := 0
+	if value {
+		v = 1
+	}
+	res, err := d.DB.ExecContext(ctx, `UPDATE assets SET `+column+` = ? WHERE id = ? AND deleted_at IS NULL`, v, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("asset not found")
+	}
+	return nil
 }
 
 // updateFavorite sets an asset's favorite flag, erroring if it does not exist.

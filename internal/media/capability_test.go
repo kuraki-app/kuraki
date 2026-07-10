@@ -20,8 +20,11 @@ func TestClassifyMediaContract(t *testing.T) {
 		{name: "tiff", ext: "tiff", mediaType: domain.MediaImage, mimeType: "image/tiff", accepted: true},
 		{name: "mp4", ext: "mp4", mediaType: domain.MediaVideo, mimeType: "video/mp4", accepted: true},
 		{name: "quicktime", ext: "mov", mediaType: domain.MediaVideo, mimeType: "video/quicktime", accepted: true},
-		{name: "raw", ext: "raw", accepted: false},
-		{name: "mkv", ext: "mkv", accepted: false},
+		{name: "raw", ext: "raw", mediaType: domain.MediaImage, mimeType: "image/x-raw", accepted: true},
+		{name: "camera raw", ext: "arw", mediaType: domain.MediaImage, mimeType: "image/x-raw", accepted: true},
+		{name: "jxl", ext: "jxl", mediaType: domain.MediaImage, mimeType: "image/jxl", accepted: true},
+		{name: "mkv", ext: "mkv", mediaType: domain.MediaVideo, mimeType: "video/x-matroska", accepted: true},
+		{name: "avi", ext: "avi", mediaType: domain.MediaVideo, mimeType: "video/x-msvideo", accepted: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

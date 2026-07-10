@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -37,6 +38,9 @@ type assetDTO struct {
 	GPSLon       *float64 `json:"gps_lon,omitempty"`
 	DurationMS   int64    `json:"duration_ms"`
 	Favorite     bool     `json:"favorite"`
+	Rating       int      `json:"rating"`
+	Archived     bool     `json:"archived"`
+	Hidden       bool     `json:"hidden"`
 	Description  *string  `json:"description,omitempty"`
 	PlaceCity    *string  `json:"place_city,omitempty"`
 	PlaceCountry *string  `json:"place_country,omitempty"`
@@ -56,6 +60,7 @@ type assetListResponse struct {
 type assetRow struct {
 	ID           string
 	OriginalPath string
+	ExternalPath sql.NullString
 	Filename     string
 	MimeType     string
 	MediaType    string
@@ -69,6 +74,9 @@ type assetRow struct {
 	GPSLon       sql.NullFloat64
 	DurationMS   int64
 	Favorite     int
+	Rating       int
+	Archived     int
+	Hidden       int
 	CreatedAt    string
 	Description  sql.NullString
 	PlaceCity    sql.NullString
@@ -87,7 +95,13 @@ func (d Deps) listAssets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	args := []any{}
-	where := "deleted_at IS NULL"
+	where := "deleted_at IS NULL AND archived = 0 AND hidden = 0"
+	if r.URL.Query().Get("archived") == "1" {
+		where = "deleted_at IS NULL AND archived = 1 AND hidden = 0"
+	}
+	if r.URL.Query().Get("hidden") == "1" {
+		where = "deleted_at IS NULL AND hidden = 1"
+	}
 	if cursorTime != "" {
 		where += " AND (COALESCE(taken_at, created_at) < ? OR (COALESCE(taken_at, created_at) = ? AND id < ?))"
 		args = append(args, cursorTime, cursorTime, cursorID)
@@ -148,6 +162,21 @@ func (d Deps) searchAssets(w http.ResponseWriter, r *http.Request) {
 		where = append(where, "a.camera_model = ?")
 		args = append(args, camera)
 	}
+	if r.URL.Query().Get("archived") != "1" {
+		where = append(where, "a.archived = 0")
+	}
+	if r.URL.Query().Get("hidden") != "1" {
+		where = append(where, "a.hidden = 0")
+	}
+	if rating := strings.TrimSpace(r.URL.Query().Get("rating")); rating != "" {
+		value, err := strconv.Atoi(rating)
+		if err != nil || value < 0 || value > 5 {
+			writeError(w, http.StatusBadRequest, "invalid_rating")
+			return
+		}
+		where = append(where, "a.rating = ?")
+		args = append(args, value)
+	}
 	args = append(args, limit)
 
 	join := "LEFT JOIN assets_fts f ON f.asset_id = a.id"
@@ -177,6 +206,18 @@ func (d Deps) serveOriginal(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_asset_failed")
+		return
+	}
+	if row.ExternalPath.Valid {
+		f, err := os.Open(row.ExternalPath.String)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "external_file_not_found")
+			return
+		}
+		defer f.Close()
+		w.Header().Set("Content-Type", row.MimeType)
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, sanitizeHeaderFilename(row.Filename)))
+		http.ServeContent(w, r, row.Filename, time.Time{}, f)
 		return
 	}
 	// Originals are content-addressed and never change: cache aggressively.
@@ -257,9 +298,9 @@ func assetSelectSQL(where string) string {
 func assetSelectSQLWithJoin(join, where string) string {
 	return `
 		SELECT
-			a.id, a.original_path, a.filename, a.mime_type, a.media_type,
+			a.id, a.original_path, a.external_path, a.filename, a.mime_type, a.media_type,
 			a.width, a.height, a.size_bytes, a.taken_at, a.camera_make,
-			a.camera_model, a.gps_lat, a.gps_lon, a.duration_ms, a.favorite,
+			a.camera_model, a.gps_lat, a.gps_lon, a.duration_ms, a.favorite, a.rating, a.archived, a.hidden,
 			a.created_at, a.description, a.place_city, a.place_country, COALESCE(d_thumb.path, d_poster.path),
 			d_preview.path, a.web_viewable
 		FROM assets a
@@ -273,9 +314,9 @@ func assetSelectSQLWithJoin(join, where string) string {
 
 func assetScanDest(row *assetRow) []any {
 	return []any{
-		&row.ID, &row.OriginalPath, &row.Filename, &row.MimeType, &row.MediaType,
+		&row.ID, &row.OriginalPath, &row.ExternalPath, &row.Filename, &row.MimeType, &row.MediaType,
 		&row.Width, &row.Height, &row.SizeBytes, &row.TakenAt, &row.CameraMake,
-		&row.CameraModel, &row.GPSLat, &row.GPSLon, &row.DurationMS, &row.Favorite,
+		&row.CameraModel, &row.GPSLat, &row.GPSLon, &row.DurationMS, &row.Favorite, &row.Rating, &row.Archived, &row.Hidden,
 		&row.CreatedAt, &row.Description, &row.PlaceCity, &row.PlaceCountry, &row.ThumbPath,
 		&row.PreviewPath, &row.WebViewable,
 	}
@@ -368,6 +409,9 @@ func (row assetRow) toDTO() assetDTO {
 		GPSLon:       lon,
 		DurationMS:   row.DurationMS,
 		Favorite:     row.Favorite != 0,
+		Rating:       row.Rating,
+		Archived:     row.Archived != 0,
+		Hidden:       row.Hidden != 0,
 		Description:  description,
 		PlaceCity:    placeCity,
 		PlaceCountry: placeCountry,

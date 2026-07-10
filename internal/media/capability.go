@@ -41,6 +41,14 @@ func Classify(path string) (Capability, bool) {
 		return Capability{MediaType: domain.MediaImage, MimeType: "image/heic", NeedsPreview: true}, true
 	case ".tif", ".tiff":
 		return Capability{MediaType: domain.MediaImage, MimeType: "image/tiff", NeedsPreview: true}, true
+	case ".bmp":
+		return Capability{MediaType: domain.MediaImage, MimeType: "image/bmp", NeedsPreview: true}, true
+	case ".jxl":
+		return Capability{MediaType: domain.MediaImage, MimeType: "image/jxl", NeedsPreview: true}, true
+	case ".jp2", ".j2k", ".jpf", ".jpx":
+		return Capability{MediaType: domain.MediaImage, MimeType: "image/jp2", NeedsPreview: true}, true
+	case ".dng", ".cr2", ".cr3", ".nef", ".arw", ".rw2", ".orf", ".raf", ".raw":
+		return Capability{MediaType: domain.MediaImage, MimeType: "image/x-raw", NeedsPreview: true}, true
 	case ".mp4":
 		return Capability{MediaType: domain.MediaVideo, MimeType: "video/mp4", NeedsPreview: true}, true
 	case ".m4v":
@@ -49,6 +57,18 @@ func Classify(path string) (Capability, bool) {
 		return Capability{MediaType: domain.MediaVideo, MimeType: "video/quicktime", NeedsPreview: true}, true
 	case ".webm":
 		return Capability{MediaType: domain.MediaVideo, MimeType: "video/webm", NeedsPreview: true}, true
+	case ".mkv":
+		return Capability{MediaType: domain.MediaVideo, MimeType: "video/x-matroska", NeedsPreview: true}, true
+	case ".avi":
+		return Capability{MediaType: domain.MediaVideo, MimeType: "video/x-msvideo", NeedsPreview: true}, true
+	case ".3gp", ".3gpp":
+		return Capability{MediaType: domain.MediaVideo, MimeType: "video/3gpp", NeedsPreview: true}, true
+	case ".mts", ".m2ts", ".m2t", ".ts":
+		return Capability{MediaType: domain.MediaVideo, MimeType: "video/mp2t", NeedsPreview: true}, true
+	case ".mpg", ".mpeg", ".mpe":
+		return Capability{MediaType: domain.MediaVideo, MimeType: "video/mpeg", NeedsPreview: true}, true
+	case ".wmv":
+		return Capability{MediaType: domain.MediaVideo, MimeType: "video/x-ms-wmv", NeedsPreview: true}, true
 	default:
 		return Capability{}, false
 	}
