@@ -33,6 +33,13 @@ app's **Devices** page. The phone claims its own revocable device token and
 stores the server address — no token copying by hand. Manual entry (server
 address + token) remains available as a fallback.
 
+## Library tab
+
+The **Library** tab browses the server's photos on the phone: a search box, and
+All / Photos / Videos / Favorites chips, over an infinite grid of thumbnails.
+It reads the device-authenticated `/api/capture/library` (the same filter
+language as the web app) and caches the most recent page so it opens instantly.
+
 ## Choosing what backs up
 
 On the Backup tab, the **Albums** row opens a picker: back up everything

@@ -36,7 +36,7 @@ Phase 1 = single-owner personal backup.
 - **R1 content admission (2026-07-10):** standard image/video signatures now determine media type before the filename extension; renamed valid media imports with its detected MIME, while mismatched advertised media is recorded as an import error. Opaque camera RAW files retain an extension-based admission exception until a fixture-backed decoder policy is available.
 - **Import/export safety (2026-07-10):** browser queue staging isolates each uploaded file, so repeated filenames cannot overwrite one another. Portable backup format v2 records an archive manifest; restore validates it in a temporary sibling directory before swapping into an empty target. `kuraki backup` takes an online SQLite snapshot before packaging a live library. ZIP exports preflight originals and bypass the normal API deadline, so they no longer quietly omit unavailable files or time out at 60 seconds.
 - **Capture foundation (2026-07-10):** migration `00012` adds revocable devices and resumable upload sessions. Browser-authenticated users create a device token; `POST/PATCH/complete /api/capture/uploads` writes bounded chunks to staging and hands a complete file to the existing queue/importer. `mobile/` is an Expo/React Native iOS+Android client with SecureStore settings, status receipts, and manual photo selection/upload. It also does automatic camera-roll backup (persisted, restart/network-loss safe), OS background scheduling, streamed large-file uploads, QR pairing, and per-album selection — the Capture loop is functionally complete.
-- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00013`.
+- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00014`.
 - **Not browser-click-tested:** the SvelteKit UI compiles and serves and all endpoints are E2E-verified
   via curl, but no headless-browser pass has been run (per human request).
 - **Env-gated / pending:** `-tags vips` build (needs libvips + `pkg-config`), HEIC out of the box,
@@ -75,7 +75,7 @@ internal/
   app/                 composition root — wires everything; owns server lifecycle + workers
   config/              zero-config defaults + KURAKI_* env resolution
   domain/              core entities — **NO I/O EVER**
-  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00013)
+  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00014)
   storage/             Storage interface + FS impl (write-once, atomic, traversal-safe)
   media/               Processor interface + purego.go fallback + vips.go tagged backend, ffmpeg, EXIF
   importer/            recursive import, BLAKE3 dedup, import_state resume, derivatives; Takeout + geocode
@@ -86,8 +86,9 @@ internal/
   verify/              integrity re-checksum
   auth/                argon2id password hashes + session IDs
   httpapi/             chi router, handlers, middleware; assets/ = embedded UI
+  ocr/                 opt-in local text recognition (tesseract via exec; feature-detected)
 web/                   SvelteKit SPA (routes: timeline/search/favorites/albums/memories/places/duplicates/stats/devices/activity/archive/hidden/trash)
-mobile/                Expo / React Native iOS+Android Capture client (auto camera-roll backup, background task, QR pairing)
+mobile/                Expo / React Native iOS+Android client (Capture backup + Library browse/search/filter tabs)
 docs/                  PRD/BRD + local plans — gitignored, local only
 ```
 
@@ -123,7 +124,8 @@ make docker       # build container image
 ```
 
 Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
-`KURAKI_TRASH_RETENTION_DAYS` (`30`), `KURAKI_THUMBNAIL_SIZE` (`512`).
+`KURAKI_TRASH_RETENTION_DAYS` (`30`), `KURAKI_THUMBNAIL_SIZE` (`512`),
+`KURAKI_OCR` (`off`; `1` enables the local tesseract OCR worker).
 
 ## 8. Progress ledger (update this)
 
@@ -147,6 +149,10 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | libvips-default Docker image / HEIC verified, low-resource benchmark | ⬜ env-gated |
 | QR device pairing: web mints code + QR, mobile scans to claim its own token | ✅ done |
 | Per-album backup selection (choose device albums; default whole library) | ✅ done |
+| Find: one filter language (q/date/type/camera/favorite/rating/place/album) on paginated /api/search | ✅ done |
+| Find: device-authenticated library read + mobile Library tab (grid, filters, offline cache) | ✅ done |
+| Find: web timeline filter bar aligned to mobile | ✅ done |
+| Find: opt-in local OCR (tesseract) indexes screenshot/document text into FTS | ✅ done |
 | Sharing, optional ML, and scale deployment profiles | ⬜ later phases |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
@@ -174,6 +180,21 @@ Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./R
 
 ## 11. Handoff log (append newest at top)
 
+- `HEAD` — **Find phase: unified filters, mobile Library, web filter bar, opt-in OCR (Claude).** Implemented
+  roadmap §2 across server, web, and mobile. **One filter language:** `filters.go` (`parseAssetFilters` +
+  `respondFiltered`) backs a now-paginated `/api/search` supporting q, from, to, type, camera, favorite,
+  rating, place_city, place_country, album, archived, hidden; `searchAssets` is a thin wrapper. **Device read
+  surface:** `/api/capture/library` (same filters) + `/api/capture/places` + `/api/capture/assets/{id}/thumb|
+  preview|original` reuse the exact web handlers under device-token auth. **Mobile:** a new **Library** tab
+  (`src/app/library.tsx` + `library-api.ts`) — search box, All/Photos/Videos/Favorites chips, infinite grid of
+  authenticated `expo-image` thumbnails, AsyncStorage offline cache of the recent page. **Web:** the timeline
+  gained a filters panel (chips + From/To date) and `api.search` now forwards a cursor. **OCR (opt-in, local):**
+  `internal/ocr` shells to tesseract; migration `00014` adds `ocr_text` to assets + FTS; a `KURAKI_OCR=1`-gated
+  background worker OCRs each image's thumbnail and refreshes its FTS row so screenshot text is searchable
+  (off by default; tesseract not present here, so the worker no-ops). Tests: unified filters + device parity +
+  device thumb + unauth rejection; OCR normalize + guarded round-trip; config flag. `go test -race`, web build,
+  mobile tsc + expo lint all green. Migrations through `00014`. **Find loop is functionally complete.** No co-author trailer.
+
 - `HEAD` — **Per-album backup selection (Claude).** The last open Capture milestone, client-only. Added
   `albumIds` to the persisted backup state; `backupEngine.listAlbums()` (via `MediaLibrary.getAlbumsAsync`,
   non-empty albums only) and `setAlbums()`; `collectNewAssets` now scans only the selected albums when any
@@ -191,7 +212,7 @@ Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./R
   and renders `{base_url, code}` as a QR via the `qrcode` dep (added), plus a Devices nav item. Mobile: `claimPairing`
   in `capture-api.ts`, a `PairScanner` component (`expo-camera`, added, with permission plugin) opened from Settings,
   which stores the returned token in SecureStore. `go test -race`, `npm run build` (web), `tsc --noEmit` + `expo lint`
-  (mobile) all green. Migrations through `00013`. Remaining Capture milestone: per-album selection. No co-author trailer.
+  (mobile) all green. Migrations through `00014`. Remaining Capture milestone: per-album selection. No co-author trailer.
 
 - `HEAD` — **Background scheduling + streamed large-file uploads (Claude).** Closed two open Capture
   milestones in the mobile client. `background.ts` defines an `expo-background-task` (imported from the root

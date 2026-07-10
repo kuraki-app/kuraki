@@ -79,6 +79,16 @@ Docker-first deployment and a full browser experience over an embedded web UI.
   selected and whole-library downloads are not limited by the normal API timeout.
 
 **Browsing & search**
+- One filter language shared by the web timeline, web search, and the mobile app:
+  full-text query, date range, media type, camera, favorite, rating, place, album,
+  and archive/hidden — served by a single paginated `/api/search`.
+- The web timeline gained a filters panel (All / Photos / Videos / Favorites chips
+  and a From/To date range) matching the mobile client.
+- Mobile Library tab: a recent, searchable, filterable grid of the server library
+  (device-authenticated) with an offline cache so it paints instantly on open.
+- Opt-in local OCR (`KURAKI_OCR=1`, requires the `tesseract` binary): recognises
+  text in images so a search finds words inside screenshots and documents. Fully
+  local — nothing is uploaded.
 - Virtualized, day- and month-grouped timeline that stays smooth on large libraries.
 - Full-screen viewer with an EXIF panel, keyboard navigation, and original download.
 - Search by filename, date range, media type, and camera model, with prefix
