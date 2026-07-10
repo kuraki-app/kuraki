@@ -32,6 +32,7 @@ Phase 1 = single-owner personal backup.
   SQLite tuning). See [CHANGELOG.md](./CHANGELOG.md) for the full list.
 - **Builds & tests:** `go build ./...`, `go vet ./...`, `gofmt`, `go test -race ./...` all green;
   `npm run build` (web) clean. Cross-compiles linux/amd64+arm64, darwin/arm64, windows/amd64 (CGO off).
+- **Media support audit (2026-07-10):** current import admission is extension-based and covers JPEG/PNG/GIF/WebP/HEIC/HEIF/AVIF/TIFF plus MP4/M4V/MOV/WebM. It is **not** a universal browser-viewing guarantee: the viewer serves originals directly, so HEIC/HEIF/TIFF/RAW and browser-incompatible video codecs need generated previews/playback derivatives. `ROADMAP.md` now makes a fixture-backed media matrix the first future-release gate.
 - **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00005`.
 - **Not browser-click-tested:** the SvelteKit UI compiles and serves and all endpoints are E2E-verified
   via curl, but no headless-browser pass has been run (per human request).
@@ -127,6 +128,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Server foundation, import, media pipeline, web UI, auth, trash, verify, video | ✅ done |
 | Places (map + offline geocoding), Takeout import, favorites/albums/memories, stats | ✅ done |
 | Import queue + Activity + per-file errors, metadata editing, config options, serving perf | ✅ done |
+| Published media compatibility contract, browser fixture matrix, safe preview/transcode fallback | ⬜ R1 release gate |
 | Tags/saved-searches, duplicate review, slideshow, whole-library export | ⬜ roadmap |
 | libvips-default Docker image / HEIC verified, low-resource benchmark | ⬜ env-gated |
 | Multi-user & sharing, mobile app, optional ML | ⬜ later phases |
@@ -156,6 +158,7 @@ Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./R
 
 ## 11. Handoff log (append newest at top)
 
+- Working tree — **Product/compatibility planning audit (Codex).** Reviewed the shipped roadmap/changelog and the importer, media processors, HTTP serving, and Svelte viewer. Current extension admission is narrower than broad photo apps and direct browser rendering cannot guarantee HEIC/HEIF/TIFF/RAW or codec-dependent video playback. Replaced `ROADMAP.md` with a staged, lightweight product plan: R1 is a content-detected, fixture- and three-browser-tested media contract with safe previews and playback derivatives; R2 organization/migration/recovery; R3 household sharing; R4 mobile/desktop backup; R5 opt-in ML; R6 scale. Research references and explicit non-goals are in the roadmap. No production code changed.
 - `HEAD` — **Import queue + serving perf (Claude).** New `internal/queue`: uploads staged to
   `data/staging/<job>`, enqueued in a `jobs` table (migration `00004`), processed by a background worker
   (`app.Queue.Start`) with retries/backoff and crash recovery; `POST /api/assets` now returns 202+job_id,
