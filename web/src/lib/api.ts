@@ -1,0 +1,120 @@
+import { session } from './stores';
+import type { Album, AssetList, PlaceGroup, SetupStatus } from './types';
+
+function jsonBody(obj: unknown, method = 'POST'): RequestInit {
+  return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) };
+}
+
+async function req<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, { credentials: 'same-origin', ...init });
+  if (res.status === 401) {
+    session.update((s) => ({ ...s, user: null }));
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const message =
+      body && typeof body.error === 'string' ? body.error : `${res.status} ${res.statusText}`;
+    throw new Error(message);
+  }
+  const type = res.headers.get('content-type') ?? '';
+  if (type.includes('application/json')) return (await res.json()) as T;
+  return undefined as T;
+}
+
+export type SearchParams = {
+  q?: string;
+  from?: string;
+  to?: string;
+  type?: string;
+  camera?: string;
+};
+
+export const api = {
+  setupStatus: () => req<SetupStatus>('/api/setup'),
+  setup: (username: string, password: string) =>
+    req<SetupStatus>('/api/setup', jsonBody({ username, password })),
+  login: (username: string, password: string) =>
+    req<SetupStatus>('/api/login', jsonBody({ username, password })),
+  logout: () => req<void>('/api/logout', { method: 'POST' }),
+
+  assets: (cursor = '') =>
+    req<AssetList>(`/api/assets?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
+  search: (params: SearchParams) => {
+    const p = new URLSearchParams({ limit: '300' });
+    for (const [k, v] of Object.entries(params)) if (v) p.set(k, v);
+    return req<AssetList>(`/api/search?${p.toString()}`);
+  },
+  favorites: () => req<AssetList>('/api/favorites?limit=500'),
+  memories: (date = '') =>
+    req<AssetList>(`/api/memories?limit=500${date ? `&date=${date}` : ''}`),
+  trash: () => req<AssetList>('/api/trash?limit=500'),
+
+  setFavorite: (id: string, favorite: boolean) =>
+    req<void>(`/api/assets/${id}/favorite`, jsonBody({ favorite })),
+  remove: (id: string) => req<void>(`/api/assets/${id}`, { method: 'DELETE' }),
+  restore: (id: string) => req<void>(`/api/assets/${id}/restore`, { method: 'POST' }),
+  batch: (op: 'delete' | 'restore' | 'favorite' | 'unfavorite', ids: string[]) =>
+    req<{ succeeded: number }>('/api/assets/batch', jsonBody({ op, ids })),
+
+  albums: () => req<{ albums: Album[] }>('/api/albums'),
+  album: (id: string) => req<AssetList>(`/api/albums/${id}?limit=500`),
+  createAlbum: (name: string) => req<Album>('/api/albums', jsonBody({ name })),
+  renameAlbum: (id: string, name: string) =>
+    req<Album>(`/api/albums/${id}`, jsonBody({ name }, 'PATCH')),
+  deleteAlbum: (id: string) => req<void>(`/api/albums/${id}`, { method: 'DELETE' }),
+  addToAlbum: (id: string, ids: string[]) =>
+    req<{ added: number }>(`/api/albums/${id}/assets`, jsonBody({ ids })),
+  removeFromAlbum: (id: string, ids: string[]) =>
+    req<{ removed: number }>(`/api/albums/${id}/assets`, jsonBody({ ids }, 'DELETE')),
+
+  places: () => req<AssetList>('/api/places'),
+  placesSummary: () => req<{ places: PlaceGroup[] }>('/api/places/summary')
+};
+
+// downloadZip streams a zip of the given originals to a browser download.
+export async function downloadZip(ids: string[]): Promise<void> {
+  const res = await fetch('/api/assets/zip', {
+    credentials: 'same-origin',
+    ...jsonBody({ ids })
+  });
+  if (!res.ok) throw new Error('download failed');
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'kuraki-export.zip';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// uploadFiles posts files as multipart, reporting 0-100 progress.
+export function uploadFiles(
+  files: File[],
+  onProgress: (pct: number) => void
+): Promise<{ imported: number; duplicates: number; errors: number }> {
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    for (const f of files) form.append('file', f);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/assets');
+    xhr.withCredentials = true;
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText || '{}'));
+        } catch {
+          resolve({ imported: 0, duplicates: 0, errors: 0 });
+        }
+      } else {
+        reject(new Error(`upload failed (${xhr.status})`));
+      }
+    };
+    xhr.onerror = () => reject(new Error('upload failed'));
+    xhr.send(form);
+  });
+}

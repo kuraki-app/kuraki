@@ -1,0 +1,151 @@
+<script lang="ts">
+  import { createEventDispatcher } from 'svelte';
+  import { Star, Play, Check } from '@lucide/svelte';
+  import type { Asset } from '$lib/types';
+  import { groupByDay, labelDate } from '$lib/format';
+
+  export let assets: Asset[] = [];
+  export let selectMode = false;
+  export let selected: Set<string> = new Set();
+  export let grouped = true;
+
+  const dispatch = createEventDispatcher<{ open: Asset; toggle: string }>();
+  $: groups = grouped ? groupByDay(assets) : [{ day: '', items: assets }];
+
+  function activate(asset: Asset) {
+    if (selectMode) dispatch('toggle', asset.id);
+    else dispatch('open', asset);
+  }
+</script>
+
+<div class="timeline">
+  {#each groups as group (group.day)}
+    <section class="day">
+      {#if grouped && group.day}
+        <h2>{labelDate(group.day)}</h2>
+      {/if}
+      <div class="grid">
+        {#each group.items as asset (asset.id)}
+          <button
+            class="tile"
+            class:selected={selected.has(asset.id)}
+            type="button"
+            on:click={() => activate(asset)}
+            aria-label={asset.filename}
+          >
+            {#if asset.thumbnail_url}
+              <img src={asset.thumbnail_url} alt={asset.filename} loading="lazy" />
+            {:else}
+              <span class="ph">{asset.media_type}</span>
+            {/if}
+            {#if asset.media_type === 'video'}
+              <span class="badge play"><Play size={13} fill="currentColor" /></span>
+            {/if}
+            {#if asset.favorite}
+              <span class="badge fav"><Star size={13} fill="currentColor" /></span>
+            {/if}
+            {#if selectMode}
+              <span class="check" class:on={selected.has(asset.id)}><Check size={13} /></span>
+            {/if}
+          </button>
+        {/each}
+      </div>
+    </section>
+  {/each}
+</div>
+
+<style>
+  .timeline {
+    display: grid;
+    gap: 28px;
+  }
+  .day {
+    display: grid;
+    gap: 10px;
+  }
+  .day h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: #4f4942;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: 8px;
+  }
+  .tile {
+    position: relative;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border: 0;
+    border-radius: 6px;
+    background: #ded6ca;
+    color: #5f574e;
+    cursor: pointer;
+    padding: 0;
+  }
+  .tile.selected {
+    outline: 3px solid #24211f;
+    outline-offset: -3px;
+  }
+  .tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .tile.selected img {
+    transform: scale(0.9);
+    border-radius: 4px;
+  }
+  .ph {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    text-transform: uppercase;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .badge {
+    position: absolute;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    background: #fff8;
+    color: #2b2621;
+  }
+  .fav {
+    top: 8px;
+    right: 8px;
+  }
+  .play {
+    bottom: 8px;
+    left: 8px;
+  }
+  .check {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    border: 2px solid #fff;
+    background: #0006;
+    color: transparent;
+  }
+  .check.on {
+    background: #24211f;
+    color: #fff;
+  }
+  @media (max-width: 780px) {
+    .grid {
+      grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+      gap: 6px;
+    }
+  }
+</style>
