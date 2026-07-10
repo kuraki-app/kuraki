@@ -49,6 +49,8 @@ type assetDTO struct {
 	PreviewURL   *string  `json:"preview_url,omitempty"`
 	ViewURL      string   `json:"view_url"`
 	WebViewable  bool     `json:"web_viewable"`
+	StackID      *string  `json:"stack_id,omitempty"`
+	StackSize    int      `json:"stack_size"`
 	CreatedAt    string   `json:"created_at"`
 }
 
@@ -84,6 +86,8 @@ type assetRow struct {
 	ThumbPath    sql.NullString
 	PreviewPath  sql.NullString
 	WebViewable  int
+	StackID      sql.NullString
+	StackSize    int
 }
 
 func (d Deps) listAssets(w http.ResponseWriter, r *http.Request) {
@@ -102,6 +106,8 @@ func (d Deps) listAssets(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("hidden") == "1" {
 		where = "deleted_at IS NULL AND hidden = 1"
 	}
+	// Collapse stacks: show only the primary of each stack in the timeline.
+	where += " AND (stack_id IS NULL OR stack_primary = 1)"
 	if cursorTime != "" {
 		where += " AND (COALESCE(taken_at, created_at) < ? OR (COALESCE(taken_at, created_at) = ? AND id < ?))"
 		args = append(args, cursorTime, cursorTime, cursorID)
@@ -302,7 +308,8 @@ func assetSelectSQLWithJoin(join, where string) string {
 			a.width, a.height, a.size_bytes, a.taken_at, a.camera_make,
 			a.camera_model, a.gps_lat, a.gps_lon, a.duration_ms, a.favorite, a.rating, a.archived, a.hidden,
 			a.created_at, a.description, a.place_city, a.place_country, COALESCE(d_thumb.path, d_poster.path),
-			d_preview.path, a.web_viewable
+			d_preview.path, a.web_viewable, a.stack_id,
+			(SELECT COUNT(*) FROM assets s WHERE s.stack_id = a.stack_id AND s.deleted_at IS NULL)
 		FROM assets a
 		LEFT JOIN derivatives d_thumb ON d_thumb.asset_id = a.id AND d_thumb.kind = 'thumb'
 		LEFT JOIN derivatives d_poster ON d_poster.asset_id = a.id AND d_poster.kind = 'poster'
@@ -318,7 +325,7 @@ func assetScanDest(row *assetRow) []any {
 		&row.Width, &row.Height, &row.SizeBytes, &row.TakenAt, &row.CameraMake,
 		&row.CameraModel, &row.GPSLat, &row.GPSLon, &row.DurationMS, &row.Favorite, &row.Rating, &row.Archived, &row.Hidden,
 		&row.CreatedAt, &row.Description, &row.PlaceCity, &row.PlaceCountry, &row.ThumbPath,
-		&row.PreviewPath, &row.WebViewable,
+		&row.PreviewPath, &row.WebViewable, &row.StackID, &row.StackSize,
 	}
 }
 
@@ -420,7 +427,14 @@ func (row assetRow) toDTO() assetDTO {
 		PreviewURL:   previewURL,
 		ViewURL:      viewURL,
 		WebViewable:  row.WebViewable != 0,
-		CreatedAt:    row.CreatedAt,
+		StackSize:    row.StackSize,
+		StackID: func() *string {
+			if row.StackID.Valid {
+				return &row.StackID.String
+			}
+			return nil
+		}(),
+		CreatedAt: row.CreatedAt,
 	}
 }
 

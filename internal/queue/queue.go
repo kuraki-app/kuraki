@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kuraki-app/kuraki/internal/importer"
 	"github.com/kuraki-app/kuraki/internal/media"
+	"github.com/kuraki-app/kuraki/internal/stacks"
 	"github.com/kuraki-app/kuraki/internal/storage"
 )
 
@@ -201,6 +202,11 @@ func (q *Queue) process(ctx context.Context, j Job) {
 			j.ID, filepath.Base(fe.Path), msg)
 	}
 	os.RemoveAll(source)
+	if result.Imported > 0 {
+		if err := stacks.Detect(ctx, q.DB); err != nil {
+			q.Log.Warn("stack detection failed", "err", err)
+		}
+	}
 	q.Log.Info("import job done", "job", j.ID, "imported", result.Imported,
 		"duplicates", result.Duplicates, "errors", len(result.Errors))
 }

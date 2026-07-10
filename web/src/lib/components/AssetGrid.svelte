@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { Star, Play, Check } from '@lucide/svelte';
+  import { Star, Play, Check, Layers } from '@lucide/svelte';
   import type { Asset } from '$lib/types';
   import { groupByDay, labelDate } from '$lib/format';
 
@@ -43,6 +43,9 @@
             {/if}
             {#if asset.favorite}
               <span class="badge fav"><Star size={13} fill="currentColor" /></span>
+            {/if}
+            {#if asset.stack_size > 1}
+              <span class="badge stack"><Layers size={12} /> {asset.stack_size}</span>
             {/if}
             {#if selectMode}
               <span class="check" class:on={selected.has(asset.id)}><Check size={13} /></span>
@@ -124,6 +127,18 @@
   .play {
     bottom: 8px;
     left: 8px;
+  }
+  .stack {
+    display: inline-flex;
+    align-items: center;
+    bottom: 8px;
+    right: 8px;
+    width: auto;
+    height: 22px;
+    padding: 0 7px;
+    gap: 3px;
+    font-size: 11px;
+    font-weight: 700;
   }
   .check {
     position: absolute;

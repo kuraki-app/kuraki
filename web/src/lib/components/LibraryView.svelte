@@ -24,6 +24,7 @@
   let error = '';
   let selectMode = false;
   let selected = new Set<string>();
+  let viewerAssets: Asset[] = [];
   let viewerIndex = -1;
   let pickerOpen = false;
   let albums: Album[] = [];
@@ -89,15 +90,29 @@
     selectMode = false;
   }
 
-  function open(asset: Asset) {
-    viewerIndex = assets.findIndex((a) => a.id === asset.id);
+  async function open(asset: Asset) {
+    // A stacked tile opens its members (RAW+JPEG / Live Photo); otherwise the
+    // viewer pages through the current list.
+    if (asset.stack_size > 1) {
+      try {
+        const members = (await api.stack(asset.id)).assets;
+        viewerAssets = members.length ? members : [asset];
+      } catch {
+        viewerAssets = [asset];
+      }
+      viewerIndex = 0;
+    } else {
+      viewerAssets = assets;
+      viewerIndex = assets.findIndex((a) => a.id === asset.id);
+    }
   }
 
   function dropAsset(id: string) {
     assets = assets.filter((a) => a.id !== id);
+    viewerAssets = viewerAssets.filter((a) => a.id !== id);
     if (viewerIndex >= 0) {
-      if (assets.length === 0) viewerIndex = -1;
-      else if (viewerIndex >= assets.length) viewerIndex = assets.length - 1;
+      if (viewerAssets.length === 0) viewerIndex = -1;
+      else if (viewerIndex >= viewerAssets.length) viewerIndex = viewerAssets.length - 1;
     }
   }
 
@@ -108,7 +123,9 @@
       if (favoritesMode && !next) {
         dropAsset(asset.id);
       } else {
-        assets = assets.map((a) => (a.id === asset.id ? { ...a, favorite: next } : a));
+        const apply = (a: Asset) => (a.id === asset.id ? { ...a, favorite: next } : a);
+        assets = assets.map(apply);
+        viewerAssets = viewerAssets.map(apply);
       }
     } catch (e) {
       showToast(msg(e));
@@ -119,6 +136,7 @@
     try {
       const updated = await api.patchAsset(id, rest);
       assets = assets.map((a) => (a.id === updated.id ? updated : a));
+      viewerAssets = viewerAssets.map((a) => (a.id === updated.id ? updated : a));
       showToast('Updated');
     } catch (e) {
       showToast(msg(e));
@@ -256,7 +274,7 @@
 
 {#if viewerIndex >= 0}
   <Viewer
-    {assets}
+    assets={viewerAssets}
     index={viewerIndex}
     {trashMode}
     editable={!trashMode}

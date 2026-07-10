@@ -20,6 +20,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/importer"
 	"github.com/kuraki-app/kuraki/internal/media"
 	"github.com/kuraki-app/kuraki/internal/queue"
+	"github.com/kuraki-app/kuraki/internal/stacks"
 	"github.com/kuraki-app/kuraki/internal/storage"
 	"github.com/kuraki-app/kuraki/internal/trash"
 	"github.com/kuraki-app/kuraki/internal/verify"
@@ -98,7 +99,13 @@ func (a *App) Import(ctx context.Context, opts importer.Options) (importer.Resul
 		Media:        a.Media,
 		ThumbMaxEdge: a.Cfg.ThumbnailSize,
 	}
-	return runner.Run(ctx, opts)
+	result, err := runner.Run(ctx, opts)
+	if err == nil && result.Imported > 0 {
+		if derr := stacks.Detect(ctx, a.DB); derr != nil {
+			a.Log.Warn("stack detection failed", "err", derr)
+		}
+	}
+	return result, err
 }
 
 // Verify re-checksums every original against its stored BLAKE3 hash (F-12).
@@ -299,6 +306,11 @@ func (a *App) Serve(ctx context.Context) error {
 	a.startIntegrityScheduler(ctx)
 	go a.backfillPlaces(ctx)
 	go a.backfillPHashes(ctx)
+	go func() {
+		if err := stacks.Detect(ctx, a.DB); err != nil {
+			a.Log.Warn("stack detection failed", "err", err)
+		}
+	}()
 	go a.Queue.Start(ctx)
 
 	handler := httpapi.NewRouter(httpapi.Deps{

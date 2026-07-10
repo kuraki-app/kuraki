@@ -18,6 +18,8 @@ export type Asset = {
   rating: number;
   archived: boolean;
   hidden: boolean;
+  stack_id?: string;
+  stack_size: number;
   description?: string;
   place_city?: string;
   place_country?: string;

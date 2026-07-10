@@ -71,6 +71,7 @@ func NewRouter(d Deps) http.Handler {
 			r.Post("/assets/{id}/restore", d.restoreAsset)
 			r.Get("/assets/{id}/original", d.serveOriginal)
 			r.Get("/assets/{id}/thumb", d.serveThumb)
+			r.Get("/assets/{id}/stack", d.stackAssets)
 			r.Get("/assets/{id}/preview", d.servePreview)
 			r.Post("/assets/{id}/favorite", d.setFavorite)
 			r.Get("/search", d.searchAssets)

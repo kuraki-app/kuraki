@@ -74,6 +74,7 @@ export const api = {
 
   albums: () => req<{ albums: Album[] }>('/api/albums'),
   album: (id: string) => req<AssetList>(`/api/albums/${id}?limit=500`),
+  stack: (id: string) => req<AssetList>(`/api/assets/${id}/stack`),
   createAlbum: (name: string) => req<Album>('/api/albums', jsonBody({ name })),
   renameAlbum: (id: string, name: string) =>
     req<Album>(`/api/albums/${id}`, jsonBody({ name }, 'PATCH')),
