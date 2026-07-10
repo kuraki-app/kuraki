@@ -3,12 +3,13 @@
 > Forward-looking plan for where Kuraki is headed. For a record of what has
 > already been built and fixed, see **[CHANGELOG.md](./CHANGELOG.md)**.
 
-Kuraki today is a working, single-owner, self-hosted photo & video backup server:
-CLI and browser import with content-hash dedup, a searchable web timeline and
-viewer, favorites, albums, "on this day", trash with retention, integrity
-verification, video with in-browser playback, and Docker-first deployment. The
-server-side foundation is in place; the web UI is catching up to it, and the
-items below are where we go next.
+Kuraki today is a working, single-owner, self-hosted photo & video backup server
+with a full browser experience: CLI and drag-and-drop import with content-hash
+dedup, a searchable web timeline and lightbox viewer, favorites, albums,
+"on this day", a places map with offline reverse geocoding, multi-select batch
+actions and zip export, trash with retention, integrity verification, video with
+in-browser playback, and Docker-first deployment. The items below are where we
+go next.
 
 ## Design decisions (context)
 
