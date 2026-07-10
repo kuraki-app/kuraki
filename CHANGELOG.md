@@ -47,6 +47,9 @@ Docker-first deployment and a full browser experience over an embedded web UI.
   uploads do not leak staging directories or rows.
 - Added `mobile/`, a shared Expo/React Native iOS and Android client with
   SecureStore-backed device settings, backup receipts, and manual photo upload.
+- QR device pairing: the web app's Devices page mints a short-lived, single-use
+  code and shows it as a QR; the mobile app scans it to claim its own revocable
+  device token, so pairing a phone no longer requires copying a token by hand.
 - Automatic camera-roll backup in the mobile client: a persisted queue uploads
   every new photo and video, remembers what the server already accepted so a
   restart never re-uploads, retries each chunk with backoff through a network

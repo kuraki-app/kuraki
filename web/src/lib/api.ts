@@ -94,6 +94,8 @@ export const api = {
   duplicates: () => req<{ groups: DupAsset[][] }>('/api/duplicates'),
   integrity: () => req<{ last: IntegrityRun | null }>('/api/integrity'),
   runIntegrity: () => req<{ status: string }>('/api/integrity/run', { method: 'POST' }),
+  createPairingCode: () =>
+    req<{ code: string; expires_at: string }>('/api/devices/pair', { method: 'POST' }),
   tags: () => req<{ tags: Tag[] }>('/api/tags'),
   createTag: (name: string, parent_id?: string) => req<Tag>('/api/tags', jsonBody({ name, parent_id })),
   deleteTag: (id: string) => req<void>(`/api/tags/${id}`, { method: 'DELETE' }),

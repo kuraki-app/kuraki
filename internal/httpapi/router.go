@@ -46,6 +46,9 @@ func NewRouter(d Deps) http.Handler {
 
 	// Login throttle: ~10 attempts then 1 per 6s per IP (F-14).
 	loginLimiter := newIPLimiter(rate.Every(6*time.Second), 10, 10*time.Minute)
+	// Pairing-claim throttle: the endpoint is unauthenticated, so bound guesses
+	// per IP even though codes carry full entropy.
+	pairLimiter := newIPLimiter(rate.Every(6*time.Second), 10, 10*time.Minute)
 
 	r.Get("/healthz", d.healthz)
 	r.Get("/metrics", d.metrics)
@@ -57,11 +60,13 @@ func NewRouter(d Deps) http.Handler {
 		r.With(loginLimiter.middleware).Post("/login", d.login)
 		r.Post("/logout", d.logout)
 		r.Get("/me", d.me)
+		r.With(pairLimiter.middleware).Post("/devices/pair/claim", d.claimPairingCode)
 
 		r.Group(func(r chi.Router) {
 			r.Use(d.requireAuth)
 			r.Get("/assets", d.listAssets)
 			r.Post("/devices", d.registerDevice)
+			r.Post("/devices/pair", d.createPairingCode)
 			r.Delete("/devices/{id}", d.revokeDevice)
 			r.Post("/assets", d.uploadAsset)
 			r.Post("/assets/batch", d.batchAssets)

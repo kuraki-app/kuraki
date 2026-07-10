@@ -26,7 +26,14 @@ deduplication, a restart or a dropped connection never re-creates a duplicate:
 - **Streams large files** — uploads read the file one chunk at a time through a
   native `expo-file-system` handle, so a multi-gigabyte video never fills memory.
 
-Per-album selection and QR pairing are the next milestones.
+## Pairing
+
+Open **Settings → Scan QR to pair** and scan the QR shown on the Kuraki web
+app's **Devices** page. The phone claims its own revocable device token and
+stores the server address — no token copying by hand. Manual entry (server
+address + token) remains available as a fallback.
+
+Per-album selection is the next milestone.
 
 ## Run in Expo Go
 

@@ -351,6 +351,11 @@ func (a *App) startCaptureJanitor(ctx context.Context) {
 		if n > 0 {
 			a.Log.Info("purged expired capture sessions", "count", n)
 		}
+		// Expired pairing codes (claimed or not) are dead weight; sweep them too.
+		if _, err := a.DB.ExecContext(ctx, `DELETE FROM pairing_codes WHERE expires_at < ?`,
+			time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+			a.Log.Warn("pairing code purge failed", "err", err)
+		}
 	}
 	run()
 	go func() {

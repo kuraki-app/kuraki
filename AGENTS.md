@@ -36,7 +36,7 @@ Phase 1 = single-owner personal backup.
 - **R1 content admission (2026-07-10):** standard image/video signatures now determine media type before the filename extension; renamed valid media imports with its detected MIME, while mismatched advertised media is recorded as an import error. Opaque camera RAW files retain an extension-based admission exception until a fixture-backed decoder policy is available.
 - **Import/export safety (2026-07-10):** browser queue staging isolates each uploaded file, so repeated filenames cannot overwrite one another. Portable backup format v2 records an archive manifest; restore validates it in a temporary sibling directory before swapping into an empty target. `kuraki backup` takes an online SQLite snapshot before packaging a live library. ZIP exports preflight originals and bypass the normal API deadline, so they no longer quietly omit unavailable files or time out at 60 seconds.
 - **Capture foundation (2026-07-10):** migration `00012` adds revocable devices and resumable upload sessions. Browser-authenticated users create a device token; `POST/PATCH/complete /api/capture/uploads` writes bounded chunks to staging and hands a complete file to the existing queue/importer. `mobile/` is an Expo/React Native iOS+Android client with SecureStore settings, status receipts, and manual photo selection/upload. Automatic camera-roll album backup, QR pairing, and background scheduling remain next.
-- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00012`.
+- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00013`.
 - **Not browser-click-tested:** the SvelteKit UI compiles and serves and all endpoints are E2E-verified
   via curl, but no headless-browser pass has been run (per human request).
 - **Env-gated / pending:** `-tags vips` build (needs libvips + `pkg-config`), HEIC out of the box,
@@ -75,7 +75,7 @@ internal/
   app/                 composition root — wires everything; owns server lifecycle + workers
   config/              zero-config defaults + KURAKI_* env resolution
   domain/              core entities — **NO I/O EVER**
-  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00012)
+  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00013)
   storage/             Storage interface + FS impl (write-once, atomic, traversal-safe)
   media/               Processor interface + purego.go fallback + vips.go tagged backend, ffmpeg, EXIF
   importer/            recursive import, BLAKE3 dedup, import_state resume, derivatives; Takeout + geocode
@@ -86,8 +86,8 @@ internal/
   verify/              integrity re-checksum
   auth/                argon2id password hashes + session IDs
   httpapi/             chi router, handlers, middleware; assets/ = embedded UI
-web/                   SvelteKit SPA (routes: timeline/search/favorites/albums/memories/places/duplicates/stats/activity/archive/hidden/trash)
-mobile/                Expo / React Native iOS+Android Capture client (Backup + Settings initial scope)
+web/                   SvelteKit SPA (routes: timeline/search/favorites/albums/memories/places/duplicates/stats/devices/activity/archive/hidden/trash)
+mobile/                Expo / React Native iOS+Android Capture client (auto camera-roll backup, background task, QR pairing)
 docs/                  PRD/BRD + local plans — gitignored, local only
 ```
 
@@ -145,7 +145,8 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | R1 full fixture matrix across libvips and Chromium/Firefox/WebKit | ⬜ env-gated release certification |
 | R2 remaining (nice-to-haves): XMP sidecars, non-destructive edit, burst grouping, slideshow/jump-to-date/grid-density/dark-mode/a11y polish | ⬜ roadmap |
 | libvips-default Docker image / HEIC verified, low-resource benchmark | ⬜ env-gated |
-| QR pairing, per-album selection | ⬜ next Capture milestones |
+| QR device pairing: web mints code + QR, mobile scans to claim its own token | ✅ done |
+| Per-album selection | ⬜ next Capture milestone |
 | Sharing, optional ML, and scale deployment profiles | ⬜ later phases |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
@@ -172,6 +173,17 @@ Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./R
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `HEAD` — **QR device pairing across server, web, and mobile (Claude).** A phone can now pair by scanning a
+  QR instead of pasting a token. Server: migration `00013` adds single-use `pairing_codes`; `POST /api/devices/pair`
+  (auth) mints a 5-minute code, `POST /api/devices/pair/claim` (public, IP rate-limited) atomically claims it in a
+  transaction — guarded single-row update → insert device → back-reference `device_id` so the FK holds — and returns
+  a fresh device token. The capture janitor also sweeps expired codes. Added `pairing_test.go` (mint → claim →
+  token authenticates a device endpoint → reuse rejected 409 → unknown 404). Web: new `/devices` page mints a code
+  and renders `{base_url, code}` as a QR via the `qrcode` dep (added), plus a Devices nav item. Mobile: `claimPairing`
+  in `capture-api.ts`, a `PairScanner` component (`expo-camera`, added, with permission plugin) opened from Settings,
+  which stores the returned token in SecureStore. `go test -race`, `npm run build` (web), `tsc --noEmit` + `expo lint`
+  (mobile) all green. Migrations through `00013`. Remaining Capture milestone: per-album selection. No co-author trailer.
 
 - `HEAD` — **Background scheduling + streamed large-file uploads (Claude).** Closed two open Capture
   milestones in the mobile client. `background.ts` defines an `expo-background-task` (imported from the root

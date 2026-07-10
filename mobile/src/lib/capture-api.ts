@@ -36,6 +36,23 @@ export class CaptureAPIError extends Error {
   }
 }
 
+export type PairedDevice = { id: string; name: string; token: string };
+
+/**
+ * claimPairing redeems a one-time code shown by the Kuraki web app (typically
+ * scanned from a QR). It is unauthenticated — the phone has no credentials yet —
+ * and returns the device's own revocable token on success.
+ */
+export async function claimPairing(baseURL: string, code: string, name: string): Promise<PairedDevice> {
+  const url = `${baseURL.replace(/\/+$/, '')}/api/devices/pair/claim`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, name }),
+  });
+  return unwrap<PairedDevice>(response, 'Pairing failed. Generate a new code and try again.');
+}
+
 export async function getCaptureStatus(settings: CaptureSettings): Promise<CaptureStatus> {
   requireConnected(settings);
   const response = await fetch(`${settings.baseURL}/api/capture/status`, {

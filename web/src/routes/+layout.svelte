@@ -15,7 +15,8 @@
     LogOut,
     Lock,
     Archive,
-    EyeOff
+    EyeOff,
+    Smartphone
   } from '@lucide/svelte';
   import { api, uploadFiles } from '$lib/api';
   import { session, bumpLibrary, toast, showToast } from '$lib/stores';
@@ -39,6 +40,7 @@
     { href: '/hidden', label: 'Hidden', icon: EyeOff },
     { href: '/duplicates', label: 'Duplicates', icon: Copy },
     { href: '/stats', label: 'Library', icon: BarChart3 },
+    { href: '/devices', label: 'Devices', icon: Smartphone },
     { href: '/activity', label: 'Activity', icon: Activity },
     { href: '/trash', label: 'Trash', icon: Trash2 }
   ];

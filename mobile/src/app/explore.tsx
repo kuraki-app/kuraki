@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, TextInput } from 'react-native';
 
+import PairScanner from '@/components/pair-scanner';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
@@ -10,6 +11,7 @@ export default function SettingsScreen() {
   const [baseURL, setBaseURL] = useState('');
   const [deviceToken, setDeviceToken] = useState('');
   const [saved, setSaved] = useState(false);
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     void loadCaptureSettings().then((settings) => {
@@ -23,13 +25,23 @@ export default function SettingsScreen() {
     setSaved(true);
   }
 
+  function onPaired(url: string) {
+    setScanning(false);
+    setBaseURL(url);
+    void loadCaptureSettings().then((s) => setDeviceToken(s.deviceToken));
+    setSaved(true);
+  }
+
   return (
     <ScrollView contentInsetAdjustmentBehavior="automatic">
       <ThemedView style={styles.content}>
         <ThemedText type="title">Settings</ThemedText>
         <ThemedText themeColor="textSecondary" selectable>
-          Create a device token in Kuraki’s web app, then paste it here. Then enable Automatic backup on the Backup tab. QR pairing and per-album selection are the next Capture milestones.
+          Scan the pairing QR from Kuraki’s web app (Devices tab), or paste a device token by hand. Then enable Automatic backup on the Backup tab.
         </ThemedText>
+        <Pressable style={styles.button} onPress={() => setScanning(true)}>
+          <ThemedText type="smallBold">Scan QR to pair</ThemedText>
+        </Pressable>
         <ThemedText type="smallBold">Server address</ThemedText>
         <TextInput
           autoCapitalize="none"
@@ -55,6 +67,9 @@ export default function SettingsScreen() {
         </Pressable>
         {saved && <ThemedText themeColor="textSecondary" selectable>Saved securely on this device.</ThemedText>}
       </ThemedView>
+      <Modal visible={scanning} animationType="slide" onRequestClose={() => setScanning(false)}>
+        <PairScanner onPaired={onPaired} onClose={() => setScanning(false)} />
+      </Modal>
     </ScrollView>
   );
 }

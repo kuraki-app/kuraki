@@ -40,6 +40,12 @@
         }
       ],
       [
+        "expo-camera",
+        {
+          "cameraPermission": "Kuraki uses the camera only to scan the pairing QR code shown by your server."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#208AEF",
