@@ -14,6 +14,7 @@ import (
 
 	"github.com/kuraki-app/kuraki/internal/config"
 	"github.com/kuraki-app/kuraki/internal/db"
+	"github.com/kuraki-app/kuraki/internal/geo"
 	"github.com/kuraki-app/kuraki/internal/httpapi"
 	"github.com/kuraki-app/kuraki/internal/importer"
 	"github.com/kuraki-app/kuraki/internal/media"
@@ -94,6 +95,57 @@ func (a *App) Verify(ctx context.Context, progress func(done, total int)) (verif
 	return v.Run(ctx, progress)
 }
 
+// backfillPlaces resolves place names for assets that carry GPS but were imported
+// before reverse geocoding existed. Runs once in the background at startup.
+func (a *App) backfillPlaces(ctx context.Context) {
+	rows, err := a.DB.QueryContext(ctx,
+		`SELECT id, gps_lat, gps_lon FROM assets
+		 WHERE gps_lat IS NOT NULL AND gps_lon IS NOT NULL AND place_city IS NULL`)
+	if err != nil {
+		a.Log.Warn("place backfill query failed", "err", err)
+		return
+	}
+	type target struct {
+		id       string
+		lat, lon float64
+	}
+	var todo []target
+	for rows.Next() {
+		var t target
+		if err := rows.Scan(&t.id, &t.lat, &t.lon); err != nil {
+			rows.Close()
+			return
+		}
+		todo = append(todo, t)
+	}
+	rows.Close()
+	if len(todo) == 0 {
+		return
+	}
+
+	updated := 0
+	for _, t := range todo {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		city, country := "", ""
+		if p, ok := geo.Reverse(t.lat, t.lon); ok {
+			city, country = p.City, p.Country
+		}
+		// Store empty strings for unresolved coordinates so they are not retried.
+		if _, err := a.DB.ExecContext(ctx,
+			`UPDATE assets SET place_city = ?, place_country = ? WHERE id = ?`,
+			city, country, t.id); err == nil {
+			updated++
+		}
+	}
+	if updated > 0 {
+		a.Log.Info("backfilled place names", "count", updated)
+	}
+}
+
 // PurgeTrash permanently removes assets whose retention window has elapsed (F-10).
 func (a *App) PurgeTrash(ctx context.Context) (int, error) {
 	return trash.PurgeExpired(ctx, a.DB, a.Store, time.Now().Add(-trash.Retention))
@@ -130,6 +182,7 @@ func (a *App) startTrashJanitor(ctx context.Context) {
 // down gracefully.
 func (a *App) Serve(ctx context.Context) error {
 	a.startTrashJanitor(ctx)
+	go a.backfillPlaces(ctx)
 
 	handler := httpapi.NewRouter(httpapi.Deps{
 		Version: a.Version,

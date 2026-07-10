@@ -37,6 +37,8 @@ type assetDTO struct {
 	GPSLon       *float64 `json:"gps_lon,omitempty"`
 	DurationMS   int64    `json:"duration_ms"`
 	Favorite     bool     `json:"favorite"`
+	PlaceCity    *string  `json:"place_city,omitempty"`
+	PlaceCountry *string  `json:"place_country,omitempty"`
 	OriginalURL  string   `json:"original_url"`
 	ThumbnailURL *string  `json:"thumbnail_url,omitempty"`
 	CreatedAt    string   `json:"created_at"`
@@ -64,6 +66,8 @@ type assetRow struct {
 	DurationMS   int64
 	Favorite     int
 	CreatedAt    string
+	PlaceCity    sql.NullString
+	PlaceCountry sql.NullString
 	ThumbPath    sql.NullString
 }
 
@@ -212,7 +216,7 @@ func assetSelectSQLWithJoin(join, where string) string {
 			a.id, a.original_path, a.filename, a.mime_type, a.media_type,
 			a.width, a.height, a.size_bytes, a.taken_at, a.camera_make,
 			a.camera_model, a.gps_lat, a.gps_lon, a.duration_ms, a.favorite,
-			a.created_at, COALESCE(d_thumb.path, d_poster.path)
+			a.created_at, a.place_city, a.place_country, COALESCE(d_thumb.path, d_poster.path)
 		FROM assets a
 		LEFT JOIN derivatives d_thumb ON d_thumb.asset_id = a.id AND d_thumb.kind = 'thumb'
 		LEFT JOIN derivatives d_poster ON d_poster.asset_id = a.id AND d_poster.kind = 'poster'
@@ -226,7 +230,7 @@ func assetScanDest(row *assetRow) []any {
 		&row.ID, &row.OriginalPath, &row.Filename, &row.MimeType, &row.MediaType,
 		&row.Width, &row.Height, &row.SizeBytes, &row.TakenAt, &row.CameraMake,
 		&row.CameraModel, &row.GPSLat, &row.GPSLon, &row.DurationMS, &row.Favorite,
-		&row.CreatedAt, &row.ThumbPath,
+		&row.CreatedAt, &row.PlaceCity, &row.PlaceCountry, &row.ThumbPath,
 	}
 }
 
@@ -274,6 +278,13 @@ func (row assetRow) toDTO() assetDTO {
 	if row.GPSLon.Valid {
 		lon = &row.GPSLon.Float64
 	}
+	var placeCity, placeCountry *string
+	if row.PlaceCity.Valid && row.PlaceCity.String != "" {
+		placeCity = &row.PlaceCity.String
+	}
+	if row.PlaceCountry.Valid && row.PlaceCountry.String != "" {
+		placeCountry = &row.PlaceCountry.String
+	}
 	originalURL := "/api/assets/" + row.ID + "/original"
 	var thumbURL *string
 	if row.ThumbPath.Valid {
@@ -297,6 +308,8 @@ func (row assetRow) toDTO() assetDTO {
 		GPSLon:       lon,
 		DurationMS:   row.DurationMS,
 		Favorite:     row.Favorite != 0,
+		PlaceCity:    placeCity,
+		PlaceCountry: placeCountry,
 		OriginalURL:  originalURL,
 		ThumbnailURL: thumbURL,
 		CreatedAt:    row.CreatedAt,

@@ -20,6 +20,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/kuraki-app/kuraki/internal/domain"
+	"github.com/kuraki-app/kuraki/internal/geo"
 	"github.com/kuraki-app/kuraki/internal/media"
 	"github.com/kuraki-app/kuraki/internal/storage"
 	"github.com/zeebo/blake3"
@@ -241,6 +242,13 @@ func (i *Importer) importFile(ctx context.Context, ownerID, path string, kind do
 		return nil, fmt.Errorf("write original: wrote %d bytes, want %d", written, info.Size())
 	}
 
+	var placeCity, placeCountry string
+	if meta.GPSLat != nil && meta.GPSLon != nil {
+		if p, ok := geo.Reverse(*meta.GPSLat, *meta.GPSLon); ok {
+			placeCity, placeCountry = p.City, p.Country
+		}
+	}
+
 	if err := i.insertAsset(ctx, assetRow{
 		ID:           assetID.String(),
 		OwnerID:      ownerID,
@@ -258,6 +266,8 @@ func (i *Importer) importFile(ctx context.Context, ownerID, path string, kind do
 		GPSLat:       meta.GPSLat,
 		GPSLon:       meta.GPSLon,
 		DurationMS:   meta.DurationMS,
+		PlaceCity:    placeCity,
+		PlaceCountry: placeCountry,
 	}); err != nil {
 		return nil, err
 	}
@@ -479,6 +489,8 @@ type assetRow struct {
 	GPSLat       *float64
 	GPSLon       *float64
 	DurationMS   int64
+	PlaceCity    string
+	PlaceCountry string
 }
 
 func (i *Importer) insertAsset(ctx context.Context, row assetRow) error {
@@ -492,12 +504,13 @@ func (i *Importer) insertAsset(ctx context.Context, row assetRow) error {
 		INSERT INTO assets (
 			id, owner_id, content_hash, original_path, filename, mime_type, media_type,
 			width, height, size_bytes, taken_at, camera_make, camera_model, gps_lat,
-			gps_lon, duration_ms
+			gps_lon, duration_ms, place_city, place_country
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, row.ID, row.OwnerID, row.ContentHash, row.OriginalPath, row.Filename, row.MimeType,
 		string(row.MediaType), row.Width, row.Height, row.SizeBytes, timePtrText(row.TakenAt),
-		row.CameraMake, row.CameraModel, floatPtr(row.GPSLat), floatPtr(row.GPSLon), row.DurationMS)
+		row.CameraMake, row.CameraModel, floatPtr(row.GPSLat), floatPtr(row.GPSLon), row.DurationMS,
+		nullString(row.PlaceCity), nullString(row.PlaceCountry))
 	if err != nil {
 		return fmt.Errorf("importer: insert asset: %w", err)
 	}
