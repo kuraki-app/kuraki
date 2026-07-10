@@ -50,6 +50,8 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - Portable backups now carry a versioned file-count/byte-count manifest;
   restores validate the archive in a temporary directory before atomically
   replacing an empty destination.
+- ZIP exports preflight every original and fail explicitly if one is unavailable;
+  selected and whole-library downloads are not limited by the normal API timeout.
 
 **Browsing & search**
 - Virtualized, day- and month-grouped timeline that stays smooth on large libraries.

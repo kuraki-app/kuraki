@@ -59,11 +59,24 @@ func (d Deps) downloadZip(w http.ResponseWriter, r *http.Request) {
 		items = append(items, zipItem{storagePath: "originals/" + path, zipName: name})
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		writeError(w, http.StatusInternalServerError, "query_failed")
+		return
+	}
 	if len(items) == 0 {
 		writeError(w, http.StatusNotFound, "no_assets")
 		return
 	}
-	streamZip(w, r, d, "kuraki-export.zip", items)
+	if len(items) != uniqueIDCount(req.IDs) {
+		writeError(w, http.StatusNotFound, "asset_not_found")
+		return
+	}
+	if !d.prepareZip(w, r, items) {
+		return
+	}
+	if err := streamZip(w, r, d, "kuraki-export.zip", items); err != nil && d.Logger != nil {
+		d.Logger.Error("zip export interrupted", "err", err)
+	}
 }
 
 // exportLibrary streams a zip of every original in the library, preserving the
@@ -91,33 +104,79 @@ func (d Deps) exportLibrary(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		writeError(w, http.StatusInternalServerError, "query_failed")
+		return
+	}
 	if len(items) == 0 {
 		writeError(w, http.StatusNotFound, "no_assets")
 		return
 	}
-	streamZip(w, r, d, "kuraki-library.zip", items)
+	if !d.prepareZip(w, r, items) {
+		return
+	}
+	if err := streamZip(w, r, d, "kuraki-library.zip", items); err != nil && d.Logger != nil {
+		d.Logger.Error("library export interrupted", "err", err)
+	}
 }
 
-func streamZip(w http.ResponseWriter, r *http.Request, d Deps, filename string, items []zipItem) {
+// prepareZip verifies every original before response headers commit a download.
+// Originals are write-once, so this prevents a known-bad library from quietly
+// producing a successful-looking ZIP with files omitted.
+func (d Deps) prepareZip(w http.ResponseWriter, r *http.Request, items []zipItem) bool {
+	for _, item := range items {
+		exists, err := d.Store.Exists(r.Context(), item.storagePath)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "storage_failed")
+			return false
+		}
+		if !exists {
+			writeError(w, http.StatusConflict, "original_unavailable")
+			return false
+		}
+	}
+	return true
+}
+
+func streamZip(w http.ResponseWriter, r *http.Request, d Deps, filename string, items []zipItem) (err error) {
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 	zw := zip.NewWriter(w)
-	defer zw.Close()
+	defer func() {
+		if closeErr := zw.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("close zip: %w", closeErr)
+		}
+	}()
 
 	seen := map[string]int{}
 	for _, it := range items {
 		rc, err := d.Store.Open(r.Context(), it.storagePath)
 		if err != nil {
-			continue // skip missing originals rather than aborting the archive
+			return fmt.Errorf("open original %q: %w", it.zipName, err)
 		}
 		fw, err := zw.Create(uniqueZipName(seen, it.zipName))
 		if err != nil {
 			rc.Close()
-			return
+			return fmt.Errorf("create zip entry %q: %w", it.zipName, err)
 		}
-		_, _ = io.Copy(fw, rc)
-		rc.Close()
+		_, copyErr := io.Copy(fw, rc)
+		closeErr := rc.Close()
+		if copyErr != nil {
+			return fmt.Errorf("copy original %q: %w", it.zipName, copyErr)
+		}
+		if closeErr != nil {
+			return fmt.Errorf("close original %q: %w", it.zipName, closeErr)
+		}
 	}
+	return nil
+}
+
+func uniqueIDCount(ids []string) int {
+	seen := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		seen[id] = struct{}{}
+	}
+	return len(seen)
 }
 
 // uniqueZipName disambiguates repeated entry names (e.g. two IMG_1234.jpg).

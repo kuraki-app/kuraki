@@ -42,7 +42,7 @@ func NewRouter(d Deps) http.Handler {
 	// so range requests and already-compressed images/videos pass through.
 	r.Use(middleware.Compress(5, "application/json", "text/html", "text/css",
 		"application/javascript", "text/javascript", "image/svg+xml"))
-	r.Use(middleware.Timeout(60 * time.Second))
+	r.Use(timeoutExcept(60*time.Second, "/api/assets/zip", "/api/export"))
 
 	// Login throttle: ~10 attempts then 1 per 6s per IP (F-14).
 	loginLimiter := newIPLimiter(rate.Every(6*time.Second), 10, 10*time.Minute)
@@ -114,6 +114,26 @@ func NewRouter(d Deps) http.Handler {
 	// Everything else falls through to the embedded SPA.
 	r.Handle("/*", spaHandler(uiFS()))
 	return r
+}
+
+// timeoutExcept keeps bounded request handling for the API and UI while
+// allowing large ZIP exports to finish. Request cancellation is still passed
+// through from the client context.
+func timeoutExcept(timeout time.Duration, paths ...string) func(http.Handler) http.Handler {
+	exempt := make(map[string]struct{}, len(paths))
+	for _, path := range paths {
+		exempt[path] = struct{}{}
+	}
+	return func(next http.Handler) http.Handler {
+		limited := middleware.Timeout(timeout)(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := exempt[r.URL.Path]; ok {
+				next.ServeHTTP(w, r)
+				return
+			}
+			limited.ServeHTTP(w, r)
+		})
+	}
 }
 
 func (d Deps) healthz(w http.ResponseWriter, r *http.Request) {

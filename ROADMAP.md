@@ -116,8 +116,9 @@ well organized without turning Kuraki into a heavyweight DAM.
 - Full library export, backup/restore, and scheduled integrity verification are
   shipped and the exit criteria below are met. Backup format v2 validates a
   file-count/byte-count manifest in staging before swapping into an empty
-  destination. Still to come: live-server snapshot consistency, restore drills,
-  storage usage forecast, and documented 3-2-1 backup guidance.
+  destination; ZIP exports validate every original before the response starts.
+  Still to come: live-server snapshot consistency, restore drills, storage usage
+  forecast, and documented 3-2-1 backup guidance.
 - Still to come: XMP sidecar import/export and a non-destructive edit recipe
   (crop, rotate, straighten, light adjustments); originals remain immutable.
 - Useful polish still to come: jump-to-date, configurable grid density/layout,
