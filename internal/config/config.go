@@ -82,3 +82,6 @@ func (c Config) TrashDir() string { return filepath.Join(c.DataDir, "trash") }
 
 // SnapshotsDir holds timestamped DB backups taken before each migration (F-11).
 func (c Config) SnapshotsDir() string { return filepath.Join(c.DataDir, "snapshots") }
+
+// StagingDir holds uploaded files awaiting background import.
+func (c Config) StagingDir() string { return filepath.Join(c.DataDir, "staging") }

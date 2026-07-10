@@ -1,23 +1,16 @@
 package httpapi
 
-import (
-	"io"
-	"mime/multipart"
-	"net/http"
-	"os"
-	"path/filepath"
-
-	"github.com/kuraki-app/kuraki/internal/importer"
-)
+import "net/http"
 
 // maxUploadBytes caps a single multipart upload request.
 const maxUploadBytes = 1 << 30 // 1 GiB
 
-// uploadAsset accepts browser drag-and-drop uploads and runs them through the
-// same importer pipeline as the CLI (dedup, EXIF date, thumbnails) — F-13/F-05.
+// uploadAsset accepts browser uploads, stages them, and enqueues a background
+// import job so the request returns immediately. The client polls the job for
+// progress (F-13/F-05/F-04).
 func (d Deps) uploadAsset(w http.ResponseWriter, r *http.Request) {
-	if d.Media == nil {
-		writeError(w, http.StatusServiceUnavailable, "media_unavailable")
+	if d.Queue == nil {
+		writeError(w, http.StatusServiceUnavailable, "queue_unavailable")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
@@ -31,50 +24,14 @@ func (d Deps) uploadAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Stage uploads in a temp dir, then import that dir in one pass.
-	tmpDir, err := os.MkdirTemp("", "kuraki-upload-")
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "stage_failed")
-		return
-	}
-	defer os.RemoveAll(tmpDir)
-
-	for _, fh := range files {
-		if err := stageUpload(tmpDir, fh); err != nil {
-			writeError(w, http.StatusInternalServerError, "stage_failed")
-			return
-		}
-	}
-
 	owner := ""
 	if u := d.currentUser(r); u != nil {
 		owner = u.Username
 	}
-	runner := importer.Importer{DB: d.DB, Store: d.Store, Media: d.Media, ThumbMaxEdge: d.ThumbSize}
-	result, err := runner.Run(r.Context(), importer.Options{SourceDir: tmpDir, OwnerUsername: owner})
+	jobID, err := d.Queue.EnqueueUpload(r.Context(), owner, files)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "import_failed")
+		writeError(w, http.StatusInternalServerError, "enqueue_failed")
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{
-		"imported":   result.Imported,
-		"duplicates": result.Duplicates,
-		"skipped":    result.Skipped,
-		"errors":     len(result.Errors),
-	})
-}
-
-func stageUpload(dir string, fh *multipart.FileHeader) error {
-	src, err := fh.Open()
-	if err != nil {
-		return err
-	}
-	defer src.Close()
-	dst, err := os.Create(filepath.Join(dir, filepath.Base(fh.Filename)))
-	if err != nil {
-		return err
-	}
-	defer dst.Close()
-	_, err = io.Copy(dst, src)
-	return err
+	writeJSON(w, http.StatusAccepted, map[string]any{"job_id": jobID, "status": "queued", "count": len(files)})
 }

@@ -10,11 +10,13 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/kuraki-app/kuraki/internal/media"
+	"github.com/kuraki-app/kuraki/internal/queue"
 	"github.com/kuraki-app/kuraki/internal/storage"
 	"golang.org/x/time/rate"
 )
@@ -25,6 +27,7 @@ type Deps struct {
 	DB        *sql.DB
 	Store     storage.Storage
 	Media     media.Processor
+	Queue     *queue.Queue
 	ThumbSize int
 	Logger    *slog.Logger
 }
@@ -35,6 +38,10 @@ func NewRouter(d Deps) http.Handler {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
+	// Compress text responses (JSON API + UI bundles); media types are skipped
+	// so range requests and already-compressed images/videos pass through.
+	r.Use(middleware.Compress(5, "application/json", "text/html", "text/css",
+		"application/javascript", "text/javascript", "image/svg+xml"))
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	// Login throttle: ~10 attempts then 1 per 6s per IP (F-14).
@@ -72,6 +79,8 @@ func NewRouter(d Deps) http.Handler {
 			r.Get("/places", d.placesAssets)
 			r.Get("/places/summary", d.placesSummary)
 			r.Get("/stats", d.stats)
+			r.Get("/jobs", d.listJobs)
+			r.Get("/jobs/{id}", d.getJob)
 
 			r.Get("/albums", d.listAlbums)
 			r.Post("/albums", d.createAlbum)
@@ -118,6 +127,10 @@ func spaHandler(files fs.FS) http.HandlerFunc {
 		}
 		if f, err := files.Open(p[1:]); err == nil {
 			f.Close()
+			// Hashed build assets never change under their URL — cache forever.
+			if strings.HasPrefix(p, "/_app/immutable/") {
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			}
 			fileServer.ServeHTTP(w, r)
 			return
 		} else if !os.IsNotExist(err) {

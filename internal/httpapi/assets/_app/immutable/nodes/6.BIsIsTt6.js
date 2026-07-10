@@ -1,1 +1,0 @@
-import"../chunks/DlhtI-0O.js";import{i as o,a}from"../chunks/BT4eJBsG.js";import{p as s,f as p}from"../chunks/4ppvI8qK.js";import{L as r}from"../chunks/Ngz5BBVx.js";function y(t,i){s(i,!1),o(),r(t,{load:()=>a.memories(),title:"On this day",subtitle:"Photos from this day in past years",emptyText:"Nothing from this day yet"}),p()}export{y as component};

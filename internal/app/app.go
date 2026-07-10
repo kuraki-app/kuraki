@@ -18,6 +18,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/httpapi"
 	"github.com/kuraki-app/kuraki/internal/importer"
 	"github.com/kuraki-app/kuraki/internal/media"
+	"github.com/kuraki-app/kuraki/internal/queue"
 	"github.com/kuraki-app/kuraki/internal/storage"
 	"github.com/kuraki-app/kuraki/internal/trash"
 	"github.com/kuraki-app/kuraki/internal/verify"
@@ -32,6 +33,7 @@ type App struct {
 	DB      *sql.DB
 	Store   storage.Storage
 	Media   media.Processor
+	Queue   *queue.Queue
 	Version string
 }
 
@@ -40,7 +42,7 @@ type App struct {
 // snapshot), and selects the media backend. The pure-Go processor is used by
 // default; builds tagged "vips" swap in the libvips backend.
 func New(ctx context.Context, cfg config.Config, version string, log *slog.Logger) (*App, error) {
-	for _, dir := range []string{cfg.DataDir, cfg.OriginalsDir(), cfg.DerivativesDir(), cfg.TrashDir(), cfg.SnapshotsDir()} {
+	for _, dir := range []string{cfg.DataDir, cfg.OriginalsDir(), cfg.DerivativesDir(), cfg.TrashDir(), cfg.SnapshotsDir(), cfg.StagingDir()} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, fmt.Errorf("app: create %s: %w", dir, err)
 		}
@@ -69,12 +71,20 @@ func New(ctx context.Context, cfg config.Config, version string, log *slog.Logge
 		return nil, err
 	}
 
+	proc := newProcessor() // build-tag selected (purego by default)
+	q, err := queue.New(database, store, proc, cfg.ThumbnailSize, cfg.StagingDir(), log)
+	if err != nil {
+		database.Close()
+		return nil, err
+	}
+
 	return &App{
 		Cfg:     cfg,
 		Log:     log,
 		DB:      database,
 		Store:   store,
-		Media:   newProcessor(), // build-tag selected (purego by default)
+		Media:   proc,
+		Queue:   q,
 		Version: version,
 	}, nil
 }
@@ -188,12 +198,14 @@ func (a *App) startTrashJanitor(ctx context.Context) {
 func (a *App) Serve(ctx context.Context) error {
 	a.startTrashJanitor(ctx)
 	go a.backfillPlaces(ctx)
+	go a.Queue.Start(ctx)
 
 	handler := httpapi.NewRouter(httpapi.Deps{
 		Version:   a.Version,
 		DB:        a.DB,
 		Store:     a.Store,
 		Media:     a.Media,
+		Queue:     a.Queue,
 		ThumbSize: a.Cfg.ThumbnailSize,
 		Logger:    a.Log,
 	})

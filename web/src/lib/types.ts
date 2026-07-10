@@ -53,6 +53,21 @@ export type PlaceGroup = {
   cover_thumb_url: string;
 };
 
+export type Job = {
+  id: string;
+  kind: string;
+  status: 'queued' | 'running' | 'succeeded' | 'failed';
+  total: number;
+  imported: number;
+  duplicates: number;
+  skipped: number;
+  errors: number;
+  attempts: number;
+  error?: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type LibraryStats = {
   total: number;
   images: number;

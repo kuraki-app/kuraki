@@ -22,6 +22,7 @@
   let authError = '';
   let dragging = false;
   let uploadPct = -1;
+  let importStatus = '';
   let fileInput: HTMLInputElement;
 
   const nav = [
@@ -71,13 +72,41 @@
     if (!files.length) return;
     uploadPct = 0;
     try {
-      const r = await uploadFiles(files, (p) => (uploadPct = p));
-      showToast(`Imported ${r.imported}${r.duplicates ? `, ${r.duplicates} duplicate` : ''}`);
+      const { job_id } = await uploadFiles(files, (p) => (uploadPct = p));
+      uploadPct = -1;
+      if (!job_id) {
+        bumpLibrary();
+        return;
+      }
+      importStatus = 'Importing…';
+      await pollJob(job_id);
       bumpLibrary();
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Upload failed');
     } finally {
       uploadPct = -1;
+      importStatus = '';
+    }
+  }
+
+  async function pollJob(id: string) {
+    for (let i = 0; i < 900; i++) {
+      let job;
+      try {
+        job = await api.job(id);
+      } catch {
+        return;
+      }
+      importStatus = `Importing ${job.imported}/${job.total}`;
+      if (job.status === 'succeeded') {
+        showToast(`Imported ${job.imported}${job.duplicates ? `, ${job.duplicates} duplicate` : ''}`);
+        return;
+      }
+      if (job.status === 'failed') {
+        showToast(`Import failed${job.error ? ': ' + job.error : ''}`);
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 700));
     }
   }
 
@@ -161,6 +190,8 @@
     {#if dragging}<div class="drop">Drop to upload</div>{/if}
     {#if uploadPct >= 0}
       <div class="uploading"><div class="ubar" style="width:{uploadPct}%"></div><span>Uploading {uploadPct}%</span></div>
+    {:else if importStatus}
+      <div class="uploading"><div class="ubar indet"></div><span>{importStatus}</span></div>
     {/if}
   </div>
 {/if}
@@ -331,6 +362,21 @@
     border-radius: 4px;
     background: #ffd35c;
     transition: width 150ms ease;
+  }
+  .uploading .ubar.indet {
+    width: 40%;
+    animation: indet 1.1s infinite ease-in-out;
+  }
+  @keyframes indet {
+    0% {
+      margin-left: 0;
+    }
+    50% {
+      margin-left: 60%;
+    }
+    100% {
+      margin-left: 0;
+    }
   }
   .uploading span {
     font-size: 13px;

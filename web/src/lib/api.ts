@@ -1,5 +1,5 @@
 import { session } from './stores';
-import type { Album, Asset, AssetList, LibraryStats, PlaceGroup, SetupStatus } from './types';
+import type { Album, Asset, AssetList, Job, LibraryStats, PlaceGroup, SetupStatus } from './types';
 
 export type AssetPatch = {
   taken_at?: string;
@@ -80,7 +80,9 @@ export const api = {
 
   places: () => req<AssetList>('/api/places'),
   placesSummary: () => req<{ places: PlaceGroup[] }>('/api/places/summary'),
-  stats: () => req<LibraryStats>('/api/stats')
+  stats: () => req<LibraryStats>('/api/stats'),
+  jobs: () => req<{ jobs: Job[] }>('/api/jobs'),
+  job: (id: string) => req<Job>(`/api/jobs/${id}`)
 };
 
 // downloadZip streams a zip of the given originals to a browser download.
@@ -101,11 +103,12 @@ export async function downloadZip(ids: string[]): Promise<void> {
   URL.revokeObjectURL(url);
 }
 
-// uploadFiles posts files as multipart, reporting 0-100 progress.
+// uploadFiles posts files as multipart, reporting 0-100 transfer progress, and
+// resolves with the enqueued job id (import runs asynchronously).
 export function uploadFiles(
   files: File[],
   onProgress: (pct: number) => void
-): Promise<{ imported: number; duplicates: number; errors: number }> {
+): Promise<{ job_id: string; count: number }> {
   return new Promise((resolve, reject) => {
     const form = new FormData();
     for (const f of files) form.append('file', f);
@@ -120,7 +123,7 @@ export function uploadFiles(
         try {
           resolve(JSON.parse(xhr.responseText || '{}'));
         } catch {
-          resolve({ imported: 0, duplicates: 0, errors: 0 });
+          resolve({ job_id: '', count: 0 });
         }
       } else {
         reject(new Error(`upload failed (${xhr.status})`));
