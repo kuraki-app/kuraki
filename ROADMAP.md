@@ -28,13 +28,8 @@ items below are where we go next.
 
 Achievable now with the existing architecture:
 
-- **Complete the web UI** so it surfaces everything the API already supports:
-  favorites, albums, trash & restore, "on this day", multi-select batch actions,
-  zip export, drag-and-drop upload with progress, and the in-browser video player.
 - **Full HEIC / AVIF / RAW previews** by shipping the libvips-backed build as the
   default container image (iPhone HEIC is the common case).
-- **Map view** from GPS EXIF, with client-side clustering, plus **reverse
-  geocoding** so photos gain human-readable place names.
 - **Tags / keywords** and **saved searches** (smart albums) for richer organization.
 - **Duplicate review dashboard** — surface exact and near-duplicate candidates for
   the user to resolve, building on the existing content-hash dedup.

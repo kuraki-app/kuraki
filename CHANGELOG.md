@@ -9,9 +9,8 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ## [Unreleased]
 
-The initial development version — the full server-side foundation for a
-self-hosted photo & video backup, with a Docker-first deployment and an embedded
-web UI that is still being fleshed out.
+The initial development version — a self-hosted photo & video backup with a
+Docker-first deployment and a full browser experience over an embedded web UI.
 
 ### Added
 
@@ -47,6 +46,16 @@ web UI that is still being fleshed out.
   "on this day" memories view.
 - Multi-select batch actions (delete, restore, favorite) and a zip export of any
   selected originals.
+- A complete browser experience: a navigation shell with timeline, search,
+  favorites, albums, on-this-day, trash, and places; multi-select with a batch
+  action bar; a lightbox with in-browser video playback and per-item favorite,
+  delete, and restore; drag-and-drop upload with a progress indicator; and album
+  create/rename/delete with add and remove.
+
+**Places**
+- A map of geotagged photos (Leaflet + OpenStreetMap) with clustered thumbnails.
+- Offline reverse geocoding resolves GPS to city and country names locally, with
+  no external calls, and groups photos into a browsable list of places.
 
 **Media**
 - Thumbnail generation through libvips (HEIC/AVIF/RAW previews) with a pure-Go

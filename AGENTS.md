@@ -157,7 +157,15 @@ Fine-grained checkboxes live in [ROADMAP.md](./ROADMAP.md) — keep both in sync
 
 ## 11. Handoff log (append newest at top)
 
-- `HEAD` — **F-25 Docker polish (Claude):** container `HEALTHCHECK` via a hidden `kuraki healthcheck`
+- `HEAD` — **Web experience + Places (Claude).** (1) Places backend: new `internal/geo` offline reverse
+  geocoder (embedded GeoNames cities/countries, grid-indexed nearest-city), migration `00002_places`,
+  geocode-on-import + startup backfill, place name on the asset DTO, and `GET /api/places` +
+  `/api/places/summary`. (2) Frontend rebuilt into a multi-route SPA (`web/src/lib` api/stores/types +
+  components `AssetGrid`/`Viewer`/`BatchBar`/`AlbumPicker`/`LibraryView`; routes for timeline/search/
+  favorites/albums/albums[id]/memories/trash/places). Layout is `ssr=false, prerender=false` SPA; Go
+  serves the fallback for deep routes. Leaflet added for the map. Verified: geocoder unit tests, Places
+  API E2E, `go test ./...` green, `npm run build` clean, SPA + `_app` assets serve.
+- `HEAD~` — **F-25 Docker polish (Claude):** container `HEALTHCHECK` via a hidden `kuraki healthcheck`
   self-probe (no curl/wget in image), non-root `kuraki` user, OCI labels, and root `docker-compose.yml`.
   Verified: healthcheck exits 0 when server up, 1 when down. **Backend for P0 + P1 is now complete;
   remaining work is frontend UI + env-gated (F-24 RAW, HEIC/vips, Pi) + docs site.**

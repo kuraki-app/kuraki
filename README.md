@@ -40,6 +40,7 @@ HEIC/AVIF/RAW previews and video posters work out of the box.
 - Full-screen **viewer** with EXIF panel, keyboard navigation, and original download
 - **Search** by filename, date range, media type, and camera model (SQLite FTS5, prefix matching)
 - **Favorites** feed, **albums**, and an **"on this day"** memories view
+- **Places** map of geotagged photos with **offline** reverse geocoding (city/country, no external calls)
 - Multi-select **batch** operations and **zip export** of selected originals
 
 **Media**
