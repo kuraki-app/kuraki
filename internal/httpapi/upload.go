@@ -50,7 +50,7 @@ func (d Deps) uploadAsset(w http.ResponseWriter, r *http.Request) {
 	if u := d.currentUser(r); u != nil {
 		owner = u.Username
 	}
-	runner := importer.Importer{DB: d.DB, Store: d.Store, Media: d.Media}
+	runner := importer.Importer{DB: d.DB, Store: d.Store, Media: d.Media, ThumbMaxEdge: d.ThumbSize}
 	result, err := runner.Run(r.Context(), importer.Options{SourceDir: tmpDir, OwnerUsername: owner})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "import_failed")

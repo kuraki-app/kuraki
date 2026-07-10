@@ -59,6 +59,16 @@ type Importer struct {
 	DB    *sql.DB
 	Store storage.Storage
 	Media media.Processor
+	// ThumbMaxEdge is the longest-edge size for generated thumbnails.
+	// Zero falls back to the default.
+	ThumbMaxEdge int
+}
+
+func (i *Importer) thumbEdge() int {
+	if i.ThumbMaxEdge > 0 {
+		return i.ThumbMaxEdge
+	}
+	return defaultThumbMaxEdge
 }
 
 type candidate struct {
@@ -325,8 +335,9 @@ func (i *Importer) createThumbnail(ctx context.Context, assetID, srcPath string,
 	if meta.MediaType != domain.MediaImage {
 		return nil
 	}
+	edge := i.thumbEdge()
 	var buf bytes.Buffer
-	if err := i.Media.Thumbnail(ctx, srcPath, defaultThumbMaxEdge, &buf); err != nil {
+	if err := i.Media.Thumbnail(ctx, srcPath, edge, &buf); err != nil {
 		if errors.Is(err, media.ErrUnsupported) {
 			return nil
 		}
@@ -334,11 +345,11 @@ func (i *Importer) createThumbnail(ctx context.Context, assetID, srcPath string,
 	}
 
 	format, ext := thumbnailFormat(i.Media)
-	rel := fmt.Sprintf("derivatives/%s/thumb_%d.%s", assetID, defaultThumbMaxEdge, ext)
+	rel := fmt.Sprintf("derivatives/%s/thumb_%d.%s", assetID, edge, ext)
 	if _, err := i.Store.Write(ctx, rel, &buf); err != nil {
 		return fmt.Errorf("create thumbnail: write derivative: %w", err)
 	}
-	tw, th := thumbSize(meta.Width, meta.Height, defaultThumbMaxEdge)
+	tw, th := thumbSize(meta.Width, meta.Height, edge)
 	if _, err := i.DB.ExecContext(ctx, `
 		INSERT INTO derivatives (asset_id, kind, format, path, width, height)
 		VALUES (?, 'thumb', ?, ?, ?, ?)

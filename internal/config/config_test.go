@@ -20,8 +20,10 @@ func TestDefault(t *testing.T) {
 
 func TestLoadEnvOverride(t *testing.T) {
 	env := map[string]string{
-		"KURAKI_DATA_DIR": "/srv/photos",
-		"KURAKI_ADDR":     ":8080",
+		"KURAKI_DATA_DIR":             "/srv/photos",
+		"KURAKI_ADDR":                 ":8080",
+		"KURAKI_TRASH_RETENTION_DAYS": "7",
+		"KURAKI_THUMBNAIL_SIZE":       "1024",
 	}
 	c := Load(func(k string) string { return env[k] })
 	if c.DataDir != "/srv/photos" {
@@ -29,6 +31,22 @@ func TestLoadEnvOverride(t *testing.T) {
 	}
 	if c.Addr != ":8080" {
 		t.Errorf("Addr = %q", c.Addr)
+	}
+	if c.TrashRetentionDays != 7 {
+		t.Errorf("TrashRetentionDays = %d, want 7", c.TrashRetentionDays)
+	}
+	if c.ThumbnailSize != 1024 {
+		t.Errorf("ThumbnailSize = %d, want 1024", c.ThumbnailSize)
+	}
+	// Invalid values keep defaults.
+	bad := Load(func(k string) string {
+		if k == "KURAKI_TRASH_RETENTION_DAYS" {
+			return "-3"
+		}
+		return ""
+	})
+	if bad.TrashRetentionDays != 30 {
+		t.Errorf("invalid retention = %d, want default 30", bad.TrashRetentionDays)
 	}
 	if got, want := c.OriginalsDir(), filepath.Join("/srv/photos", "originals"); got != want {
 		t.Errorf("OriginalsDir = %q, want %q", got, want)

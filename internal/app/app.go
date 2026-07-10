@@ -82,9 +82,10 @@ func New(ctx context.Context, cfg config.Config, version string, log *slog.Logge
 // Import walks a source directory into the local library.
 func (a *App) Import(ctx context.Context, opts importer.Options) (importer.Result, error) {
 	runner := importer.Importer{
-		DB:    a.DB,
-		Store: a.Store,
-		Media: a.Media,
+		DB:           a.DB,
+		Store:        a.Store,
+		Media:        a.Media,
+		ThumbMaxEdge: a.Cfg.ThumbnailSize,
 	}
 	return runner.Run(ctx, opts)
 }
@@ -148,7 +149,11 @@ func (a *App) backfillPlaces(ctx context.Context) {
 
 // PurgeTrash permanently removes assets whose retention window has elapsed (F-10).
 func (a *App) PurgeTrash(ctx context.Context) (int, error) {
-	return trash.PurgeExpired(ctx, a.DB, a.Store, time.Now().Add(-trash.Retention))
+	days := a.Cfg.TrashRetentionDays
+	if days <= 0 {
+		days = 30
+	}
+	return trash.PurgeExpired(ctx, a.DB, a.Store, time.Now().AddDate(0, 0, -days))
 }
 
 // startTrashJanitor purges expired trash once at startup and daily thereafter.
@@ -185,11 +190,12 @@ func (a *App) Serve(ctx context.Context) error {
 	go a.backfillPlaces(ctx)
 
 	handler := httpapi.NewRouter(httpapi.Deps{
-		Version: a.Version,
-		DB:      a.DB,
-		Store:   a.Store,
-		Media:   a.Media,
-		Logger:  a.Log,
+		Version:   a.Version,
+		DB:        a.DB,
+		Store:     a.Store,
+		Media:     a.Media,
+		ThumbSize: a.Cfg.ThumbnailSize,
+		Logger:    a.Log,
 	})
 	srv := &http.Server{
 		Addr:              a.Cfg.Addr,

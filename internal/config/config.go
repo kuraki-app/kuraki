@@ -8,6 +8,7 @@ package config
 
 import (
 	"path/filepath"
+	"strconv"
 )
 
 // Config holds everything the server and CLI need to locate data and listen
@@ -19,13 +20,21 @@ type Config struct {
 
 	// Addr is the HTTP listen address, e.g. ":3000".
 	Addr string
+
+	// TrashRetentionDays is how long soft-deleted items stay before purge.
+	TrashRetentionDays int
+
+	// ThumbnailSize is the longest-edge pixel size for generated thumbnails.
+	ThumbnailSize int
 }
 
 // Default returns the zero-config configuration used when nothing overrides it.
 func Default() Config {
 	return Config{
-		DataDir: "./kuraki-data",
-		Addr:    ":3000",
+		DataDir:            "./kuraki-data",
+		Addr:               ":3000",
+		TrashRetentionDays: 30,
+		ThumbnailSize:      512,
 	}
 }
 
@@ -39,7 +48,24 @@ func Load(getenv func(string) string) Config {
 	if v := getenv("KURAKI_ADDR"); v != "" {
 		c.Addr = v
 	}
+	if n, ok := positiveInt(getenv("KURAKI_TRASH_RETENTION_DAYS")); ok {
+		c.TrashRetentionDays = n
+	}
+	if n, ok := positiveInt(getenv("KURAKI_THUMBNAIL_SIZE")); ok {
+		c.ThumbnailSize = n
+	}
 	return c
+}
+
+func positiveInt(s string) (int, bool) {
+	if s == "" {
+		return 0, false
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n <= 0 {
+		return 0, false
+	}
+	return n, true
 }
 
 // DBPath is the SQLite database file inside the data directory.

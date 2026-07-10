@@ -21,11 +21,12 @@ import (
 
 // Deps are the collaborators the HTTP layer needs.
 type Deps struct {
-	Version string
-	DB      *sql.DB
-	Store   storage.Storage
-	Media   media.Processor
-	Logger  *slog.Logger
+	Version   string
+	DB        *sql.DB
+	Store     storage.Storage
+	Media     media.Processor
+	ThumbSize int
+	Logger    *slog.Logger
 }
 
 // NewRouter builds the top-level HTTP handler.
