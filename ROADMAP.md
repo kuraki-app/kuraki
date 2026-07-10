@@ -107,24 +107,25 @@ well organized without turning Kuraki into a heavyweight DAM.
 - Tags/keywords, hierarchical tags, ratings, archive, and hidden/locked
   sections; include saved searches and smart albums over date, type, camera,
   place, tags, rating, and favorite state.
-- Duplicate review with a conservative “keep both” default is shipped (perceptual
-  hash groups visually identical copies). Still to come: near-duplicate grouping by
-  hamming distance, and stacks for burst shots, RAW+JPEG pairs, and Live/Motion pairs.
+- Duplicate review (perceptual hash, exact + near-duplicate by hamming distance,
+  “keep both” default) and stacks (RAW+JPEG and Live/Motion pairs collapsed to a
+  primary) are shipped. Still to come: burst-shot grouping.
 - External read-only libraries and folder view, with stable sidecar identity,
   exclusion patterns, rescans, and clear write limitations. Do not repeat the
   common failure mode where a move loses the application’s metadata.
-- XMP sidecar import/export and a non-destructive edit recipe (crop, rotate,
-  straighten, light adjustments). Originals remain immutable.
-- Full library export, manifest-based backup/restore, scheduled integrity
-  verification, restore drills, storage usage forecast, and documented 3-2-1
-  backup guidance.
-- Useful polish: jump-to-date, configurable grid density/layout, slideshow,
-  keyboard and screen-reader audit, dark mode, localization foundation, and
-  progressive placeholders.
+- Full library export, backup/restore, and scheduled integrity verification are
+  shipped and the exit criteria below are met. Still to come: restore drills,
+  storage usage forecast, and documented 3-2-1 backup guidance.
+- Still to come: XMP sidecar import/export and a non-destructive edit recipe
+  (crop, rotate, straighten, light adjustments); originals remain immutable.
+- Useful polish still to come: jump-to-date, configurable grid density/layout,
+  slideshow, keyboard and screen-reader audit, dark mode, localization
+  foundation, and progressive placeholders.
 
-**Exit criteria:** a Google Takeout and a mounted folder can be migrated and
+**Exit criteria (met):** a Google Takeout and a mounted folder can be migrated and
 re-imported without metadata loss; a documented backup restore succeeds on a
-clean instance; common organization actions work without full-library scans.
+clean instance; common organization actions (tags, albums, archive/hidden, saved
+searches) run on indexed queries without full-library scans.
 
 ### R3 — safe sharing and household accounts
 

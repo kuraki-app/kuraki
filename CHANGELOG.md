@@ -95,14 +95,22 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - Tags and hierarchical tags, per-asset tagging, and tag-aware search.
 - Saved searches over date/type/camera/place/rating/favorite state.
 - Ratings, plus Archive and Hidden sections to keep the main timeline focused.
-- Duplicate review: a perceptual hash (dHash) groups visually identical copies
-  that byte-level dedup misses (e.g. a re-saved or re-encoded photo). Review each
-  group and remove extras — nothing is deleted automatically ("keep both").
+- Duplicate review: a perceptual hash (dHash) groups visually identical and
+  near-identical copies (re-encodes, light edits, crops) that byte-level dedup
+  misses. Review each group and remove extras — nothing is deleted automatically
+  ("keep both").
+- Stacks: RAW+JPEG and Live/Motion Photo (image+video) captures are grouped by
+  shared filename and date, collapsed to one primary in the timeline with the
+  rest a click away.
 
 **Migration & recovery**
 - Read-only external libraries: register a folder, scan it, and browse its media
   in place without copying originals in.
-- Portable library backup and restore (`kuraki backup` / `kuraki restore`).
+- Portable library backup and restore (`kuraki backup` / `kuraki restore`), plus a
+  whole-library zip export from the browser (`GET /api/export`).
+- Scheduled integrity verification: a background weekly re-checksum records a
+  "last verified" result, surfaced on the Library dashboard with a "Verify now"
+  action.
 
 **Trust & integrity**
 - Trash with a 30-day retention window, restore, and an automatic purge that runs

@@ -33,7 +33,7 @@ Phase 1 = single-owner personal backup.
 - **Builds & tests:** `go build ./...`, `go vet ./...`, `gofmt`, `go test -race ./...` all green;
   `npm run build` (web) clean. Cross-compiles linux/amd64+arm64, darwin/arm64, windows/amd64 (CGO off).
 - **R1 media core (2026-07-10):** current import admission covers JPEG/PNG/GIF/WebP/HEIC/HEIF/AVIF/TIFF plus MP4/M4V/MOV/WebM. A per-asset capability flag now prevents the viewer from rendering known-incompatible originals: libvips/pure-Go creates image previews where possible, ffprobe identifies browser-compatible video codecs, and ffmpeg creates H.264/AAC playback derivatives otherwise. Failed derivatives remain downloadable and appear in Activity's Media health section. Cross-engine and libvips fixture certification remains env-gated.
-- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00009`.
+- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00011`.
 - **Not browser-click-tested:** the SvelteKit UI compiles and serves and all endpoints are E2E-verified
   via curl, but no headless-browser pass has been run (per human request).
 - **Env-gated / pending:** `-tags vips` build (needs libvips + `pkg-config`), HEIC out of the box,
@@ -72,7 +72,7 @@ internal/
   app/                 composition root — wires everything; owns server lifecycle + workers
   config/              zero-config defaults + KURAKI_* env resolution
   domain/              core entities — **NO I/O EVER**
-  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00009)
+  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00011)
   storage/             Storage interface + FS impl (write-once, atomic, traversal-safe)
   media/               Processor interface + purego.go fallback + vips.go tagged backend, ffmpeg, EXIF
   importer/            recursive import, BLAKE3 dedup, import_state resume, derivatives; Takeout + geocode
@@ -130,9 +130,10 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Import queue + Activity + per-file errors, metadata editing, config options, serving perf | ✅ done |
 | R1 media compatibility: explicit view state, safe preview/transcode fallback, media-health rebuild | ✅ done |
 | R2: tags/hierarchical tags, saved searches, ratings, archive/hidden, external libraries, backup/restore | ✅ done |
-| R2: duplicate review (perceptual hash, keep-both) | ✅ done |
+| R2: duplicate review (exact + near-duplicate by hamming), stacks (RAW+JPEG / Live-Motion), whole-library export, scheduled integrity verification | ✅ done |
+| R1/R2 exit criteria | ✅ met (Takeout + mounted folder re-import without metadata loss; backup/restore on clean instance; org actions on indexed queries) |
 | R1 full fixture matrix across libvips and Chromium/Firefox/WebKit | ⬜ env-gated release certification |
-| R2 remaining: near-duplicate grouping, stacks, XMP sidecars, non-destructive edit, slideshow, whole-library export | ⬜ roadmap |
+| R2 remaining (nice-to-haves): XMP sidecars, non-destructive edit, burst grouping, slideshow/jump-to-date/grid-density/dark-mode/a11y polish | ⬜ roadmap |
 | libvips-default Docker image / HEIC verified, low-resource benchmark | ⬜ env-gated |
 | Multi-user & sharing (R3), mobile/desktop clients (R4), optional ML (R5), scale (R6) | ⬜ later phases |
 
@@ -161,7 +162,26 @@ Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./R
 
 ## 11. Handoff log (append newest at top)
 
-- `HEAD` — **R2 duplicate review (Claude).** `media.PerceptualHash` (dHash) computed from each image
+- `HEAD` — **R2 completion: near-duplicate grouping, stacks, whole-library export, scheduled verify (Claude).**
+  `GET /api/duplicates` now clusters exact **and** near-duplicates via union-find over hamming distance
+  (`media.Hamming`, threshold 8) so re-encodes/crops/light edits group, not just identical phashes; the
+  `/duplicates` page keeps the keep-both default and multi-select trash. **Stacks** (migration `00011`):
+  `internal/stacks.Detect` pairs RAW+JPEG and Live/Motion (image+video) by owner+base-filename+capture-day
+  with ≥2 distinct extensions, picks a primary (web-viewable image > image > video, tie-break size), runs at
+  startup and after each import/queue batch; the timeline collapses to the primary (`stack_primary=1`), a
+  `Layers` badge shows the count, and `GET /api/assets/:id/stack` returns members (viewer pages through them).
+  **Whole-library export**: `GET /api/export` streams a date-foldered zip of every original (shared `streamZip`).
+  **Scheduled integrity verification** (migration `00010`): `verify.RunAndRecord` writes an `integrity_runs`
+  row; a 7-day scheduler (`app.startIntegrityScheduler`) runs it; `GET /api/integrity` + `POST /api/integrity/run`
+  back a "last verified / Verify now" panel on the Stats dashboard. Also added a phash backfill from thumbnails.
+  Verified E2E via curl (no headless browser, per request): near-dup clustering (exact + cropped group, distinct
+  excluded), export zip structure, a clean integrity run recorded, stacks collapse (RAW+JPEG and Live/Motion →
+  3 tiles not 5) with the stack endpoint returning members; **backup→restore round-trip** faithfully restores
+  3 assets/originals/derivatives on a clean instance (R2 exit gate). Migrations now through `00011`.
+  `go test -race ./...` + `npm run build` green. **R1 and R2 exit criteria are met.** Remaining are roadmap
+  nice-to-haves (XMP sidecars, non-destructive edit, burst grouping, UI polish) and env-gated R1 3-browser
+  certification. **No co-author trailer on commits (user request).**
+- `HEAD~` — **R2 duplicate review (Claude).** `media.PerceptualHash` (dHash) computed from each image
   thumbnail during import (migration `00009` adds `phash` + partial index) with a startup backfill;
   `GET /api/duplicates` groups images sharing a perceptual hash (visually identical copies byte-dedup
   misses); a `/duplicates` page reviews groups with a keep-both default and multi-select move-to-trash.
