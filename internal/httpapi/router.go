@@ -86,6 +86,8 @@ func NewRouter(d Deps) http.Handler {
 			r.Post("/assets/{id}/rebuild", d.rebuildAsset)
 			r.Get("/duplicates", d.duplicates)
 			r.Get("/export", d.exportLibrary)
+			r.Get("/integrity", d.integrity)
+			r.Post("/integrity/run", d.runIntegrity)
 			r.Get("/tags", d.listTags)
 			r.Post("/tags", d.createTag)
 			r.Delete("/tags/{id}", d.deleteTag)

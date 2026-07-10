@@ -95,6 +95,15 @@ export type MediaIssue = {
   created_at: string;
 };
 
+export type IntegrityRun = {
+  started_at: string;
+  finished_at?: string;
+  checked: number;
+  ok: number;
+  problems: number;
+  status: 'running' | 'clean' | 'problems' | 'error';
+};
+
 export type LibraryStats = {
   total: number;
   images: number;

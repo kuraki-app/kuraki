@@ -208,6 +208,54 @@ func (a *App) backfillPHashes(ctx context.Context) {
 	}
 }
 
+// startIntegrityScheduler runs an integrity verification at startup if one is
+// due, then re-checks daily. The interval keeps large libraries from being
+// re-scanned on every restart.
+func (a *App) startIntegrityScheduler(ctx context.Context) {
+	const interval = 7 * 24 * time.Hour
+	due := func() bool {
+		last, ok, err := verify.LastRun(ctx, a.DB)
+		if err != nil || !ok || last.FinishedAt == "" {
+			return true
+		}
+		t, err := time.Parse(time.RFC3339Nano, last.FinishedAt)
+		if err != nil {
+			return true
+		}
+		return time.Since(t) >= interval
+	}
+	run := func() {
+		result, err := verify.RunAndRecord(ctx, a.DB, a.Store)
+		if err != nil {
+			a.Log.Warn("integrity verification failed", "err", err)
+			return
+		}
+		a.Log.Info("integrity verification complete", "checked", result.Checked, "problems", len(result.Problems))
+	}
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(30 * time.Second): // let startup settle first
+		}
+		if due() {
+			run()
+		}
+		t := time.NewTicker(24 * time.Hour)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				if due() {
+					run()
+				}
+			}
+		}
+	}()
+}
+
 // PurgeTrash permanently removes assets whose retention window has elapsed (F-10).
 func (a *App) PurgeTrash(ctx context.Context) (int, error) {
 	days := a.Cfg.TrashRetentionDays
@@ -248,6 +296,7 @@ func (a *App) startTrashJanitor(ctx context.Context) {
 // down gracefully.
 func (a *App) Serve(ctx context.Context) error {
 	a.startTrashJanitor(ctx)
+	a.startIntegrityScheduler(ctx)
 	go a.backfillPlaces(ctx)
 	go a.backfillPHashes(ctx)
 	go a.Queue.Start(ctx)

@@ -1,5 +1,5 @@
 import { session } from './stores';
-import type { Album, Asset, AssetList, DupAsset, Job, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SetupStatus, Tag } from './types';
+import type { Album, Asset, AssetList, DupAsset, IntegrityRun, Job, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SetupStatus, Tag } from './types';
 
 export type AssetPatch = {
   taken_at?: string;
@@ -91,6 +91,8 @@ export const api = {
   mediaIssues: () => req<{ issues: MediaIssue[] }>('/api/media/issues'),
   rebuildAsset: (id: string) => req<{ status: string }>(`/api/assets/${id}/rebuild`, { method: 'POST' }),
   duplicates: () => req<{ groups: DupAsset[][] }>('/api/duplicates'),
+  integrity: () => req<{ last: IntegrityRun | null }>('/api/integrity'),
+  runIntegrity: () => req<{ status: string }>('/api/integrity/run', { method: 'POST' }),
   tags: () => req<{ tags: Tag[] }>('/api/tags'),
   createTag: (name: string, parent_id?: string) => req<Tag>('/api/tags', jsonBody({ name, parent_id })),
   deleteTag: (id: string) => req<void>(`/api/tags/${id}`, { method: 'DELETE' }),
