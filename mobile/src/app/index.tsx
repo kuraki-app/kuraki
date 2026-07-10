@@ -5,6 +5,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
+import { disableBackgroundBackup, enableBackgroundBackup } from '@/lib/background';
 import { backupEngine, type BackupProgress } from '@/lib/backup-engine';
 import { getCaptureStatus, uploadPhoto, type CaptureStatus } from '@/lib/capture-api';
 import { loadCaptureSettings } from '@/lib/settings';
@@ -18,6 +19,13 @@ export default function BackupScreen() {
   const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => backupEngine.subscribe(setProgress), []);
+
+  // If automatic backup was left on, catch up in the foreground on open; the
+  // engine ignores the call when a run is already in progress.
+  const autoOn = progress?.auto ?? false;
+  useEffect(() => {
+    if (autoOn) void backupEngine.run();
+  }, [autoOn]);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
@@ -57,8 +65,19 @@ export default function BackupScreen() {
     }
   }
 
-  const auto = progress?.auto ?? false;
   const running = progress?.running ?? false;
+  const [bgNote, setBgNote] = useState('');
+
+  async function toggleAuto(next: boolean) {
+    await backupEngine.setAuto(next);
+    if (next) {
+      const ok = await enableBackgroundBackup();
+      setBgNote(ok ? 'Will also back up periodically in the background.' : 'Background backup is unavailable; runs while the app is open.');
+    } else {
+      await disableBackgroundBackup();
+      setBgNote('');
+    }
+  }
 
   return (
     <ScrollView
@@ -85,13 +104,16 @@ export default function BackupScreen() {
                 Back up new photos and videos from this phone.
               </ThemedText>
             </View>
-            <Switch value={auto} onValueChange={(next) => void backupEngine.setAuto(next)} />
+            <Switch value={autoOn} onValueChange={(next) => void toggleAuto(next)} />
           </View>
           {progress?.permission === 'denied' && (
             <ThemedText type="small" themeColor="textSecondary" selectable>
               Photo access is off. Enable it in system settings to back up automatically.
             </ThemedText>
           )}
+          {bgNote ? (
+            <ThemedText type="small" themeColor="textSecondary" selectable>{bgNote}</ThemedText>
+          ) : null}
           <View style={styles.actions}>
             <Pressable disabled={running} style={styles.buttonSmall} onPress={() => void backupEngine.run()}>
               <ThemedText type="smallBold">{running ? 'Backing up…' : 'Back up new photos'}</ThemedText>

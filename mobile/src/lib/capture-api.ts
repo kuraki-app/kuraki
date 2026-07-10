@@ -1,3 +1,5 @@
+import { File } from 'expo-file-system';
+
 import type { CaptureSettings } from '@/lib/settings';
 
 export type CaptureSession = {
@@ -55,23 +57,63 @@ export async function uploadFile(
   signal?: AbortSignal,
 ): Promise<CaptureSession> {
   requireConnected(settings);
-  const blob = await readBlob(file.uri);
-  if (blob.size < 1) throw new CaptureAPIError('The selected item is empty.', 0);
+  const source = await openSource(file.uri);
+  try {
+    if (source.size < 1) throw new CaptureAPIError('The selected item is empty.', 0);
 
-  const start = await deviceRequest<StartResponse>(settings, '/api/capture/uploads', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filename: file.filename, size_bytes: blob.size }),
-  });
+    const start = await deviceRequest<StartResponse>(settings, '/api/capture/uploads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename: file.filename, size_bytes: source.size }),
+    });
 
-  let offset = start.received_bytes;
-  while (offset < blob.size) {
-    throwIfAborted(signal);
-    const end = Math.min(offset + uploadChunkBytes, blob.size);
-    offset = await sendChunk(settings, start.id, blob, offset, end, signal);
-    onProgress?.(offset, blob.size);
+    let offset = start.received_bytes;
+    while (offset < source.size) {
+      throwIfAborted(signal);
+      const length = Math.min(uploadChunkBytes, source.size - offset);
+      const body = await source.readChunk(offset, length);
+      offset = await sendChunk(settings, start.id, body, offset, source.size, signal);
+      onProgress?.(offset, source.size);
+    }
+    return deviceRequest<CaptureSession>(settings, `/api/capture/uploads/${start.id}/complete`, { method: 'POST' });
+  } finally {
+    source.close();
   }
-  return deviceRequest<CaptureSession>(settings, `/api/capture/uploads/${start.id}/complete`, { method: 'POST' });
+}
+
+// MediaSource reads a file one chunk at a time so a multi-gigabyte video is
+// never fully materialised in memory. On-disk files stream through a native
+// FileHandle; anything else (a content:// or remote URI) falls back to a single
+// buffered read.
+type MediaSource = {
+  size: number;
+  readChunk: (offset: number, length: number) => Promise<ArrayBuffer>;
+  close: () => void;
+};
+
+async function openSource(uri: string): Promise<MediaSource> {
+  if (uri.startsWith('file://')) {
+    const file = new File(uri);
+    const size = file.size ?? 0;
+    const handle = file.open();
+    return {
+      size,
+      readChunk: (offset, length) => {
+        handle.offset = offset;
+        const bytes = handle.readBytes(length);
+        return Promise.resolve(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+      },
+      close: () => handle.close(),
+    };
+  }
+  const response = await fetch(uri);
+  if (!response.ok) throw new CaptureAPIError('Could not read the selected item.', response.status);
+  const blob = await response.blob();
+  return {
+    size: blob.size,
+    readChunk: (offset, length) => blob.slice(offset, offset + length).arrayBuffer(),
+    close: () => {},
+  };
 }
 
 /** uploadPhoto keeps the manual-picker call site unchanged. */
@@ -86,12 +128,11 @@ export async function uploadPhoto(
 async function sendChunk(
   settings: CaptureSettings,
   sessionID: string,
-  blob: Blob,
+  body: ArrayBuffer,
   offset: number,
-  end: number,
+  total: number,
   signal?: AbortSignal,
 ): Promise<number> {
-  const body = await blob.slice(offset, end).arrayBuffer();
   let attempt = 0;
   for (;;) {
     throwIfAborted(signal);
@@ -108,7 +149,7 @@ async function sendChunk(
       });
       if (response.ok) {
         const next = Number(response.headers.get('Upload-Offset'));
-        if (!Number.isFinite(next) || next <= offset || next > blob.size) {
+        if (!Number.isFinite(next) || next <= offset || next > total) {
           throw new CaptureAPIError('Server returned an invalid upload receipt.', response.status);
         }
         return next;
@@ -116,7 +157,7 @@ async function sendChunk(
       // A 409 with an Upload-Offset header means the server already advanced past
       // this chunk; realign to its offset and let the caller continue.
       const serverOffset = Number(response.headers.get('Upload-Offset'));
-      if (response.status === 409 && Number.isFinite(serverOffset) && serverOffset >= offset && serverOffset <= blob.size) {
+      if (response.status === 409 && Number.isFinite(serverOffset) && serverOffset >= offset && serverOffset <= total) {
         return serverOffset;
       }
       const failure = await response.json().catch(() => ({}));
@@ -132,12 +173,6 @@ async function sendChunk(
       await backoff(attempt++, signal);
     }
   }
-}
-
-async function readBlob(uri: string): Promise<Blob> {
-  const response = await fetch(uri);
-  if (!response.ok) throw new CaptureAPIError('Could not read the selected item.', response.status);
-  return response.blob();
 }
 
 async function deviceRequest<T>(settings: CaptureSettings, path: string, init: RequestInit): Promise<T> {

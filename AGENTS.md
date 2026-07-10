@@ -139,12 +139,13 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Import/export safety: duplicate upload basenames preserved; live backup snapshot; restore staged and manifest-validated; ZIP exports preflighted and unbounded | ✅ done |
 | Capture foundation: device tokens, resumable server sessions, React Native status/manual-upload client | ✅ initial slice |
 | Automatic camera-roll backup: persisted queue, chunk retry/backoff, restart-safe dedup, needs-attention surface | ✅ done (client) |
+| OS background scheduling (expo-background-task) + streamed large-file uploads (expo-file-system handle) | ✅ done (client) |
 | Capture-session expiry sweep (startup + hourly janitor) | ✅ done |
 | R1/R2 exit criteria | ✅ met (Takeout + mounted folder re-import without metadata loss; backup/restore on clean instance; org actions on indexed queries) |
 | R1 full fixture matrix across libvips and Chromium/Firefox/WebKit | ⬜ env-gated release certification |
 | R2 remaining (nice-to-haves): XMP sidecars, non-destructive edit, burst grouping, slideshow/jump-to-date/grid-density/dark-mode/a11y polish | ⬜ roadmap |
 | libvips-default Docker image / HEIC verified, low-resource benchmark | ⬜ env-gated |
-| QR pairing, per-album selection, OS background scheduling, streamed large-video reads | ⬜ next Capture milestones |
+| QR pairing, per-album selection | ⬜ next Capture milestones |
 | Sharing, optional ML, and scale deployment profiles | ⬜ later phases |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
@@ -171,6 +172,18 @@ Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./R
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `HEAD` — **Background scheduling + streamed large-file uploads (Claude).** Closed two open Capture
+  milestones in the mobile client. `background.ts` defines an `expo-background-task` (imported from the root
+  `_layout.tsx` so the task exists when the OS relaunches the app headlessly); the auto-backup switch now also
+  registers/unregisters it (`minimumInterval` 15 min, honest "unavailable" copy when the OS restricts it), and
+  an on-open effect catches up in the foreground when auto was left on. Each background wake runs the same
+  `backupEngine`, so the persisted done-set still prevents duplicates. Refactored `capture-api.ts` to stream:
+  a new `MediaSource` reads `file://` inputs one chunk at a time through an `expo-file-system` `FileHandle`
+  (`sendChunk` now takes a pre-read `ArrayBuffer` + total, not a whole `Blob`), with a buffered `fetch` fallback
+  for non-file URIs — a multi-gigabyte video no longer materialises in memory. Added deps: `expo-file-system`,
+  `expo-background-task`, `expo-task-manager` (the last auto-added its config plugin to `app.json`). `tsc --noEmit`
+  and `expo lint` are clean. Remaining Capture milestones: QR pairing and per-album selection. No co-author trailer.
 
 - `HEAD` — **Automatic camera-roll backup in the mobile client (Claude).** Built the daily-habit Capture
   loop on top of Codex's resumable API. New `mobile/src/lib`: `backup-store.ts` persists backup state via

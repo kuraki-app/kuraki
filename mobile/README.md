@@ -18,10 +18,15 @@ deduplication, a restart or a dropped connection never re-creates a duplicate:
   the server's acknowledged offset.
 - **Honest failures** — items that cannot upload appear under "Needs attention"
   with the reason, and are retried on the next run.
+- **Runs in the background** — with automatic backup on, the app registers an
+  OS background task (`expo-background-task`) so new photos back up periodically
+  even when the app is closed. The OS decides the cadence (Android ≈ 15 min
+  minimum; iOS adapts to usage and power); the same engine runs each wake, so
+  nothing is uploaded twice.
+- **Streams large files** — uploads read the file one chunk at a time through a
+  native `expo-file-system` handle, so a multi-gigabyte video never fills memory.
 
-Album selection, QR pairing, and OS background scheduling are the next
-milestones. Large-video uploads currently buffer per file; streamed file reads
-are a planned refinement.
+Per-album selection and QR pairing are the next milestones.
 
 ## Run in Expo Go
 

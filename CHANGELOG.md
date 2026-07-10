@@ -50,7 +50,10 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - Automatic camera-roll backup in the mobile client: a persisted queue uploads
   every new photo and video, remembers what the server already accepted so a
   restart never re-uploads, retries each chunk with backoff through a network
-  drop, and surfaces per-item failures under "Needs attention".
+  drop, and surfaces per-item failures under "Needs attention". It also runs on
+  an OS background schedule (`expo-background-task`) so new photos back up while
+  the app is closed, and streams each upload one chunk at a time through a
+  native file handle so large videos never exhaust memory.
 - Uploads are processed by a background import queue: the request returns
   immediately, a worker imports each job with retries and crash recovery, and the
   UI polls progress. A self-refreshing Activity page lists recent import jobs with
