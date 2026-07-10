@@ -93,6 +93,36 @@ func newAuthTestRouter(t *testing.T) (http.Handler, *sql.DB) {
 	return NewRouter(Deps{Version: "test", DB: database, Store: store, Logger: slog.Default()}), database
 }
 
+func TestSecureCookieFlag(t *testing.T) {
+	ctx := context.Background()
+	dataDir := t.TempDir()
+	database, err := db.Open(ctx, filepath.Join(dataDir, "kuraki.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { database.Close() })
+	if err := db.Migrate(database, nil); err != nil {
+		t.Fatal(err)
+	}
+	store, err := storage.NewFS(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := NewRouter(Deps{Version: "test", DB: database, Store: store, SecureCookies: true, Logger: slog.Default()})
+
+	rec := postJSON(t, router, "/api/setup", credentialsRequest{Username: "owner", Password: "correct horse"}, nil)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("setup status = %d", rec.Code)
+	}
+	cookie := findCookie(rec.Result().Cookies(), sessionCookieName)
+	if cookie == nil || !cookie.Secure {
+		t.Fatalf("session cookie Secure flag not set: %+v", cookie)
+	}
+	if !cookie.HttpOnly {
+		t.Fatal("session cookie should stay HttpOnly")
+	}
+}
+
 func postJSON(t *testing.T, handler http.Handler, path string, body any, cookie *http.Cookie) *httptest.ResponseRecorder {
 	t.Helper()
 	b, err := json.Marshal(body)

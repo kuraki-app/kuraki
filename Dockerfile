@@ -37,8 +37,10 @@ LABEL org.opencontainers.image.title="Kuraki" \
       org.opencontainers.image.source="https://github.com/kuraki-app/kuraki" \
       org.opencontainers.image.licenses="AGPL-3.0"
 
+# libvips + ffmpeg power the media pipeline; tesseract (with the English model)
+# enables the opt-in local OCR worker when KURAKI_OCR=1.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      libvips42 ffmpeg ca-certificates \
+      libvips42 ffmpeg tesseract-ocr tesseract-ocr-eng ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /out/kuraki /usr/local/bin/kuraki
 

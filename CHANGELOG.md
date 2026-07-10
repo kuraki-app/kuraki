@@ -24,7 +24,9 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - `/healthz` liveness endpoint and a `/metrics` endpoint reporting memory,
   goroutines, uptime, and library counts.
 - Configurable trash retention and thumbnail size via `KURAKI_TRASH_RETENTION_DAYS`
-  and `KURAKI_THUMBNAIL_SIZE`.
+  and `KURAKI_THUMBNAIL_SIZE`; `KURAKI_SECURE_COOKIES=1` marks the session cookie
+  Secure for HTTPS production; `KURAKI_OCR=1` enables the local OCR worker.
+- The Docker image bundles `tesseract` so opt-in OCR works out of the box.
 - Docker image with libvips and ffmpeg bundled, a `docker-compose.yml` for
   one-command hosting, a container health check that self-probes via the binary,
   a non-root runtime user, and OCI image labels.
@@ -85,7 +87,10 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - The web timeline gained a filters panel (All / Photos / Videos / Favorites chips
   and a From/To date range) matching the mobile client.
 - Mobile Library tab: a recent, searchable, filterable grid of the server library
-  (device-authenticated) with an offline cache so it paints instantly on open.
+  (device-authenticated) with an offline cache so it paints instantly on open, and
+  a full-screen swipeable viewer (images and in-app video playback).
+- The mobile app now detects a revoked or expired device token, clears it, and
+  shows a "reconnect this device" prompt instead of raw errors.
 - Opt-in local OCR (`KURAKI_OCR=1`, requires the `tesseract` binary): recognises
   text in images so a search finds words inside screenshots and documents. Fully
   local — nothing is uploaded.

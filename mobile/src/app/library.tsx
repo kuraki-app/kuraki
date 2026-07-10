@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Dimensions, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import PhotoViewer from '@/components/photo-viewer';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
@@ -13,6 +14,7 @@ import {
   type LibraryAsset,
   type LibraryFilters,
 } from '@/lib/library-api';
+import { isAuthLost, onAuthLost } from '@/lib/session';
 import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
 
 type Chip = { label: string; filter: LibraryFilters };
@@ -36,6 +38,10 @@ export default function LibraryScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(-1);
+  const [disconnected, setDisconnected] = useState(isAuthLost());
+
+  useEffect(() => onAuthLost(() => setDisconnected(true)), []);
 
   const filters = useMemo<LibraryFilters>(() => {
     const q = query.trim();
@@ -105,6 +111,13 @@ export default function LibraryScreen() {
 
   return (
     <ThemedView style={styles.fill}>
+      {disconnected && (
+        <View style={styles.banner}>
+          <ThemedText type="small" style={styles.bannerText}>
+            This device was disconnected. Re-pair it in Settings.
+          </ThemedText>
+        </View>
+      )}
       <View style={styles.header}>
         <TextInput
           placeholder="Search your library"
@@ -139,17 +152,17 @@ export default function LibraryScreen() {
           contentContainerStyle={{ gap }}
           onEndReached={() => void loadMore()}
           onEndReachedThreshold={0.6}
-          renderItem={({ item }) => {
+          renderItem={({ item, index }) => {
             const source = settings ? thumbSource(settings, item) : null;
             return (
-              <View style={[styles.tile, { width: tile, height: tile }]}>
+              <Pressable style={[styles.tile, { width: tile, height: tile }]} onPress={() => setViewerIndex(index)}>
                 {source ? (
                   <Image source={source} style={styles.thumb} contentFit="cover" transition={120} cachePolicy="disk" />
                 ) : (
                   <ThemedText type="small" themeColor="textSecondary">{item.media_type}</ThemedText>
                 )}
                 {item.media_type === 'video' && <View style={styles.videoDot} />}
-              </View>
+              </Pressable>
             );
           }}
           ListEmptyComponent={
@@ -161,12 +174,22 @@ export default function LibraryScreen() {
           }
         />
       )}
+      {viewerIndex >= 0 && settings && (
+        <PhotoViewer
+          assets={assets}
+          initialIndex={viewerIndex}
+          settings={settings}
+          onClose={() => setViewerIndex(-1)}
+        />
+      )}
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  banner: { backgroundColor: '#f6d7cf', paddingVertical: Spacing.two, paddingHorizontal: Spacing.two },
+  bannerText: { color: '#7a2b1c' },
   header: { padding: Spacing.two, gap: Spacing.two },
   search: {
     borderColor: '#b8b9be',

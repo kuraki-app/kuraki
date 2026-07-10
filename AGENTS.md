@@ -125,7 +125,8 @@ make docker       # build container image
 
 Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 `KURAKI_TRASH_RETENTION_DAYS` (`30`), `KURAKI_THUMBNAIL_SIZE` (`512`),
-`KURAKI_OCR` (`off`; `1` enables the local tesseract OCR worker).
+`KURAKI_OCR` (`off`; `1` enables the local tesseract OCR worker),
+`KURAKI_SECURE_COOKIES` (`off`; `1` marks the session cookie Secure for HTTPS).
 
 ## 8. Progress ledger (update this)
 
@@ -186,6 +187,18 @@ album indexes.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `HEAD` — **Production hardening batch 1: mobile viewer + reconnect, secure cookies, Docker OCR, CI gates (Claude).**
+  New north star = make internal/web/mobile production-ready and correctly linked. (1) **Mobile photo viewer**
+  (`photo-viewer.tsx`): tap a Library tile → full-screen swipeable pager, images via best source
+  (`fullImageSource`: preview→original→thumb) and video via `expo-video` (only the active page plays). (2)
+  **Mobile reconnect flow** (`session.ts`): any device request that gets 401 reports auth-loss, clears the
+  SecureStore token, and Library shows a "reconnect in Settings" banner; re-pair/manual-save clears it. (3)
+  **Secure cookies**: `KURAKI_SECURE_COOKIES=1` → `config.SecureCookies` → `Deps.SecureCookies` → session
+  cookie `Secure` flag (test asserts it). (4) **Dockerfile** adds `tesseract-ocr(+eng)` so opt-in OCR works
+  in the container. (5) **CI** gains `web` (npm ci + build) and `mobile` (tsc + expo lint) jobs, so all three
+  surfaces are gated. `go test -race`, mobile `tsc`/`expo lint` green. Commit rule now in effect: batch changes,
+  don't commit under 8 files unless told. No co-author trailer.
 
 - `HEAD` — **Find phase: unified filters, mobile Library, web filter bar, opt-in OCR (Claude).** Implemented
   roadmap §2 across server, web, and mobile. **One filter language:** `filters.go` (`parseAssetFilters` +

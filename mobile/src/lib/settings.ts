@@ -22,3 +22,8 @@ export async function saveCaptureSettings(settings: CaptureSettings): Promise<vo
     SecureStore.setItemAsync(deviceTokenKey, settings.deviceToken.trim()),
   ]);
 }
+
+/** clearDeviceToken removes the stored token (e.g. after the server revoked it). */
+export async function clearDeviceToken(): Promise<void> {
+  await SecureStore.deleteItemAsync(deviceTokenKey);
+}

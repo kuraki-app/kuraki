@@ -31,6 +31,10 @@ type Config struct {
 	// OCREnabled turns on the opt-in local OCR worker (requires the tesseract
 	// binary on PATH). Off by default; nothing leaves the machine.
 	OCREnabled bool
+
+	// SecureCookies marks the session cookie Secure so browsers only send it
+	// over HTTPS. Enable it in production behind TLS (KURAKI_SECURE_COOKIES=1).
+	SecureCookies bool
 }
 
 // Default returns the zero-config configuration used when nothing overrides it.
@@ -61,6 +65,9 @@ func Load(getenv func(string) string) Config {
 	}
 	if boolEnv(getenv("KURAKI_OCR")) {
 		c.OCREnabled = true
+	}
+	if boolEnv(getenv("KURAKI_SECURE_COOKIES")) {
+		c.SecureCookies = true
 	}
 	return c
 }

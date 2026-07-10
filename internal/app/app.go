@@ -520,13 +520,14 @@ func (a *App) Serve(ctx context.Context) error {
 	go a.Queue.Start(ctx)
 
 	handler := httpapi.NewRouter(httpapi.Deps{
-		Version:   a.Version,
-		DB:        a.DB,
-		Store:     a.Store,
-		Media:     a.Media,
-		Queue:     a.Queue,
-		ThumbSize: a.Cfg.ThumbnailSize,
-		Logger:    a.Log,
+		Version:       a.Version,
+		DB:            a.DB,
+		Store:         a.Store,
+		Media:         a.Media,
+		Queue:         a.Queue,
+		ThumbSize:     a.Cfg.ThumbnailSize,
+		SecureCookies: a.Cfg.SecureCookies,
+		Logger:        a.Log,
 	})
 	srv := &http.Server{
 		Addr:              a.Cfg.Addr,

@@ -37,8 +37,11 @@ address + token) remains available as a fallback.
 
 The **Library** tab browses the server's photos on the phone: a search box, and
 All / Photos / Videos / Favorites chips, over an infinite grid of thumbnails.
-It reads the device-authenticated `/api/capture/library` (the same filter
-language as the web app) and caches the most recent page so it opens instantly.
+Tap any tile for a full-screen swipeable viewer (images and in-app video
+playback). It reads the device-authenticated `/api/capture/library` (the same
+filter language as the web app) and caches the most recent page so it opens
+instantly. If the server revokes this device's token, the app clears it and
+prompts you to re-pair in Settings.
 
 ## Choosing what backs up
 

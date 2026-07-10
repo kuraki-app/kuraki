@@ -1,5 +1,6 @@
 import { File } from 'expo-file-system';
 
+import { reportAuthLost } from '@/lib/session';
 import type { CaptureSettings } from '@/lib/settings';
 
 export type CaptureSession = {
@@ -171,6 +172,10 @@ async function sendChunk(
         }
         return next;
       }
+      if (response.status === 401) {
+        reportAuthLost();
+        throw new CaptureAPIError('This device was disconnected. Re-pair it in Settings.', 401);
+      }
       // A 409 with an Upload-Offset header means the server already advanced past
       // this chunk; realign to its offset and let the caller continue.
       const serverOffset = Number(response.headers.get('Upload-Offset'));
@@ -201,6 +206,10 @@ async function deviceRequest<T>(settings: CaptureSettings, path: string, init: R
 }
 
 async function unwrap<T>(response: Response, fallback: string): Promise<T> {
+  if (response.status === 401) {
+    reportAuthLost();
+    throw new CaptureAPIError('This device was disconnected. Re-pair it in Settings.', 401);
+  }
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     const message = typeof body.error === 'string' ? body.error : fallback;

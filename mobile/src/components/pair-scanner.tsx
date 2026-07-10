@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { claimPairing } from '@/lib/capture-api';
+import { clearAuthLost } from '@/lib/session';
 import { saveCaptureSettings } from '@/lib/settings';
 
 type Props = {
@@ -30,6 +31,7 @@ export default function PairScanner({ onPaired, onClose }: Props) {
       const device = await claimPairing(payload.base_url, payload.code, name);
       const baseURL = payload.base_url.replace(/\/+$/, '');
       await saveCaptureSettings({ baseURL, deviceToken: device.token });
+      clearAuthLost();
       onPaired(baseURL);
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : 'Could not pair with that code.');

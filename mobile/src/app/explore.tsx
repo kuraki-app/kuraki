@@ -5,6 +5,7 @@ import PairScanner from '@/components/pair-scanner';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
+import { clearAuthLost } from '@/lib/session';
 import { loadCaptureSettings, saveCaptureSettings } from '@/lib/settings';
 
 export default function SettingsScreen() {
@@ -22,6 +23,7 @@ export default function SettingsScreen() {
 
   async function save() {
     await saveCaptureSettings({ baseURL, deviceToken });
+    clearAuthLost();
     setSaved(true);
   }
 

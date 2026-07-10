@@ -122,7 +122,7 @@ func (d Deps) logout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(sessionCookieName); err == nil {
 		_, _ = d.DB.ExecContext(r.Context(), `DELETE FROM sessions WHERE id = ?`, cookie.Value)
 	}
-	http.SetCookie(w, expiredSessionCookie())
+	http.SetCookie(w, d.expiredSessionCookie())
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -217,7 +217,7 @@ func (d Deps) createSession(w http.ResponseWriter, r *http.Request, userID strin
 		sessionID, userID, expires.Format(time.RFC3339Nano)); err != nil {
 		return err
 	}
-	http.SetCookie(w, sessionCookie(sessionID, expires))
+	http.SetCookie(w, d.sessionCookie(sessionID, expires))
 	return nil
 }
 
@@ -240,24 +240,26 @@ func (d Deps) currentUser(r *http.Request) *authUser {
 	return &user
 }
 
-func sessionCookie(value string, expires time.Time) *http.Cookie {
+func (d Deps) sessionCookie(value string, expires time.Time) *http.Cookie {
 	return &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    value,
 		Path:     "/",
 		Expires:  expires,
 		HttpOnly: true,
+		Secure:   d.SecureCookies,
 		SameSite: http.SameSiteLaxMode,
 	}
 }
 
-func expiredSessionCookie() *http.Cookie {
+func (d Deps) expiredSessionCookie() *http.Cookie {
 	return &http.Cookie{
 		Name:     sessionCookieName,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
+		Secure:   d.SecureCookies,
 		SameSite: http.SameSiteLaxMode,
 	}
 }

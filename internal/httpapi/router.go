@@ -29,7 +29,9 @@ type Deps struct {
 	Media     media.Processor
 	Queue     *queue.Queue
 	ThumbSize int
-	Logger    *slog.Logger
+	// SecureCookies marks the session cookie Secure (HTTPS-only) in production.
+	SecureCookies bool
+	Logger        *slog.Logger
 }
 
 // NewRouter builds the top-level HTTP handler.
