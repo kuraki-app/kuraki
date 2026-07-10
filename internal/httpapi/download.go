@@ -14,10 +14,13 @@ type zipRequest struct {
 	IDs []string `json:"ids"`
 }
 
-// downloadZip streams a zip archive of the selected originals so users can pull
-// their data out as easily as they put it in (F-23 / zero-lock-in). The archive
-// is streamed, so once the first bytes are written the status can no longer
-// change — inputs are therefore validated up front.
+type zipItem struct {
+	storagePath string // path within the store, e.g. originals/2026/07/x.jpg
+	zipName     string // entry name inside the archive
+}
+
+// downloadZip streams a zip archive of the selected originals (zero-lock-in).
+// The archive is streamed, so inputs are validated up front.
 func (d Deps) downloadZip(w http.ResponseWriter, r *http.Request) {
 	var req zipRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -45,35 +48,69 @@ func (d Deps) downloadZip(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "query_failed")
 		return
 	}
-	type item struct{ path, name string }
-	var items []item
+	items := []zipItem{}
 	for rows.Next() {
-		var it item
-		if err := rows.Scan(&it.path, &it.name); err != nil {
+		var path, name string
+		if err := rows.Scan(&path, &name); err != nil {
 			rows.Close()
 			writeError(w, http.StatusInternalServerError, "scan_failed")
 			return
 		}
-		items = append(items, it)
+		items = append(items, zipItem{storagePath: "originals/" + path, zipName: name})
 	}
 	rows.Close()
 	if len(items) == 0 {
 		writeError(w, http.StatusNotFound, "no_assets")
 		return
 	}
+	streamZip(w, r, d, "kuraki-export.zip", items)
+}
 
+// exportLibrary streams a zip of every original in the library, preserving the
+// date-organized folder structure. Backing up this archive (plus the database)
+// is the manual belt-and-braces companion to `kuraki backup`.
+func (d Deps) exportLibrary(w http.ResponseWriter, r *http.Request) {
+	rows, err := d.DB.QueryContext(r.Context(),
+		`SELECT original_path, filename FROM assets WHERE deleted_at IS NULL ORDER BY original_path`)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "query_failed")
+		return
+	}
+	items := []zipItem{}
+	for rows.Next() {
+		var path, name string
+		if err := rows.Scan(&path, &name); err != nil {
+			rows.Close()
+			writeError(w, http.StatusInternalServerError, "scan_failed")
+			return
+		}
+		// Preserve the YYYY/MM structure with the readable filename.
+		items = append(items, zipItem{
+			storagePath: "originals/" + path,
+			zipName:     filepath.ToSlash(filepath.Join(filepath.Dir(path), name)),
+		})
+	}
+	rows.Close()
+	if len(items) == 0 {
+		writeError(w, http.StatusNotFound, "no_assets")
+		return
+	}
+	streamZip(w, r, d, "kuraki-library.zip", items)
+}
+
+func streamZip(w http.ResponseWriter, r *http.Request, d Deps, filename string, items []zipItem) {
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", `attachment; filename="kuraki-export.zip"`)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 	zw := zip.NewWriter(w)
 	defer zw.Close()
 
 	seen := map[string]int{}
 	for _, it := range items {
-		rc, err := d.Store.Open(r.Context(), "originals/"+it.path)
+		rc, err := d.Store.Open(r.Context(), it.storagePath)
 		if err != nil {
-			continue // skip originals that are missing rather than aborting the whole archive
+			continue // skip missing originals rather than aborting the archive
 		}
-		fw, err := zw.Create(uniqueZipName(seen, it.name))
+		fw, err := zw.Create(uniqueZipName(seen, it.zipName))
 		if err != nil {
 			rc.Close()
 			return
@@ -83,7 +120,7 @@ func (d Deps) downloadZip(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// uniqueZipName disambiguates repeated filenames (e.g. two IMG_1234.jpg).
+// uniqueZipName disambiguates repeated entry names (e.g. two IMG_1234.jpg).
 func uniqueZipName(seen map[string]int, name string) string {
 	if _, ok := seen[name]; !ok {
 		seen[name] = 1

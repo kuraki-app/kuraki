@@ -21,7 +21,10 @@
   $: maxYear = stats ? Math.max(1, ...stats.by_year.map((y) => y.count)) : 1;
 </script>
 
-<header class="head"><h1>Library</h1></header>
+<header class="head">
+  <h1>Library</h1>
+  <a class="export" href="/api/export" download>Export library (.zip)</a>
+</header>
 
 {#if loading}
   <p class="muted">Loading…</p>
@@ -54,10 +57,27 @@
 {/if}
 
 <style>
+  .head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
   .head h1 {
-    margin: 0 0 20px;
+    margin: 0;
+    margin-right: auto;
     font-size: 22px;
     font-weight: 700;
+  }
+  .export {
+    padding: 8px 14px;
+    border: 1px solid #d8d0c5;
+    border-radius: 8px;
+    background: #fffaf3;
+    color: #24211f;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
   }
   .muted {
     color: #6a6259;
