@@ -123,6 +123,13 @@ func NewRouter(d Deps) http.Handler {
 			r.Post("/capture/uploads", d.captureStart)
 			r.Patch("/capture/uploads/{id}", d.captureAppend)
 			r.Post("/capture/uploads/{id}/complete", d.captureComplete)
+			// Read access for the mobile client: the same filter language and
+			// media endpoints as the web UI, authenticated by the device token.
+			r.Get("/capture/library", d.respondFiltered)
+			r.Get("/capture/places", d.placesSummary)
+			r.Get("/capture/assets/{id}/thumb", d.serveThumb)
+			r.Get("/capture/assets/{id}/preview", d.servePreview)
+			r.Get("/capture/assets/{id}/original", d.serveOriginal)
 		})
 	})
 

@@ -142,66 +142,10 @@ func (d Deps) getAsset(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, row.toDTO())
 }
 
+// searchAssets is the unified filter endpoint (the "one filter language"). It
+// shares its whole implementation with the mobile library via respondFiltered.
 func (d Deps) searchAssets(w http.ResponseWriter, r *http.Request) {
-	q := strings.TrimSpace(r.URL.Query().Get("q"))
-	limit := parseLimit(r.URL.Query().Get("limit"))
-
-	where := []string{"a.deleted_at IS NULL"}
-	args := []any{}
-	if q != "" {
-		where = append(where, "f.assets_fts MATCH ?")
-		args = append(args, ftsQuery(q))
-	}
-	if from := strings.TrimSpace(r.URL.Query().Get("from")); from != "" {
-		where = append(where, "COALESCE(a.taken_at, a.created_at) >= ?")
-		args = append(args, from)
-	}
-	if to := strings.TrimSpace(r.URL.Query().Get("to")); to != "" {
-		where = append(where, "COALESCE(a.taken_at, a.created_at) <= ?")
-		args = append(args, to)
-	}
-	if mediaType := strings.TrimSpace(r.URL.Query().Get("type")); mediaType != "" {
-		where = append(where, "a.media_type = ?")
-		args = append(args, mediaType)
-	}
-	if camera := strings.TrimSpace(r.URL.Query().Get("camera")); camera != "" {
-		where = append(where, "a.camera_model = ?")
-		args = append(args, camera)
-	}
-	if r.URL.Query().Get("archived") != "1" {
-		where = append(where, "a.archived = 0")
-	}
-	if r.URL.Query().Get("hidden") != "1" {
-		where = append(where, "a.hidden = 0")
-	}
-	if rating := strings.TrimSpace(r.URL.Query().Get("rating")); rating != "" {
-		value, err := strconv.Atoi(rating)
-		if err != nil || value < 0 || value > 5 {
-			writeError(w, http.StatusBadRequest, "invalid_rating")
-			return
-		}
-		where = append(where, "a.rating = ?")
-		args = append(args, value)
-	}
-	args = append(args, limit)
-
-	join := "LEFT JOIN assets_fts f ON f.asset_id = a.id"
-	if q != "" {
-		join = "JOIN assets_fts f ON f.asset_id = a.id"
-	}
-	rows, err := d.DB.QueryContext(r.Context(), assetSelectSQLWithJoin(join, "WHERE "+strings.Join(where, " AND "))+` LIMIT ?`, args...)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "search_assets_failed")
-		return
-	}
-	defer rows.Close()
-
-	assets, _, err := scanAssetRows(rows, limit)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "scan_assets_failed")
-		return
-	}
-	writeJSON(w, http.StatusOK, assetListResponse{Assets: assets})
+	d.respondFiltered(w, r)
 }
 
 func (d Deps) serveOriginal(w http.ResponseWriter, r *http.Request) {
