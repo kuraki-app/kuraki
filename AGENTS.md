@@ -33,7 +33,7 @@ Phase 1 = single-owner personal backup.
 - **Builds & tests:** `go build ./...`, `go vet ./...`, `gofmt`, `go test -race ./...` all green;
   `npm run build` (web) clean. Cross-compiles linux/amd64+arm64, darwin/arm64, windows/amd64 (CGO off).
 - **R1 media core (2026-07-10):** current import admission covers JPEG/PNG/GIF/WebP/HEIC/HEIF/AVIF/TIFF plus MP4/M4V/MOV/WebM. A per-asset capability flag now prevents the viewer from rendering known-incompatible originals: libvips/pure-Go creates image previews where possible, ffprobe identifies browser-compatible video codecs, and ffmpeg creates H.264/AAC playback derivatives otherwise. Failed derivatives remain downloadable and appear in Activity's Media health section. Cross-engine and libvips fixture certification remains env-gated.
-- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00006`.
+- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00008`.
 - **Not browser-click-tested:** the SvelteKit UI compiles and serves and all endpoints are E2E-verified
   via curl, but no headless-browser pass has been run (per human request).
 - **Env-gated / pending:** `-tags vips` build (needs libvips + `pkg-config`), HEIC out of the box,
@@ -72,7 +72,7 @@ internal/
   app/                 composition root — wires everything; owns server lifecycle + workers
   config/              zero-config defaults + KURAKI_* env resolution
   domain/              core entities — **NO I/O EVER**
-  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00005)
+  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00008)
   storage/             Storage interface + FS impl (write-once, atomic, traversal-safe)
   media/               Processor interface + purego.go fallback + vips.go tagged backend, ffmpeg, EXIF
   importer/            recursive import, BLAKE3 dedup, import_state resume, derivatives; Takeout + geocode
