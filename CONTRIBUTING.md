@@ -4,7 +4,7 @@ Thanks for your interest in Kuraki! This is an early-stage, solo-maintained proj
 
 ## Guiding principles
 
-Kuraki aims to be a focused, self-hosted photo backup you actually enjoy running: near-zero configuration, your originals kept intact on disk, and boring, snapshot-protected upgrades. Before proposing a feature, ask whether it fits that focus. We say no to a lot — see the Non-Goals in the PRD. When in doubt, open an issue to discuss before writing code.
+Kuraki aims to be a focused, self-hosted photo backup you actually enjoy running: near-zero configuration, your originals kept intact on disk, and boring, snapshot-protected upgrades. Before proposing a feature, ask whether it fits that focus. We say no to a lot — see the non-goals in [ROADMAP.md](./ROADMAP.md). When in doubt, open an issue to discuss before writing code.
 
 ## Getting started
 
@@ -17,6 +17,10 @@ make build       # -> ./bin/kuraki
 make run         # build + serve on :3000
 make test        # go test -race ./...
 ```
+
+**Frontend:** the web UI (`web/`, SvelteKit) is built into `internal/httpapi/assets/` and embedded in
+the binary. Working on the UI needs Node; iterate with `cd web && npm install && npm run dev`, and run
+`npm run build` (which writes the embedded assets) before committing so the Go binary serves your changes.
 
 ## Development workflow
 

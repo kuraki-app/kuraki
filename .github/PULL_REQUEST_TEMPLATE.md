@@ -18,6 +18,7 @@
 - [ ] Fits Kuraki's scope (or discussed in an issue first)
 - [ ] `internal/domain` still does no I/O; file/image access goes through interfaces
 - [ ] New migrations are additive (never edited a released migration)
+- [ ] If `web/` changed, ran `npm run build` so the embedded UI (`internal/httpapi/assets`) is updated
 - [ ] Updated `CHANGELOG.md` (Unreleased) and `ROADMAP.md` if user-facing
 - [ ] Added/updated tests
 

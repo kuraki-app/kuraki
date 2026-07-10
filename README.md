@@ -33,7 +33,10 @@ HEIC/AVIF/RAW previews and video posters work out of the box.
 - Content-hash **deduplication** (BLAKE3) — the same photo in two folders is stored once
 - EXIF-date organization into `originals/YYYY/MM/`; originals are write-once
 - **Watch-folder** mode (`import --watch`) that auto-imports new files — pairs with Syncthing/rsync
-- Browser drag-and-drop upload
+- Browser drag-and-drop upload, processed by a background **import queue** (retries + crash recovery),
+  with an **Activity** view showing progress and per-file errors
+- **Google Takeout import** — reads the JSON sidecars so capture dates, locations, captions, and
+  favorites survive a migration from Google Photos
 
 **Browse & find**
 - Virtualized, day/month-grouped **timeline** that stays smooth at large libraries
@@ -42,16 +45,23 @@ HEIC/AVIF/RAW previews and video posters work out of the box.
 - **Favorites** feed, **albums**, and an **"on this day"** memories view
 - **Places** map of geotagged photos with **offline** reverse geocoding (city/country, no external calls)
 - Multi-select **batch** operations and **zip export** of selected originals
+- **Library dashboard** with totals and a per-year breakdown
+
+**Edit & organize**
+- Edit an asset's **capture date, location, and caption** (re-geocoding on a location change)
+- **Batch timezone shift** to correct camera clocks across many photos
+- Manual **albums** (create, rename, delete, add/remove)
 
 **Media**
 - Thumbnails via **libvips** (HEIC/AVIF/RAW previews) with a pure-Go fallback
 - **Video** upload, ffmpeg poster frames, and in-browser playback with range/seek support
 
-**Trust & operations**
-- **Trash** with 30-day retention, restore, and automatic purge
+**Trust, performance & operations**
+- **Trash** with configurable retention, restore, and automatic purge
 - `kuraki verify` re-checksums the library and reports corruption or missing originals
 - Automatic **pre-migration database snapshot** on every schema change — upgrades are boring
 - Single-owner **auth** (argon2id, session cookies, rate-limited login)
+- Aggressive HTTP caching for media/UI, gzip for API responses, and SQLite tuning
 - `/healthz` and `/metrics` endpoints for monitoring
 
 ## Quick start
@@ -90,6 +100,8 @@ Sensible defaults, no config file required. Override via flags or environment
 |---|---|---|---|
 | `--data-dir` | `KURAKI_DATA_DIR` | `./kuraki-data` | Library root (DB, originals, derivatives, trash, snapshots) |
 | `--addr` | `KURAKI_ADDR` | `:3000` | HTTP listen address |
+| — | `KURAKI_TRASH_RETENTION_DAYS` | `30` | Days a trashed item is restorable before purge |
+| — | `KURAKI_THUMBNAIL_SIZE` | `512` | Thumbnail longest-edge size in pixels |
 
 ## Commands
 
@@ -118,7 +130,8 @@ kuraki-data/
 ├── kuraki.db                       # SQLite (WAL): metadata + pointers only
 ├── originals/2026/07/IMG_1234.jpg  # write-once, readable layout, never modified after import
 ├── derivatives/<id>/thumb_512.webp # generated thumbnails / video posters
-├── trash/                          # 30-day retention
+├── trash/                          # retention window before purge
+├── staging/                        # uploads awaiting background import
 └── snapshots/kuraki-<ts>.db        # pre-migration backups
 ```
 
@@ -136,6 +149,9 @@ kuraki/
 │   ├── storage/            # Storage interface + filesystem impl (S3 later)
 │   ├── media/              # Processor interface + libvips/pure-Go backends, ffmpeg, EXIF
 │   ├── importer/           # bulk import: walk, BLAKE3 dedup, resume, thumbnails
+│   ├── takeout/            # Google Takeout sidecar parsing
+│   ├── geo/                # offline reverse geocoding (embedded cities dataset)
+│   ├── queue/              # background import queue (worker, retries, jobs)
 │   ├── trash/              # soft-delete, restore, retention purge
 │   ├── verify/             # integrity re-checksum
 │   ├── auth/               # argon2id hashing, session tokens

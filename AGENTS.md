@@ -19,36 +19,25 @@ boring snapshot-protected upgrades, zero lock-in. Docker-first (libvips + ffmpeg
 bundled). It targets the gap between Immich (heavy) and Ente (hard to self-host).
 Phase 1 = single-owner personal backup.
 
-## 2. Current state (as of M1 core-alpha working tree)
+## 2. Current state
 
-- **Milestone:** M0 **complete**. M1 **complete & verified**. **M2 backend complete & verified** —
-  F-10 trash, F-12 verify, F-13 video upload+Range, F-14 login rate-limit, /metrics all done + exercised E2E.
-  Remaining: in-browser `<video>` player UI (frontend), docs site. (M1 leftovers: HEIC needs libvips env; resource benchmark.)
-- **Builds & tests:** `go build ./...` clean, `go vet ./...` clean, `gofmt` clean, `go test -race ./...` green.
-- **E2E verified (JPEG/PNG/MP4):** `kuraki import` of a mixed dir → 4 imported + 1 byte-dedup,
-  write-once `originals/YYYY/MM/`, 3 thumbs + 1 ffmpeg poster in `derivatives`, resume re-run skipped all 5;
-  then `serve` → first-run `/api/setup` claims the importer-created `owner` → `/api/assets` timeline (4),
-  `/thumb` 200 image/jpeg, prefix `/api/search?q=photo` → 3, `type` filters, and 401 without a session cookie.
-- **Cross-compiles:** linux/amd64, linux/arm64, darwin/arm64, windows/amd64 (CGO off).
-- **Runtime verified:** `kuraki serve` boots zero-config, runs migrations (WAL),
-  serves `/healthz`, `/api/status`, and the embedded UI shell.
-- **Module path:** `github.com/kuraki-app/kuraki`.
-- **M1 present:** `internal/importer` recursively walks media files, BLAKE3-hashes
-  originals, dedups per owner, writes originals under `originals/YYYY/MM/`,
-  records `import_state`, populates `assets_fts`, generates pure-Go JPEG thumbs,
-  runs a bounded derivative worker pool, and wires `kuraki import <dir>` with
-  `--dry-run`, progress output, and `--thumb-workers`. Pure-Go `Probe` extracts
-  EXIF capture time/camera/GPS when available, and `Poster` shells to ffmpeg when
-  present. A `//go:build vips` backend probes through govips and exports WebP
-  thumbnails; local `-tags vips` verification is blocked until `pkg-config` and
-  libvips are installed. Real asset/search/original/thumb HTTP handlers are present.
-- **Web UI present:** SvelteKit static app under `web/`, built into
-  `internal/httpapi/assets/`; Docker has a Node build stage. UI has first-run
-  setup/login, searchable grouped timeline with bounded visible-window rendering,
-  infinite scroll, progressive viewer, EXIF panel, keyboard navigation, download,
-  and logout.
-- **Not yet verified:** real mixed-library import/browse on low-resource hardware;
-  tagged libvips build on a machine with libvips development packages.
+- **Phase 1 (single-owner) is feature-complete and pushed** to `github.com/kuraki-app/kuraki`.
+  Implemented and verified: zero-config server; CLI + drag-and-drop import via a background **queue**
+  (retries, crash recovery, an **Activity** view with per-file errors); BLAKE3 dedup; **watch-folder**;
+  **Google Takeout** sidecar import; libvips/pure-Go thumbnails + ffmpeg posters + EXIF; timeline,
+  viewer (with in-browser video), FTS5 search, favorites, albums, "on this day", **Places** map +
+  offline reverse geocoding, multi-select batch + zip export, **metadata editing** (date/GPS/caption
+  with re-geocode, batch timezone shift), a library **stats** dashboard; trash + retention + `verify`;
+  argon2id auth + login rate-limit; safe-upgrade snapshots; and serving perf (cache headers, gzip,
+  SQLite tuning). See [CHANGELOG.md](./CHANGELOG.md) for the full list.
+- **Builds & tests:** `go build ./...`, `go vet ./...`, `gofmt`, `go test -race ./...` all green;
+  `npm run build` (web) clean. Cross-compiles linux/amd64+arm64, darwin/arm64, windows/amd64 (CGO off).
+- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00005`.
+- **Not browser-click-tested:** the SvelteKit UI compiles and serves and all endpoints are E2E-verified
+  via curl, but no headless-browser pass has been run (per human request).
+- **Env-gated / pending:** `-tags vips` build (needs libvips + `pkg-config`), HEIC out of the box,
+  low-resource benchmark; plus roadmap items (tags/saved-searches, duplicate review, slideshow,
+  multi-user, mobile, optional ML).
 
 ## 3. Locked decisions (do NOT relitigate without human sign-off)
 
@@ -68,34 +57,41 @@ Phase 1 = single-owner personal backup.
 ## 4. Tech stack & key libraries
 
 - Go 1.26 · cobra (CLI) · chi/v5 (HTTP) · goose/v3 (migrations) · modernc.org/sqlite
-- Planned in M1: `zeebo/blake3` (hash), `evanoberholster/imagemeta` (EXIF),
-  `davidbyttow/govips` (vips, behind tag), `google/uuid` (v7),
-  `golang.org/x/crypto/argon2` (M2 auth), `sqlc` (typed queries, optional).
+- `zeebo/blake3` (hash) · `evanoberholster/imagemeta` (EXIF) · `davidbyttow/govips`
+  (libvips, behind `-tags vips`) · `google/uuid` (v7) · `golang.org/x/crypto/argon2` ·
+  `golang.org/x/time/rate` (login limiter) · `golang.org/x/image` (pure-Go media)
+- Frontend: SvelteKit + adapter-static, `@lucide/svelte`, `leaflet` +
+  `leaflet.markercluster` (Places map). Embedded GeoNames dataset in `internal/geo/data`.
 
 ## 5. Repository map
 
 ```
-cmd/kuraki/            CLI entrypoint (cobra): serve/import/verify/version
+cmd/kuraki/            CLI (cobra): serve / import / verify / healthcheck / version
 internal/
-  app/                 composition root — wires everything; owns server lifecycle
-  config/              zero-config defaults + KURAKI_* env/flag resolution
+  app/                 composition root — wires everything; owns server lifecycle + workers
+  config/              zero-config defaults + KURAKI_* env resolution
   domain/              core entities — **NO I/O EVER**
-  db/                  Open (WAL), Migrate (+snapshot); migrations/*.sql embedded
+  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00005)
   storage/             Storage interface + FS impl (write-once, atomic, traversal-safe)
-  media/               Processor interface + purego.go fallback + vips.go tagged backend
+  media/               Processor interface + purego.go fallback + vips.go tagged backend, ffmpeg, EXIF
+  importer/            recursive import, BLAKE3 dedup, import_state resume, derivatives; Takeout + geocode
+  takeout/             Google Takeout sidecar parsing (title-index fallback)
+  geo/                 offline reverse geocoding (embedded GeoNames cities/countries)
+  queue/               background import queue: worker, retries/backoff, crash recovery, jobs
+  trash/               soft-delete, restore, retention purge
+  verify/              integrity re-checksum
+  auth/                argon2id password hashes + session IDs
   httpapi/             chi router, handlers, middleware; assets/ = embedded UI
-  importer/            recursive import, BLAKE3 dedup, import_state resume, derivatives
-  auth/                argon2id password hashes + session IDs (M2 hardens rate limits)
-web/                   SvelteKit static SPA source
-docs/                  PRD/BRD — gitignored, local only
+web/                   SvelteKit SPA (routes: timeline/search/favorites/albums/memories/places/stats/activity/trash)
+docs/                  PRD/BRD + local plans — gitignored, local only
 ```
 
 ## 6. Hard rules (these are invariants — violating them is a bug)
 
 1. **`internal/domain` performs no I/O.** No `os.*`, no `database/sql`, no net.
    File access → `storage.Storage`; image work → `media.Processor`.
-2. **Originals are write-once (F-03).** Never modify/rename/delete an original
-   after import. `storage.FS.Write` refuses overwrite (`ErrExists`) — keep it that way.
+2. **Originals are write-once.** Never modify/rename/delete an original after
+   import. `storage.FS.Write` refuses overwrite (`ErrExists`) — keep it that way.
 3. **Migrations are append-only.** Never edit a released migration file; add a
    new `0000N_*.sql`. Every schema change must be safe under the auto-snapshot.
 4. **Keep the DB layer CGO-free.** libvips CGO is fine in `media`; do not pull
@@ -121,18 +117,21 @@ make cross        # release binaries for all platforms -> ./dist
 make docker       # build container image
 ```
 
-Config: `--data-dir`/`KURAKI_DATA_DIR` (default `./kuraki-data`), `--addr`/`KURAKI_ADDR` (default `:3000`).
+Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
+`KURAKI_TRASH_RETENTION_DAYS` (`30`), `KURAKI_THUMBNAIL_SIZE` (`512`).
 
 ## 8. Progress ledger (update this)
 
-| Milestone | Scope | Status |
-|---|---|---|
-| M0 | Scaffold (config, db+schema, storage/media ifaces, CLI, http, CI, docker) | ✅ done |
-| M1 | Core alpha F-01…F-09 (import, thumbnails, timeline, viewer, search, UI) | 🚧 implementation mostly complete; exit verification pending |
-| M2 | Beta F-10…F-14 (trash, verify, video, auth hardening) | ⬜ not started |
-| M3 | v1.0 (benchmarks, hardening, launch) | ⬜ not started |
+| Area | Status |
+|---|---|
+| Server foundation, import, media pipeline, web UI, auth, trash, verify, video | ✅ done |
+| Places (map + offline geocoding), Takeout import, favorites/albums/memories, stats | ✅ done |
+| Import queue + Activity + per-file errors, metadata editing, config options, serving perf | ✅ done |
+| Tags/saved-searches, duplicate review, slideshow, whole-library export | ⬜ roadmap |
+| libvips-default Docker image / HEIC verified, low-resource benchmark | ⬜ env-gated |
+| Multi-user & sharing, mobile app, optional ML | ⬜ later phases |
 
-Fine-grained checkboxes live in [ROADMAP.md](./ROADMAP.md) — keep both in sync.
+Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 
 ## 9. Next up (suggested order for M1)
 
