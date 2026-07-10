@@ -122,6 +122,31 @@ func TestRunDryRunDoesNotWrite(t *testing.T) {
 	}
 }
 
+func TestRunClassifiesRenamedMediaAndRejectsDisguisedFiles(t *testing.T) {
+	ctx := context.Background()
+	runner, database, _ := newTestImporter(t, ctx)
+	sourceDir := t.TempDir()
+	writeJPEG(t, filepath.Join(sourceDir, "renamed.bin"))
+	if err := os.WriteFile(filepath.Join(sourceDir, "not-a-photo.jpg"), []byte("plain text"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := runner.Run(ctx, Options{SourceDir: sourceDir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Imported != 1 || len(result.Errors) != 1 {
+		t.Fatalf("result = %+v, want one import and one content error", result)
+	}
+	var filename, mimeType string
+	if err := database.QueryRowContext(ctx, `SELECT filename, mime_type FROM assets`).Scan(&filename, &mimeType); err != nil {
+		t.Fatal(err)
+	}
+	if filename != "renamed.bin" || mimeType != "image/jpeg" {
+		t.Fatalf("asset = filename %q mime %q, want renamed JPEG", filename, mimeType)
+	}
+}
+
 func TestRunWritesProgress(t *testing.T) {
 	ctx := context.Background()
 	runner, _, _ := newTestImporter(t, ctx)

@@ -1,6 +1,7 @@
 package media
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -37,6 +38,38 @@ func TestClassifyMediaContract(t *testing.T) {
 			}
 			if cap.MediaType != tt.mediaType || cap.MimeType != tt.mimeType || cap.WebViewable != tt.viewable {
 				t.Fatalf("capability = %+v", cap)
+			}
+		})
+	}
+}
+
+func TestClassifyFileUsesContentBeforeExtension(t *testing.T) {
+	dir := t.TempDir()
+	tests := []struct {
+		name string
+		data []byte
+		want Capability
+		ok   bool
+	}{
+		{name: "renamed jpeg", data: []byte{0xff, 0xd8, 0xff, 0xdb, 0, 0, 0}, want: Capability{MediaType: domain.MediaImage, MimeType: "image/jpeg", WebViewable: true}, ok: true},
+		{name: "disguised text", data: []byte("not an image"), ok: false},
+		{name: "heic signature", data: append([]byte{0, 0, 0, 0x18, 'f', 't', 'y', 'p'}, []byte("heic")...), want: Capability{MediaType: domain.MediaImage, MimeType: "image/heic", NeedsPreview: true}, ok: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(dir, tt.name+".jpg")
+			if err := os.WriteFile(path, tt.data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			got, ok, err := ClassifyFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ok != tt.ok {
+				t.Fatalf("accepted = %v, want %v", ok, tt.ok)
+			}
+			if ok && got != tt.want {
+				t.Fatalf("capability = %+v, want %+v", got, tt.want)
 			}
 		})
 	}

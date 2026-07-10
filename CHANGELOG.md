@@ -47,6 +47,9 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - Google Takeout import: reads the JSON sidecars (tolerant of Google's naming
   variants) so capture dates, locations, captions, and favorites survive a
   migration from Google Photos.
+- Media admission identifies standard image/video signatures before trusting a
+  filename; renamed valid files import correctly while disguised text/document
+  files are reported rather than preserved as broken media.
 - Portable backups now carry a versioned file-count/byte-count manifest;
   restores validate the archive in a temporary directory before atomically
   replacing an empty destination.

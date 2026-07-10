@@ -63,12 +63,13 @@ and [web video codec guidance](https://developer.mozilla.org/en-US/docs/Web/Medi
 
 **Goal:** a new user can trust an import and open every advertised file type.
 
-**Core delivered (2026-07-10):** Kuraki now records a per-asset web-viewing
-state, uses ffprobe to make conservative codec decisions, creates a safe image
-or H.264/AAC playback derivative where the local toolchain can do so, and shows
-an explicit download-only state plus durable media-health errors otherwise.
-The wider libvips fixture corpus and cross-engine certification remain required
-before claiming complete R1 coverage.
+**Core delivered (2026-07-10):** Kuraki now uses content signatures for standard
+media admission, records a per-asset web-viewing state, uses ffprobe to make
+conservative codec decisions, creates a safe image or H.264/AAC playback
+derivative where the local toolchain can do so, and shows an explicit
+download-only state plus durable media-health errors otherwise. The wider
+libvips fixture corpus and cross-engine certification remain required before
+claiming complete R1 coverage.
 
 - Replace extension-only admission with content detection and a capability
   registry (`accepted`, `metadata`, `preview`, `playback`, `download-only`).

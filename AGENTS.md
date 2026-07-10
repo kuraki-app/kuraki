@@ -33,6 +33,7 @@ Phase 1 = single-owner personal backup.
 - **Builds & tests:** `go build ./...`, `go vet ./...`, `gofmt`, `go test -race ./...` all green;
   `npm run build` (web) clean. Cross-compiles linux/amd64+arm64, darwin/arm64, windows/amd64 (CGO off).
 - **R1 media core (2026-07-10):** current import admission covers JPEG/PNG/GIF/WebP/HEIC/HEIF/AVIF/TIFF plus MP4/M4V/MOV/WebM. A per-asset capability flag now prevents the viewer from rendering known-incompatible originals: libvips/pure-Go creates image previews where possible, ffprobe identifies browser-compatible video codecs, and ffmpeg creates H.264/AAC playback derivatives otherwise. Failed derivatives remain downloadable and appear in Activity's Media health section. Cross-engine and libvips fixture certification remains env-gated.
+- **R1 content admission (2026-07-10):** standard image/video signatures now determine media type before the filename extension; renamed valid media imports with its detected MIME, while mismatched advertised media is recorded as an import error. Opaque camera RAW files retain an extension-based admission exception until a fixture-backed decoder policy is available.
 - **Import/export safety (2026-07-10):** browser queue staging isolates each uploaded file, so repeated filenames cannot overwrite one another. Portable backup format v2 records an archive manifest; restore validates it in a temporary sibling directory before swapping into an empty target. `kuraki backup` takes an online SQLite snapshot before packaging a live library. ZIP exports preflight originals and bypass the normal API deadline, so they no longer quietly omit unavailable files or time out at 60 seconds.
 - **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00011`.
 - **Not browser-click-tested:** the SvelteKit UI compiles and serves and all endpoints are E2E-verified
@@ -130,6 +131,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Places (map + offline geocoding), Takeout import, favorites/albums/memories, stats | ✅ done |
 | Import queue + Activity + per-file errors, metadata editing, config options, serving perf | ✅ done |
 | R1 media compatibility: explicit view state, safe preview/transcode fallback, media-health rebuild | ✅ done |
+| R1 content-aware admission for standard media signatures | ✅ done (RAW extension exception) |
 | R2: tags/hierarchical tags, saved searches, ratings, archive/hidden, external libraries, backup/restore | ✅ done |
 | R2: duplicate review (exact + near-duplicate by hamming), stacks (RAW+JPEG / Live-Motion), whole-library export, scheduled integrity verification | ✅ done |
 | Import/export safety: duplicate upload basenames preserved; live backup snapshot; restore staged and manifest-validated; ZIP exports preflighted and unbounded | ✅ done |
@@ -163,6 +165,8 @@ Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./R
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `HEAD` — **R1 content-aware import admission (Codex).** `media.ClassifyFile` reads standard JPEG/PNG/GIF/WebP/BMP/TIFF/JXL/JP2, ISO-BMFF (AVIF/HEIC/MP4/MOV/3GP), EBML (WebM/Matroska), AVI/WMV/MPEG/TS signatures before a file enters the importer. A valid JPEG renamed `.bin` now imports as `image/jpeg`; plain text renamed `.jpg` is surfaced as an import error rather than retained as corrupt media. Camera RAW remains the deliberate extension-based exception until fixture-backed decoding is available. Focused media/importer tests and `make check` are green.
 
 - `HEAD` — **Live backup consistency (Codex).** `kuraki backup` now opens the existing SQLite database and uses `VACUUM INTO` to create a point-in-time temporary snapshot before archiving the data directory. The backup archives that snapshot as `kuraki.db` and excludes mutable `kuraki.db-wal`/`kuraki.db-shm` files, while originals are copied afterwards (write-once import order guarantees every snapshot-referenced original already exists). A backup→post-snapshot mutation→restore test verifies the restored database holds only the snapshot state and no WAL is archived. Focused backup/CLI tests are green.
 

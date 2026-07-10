@@ -140,11 +140,18 @@ func (i *Importer) Run(ctx context.Context, opts Options) (Result, error) {
 		if entry.IsDir() {
 			return nil
 		}
-		kind, fallbackMime, ok := mediaFromExt(path)
-		if !ok {
+		cap, ok, classifyErr := media.ClassifyFile(path)
+		if classifyErr != nil {
+			result.Errors = append(result.Errors, FileError{Path: path, Err: classifyErr})
 			return nil
 		}
-		files = append(files, candidate{Path: path, Kind: kind, FallbackMime: fallbackMime})
+		if !ok {
+			if _, namedMedia := media.Classify(path); namedMedia {
+				result.Errors = append(result.Errors, FileError{Path: path, Err: fmt.Errorf("unsupported media content")})
+			}
+			return nil
+		}
+		files = append(files, candidate{Path: path, Kind: cap.MediaType, FallbackMime: cap.MimeType})
 		return nil
 	})
 	if walkErr != nil {
@@ -776,14 +783,6 @@ func hashFile(path string) (string, error) {
 		return "", fmt.Errorf("hash read: %w", err)
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-func mediaFromExt(path string) (domain.MediaType, string, bool) {
-	cap, ok := media.Classify(path)
-	if !ok {
-		return "", "", false
-	}
-	return cap.MediaType, cap.MimeType, true
 }
 
 func originalPath(t time.Time, id, ext string) string {

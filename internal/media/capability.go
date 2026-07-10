@@ -1,9 +1,13 @@
 package media
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -69,6 +73,101 @@ func Classify(path string) (Capability, bool) {
 		return Capability{MediaType: domain.MediaVideo, MimeType: "video/mpeg", NeedsPreview: true}, true
 	case ".wmv":
 		return Capability{MediaType: domain.MediaVideo, MimeType: "video/x-ms-wmv", NeedsPreview: true}, true
+	default:
+		return Capability{}, false
+	}
+}
+
+// ClassifyFile identifies supported media from its bytes, using the filename
+// extension only for opaque camera RAW formats that have no stable common
+// signature. This prevents an arbitrary file named .jpg or .mp4 from entering
+// the library while allowing correctly encoded media with a lost/wrong suffix.
+func ClassifyFile(path string) (Capability, bool, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return Capability{}, false, fmt.Errorf("media: open %s: %w", path, err)
+	}
+	defer f.Close()
+	head := make([]byte, 4096)
+	n, err := io.ReadFull(f, head)
+	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+		return Capability{}, false, fmt.Errorf("media: read %s: %w", path, err)
+	}
+	head = head[:n]
+	if cap, ok := classifyBytes(head); ok {
+		return cap, true, nil
+	}
+	if cap, ok := Classify(path); ok && cap.MimeType == "image/x-raw" && len(head) > 0 {
+		return cap, true, nil
+	}
+	// net/http detects common non-media text and document signatures, providing
+	// a final guard against a misleading supported extension.
+	if mime := http.DetectContentType(head); mime != "application/octet-stream" &&
+		!strings.HasPrefix(mime, "image/") && !strings.HasPrefix(mime, "video/") {
+		return Capability{}, false, nil
+	}
+	return Capability{}, false, nil
+}
+
+func classifyBytes(head []byte) (Capability, bool) {
+	imageCap := func(mime string, viewable bool) Capability {
+		return Capability{MediaType: domain.MediaImage, MimeType: mime, WebViewable: viewable, NeedsPreview: !viewable}
+	}
+	videoCap := func(mime string) Capability {
+		return Capability{MediaType: domain.MediaVideo, MimeType: mime, NeedsPreview: true}
+	}
+	switch {
+	case len(head) >= 3 && bytes.Equal(head[:3], []byte{0xff, 0xd8, 0xff}):
+		return imageCap("image/jpeg", true), true
+	case len(head) >= 8 && bytes.Equal(head[:8], []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}):
+		return imageCap("image/png", true), true
+	case len(head) >= 6 && (bytes.Equal(head[:6], []byte("GIF87a")) || bytes.Equal(head[:6], []byte("GIF89a"))):
+		return imageCap("image/gif", true), true
+	case len(head) >= 12 && string(head[:4]) == "RIFF" && string(head[8:12]) == "WEBP":
+		return imageCap("image/webp", true), true
+	case len(head) >= 12 && string(head[:4]) == "RIFF" && string(head[8:12]) == "AVI ":
+		return videoCap("video/x-msvideo"), true
+	case len(head) >= 2 && (bytes.Equal(head[:2], []byte{'I', 'I'}) || bytes.Equal(head[:2], []byte{'M', 'M'})) &&
+		((head[0] == 'I' && head[2] == 0x2a && head[3] == 0) || (head[0] == 'M' && head[2] == 0 && head[3] == 0x2a)):
+		return imageCap("image/tiff", false), true
+	case len(head) >= 2 && bytes.Equal(head[:2], []byte("BM")):
+		return imageCap("image/bmp", false), true
+	case len(head) >= 12 && bytes.Equal(head[:12], []byte{0, 0, 0, 0x0c, 'j', 'P', ' ', ' ', '\r', '\n', 0x87, '\n'}):
+		return imageCap("image/jp2", false), true
+	case len(head) >= 2 && bytes.Equal(head[:2], []byte{0xff, 0x0a}):
+		return imageCap("image/jxl", false), true
+	case len(head) >= 12 && string(head[4:8]) == "JXL ":
+		return imageCap("image/jxl", false), true
+	case len(head) >= 4 && bytes.Equal(head[:4], []byte{0x1a, 0x45, 0xdf, 0xa3}):
+		if bytes.Contains(bytes.ToLower(head), []byte("webm")) {
+			return videoCap("video/webm"), true
+		}
+		return videoCap("video/x-matroska"), true
+	case len(head) >= 16 && bytes.Equal(head[:16], []byte{0x30, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11, 0xa6, 0xd9, 0, 0xaa, 0, 0x62, 0xce, 0x6c}):
+		return videoCap("video/x-ms-wmv"), true
+	case len(head) >= 4 && bytes.Equal(head[:4], []byte{0, 0, 1, 0xba}):
+		return videoCap("video/mpeg"), true
+	case len(head) >= 1 && head[0] == 0x47:
+		return videoCap("video/mp2t"), true
+	case len(head) >= 12 && string(head[4:8]) == "ftyp":
+		return classifyISOBaseMedia(string(head[8:12]), imageCap, videoCap)
+	default:
+		return Capability{}, false
+	}
+}
+
+func classifyISOBaseMedia(brand string, imageCap func(string, bool) Capability, videoCap func(string) Capability) (Capability, bool) {
+	switch brand {
+	case "avif", "avis":
+		return imageCap("image/avif", true), true
+	case "heic", "heix", "hevc", "hevx", "mif1", "msf1":
+		return imageCap("image/heic", false), true
+	case "qt  ":
+		return videoCap("video/quicktime"), true
+	case "3gp4", "3gp5", "3gp6":
+		return videoCap("video/3gpp"), true
+	case "isom", "iso2", "mp41", "mp42", "M4V ", "M4A ":
+		return videoCap("video/mp4"), true
 	default:
 		return Capability{}, false
 	}
