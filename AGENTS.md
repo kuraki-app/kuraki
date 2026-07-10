@@ -157,7 +157,16 @@ Fine-grained checkboxes live in [ROADMAP.md](./ROADMAP.md) — keep both in sync
 
 ## 11. Handoff log (append newest at top)
 
-- `HEAD` — **Near-term batch (Claude):** four roadmap "doable now" items. (1) **Google Takeout import**:
+- `HEAD` — **Import queue + serving perf (Claude).** New `internal/queue`: uploads staged to
+  `data/staging/<job>`, enqueued in a `jobs` table (migration `00004`), processed by a background worker
+  (`app.Queue.Start`) with retries/backoff and crash recovery; `POST /api/assets` now returns 202+job_id,
+  `GET /api/jobs(+/:id)`, and the UI polls job progress. Fixed a clock-skew bug (use Go-generated
+  `next_attempt_at`). Perf: immutable/long cache headers on originals + hashed UI assets, week cache on
+  thumbnails, gzip middleware for JSON/UI, and SQLite `cache_size`/`mmap_size`/`temp_store` pragmas.
+  All backend E2E-verified (headers/gzip confirmed via curl); `go test -race` + `npm run build` green.
+  Note: **no browser harness** used (user asked to skip headless Chrome); UI compiles + serves but was
+  not click-tested.
+- `HEAD~` — **Near-term batch (Claude):** four roadmap "doable now" items. (1) **Google Takeout import**:
   new `internal/takeout` sidecar parser (title-index fallback for truncated names), applied on import
   (date authoritative, GPS/caption/favorite fill-in), `00003_description` migration + searchable captions.
   (2) **Configurable** trash retention + thumbnail size (`KURAKI_TRASH_RETENTION_DAYS`, `KURAKI_THUMBNAIL_SIZE`).

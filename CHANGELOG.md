@@ -38,6 +38,9 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - Watch-folder mode that rescans a directory on an interval and auto-imports new
   files — pairs with folder-sync tools like Syncthing and rsync.
 - Browser drag-and-drop upload that runs through the same import pipeline.
+- Uploads are processed by a background import queue: the request returns
+  immediately, a worker imports each job with retries and crash recovery, and the
+  UI polls progress. Jobs are visible via `GET /api/jobs`.
 - Google Takeout import: reads the JSON sidecars (tolerant of Google's naming
   variants) so capture dates, locations, captions, and favorites survive a
   migration from Google Photos.
@@ -65,6 +68,12 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - A map of geotagged photos (Leaflet + OpenStreetMap) with clustered thumbnails.
 - Offline reverse geocoding resolves GPS to city and country names locally, with
   no external calls, and groups photos into a browsable list of places.
+
+**Performance**
+- Long-lived cache headers on originals and hashed UI bundles (immutable) and a
+  week-long cache on thumbnails, so the timeline scrolls without re-fetching.
+- Gzip compression for JSON and UI responses; SQLite cache, memory-mapped I/O,
+  and in-memory temp store for faster queries.
 
 **Media**
 - Thumbnail generation through libvips (HEIC/AVIF/RAW previews) with a pure-Go
