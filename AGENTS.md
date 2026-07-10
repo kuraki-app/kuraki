@@ -153,17 +153,24 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Find: device-authenticated library read + mobile Library tab (grid, filters, offline cache) | ✅ done |
 | Find: web timeline filter bar aligned to mobile | ✅ done |
 | Find: opt-in local OCR (tesseract) indexes screenshot/document text into FTS | ✅ done |
-| Sharing, optional ML, and scale deployment profiles | ⬜ later phases |
+| **Maintain** (next): XMP/JSON sidecars, stable external-library identity, restore rehearsals, storage forecast | ⬜ active phase |
+| **Harden** (continuous): media-contract fixture cert, mobile device shakeout, UI polish, OCR-in-Docker, indexes | ⬜ |
+| Optional local intelligence (faces/semantic), scale (S3/Postgres/hardware) | ⬜ later phases |
+| Sharing & multi-user (links, household albums, roles, OIDC) | ⏸ parked by decision |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 
-## 9. Next up (suggested order for M1)
+## 9. Next up
 
-1. Run M1 exit verification with a real mixed library (JPEG/HEIC/PNG/MP4), including
-   timeline/viewer browsing on low-resource hardware.
-2. Verify `make build-vips` / `go test -tags vips ./...` on a machine or container
-   with `pkg-config` and libvips development packages installed.
-3. If exit verification passes, mark M1 done and start M2 auth hardening/trash/verify.
+Capture and Find are complete; **Sharing is parked by decision**. The active
+phase is **Maintain** (roadmap §1): XMP/JSON sidecar import/export + a portable
+library manifest, stable content-hash/sidecar external-library identity,
+scheduled restore rehearsals with a dashboard proof (restore + integrity + age +
+storage forecast), and safe post-backup source-cleanup guidance. Run alongside
+it the continuous **Harden** track (roadmap §2): media-contract fixture
+certification, a real-device mobile shakeout, web UI polish (dark mode,
+jump-to-date, slideshow, a11y), tesseract in the Docker image, and place/tags/
+album indexes.
 
 ## 10. Coordination protocol (multi-agent)
 

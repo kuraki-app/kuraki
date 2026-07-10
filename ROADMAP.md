@@ -1,29 +1,45 @@
 # Kuraki roadmap — daily-use plan
 
 Kuraki exists to make a personal photo library **easy to keep, easy to find,
-easy to send, and possible to recover without Kuraki**. This plan is ordered by
-those recurring user jobs, not by competitor feature checklists.
+and possible to recover without Kuraki**. This plan is ordered by those
+recurring user jobs, not by competitor feature checklists. Shipped work and
+fixes live in **[CHANGELOG.md](./CHANGELOG.md)**.
 
 ## Product promise
 
-> Take a photo, know the original is safely home, find it years later, share it
-> deliberately, and retain a readable library if you ever leave Kuraki.
+> Take a photo, know the original is safely home, find it years later, and
+> retain a readable library if you ever leave Kuraki.
 
-## What is already the baseline
+## What is already shipped
 
-Kuraki already has the server-side personal-library foundation: write-once date
-organized originals; BLAKE3 deduplication; CLI/watch-folder and browser imports;
-queue recovery; a timeline, search, Places, albums, favorites, memories, stacks,
-duplicates, metadata editing, trash, stats, and activity; whole-library export;
-and live SQLite-consistent backup/restore plus integrity verification.
+**Foundation.** Write-once, date-organised originals; BLAKE3 deduplication;
+CLI / watch-folder / browser imports; a crash-recovering import queue with an
+Activity view; libvips/pure-Go thumbnails, ffmpeg posters, and per-asset
+web-viewability with playback/preview derivatives; timeline, viewer, Places,
+albums, favorites, memories, stacks, duplicate review, metadata editing, tags,
+saved searches, ratings, archive/hidden, trash; whole-library export; live
+SQLite-consistent backup/restore; and scheduled integrity verification.
 
-Those features are maintained, but they are no longer the roadmap's primary
-milestones. New work must improve a routine user job or make that job safer.
+**Capture — backup is a daily habit** *(complete)*. Revocable device tokens and
+resumable upload sessions; a React Native iOS/Android client that automatically
+backs up the camera roll with a persisted, restart- and network-loss-safe queue;
+OS background scheduling; streamed large-file uploads; QR pairing; and per-album
+selection.
+
+**Find — retrieve a moment in seconds** *(complete)*. One filter language
+(query, date, media type, camera, favorite, rating, place, album, archive/hidden)
+over a single paginated search, used identically by the web timeline, the web
+search, and the mobile Library tab; a device-authenticated library read with an
+offline cache; and opt-in, fully local OCR that makes text inside screenshots
+and documents searchable.
+
+Those areas are maintained but are no longer primary milestones. New work must
+improve a routine user job or make that job safer.
 
 ## 0. Release guardrail — the media contract
 
-This runs alongside every release rather than blocking daily-use work with
-unbounded format scope.
+Runs alongside every release rather than blocking daily-use work with unbounded
+format scope.
 
 - Maintain a versioned support matrix with four explicit states: accepted,
   metadata, thumbnail/poster, and browser preview/playback.
@@ -35,107 +51,111 @@ unbounded format scope.
 - Show reduced pure-Go capability and actionable media-health recovery instead
   of silently promising unsupported previews.
 
-## 1. Capture — make backup a daily habit (now)
+---
 
-**User job:** “I took a photo. Is the original safely on my server?”
+# Forward plan
 
-### Server protocol
+Sharing (public/household links, contributor uploads, multi-user accounts) is
+**parked by decision** — see [Parked](#parked-not-being-built-now). The active
+sequence below is about trust, reliability, and staying light.
 
-- Device registration and revocable device credentials; pairing must not expose
-  the account password to long-lived clients.
-- Resumable upload sessions with byte offsets, per-file receipts, idempotency,
-  deduplication, expiry cleanup, and clear failure reasons.
-- Per-device upload cursor, selected-source/album labels, Wi-Fi/cellular/power
-  policy supplied by clients, and bounded server-side staging.
-- Backup-status API: last successful item, pending bytes/items, skipped
-  duplicates, failures, and storage consumption.
+## 1. Maintain — prove ownership over time (now)
 
-### React Native mobile app (iOS and Android)
+**User job:** “Can I move, repair, or recover this library — with proof?”
 
-- One shared Expo/React Native codebase; native background scheduling is treated
-  as advisory and the UI always reports the operating-system constraint honestly.
-- Pair with a server by QR code or a short-lived pairing code; store device
-  credentials only in platform secure storage.
-- Pick device albums/folders, back up only additions, resume interruptions, and
-  show a plain-language “Backed up / waiting / needs attention” state.
-- Initial app scope: Backup, Recent, Search, and Settings. It is not a complete
-  replacement gallery on day one.
-
-### Desktop companion
-
-- Reuse the same session protocol for a small desktop uploader; retain the CLI
-  and watch-folder path for servers and NAS imports.
-
-**Exit criteria:** a new photo survives app restart and network loss without a
-duplicate; the user can identify the exact receipt or failure; a device never
-offers source cleanup until the server confirms the original is present.
-
-## 2. Find — retrieve a moment in seconds (next)
-
-**User job:** “Find the photo I remember, not just the file I named.”
-
-- Mobile-friendly recent timeline with fast jump-to-date and an offline cache of
-  recent thumbnails/metadata.
-- One filter language across web and mobile: date, place, media type, camera,
-  favorite, rating, album, archive/hidden, and saved search.
-- Improve screenshot/document retrieval with opt-in local OCR before broad
-  semantic search or face recognition.
-- Keep memories, favorites, and Places as lightweight re-entry points; measure
-  whether they earn a place on the home screen.
-
-**Exit criteria:** common date/place/type queries complete quickly on a 10k-item
-library, work identically on web and mobile, and do not require cloud ML.
-
-## 3. Share — send deliberately, revoke confidently (then)
-
-**User job:** “Send this set of photos without handing over my library.”
-
-- Start with selected-item and album share links: expiry, password, download
-  permission, revoke, and owner-visible access history.
-- Add authenticated household albums only after the link permissions and audit
-  model are tested. Contributor upload/collect mode comes last, with quotas and
-  rate limits.
-- Do not build comments, reactions, social feeds, or public discovery as part of
-  the personal-backup product.
-
-**Exit criteria:** a revoked link stops access immediately; a recipient cannot
-enumerate unrelated assets; every public action is bounded and auditable.
-
-## 4. Maintain — prove ownership over time (continuous)
-
-**User job:** “Can I move, repair, or recover this library?”
-
-- Stable external-library identity based on content hash and sidecar identity,
-  not just a mounted filesystem path.
-- XMP/JSON sidecar import and export plus a portable library manifest, so edits,
-  captions, ratings, tags, and source identity remain usable outside Kuraki.
-- Scheduled restore rehearsals into a disposable target; report restore result,
-  integrity result, backup age, and storage-growth forecast in the dashboard.
-- Safe source-cleanup recommendations only after a verified backup and restore
-  evidence; never make deletion part of ordinary backup.
+- **Portable metadata.** XMP/JSON sidecar import and export plus a versioned
+  library manifest, so edits, captions, ratings, tags, GPS, and source identity
+  remain usable outside Kuraki. Originals stay immutable.
+- **Stable external-library identity** based on content hash and sidecar
+  identity, not just a mounted filesystem path, so moving or remounting a folder
+  never loses the application's metadata.
+- **Restore rehearsals.** Scheduled test restores into a disposable target that
+  record a result; the dashboard reports last restore result, integrity result,
+  backup age, and a storage-growth forecast.
+- **Safe source cleanup.** Recommend removing originals from a source only after
+  a verified backup and restore evidence; never make deletion part of ordinary
+  backup.
 - Continue duplicate review, stacks, archive/hidden, trash, and whole-library
   export as maintenance tools.
 
-**Exit criteria:** moving/remounting an external library retains its metadata;
-a user can restore a current backup on a clean machine and see a recorded proof.
+**Exit criteria:** moving or remounting an external library retains its metadata;
+a user can restore a current backup on a clean machine and see recorded proof
+(restore + integrity + age) in the dashboard.
 
-## Deliberately later
+## 2. Harden — make the good behaviour boring (continuous)
 
-- Face recognition, people grouping, generic semantic search, and bundled GPU
-  models: optional local modules only after Capture and Find are reliable.
-- Multi-user roles, OIDC, public contribution flows, and partner sharing: after
-  the Share permission model.
-- S3, PostgreSQL, hardware workers, and million-asset deployment profiles:
-  after real device usage makes them necessary.
+**User job:** “Does it keep working, look right, and stay trustworthy?”
+
+- **Media-contract certification.** Build the licensed fixture corpus and CI
+  matrix across the Docker/libvips and pure-Go profiles, asserting import
+  outcome, metadata, derivative decodability, HTTP MIME/range, and real browser
+  playback on Chromium, Firefox, and WebKit. Closes the roadmap guardrail.
+- **Mobile real-device shakeout.** Exercise the Capture and Library flows on
+  physical iOS and Android hardware (background cadence, large videos, iCloud
+  offloaded assets, permission edge cases) before calling the client production
+  ready.
+- **Web experience polish.** Jump-to-date, configurable grid density, slideshow,
+  a keyboard and screen-reader audit, dark mode, a localization foundation, and
+  progressive image placeholders.
+- **Operational edges.** Ship tesseract in the Docker image so opt-in OCR works
+  in the container; add indexes (place, tags, album) ahead of large libraries;
+  publish a low-resource benchmark.
+
+**Exit criteria:** every advertised format has a passing fixture test on both
+profiles; the mobile client has a signed-off device pass; the web UI meets a
+basic accessibility and dark-mode bar.
+
+## 3. Organize deeper — optional, non-destructive (later)
+
+**User job:** “Shape my library without risking the originals.”
+
+- Non-destructive edit recipes (crop, rotate, straighten, light adjustments)
+  stored as sidecar instructions; originals never change.
+- Burst-shot grouping alongside the existing RAW+JPEG / Live-Motion stacks.
+- Smart albums over the shared filter language, and clean-up suggestions that
+  are always reviewable and reversible.
+
+## 4. Optional local intelligence — only after the foundation is boring
+
+**User job:** “Help me find people and things, without sending my photos away.”
+
+Opt-in, on-device or self-hosted only; user-controlled model download,
+CPU/GPU limits, pause/resume, deletion of embeddings, and no silent outbound
+upload. Local OCR already ships as the first, safest example.
+
+- Face detection and people confirmation; semantic object/scene search;
+  quality flags. Each signal feeds smart albums but every action stays
+  reviewable and reversible.
+
+## 5. Scale & deployment — keep the simple default, enable homelabs
+
+**User job:** “Run this on bigger or off-site infrastructure when I need to.”
+
+- S3-compatible storage backend and an optional PostgreSQL deployment profile
+  behind the existing interfaces; replicated / off-site backup targets.
+- Hardware-assisted derivative and transcode workers with capability detection
+  and CPU-only fallback.
+- Prometheus-format metrics, structured audit events, load/soak tests, and
+  published benchmarks for 10k / 100k / 1M-asset libraries.
+
+## Parked (not being built now)
+
+Deferred by decision, kept here so the design intent is not lost:
+
+- **Sharing and household accounts** — selected-item/album share links with
+  expiry, password, download permission, revoke, and audit; authenticated
+  household albums; contributor/collect mode; multi-user roles, OIDC, and
+  partner sharing. Revisit after Maintain and Harden.
 - Broad format admission without fixture-backed preview/playback behaviour.
+- Bundled ML models or a mandatory GPU.
 
 ## Planning rules
 
-1. A feature must improve Capture, Find, Share, or Maintain, or it waits.
-2. Originals remain immutable; derivatives and edits are replaceable.
+1. A feature must improve **Keep, Find, or Maintain**, or it waits.
+2. Originals remain immutable; derivatives, edits, and sidecars are replaceable.
 3. Every destructive-looking action requires a recoverable path and visible
    evidence.
-4. Mobile clients consume a documented server protocol; they do not bypass the
-   queue, deduplication, or activity record.
+4. Mobile and desktop clients consume a documented server protocol; they do not
+   bypass the queue, deduplication, or activity record.
 5. New cloud, ML, GPU, or database dependencies require a separate explicit
-   decision.
+   decision. Sharing/multi-user stays parked until deliberately unparked.
