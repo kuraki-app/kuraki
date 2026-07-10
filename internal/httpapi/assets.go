@@ -37,6 +37,7 @@ type assetDTO struct {
 	GPSLon       *float64 `json:"gps_lon,omitempty"`
 	DurationMS   int64    `json:"duration_ms"`
 	Favorite     bool     `json:"favorite"`
+	Description  *string  `json:"description,omitempty"`
 	PlaceCity    *string  `json:"place_city,omitempty"`
 	PlaceCountry *string  `json:"place_country,omitempty"`
 	OriginalURL  string   `json:"original_url"`
@@ -66,6 +67,7 @@ type assetRow struct {
 	DurationMS   int64
 	Favorite     int
 	CreatedAt    string
+	Description  sql.NullString
 	PlaceCity    sql.NullString
 	PlaceCountry sql.NullString
 	ThumbPath    sql.NullString
@@ -216,7 +218,7 @@ func assetSelectSQLWithJoin(join, where string) string {
 			a.id, a.original_path, a.filename, a.mime_type, a.media_type,
 			a.width, a.height, a.size_bytes, a.taken_at, a.camera_make,
 			a.camera_model, a.gps_lat, a.gps_lon, a.duration_ms, a.favorite,
-			a.created_at, a.place_city, a.place_country, COALESCE(d_thumb.path, d_poster.path)
+			a.created_at, a.description, a.place_city, a.place_country, COALESCE(d_thumb.path, d_poster.path)
 		FROM assets a
 		LEFT JOIN derivatives d_thumb ON d_thumb.asset_id = a.id AND d_thumb.kind = 'thumb'
 		LEFT JOIN derivatives d_poster ON d_poster.asset_id = a.id AND d_poster.kind = 'poster'
@@ -230,7 +232,7 @@ func assetScanDest(row *assetRow) []any {
 		&row.ID, &row.OriginalPath, &row.Filename, &row.MimeType, &row.MediaType,
 		&row.Width, &row.Height, &row.SizeBytes, &row.TakenAt, &row.CameraMake,
 		&row.CameraModel, &row.GPSLat, &row.GPSLon, &row.DurationMS, &row.Favorite,
-		&row.CreatedAt, &row.PlaceCity, &row.PlaceCountry, &row.ThumbPath,
+		&row.CreatedAt, &row.Description, &row.PlaceCity, &row.PlaceCountry, &row.ThumbPath,
 	}
 }
 
@@ -278,6 +280,10 @@ func (row assetRow) toDTO() assetDTO {
 	if row.GPSLon.Valid {
 		lon = &row.GPSLon.Float64
 	}
+	var description *string
+	if row.Description.Valid && row.Description.String != "" {
+		description = &row.Description.String
+	}
 	var placeCity, placeCountry *string
 	if row.PlaceCity.Valid && row.PlaceCity.String != "" {
 		placeCity = &row.PlaceCity.String
@@ -308,6 +314,7 @@ func (row assetRow) toDTO() assetDTO {
 		GPSLon:       lon,
 		DurationMS:   row.DurationMS,
 		Favorite:     row.Favorite != 0,
+		Description:  description,
 		PlaceCity:    placeCity,
 		PlaceCountry: placeCountry,
 		OriginalURL:  originalURL,

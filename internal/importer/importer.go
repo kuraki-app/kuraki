@@ -23,6 +23,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/geo"
 	"github.com/kuraki-app/kuraki/internal/media"
 	"github.com/kuraki-app/kuraki/internal/storage"
+	"github.com/kuraki-app/kuraki/internal/takeout"
 	"github.com/zeebo/blake3"
 )
 
@@ -62,6 +63,8 @@ type Importer struct {
 	// ThumbMaxEdge is the longest-edge size for generated thumbnails.
 	// Zero falls back to the default.
 	ThumbMaxEdge int
+
+	resolver *takeout.Resolver
 }
 
 func (i *Importer) thumbEdge() int {
@@ -94,6 +97,7 @@ func (i *Importer) Run(ctx context.Context, opts Options) (Result, error) {
 	if i.Media == nil {
 		return Result{}, fmt.Errorf("importer: media processor is nil")
 	}
+	i.resolver = takeout.NewResolver()
 	if opts.SourceDir == "" {
 		return Result{}, fmt.Errorf("importer: source dir is required")
 	}
@@ -220,6 +224,23 @@ func (i *Importer) importFile(ctx context.Context, ownerID, path string, kind do
 
 	meta := i.probe(ctx, path, kind, fallbackMime)
 	takenAt := meta.TakenAt
+	gpsLat, gpsLon := meta.GPSLat, meta.GPSLon
+	var description string
+	var favorite bool
+
+	// Google Takeout sidecar (if present) is authoritative for capture time and
+	// fills in GPS/caption/favorite that the exported files often lack.
+	if sc, ok := i.resolver.Lookup(path); ok {
+		if sc.TakenAt != nil {
+			takenAt = sc.TakenAt
+		}
+		if gpsLat == nil && sc.Lat != nil {
+			gpsLat, gpsLon = sc.Lat, sc.Lon
+		}
+		description = sc.Description
+		favorite = sc.Favorite
+	}
+
 	storageDate := mtime
 	if takenAt != nil {
 		storageDate = takenAt.UTC()
@@ -253,8 +274,8 @@ func (i *Importer) importFile(ctx context.Context, ownerID, path string, kind do
 	}
 
 	var placeCity, placeCountry string
-	if meta.GPSLat != nil && meta.GPSLon != nil {
-		if p, ok := geo.Reverse(*meta.GPSLat, *meta.GPSLon); ok {
+	if gpsLat != nil && gpsLon != nil {
+		if p, ok := geo.Reverse(*gpsLat, *gpsLon); ok {
 			placeCity, placeCountry = p.City, p.Country
 		}
 	}
@@ -273,11 +294,13 @@ func (i *Importer) importFile(ctx context.Context, ownerID, path string, kind do
 		TakenAt:      takenAt,
 		CameraMake:   meta.CameraMake,
 		CameraModel:  meta.CameraModel,
-		GPSLat:       meta.GPSLat,
-		GPSLon:       meta.GPSLon,
+		GPSLat:       gpsLat,
+		GPSLon:       gpsLon,
 		DurationMS:   meta.DurationMS,
 		PlaceCity:    placeCity,
 		PlaceCountry: placeCountry,
+		Favorite:     favorite,
+		Description:  description,
 	}); err != nil {
 		return nil, err
 	}
@@ -502,6 +525,8 @@ type assetRow struct {
 	DurationMS   int64
 	PlaceCity    string
 	PlaceCountry string
+	Favorite     bool
+	Description  string
 }
 
 func (i *Importer) insertAsset(ctx context.Context, row assetRow) error {
@@ -515,13 +540,14 @@ func (i *Importer) insertAsset(ctx context.Context, row assetRow) error {
 		INSERT INTO assets (
 			id, owner_id, content_hash, original_path, filename, mime_type, media_type,
 			width, height, size_bytes, taken_at, camera_make, camera_model, gps_lat,
-			gps_lon, duration_ms, place_city, place_country
+			gps_lon, duration_ms, place_city, place_country, favorite, description
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, row.ID, row.OwnerID, row.ContentHash, row.OriginalPath, row.Filename, row.MimeType,
 		string(row.MediaType), row.Width, row.Height, row.SizeBytes, timePtrText(row.TakenAt),
 		row.CameraMake, row.CameraModel, floatPtr(row.GPSLat), floatPtr(row.GPSLon), row.DurationMS,
-		nullString(row.PlaceCity), nullString(row.PlaceCountry))
+		nullString(row.PlaceCity), nullString(row.PlaceCountry), boolInt(row.Favorite),
+		nullString(row.Description))
 	if err != nil {
 		return fmt.Errorf("importer: insert asset: %w", err)
 	}
@@ -531,8 +557,8 @@ func (i *Importer) insertAsset(ctx context.Context, row assetRow) error {
 		takenText = row.TakenAt.UTC().Format("2006-01-02")
 	}
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO assets_fts (asset_id, filename, camera_model, taken_text) VALUES (?, ?, ?, ?)`,
-		row.ID, row.Filename, row.CameraModel, takenText); err != nil {
+		`INSERT INTO assets_fts (asset_id, filename, camera_model, taken_text, description) VALUES (?, ?, ?, ?, ?)`,
+		row.ID, row.Filename, row.CameraModel, takenText, row.Description); err != nil {
 		return fmt.Errorf("importer: insert asset fts: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx,
@@ -663,6 +689,13 @@ func nullString(s string) any {
 		return nil
 	}
 	return s
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func floatPtr(f *float64) any {

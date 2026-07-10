@@ -72,6 +72,7 @@
       <div class="head">
         <h2>{asset.filename}</h2>
         <p>{fileSize(asset.size_bytes)} · {asset.width}×{asset.height}</p>
+        {#if asset.description}<p class="caption">{asset.description}</p>{/if}
       </div>
       <div class="actions">
         <button class="act" class:on={asset.favorite} type="button" on:click={() => dispatch('favorite', asset)}>
@@ -196,6 +197,11 @@
   .head p {
     margin: 4px 0 0;
     color: #c9c0b6;
+  }
+  .head .caption {
+    margin-top: 8px;
+    color: #e7e0d6;
+    font-size: 15px;
   }
   .actions {
     display: grid;

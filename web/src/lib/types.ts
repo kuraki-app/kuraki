@@ -15,6 +15,7 @@ export type Asset = {
   gps_lon?: number;
   duration_ms: number;
   favorite: boolean;
+  description?: string;
   place_city?: string;
   place_country?: string;
   original_url: string;
