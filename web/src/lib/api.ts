@@ -89,6 +89,7 @@ export const api = {
   jobs: () => req<{ jobs: Job[] }>('/api/jobs'),
   job: (id: string) => req<Job>(`/api/jobs/${id}`),
   mediaIssues: () => req<{ issues: MediaIssue[] }>('/api/media/issues'),
+  rebuildAsset: (id: string) => req<{ status: string }>(`/api/assets/${id}/rebuild`, { method: 'POST' }),
   tags: () => req<{ tags: Tag[] }>('/api/tags'),
   createTag: (name: string, parent_id?: string) => req<Tag>('/api/tags', jsonBody({ name, parent_id })),
   deleteTag: (id: string) => req<void>(`/api/tags/${id}`, { method: 'DELETE' }),

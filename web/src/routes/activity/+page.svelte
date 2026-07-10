@@ -12,6 +12,20 @@
   let timer: ReturnType<typeof setInterval>;
   let open: Record<string, boolean> = {};
   let details: Record<string, { filename: string; error: string }[]> = {};
+  let rebuilding: Record<string, boolean> = {};
+
+  async function rebuild(id: string) {
+    rebuilding = { ...rebuilding, [id]: true };
+    try {
+      await api.rebuildAsset(id);
+      showToast('Rebuilding derivative…');
+      setTimeout(load, 1500);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Rebuild failed');
+    } finally {
+      setTimeout(() => (rebuilding = { ...rebuilding, [id]: false }), 1500);
+    }
+  }
 
   async function toggle(id: string) {
     if (open[id]) {
@@ -60,8 +74,6 @@
 
 {#if loading}
   <p class="muted">Loading…</p>
-{:else if jobs.length === 0}
-  <div class="empty"><h2>No recent activity</h2></div>
 {:else}
   {#if mediaIssues.length > 0}
     <section class="media-health" aria-labelledby="media-health-title">
@@ -69,11 +81,27 @@
       <p>These originals are safe, but need a compatible preview or playback derivative.</p>
       <ul>
         {#each mediaIssues as issue (issue.asset_id + issue.kind)}
-          <li><strong>{issue.filename}</strong><span>{issue.kind}: {issue.message}</span></li>
+          <li>
+            <div class="mi-text">
+              <strong>{issue.filename}</strong><span>{issue.kind}: {issue.message}</span>
+            </div>
+            <button
+              class="rebuild"
+              type="button"
+              disabled={rebuilding[issue.asset_id]}
+              on:click={() => rebuild(issue.asset_id)}
+            >
+              {rebuilding[issue.asset_id] ? 'Rebuilding…' : 'Rebuild'}
+            </button>
+          </li>
         {/each}
       </ul>
     </section>
   {/if}
+
+  {#if jobs.length === 0}
+    {#if mediaIssues.length === 0}<div class="empty"><h2>No recent activity</h2></div>{/if}
+  {:else}
   <div class="list">
     {#each jobs as job (job.id)}
       <div class="job">
@@ -125,6 +153,7 @@
       </div>
     {/each}
   </div>
+  {/if}
 {/if}
 
 <style>
@@ -161,8 +190,21 @@
   .media-health h2 { margin: 0; font-size: 16px; }
   .media-health p { margin: 5px 0 10px; color: #6a6259; font-size: 13px; }
   .media-health ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
-  .media-health li { display: grid; gap: 2px; font-size: 13px; overflow-wrap: anywhere; }
-  .media-health li span { color: #7a4a3a; }
+  .media-health li { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .media-health .mi-text { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+  .media-health .mi-text span { color: #7a4a3a; }
+  .media-health .rebuild {
+    margin-left: auto;
+    flex: none;
+    padding: 5px 12px;
+    border: 1px solid #d8d0c5;
+    border-radius: 8px;
+    background: #fffaf3;
+    color: #24211f;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .media-health .rebuild:disabled { opacity: 0.6; cursor: default; }
   .job {
     display: grid;
     grid-template-columns: 40px 1fr;

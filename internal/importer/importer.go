@@ -513,6 +513,75 @@ func (i *Importer) recordMediaIssue(ctx context.Context, assetID, kind string, c
 	}
 }
 
+func (i *Importer) clearMediaIssue(ctx context.Context, assetID, kind string) {
+	_, _ = i.DB.ExecContext(ctx, `DELETE FROM media_issues WHERE asset_id = ? AND kind = ?`, assetID, kind)
+}
+
+// RebuildDerivatives regenerates an asset's thumbnail, poster, preview, and
+// playback derivatives from its stored original, clearing any media issues it
+// resolves. It powers the media-health retry action; the original is untouched.
+func (i *Importer) RebuildDerivatives(ctx context.Context, assetID string) error {
+	var originalPath, mediaType, mimeType string
+	var width, height, webViewable int
+	var durationMS int64
+	err := i.DB.QueryRowContext(ctx, `
+		SELECT original_path, media_type, mime_type, width, height, web_viewable, duration_ms
+		FROM assets WHERE id = ? AND deleted_at IS NULL`, assetID).
+		Scan(&originalPath, &mediaType, &mimeType, &width, &height, &webViewable, &durationMS)
+	if err != nil {
+		return fmt.Errorf("rebuild: load asset: %w", err)
+	}
+
+	// Copy the original to a temp file so the media backend has a real path;
+	// this works for any storage backend, not only the local filesystem.
+	rc, err := i.Store.Open(ctx, "originals/"+originalPath)
+	if err != nil {
+		return fmt.Errorf("rebuild: open original: %w", err)
+	}
+	tmp, err := os.CreateTemp("", "kuraki-rebuild-*"+filepath.Ext(originalPath))
+	if err != nil {
+		rc.Close()
+		return fmt.Errorf("rebuild: temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+	_, copyErr := io.Copy(tmp, rc)
+	rc.Close()
+	tmp.Close()
+	defer os.Remove(tmpPath)
+	if copyErr != nil {
+		return fmt.Errorf("rebuild: copy original: %w", copyErr)
+	}
+
+	meta := media.Meta{
+		MediaType:   domain.MediaType(mediaType),
+		MimeType:    mimeType,
+		Width:       width,
+		Height:      height,
+		WebViewable: webViewable != 0,
+		DurationMS:  durationMS,
+	}
+
+	var firstErr error
+	run := func(kind string, fn func() error) {
+		if err := fn(); err != nil {
+			i.recordMediaIssue(ctx, assetID, kind, err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			return
+		}
+		i.clearMediaIssue(ctx, assetID, kind)
+	}
+	run("thumbnail", func() error { return i.createThumbnail(ctx, assetID, tmpPath, meta) })
+	previewKind := "preview"
+	if meta.MediaType == domain.MediaVideo {
+		run("poster", func() error { return i.createPoster(ctx, assetID, tmpPath, meta) })
+		previewKind = "playback"
+	}
+	run(previewKind, func() error { return i.createPreview(ctx, assetID, tmpPath, meta) })
+	return firstErr
+}
+
 func (i *Importer) probe(ctx context.Context, path string, kind domain.MediaType, fallbackMime string) media.Meta {
 	if kind == domain.MediaVideo {
 		info, err := media.ProbeVideo(ctx, path, fallbackMime)

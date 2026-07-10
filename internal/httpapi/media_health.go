@@ -1,6 +1,14 @@
 package httpapi
 
-import "net/http"
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/kuraki-app/kuraki/internal/importer"
+)
 
 type mediaIssueDTO struct {
 	AssetID   string `json:"asset_id"`
@@ -40,4 +48,35 @@ func (d Deps) mediaIssues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"issues": issues})
+}
+
+// rebuildAsset regenerates an asset's derivatives from the stored original,
+// clearing any media issues it resolves. It runs in the background because a
+// video playback derivative can take a while; the client can watch the media
+// health list update.
+func (d Deps) rebuildAsset(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var one int
+	err := d.DB.QueryRowContext(r.Context(),
+		`SELECT 1 FROM assets WHERE id = ? AND deleted_at IS NULL`, id).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "asset_not_found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "lookup_failed")
+		return
+	}
+	if d.Media == nil {
+		writeError(w, http.StatusServiceUnavailable, "media_unavailable")
+		return
+	}
+
+	runner := importer.Importer{DB: d.DB, Store: d.Store, Media: d.Media, ThumbMaxEdge: d.ThumbSize}
+	go func() {
+		if err := runner.RebuildDerivatives(context.Background(), id); err != nil {
+			d.Logger.Warn("rebuild derivatives failed", "asset", id, "err", err)
+		}
+	}()
+	writeJSON(w, http.StatusAccepted, map[string]string{"status": "rebuilding"})
 }
