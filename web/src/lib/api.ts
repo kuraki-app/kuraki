@@ -1,5 +1,5 @@
 import { session } from './stores';
-import type { Album, AssetList, PlaceGroup, SetupStatus } from './types';
+import type { Album, AssetList, LibraryStats, PlaceGroup, SetupStatus } from './types';
 
 function jsonBody(obj: unknown, method = 'POST'): RequestInit {
   return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) };
@@ -68,7 +68,8 @@ export const api = {
     req<{ removed: number }>(`/api/albums/${id}/assets`, jsonBody({ ids }, 'DELETE')),
 
   places: () => req<AssetList>('/api/places'),
-  placesSummary: () => req<{ places: PlaceGroup[] }>('/api/places/summary')
+  placesSummary: () => req<{ places: PlaceGroup[] }>('/api/places/summary'),
+  stats: () => req<LibraryStats>('/api/stats')
 };
 
 // downloadZip streams a zip of the given originals to a browser download.

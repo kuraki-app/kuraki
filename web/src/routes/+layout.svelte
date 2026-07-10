@@ -8,6 +8,7 @@
     CalendarClock,
     MapPin,
     Trash2,
+    BarChart3,
     Upload,
     LogOut,
     Lock
@@ -29,6 +30,7 @@
     { href: '/albums', label: 'Albums', icon: FolderOpen },
     { href: '/memories', label: 'On this day', icon: CalendarClock },
     { href: '/places', label: 'Places', icon: MapPin },
+    { href: '/stats', label: 'Library', icon: BarChart3 },
     { href: '/trash', label: 'Trash', icon: Trash2 }
   ];
 

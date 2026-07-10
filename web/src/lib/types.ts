@@ -52,3 +52,15 @@ export type PlaceGroup = {
   cover_asset_id: string;
   cover_thumb_url: string;
 };
+
+export type LibraryStats = {
+  total: number;
+  images: number;
+  videos: number;
+  favorites: number;
+  trashed: number;
+  albums: number;
+  places: number;
+  total_bytes: number;
+  by_year: { year: string; count: number }[];
+};
