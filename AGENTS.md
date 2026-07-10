@@ -128,11 +128,13 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Server foundation, import, media pipeline, web UI, auth, trash, verify, video | ✅ done |
 | Places (map + offline geocoding), Takeout import, favorites/albums/memories, stats | ✅ done |
 | Import queue + Activity + per-file errors, metadata editing, config options, serving perf | ✅ done |
-| R1 media compatibility core: explicit view state, safe preview/transcode fallback, Activity health | ✅ done |
+| R1 media compatibility: explicit view state, safe preview/transcode fallback, media-health rebuild | ✅ done |
+| R2: tags/hierarchical tags, saved searches, ratings, archive/hidden, external libraries, backup/restore | ✅ done |
+| R2: duplicate review (perceptual hash, keep-both) | ✅ done |
 | R1 full fixture matrix across libvips and Chromium/Firefox/WebKit | ⬜ env-gated release certification |
-| Tags/saved-searches, duplicate review, slideshow, whole-library export | ⬜ roadmap |
+| R2 remaining: near-duplicate grouping, stacks, XMP sidecars, non-destructive edit, slideshow, whole-library export | ⬜ roadmap |
 | libvips-default Docker image / HEIC verified, low-resource benchmark | ⬜ env-gated |
-| Multi-user & sharing, mobile app, optional ML | ⬜ later phases |
+| Multi-user & sharing (R3), mobile/desktop clients (R4), optional ML (R5), scale (R6) | ⬜ later phases |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 
