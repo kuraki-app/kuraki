@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/kuraki-app/kuraki/internal/db"
 )
 
 func TestCreateRestoreRoundTrip(t *testing.T) {
@@ -42,6 +44,54 @@ func TestCreateRestoreRoundTrip(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(target, "staging")); !os.IsNotExist(err) {
 		t.Fatalf("staging should be excluded, err=%v", err)
+	}
+}
+
+func TestCreateLiveSnapshotsDatabaseBeforeArchivingFiles(t *testing.T) {
+	ctx := context.Background()
+	source := t.TempDir()
+	database, err := db.Open(ctx, filepath.Join(source, "kuraki.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	if _, err := database.ExecContext(ctx, `CREATE TABLE backup_probe (value TEXT NOT NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.ExecContext(ctx, `INSERT INTO backup_probe (value) VALUES ('snapshot')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(source, "originals"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(source, "originals", "photo.jpg"), []byte("original"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	archive := filepath.Join(t.TempDir(), "library.tar.gz")
+	if err := CreateLive(ctx, database, source, archive); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.ExecContext(ctx, `INSERT INTO backup_probe (value) VALUES ('after')`); err != nil {
+		t.Fatal(err)
+	}
+	target := t.TempDir()
+	if err := Restore(ctx, archive, target); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(target, "kuraki.db-wal")); !os.IsNotExist(err) {
+		t.Fatalf("live WAL should not be archived, err=%v", err)
+	}
+	restored, err := db.Open(ctx, filepath.Join(target, "kuraki.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restored.Close()
+	var count int
+	if err := restored.QueryRowContext(ctx, `SELECT COUNT(*) FROM backup_probe`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("restored probe rows = %d, want 1 consistent snapshot row", count)
 	}
 }
 

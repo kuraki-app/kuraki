@@ -20,6 +20,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/app"
 	"github.com/kuraki-app/kuraki/internal/backup"
 	"github.com/kuraki-app/kuraki/internal/config"
+	"github.com/kuraki-app/kuraki/internal/db"
 	"github.com/kuraki-app/kuraki/internal/importer"
 	"github.com/kuraki-app/kuraki/internal/verify"
 
@@ -54,7 +55,12 @@ func backupCmd() *cobra.Command {
 		if cmd.Flags().Changed("data-dir") {
 			cfg.DataDir = dataDir
 		}
-		return backup.Create(cmd.Context(), cfg.DataDir, args[0])
+		database, err := db.Open(cmd.Context(), cfg.DBPath())
+		if err != nil {
+			return err
+		}
+		defer database.Close()
+		return backup.CreateLive(cmd.Context(), database, cfg.DataDir, args[0])
 	}}
 	cmd.Flags().StringVar(&dataDir, "data-dir", config.Default().DataDir, "library data directory")
 	return cmd

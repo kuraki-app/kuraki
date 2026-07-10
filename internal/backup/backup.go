@@ -5,6 +5,7 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -27,6 +28,30 @@ type Manifest struct {
 // Create archives all durable library data except transient staging and upgrade
 // snapshots. Originals remain byte-for-byte unchanged in the archive.
 func Create(ctx context.Context, dataDir, destination string) error {
+	return create(ctx, dataDir, destination, "")
+}
+
+// CreateLive takes a SQLite-consistent snapshot before packaging a running
+// library. The snapshot captures WAL contents at one point in time; originals
+// are write-once, so copying them afterwards cannot leave an asset referenced
+// by the snapshot without its original file.
+func CreateLive(ctx context.Context, database *sql.DB, dataDir, destination string) error {
+	if database == nil {
+		return fmt.Errorf("backup: database is nil")
+	}
+	tmpDir, err := os.MkdirTemp("", "kuraki-backup-db-*")
+	if err != nil {
+		return fmt.Errorf("backup: create database snapshot directory: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+	snapshotPath := filepath.Join(tmpDir, "kuraki.db")
+	if _, err := database.ExecContext(ctx, "VACUUM INTO ?", snapshotPath); err != nil {
+		return fmt.Errorf("backup: snapshot database: %w", err)
+	}
+	return create(ctx, dataDir, destination, snapshotPath)
+}
+
+func create(ctx context.Context, dataDir, destination, snapshotPath string) error {
 	out, err := os.Create(destination)
 	if err != nil {
 		return fmt.Errorf("backup: create archive: %w", err)
@@ -38,6 +63,36 @@ func Create(ctx context.Context, dataDir, destination string) error {
 	defer tw.Close()
 	var fileCount int
 	var totalBytes int64
+	writeFile := func(path, name string, info os.FileInfo) error {
+		h := &tar.Header{Name: name, Mode: int64(info.Mode().Perm()), ModTime: info.ModTime(), Size: info.Size()}
+		if err := tw.WriteHeader(h); err != nil {
+			return err
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		_, copyErr := io.Copy(tw, f)
+		closeErr := f.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		if closeErr != nil {
+			return closeErr
+		}
+		fileCount++
+		totalBytes += info.Size()
+		return nil
+	}
+	if snapshotPath != "" {
+		info, err := os.Stat(snapshotPath)
+		if err != nil {
+			return fmt.Errorf("backup: inspect database snapshot: %w", err)
+		}
+		if err := writeFile(snapshotPath, "kuraki.db", info); err != nil {
+			return fmt.Errorf("backup: archive database snapshot: %w", err)
+		}
+	}
 	if err := filepath.WalkDir(dataDir, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -50,6 +105,11 @@ func Create(ctx context.Context, dataDir, destination string) error {
 			return err
 		}
 		if rel == "." {
+			return nil
+		}
+		// A live backup archives the consistent snapshot instead of copying the
+		// mutable main/WAL/SHM files that happen to exist during the walk.
+		if snapshotPath != "" && (rel == "kuraki.db" || rel == "kuraki.db-wal" || rel == "kuraki.db-shm") {
 			return nil
 		}
 		if rel == "staging" || strings.HasPrefix(rel, "staging"+string(os.PathSeparator)) || rel == "snapshots" || strings.HasPrefix(rel, "snapshots"+string(os.PathSeparator)) {
@@ -71,25 +131,7 @@ func Create(ctx context.Context, dataDir, destination string) error {
 		if !info.Mode().IsRegular() {
 			return nil
 		}
-		h.Size = info.Size()
-		if err := tw.WriteHeader(h); err != nil {
-			return err
-		}
-		f, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		_, copyErr := io.Copy(tw, f)
-		closeErr := f.Close()
-		if copyErr != nil {
-			return copyErr
-		}
-		if closeErr != nil {
-			return closeErr
-		}
-		fileCount++
-		totalBytes += info.Size()
-		return nil
+		return writeFile(path, name, info)
 	}); err != nil {
 		return err
 	}

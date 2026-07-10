@@ -50,6 +50,8 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - Portable backups now carry a versioned file-count/byte-count manifest;
   restores validate the archive in a temporary directory before atomically
   replacing an empty destination.
+- `kuraki backup` now uses SQLite's online snapshot mechanism, capturing a
+  consistent database (including WAL contents) before it archives originals.
 - ZIP exports preflight every original and fail explicitly if one is unavailable;
   selected and whole-library downloads are not limited by the normal API timeout.
 
