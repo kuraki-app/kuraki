@@ -9,6 +9,24 @@
   let jobs: Job[] = [];
   let loading = true;
   let timer: ReturnType<typeof setInterval>;
+  let open: Record<string, boolean> = {};
+  let details: Record<string, { filename: string; error: string }[]> = {};
+
+  async function toggle(id: string) {
+    if (open[id]) {
+      open = { ...open, [id]: false };
+      return;
+    }
+    if (!details[id]) {
+      try {
+        const d = await api.job(id);
+        details = { ...details, [id]: d.errors_detail ?? [] };
+      } catch {
+        details = { ...details, [id]: [] };
+      }
+    }
+    open = { ...open, [id]: true };
+  }
 
   async function load() {
     try {
@@ -73,6 +91,21 @@
           </div>
           {#if job.status === 'queued' || job.status === 'running'}
             <div class="track"><div class="fill" style="width:{pct(job)}%"></div></div>
+          {/if}
+          {#if job.errors > 0}
+            <button class="errbtn" type="button" on:click={() => toggle(job.id)}>
+              {open[job.id] ? 'Hide' : `Show ${job.errors} error${job.errors === 1 ? '' : 's'}`}
+            </button>
+            {#if open[job.id]}
+              <ul class="errlist">
+                {#each details[job.id] ?? [] as e}
+                  <li><span class="fn">{e.filename}</span><span class="msg">{e.error}</span></li>
+                {/each}
+                {#if (details[job.id] ?? []).length === 0}
+                  <li class="msg">No detail available</li>
+                {/if}
+              </ul>
+            {/if}
           {/if}
         </div>
       </div>
@@ -181,6 +214,39 @@
   }
   .err {
     color: #a33a2a;
+  }
+  .errbtn {
+    justify-self: start;
+    padding: 2px 0;
+    border: 0;
+    background: none;
+    color: #8a5a2a;
+    cursor: pointer;
+    font-size: 13px;
+    text-decoration: underline;
+  }
+  .errlist {
+    display: grid;
+    gap: 6px;
+    margin: 2px 0 0;
+    padding: 10px 12px;
+    list-style: none;
+    border-radius: 8px;
+    background: #f7efe4;
+  }
+  .errlist li {
+    display: grid;
+    gap: 2px;
+    font-size: 13px;
+  }
+  .errlist .fn {
+    font-weight: 600;
+    color: #201d1a;
+    overflow-wrap: anywhere;
+  }
+  .errlist .msg {
+    color: #7a4a3a;
+    overflow-wrap: anywhere;
   }
   .track {
     height: 6px;

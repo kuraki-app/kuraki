@@ -14,6 +14,7 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -189,6 +190,15 @@ func (q *Queue) process(ctx context.Context, j Job) {
 		result.Scanned, result.Imported, result.Duplicates, result.Skipped, len(result.Errors),
 		nowText(), j.ID); err != nil {
 		q.Log.Warn("queue: finalize job failed", "job", j.ID, "err", err)
+	}
+	// Record which files failed, so the Activity view can show details. Strip the
+	// internal staging path from messages so they read cleanly.
+	_, _ = q.DB.ExecContext(ctx, `DELETE FROM job_errors WHERE job_id = ?`, j.ID)
+	for _, fe := range result.Errors {
+		msg := strings.ReplaceAll(fe.Err.Error(), source+string(os.PathSeparator), "")
+		_, _ = q.DB.ExecContext(ctx,
+			`INSERT INTO job_errors (job_id, filename, error) VALUES (?, ?, ?)`,
+			j.ID, filepath.Base(fe.Path), msg)
 	}
 	os.RemoveAll(source)
 	q.Log.Info("import job done", "job", j.ID, "imported", result.Imported,

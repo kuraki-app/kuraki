@@ -64,6 +64,7 @@ export type Job = {
   errors: number;
   attempts: number;
   error?: string;
+  errors_detail?: { filename: string; error: string }[];
   created_at: string;
   updated_at: string;
 };
