@@ -174,7 +174,9 @@ func (d Deps) serveOriginal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "query_asset_failed")
 		return
 	}
-	serveStored(w, r, d, "originals/"+row.OriginalPath, row.MimeType, row.Filename)
+	// Originals are content-addressed and never change: cache aggressively.
+	serveStored(w, r, d, "originals/"+row.OriginalPath, row.MimeType, row.Filename,
+		"private, max-age=31536000, immutable")
 }
 
 func (d Deps) serveThumb(w http.ResponseWriter, r *http.Request) {
@@ -198,7 +200,10 @@ func (d Deps) serveThumb(w http.ResponseWriter, r *http.Request) {
 	if format == "webp" {
 		contentType = "image/webp"
 	}
-	serveStored(w, r, d, "derivatives/"+rel, contentType, filepath.Base(rel))
+	// Thumbnails are stable per asset; cache for a week so the timeline scrolls
+	// without re-fetching.
+	serveStored(w, r, d, "derivatives/"+rel, contentType, filepath.Base(rel),
+		"private, max-age=604800")
 }
 
 func (d Deps) lookupAsset(r *http.Request, id string) (assetRow, error) {
@@ -323,7 +328,7 @@ func (row assetRow) toDTO() assetDTO {
 	}
 }
 
-func serveStored(w http.ResponseWriter, r *http.Request, d Deps, rel, contentType, filename string) {
+func serveStored(w http.ResponseWriter, r *http.Request, d Deps, rel, contentType, filename, cacheControl string) {
 	if d.Store == nil {
 		writeError(w, http.StatusServiceUnavailable, "storage_unavailable")
 		return
@@ -335,6 +340,9 @@ func serveStored(w http.ResponseWriter, r *http.Request, d Deps, rel, contentTyp
 	}
 	defer rc.Close()
 	w.Header().Set("Content-Type", contentType)
+	if cacheControl != "" {
+		w.Header().Set("Cache-Control", cacheControl)
+	}
 	if filename != "" {
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, sanitizeHeaderFilename(filename)))
 	}

@@ -25,7 +25,10 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 		"?_pragma=busy_timeout(5000)" +
 		"&_pragma=journal_mode(WAL)" +
 		"&_pragma=foreign_keys(1)" +
-		"&_pragma=synchronous(NORMAL)"
+		"&_pragma=synchronous(NORMAL)" +
+		"&_pragma=cache_size(-16000)" + // ~16 MB page cache
+		"&_pragma=temp_store(MEMORY)" +
+		"&_pragma=mmap_size(268435456)" // 256 MB memory-mapped I/O
 
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
