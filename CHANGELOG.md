@@ -95,6 +95,9 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - Tags and hierarchical tags, per-asset tagging, and tag-aware search.
 - Saved searches over date/type/camera/place/rating/favorite state.
 - Ratings, plus Archive and Hidden sections to keep the main timeline focused.
+- Duplicate review: a perceptual hash (dHash) groups visually identical copies
+  that byte-level dedup misses (e.g. a re-saved or re-encoded photo). Review each
+  group and remove extras — nothing is deleted automatically ("keep both").
 
 **Migration & recovery**
 - Read-only external libraries: register a folder, scan it, and browse its media

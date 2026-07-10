@@ -33,7 +33,7 @@ Phase 1 = single-owner personal backup.
 - **Builds & tests:** `go build ./...`, `go vet ./...`, `gofmt`, `go test -race ./...` all green;
   `npm run build` (web) clean. Cross-compiles linux/amd64+arm64, darwin/arm64, windows/amd64 (CGO off).
 - **R1 media core (2026-07-10):** current import admission covers JPEG/PNG/GIF/WebP/HEIC/HEIF/AVIF/TIFF plus MP4/M4V/MOV/WebM. A per-asset capability flag now prevents the viewer from rendering known-incompatible originals: libvips/pure-Go creates image previews where possible, ffprobe identifies browser-compatible video codecs, and ffmpeg creates H.264/AAC playback derivatives otherwise. Failed derivatives remain downloadable and appear in Activity's Media health section. Cross-engine and libvips fixture certification remains env-gated.
-- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00008`.
+- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00009`.
 - **Not browser-click-tested:** the SvelteKit UI compiles and serves and all endpoints are E2E-verified
   via curl, but no headless-browser pass has been run (per human request).
 - **Env-gated / pending:** `-tags vips` build (needs libvips + `pkg-config`), HEIC out of the box,
@@ -159,7 +159,13 @@ Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./R
 
 ## 11. Handoff log (append newest at top)
 
-- `HEAD` — **Consolidated Codex branch + media-health rebuild (Claude).** Reviewed the Codex work
+- `HEAD` — **R2 duplicate review (Claude).** `media.PerceptualHash` (dHash) computed from each image
+  thumbnail during import (migration `00009` adds `phash` + partial index) with a startup backfill;
+  `GET /api/duplicates` groups images sharing a perceptual hash (visually identical copies byte-dedup
+  misses); a `/duplicates` page reviews groups with a keep-both default and multi-select move-to-trash.
+  Verified E2E: two re-encoded copies (different bytes, same phash) group; deleting one resolves it.
+  Migrations now through `00009`. Near-duplicate (hamming) grouping and stacks remain for R2.
+- `HEAD~` — **Consolidated Codex branch + media-health rebuild (Claude).** Reviewed the Codex work
   (all builds/vets/tests green; migrations `00006`–`00008`; new `backup`/`external` packages; tags,
   saved searches, ratings, archive/hidden, external libraries, media compatibility). Fast-forwarded
   `main` to the `codex/roadmap-media-contract` branch and pushed (remote is now

@@ -107,8 +107,9 @@ well organized without turning Kuraki into a heavyweight DAM.
 - Tags/keywords, hierarchical tags, ratings, archive, and hidden/locked
   sections; include saved searches and smart albums over date, type, camera,
   place, tags, rating, and favorite state.
-- Duplicate and near-duplicate review with a conservative “keep both” default;
-  group burst shots, RAW+JPEG pairs, and Live/Motion Photo pairs into stacks.
+- Duplicate review with a conservative “keep both” default is shipped (perceptual
+  hash groups visually identical copies). Still to come: near-duplicate grouping by
+  hamming distance, and stacks for burst shots, RAW+JPEG pairs, and Live/Motion pairs.
 - External read-only libraries and folder view, with stable sidecar identity,
   exclusion patterns, rescans, and clear write limitations. Do not repeat the
   common failure mode where a move loses the application’s metadata.
