@@ -37,7 +37,7 @@ Phase 1 = single-owner personal backup.
 - **Not browser-click-tested:** the SvelteKit UI compiles and serves and all endpoints are E2E-verified
   via curl, but no headless-browser pass has been run (per human request).
 - **Env-gated / pending:** `-tags vips` build (needs libvips + `pkg-config`), HEIC out of the box,
-  low-resource benchmark; plus roadmap items (tags/saved-searches, duplicate review, slideshow,
+  low-resource benchmark; plus roadmap items (slideshow, stacks, near-duplicate grouping,
   multi-user, mobile, optional ML).
 
 ## 3. Locked decisions (do NOT relitigate without human sign-off)
@@ -72,7 +72,7 @@ internal/
   app/                 composition root — wires everything; owns server lifecycle + workers
   config/              zero-config defaults + KURAKI_* env resolution
   domain/              core entities — **NO I/O EVER**
-  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00008)
+  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00009)
   storage/             Storage interface + FS impl (write-once, atomic, traversal-safe)
   media/               Processor interface + purego.go fallback + vips.go tagged backend, ffmpeg, EXIF
   importer/            recursive import, BLAKE3 dedup, import_state resume, derivatives; Takeout + geocode
@@ -83,7 +83,7 @@ internal/
   verify/              integrity re-checksum
   auth/                argon2id password hashes + session IDs
   httpapi/             chi router, handlers, middleware; assets/ = embedded UI
-web/                   SvelteKit SPA (routes: timeline/search/favorites/albums/memories/places/stats/activity/trash)
+web/                   SvelteKit SPA (routes: timeline/search/favorites/albums/memories/places/duplicates/stats/activity/archive/hidden/trash)
 docs/                  PRD/BRD + local plans — gitignored, local only
 ```
 
