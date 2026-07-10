@@ -4,9 +4,10 @@
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
   import { relativeTime } from '$lib/format';
-  import type { Job } from '$lib/types';
+  import type { Job, MediaIssue } from '$lib/types';
 
   let jobs: Job[] = [];
+  let mediaIssues: MediaIssue[] = [];
   let loading = true;
   let timer: ReturnType<typeof setInterval>;
   let open: Record<string, boolean> = {};
@@ -30,7 +31,9 @@
 
   async function load() {
     try {
-      jobs = (await api.jobs()).jobs;
+      const [jobList, issueList] = await Promise.all([api.jobs(), api.mediaIssues()]);
+      jobs = jobList.jobs;
+      mediaIssues = issueList.issues;
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to load activity');
     } finally {
@@ -60,6 +63,17 @@
 {:else if jobs.length === 0}
   <div class="empty"><h2>No recent activity</h2></div>
 {:else}
+  {#if mediaIssues.length > 0}
+    <section class="media-health" aria-labelledby="media-health-title">
+      <h2 id="media-health-title">Media health</h2>
+      <p>These originals are safe, but need a compatible preview or playback derivative.</p>
+      <ul>
+        {#each mediaIssues as issue (issue.asset_id + issue.kind)}
+          <li><strong>{issue.filename}</strong><span>{issue.kind}: {issue.message}</span></li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
   <div class="list">
     {#each jobs as job (job.id)}
       <div class="job">
@@ -137,6 +151,18 @@
     display: grid;
     gap: 8px;
   }
+  .media-health {
+    margin-bottom: 20px;
+    padding: 14px;
+    border: 1px solid #ead7b8;
+    border-radius: 12px;
+    background: #fff8ea;
+  }
+  .media-health h2 { margin: 0; font-size: 16px; }
+  .media-health p { margin: 5px 0 10px; color: #6a6259; font-size: 13px; }
+  .media-health ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+  .media-health li { display: grid; gap: 2px; font-size: 13px; overflow-wrap: anywhere; }
+  .media-health li span { color: #7a4a3a; }
   .job {
     display: grid;
     grid-template-columns: 40px 1fr;

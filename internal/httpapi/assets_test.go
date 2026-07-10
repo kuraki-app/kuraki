@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kuraki-app/kuraki/internal/db"
@@ -36,7 +37,7 @@ func TestAssetAPIListSearchAndServeFiles(t *testing.T) {
 		t.Fatalf("assets len = %d, want 1", len(list.Assets))
 	}
 	asset := list.Assets[0]
-	if asset.Filename != "IMG_0001.jpg" || asset.ThumbnailURL == nil {
+	if asset.Filename != "IMG_0001.jpg" || asset.ThumbnailURL == nil || !asset.WebViewable || asset.ViewURL != asset.OriginalURL {
 		t.Fatalf("asset = %+v, want filename and thumb URL", asset)
 	}
 
@@ -54,6 +55,30 @@ func TestAssetAPIListSearchAndServeFiles(t *testing.T) {
 	assertServes(t, router, "/api/assets/"+asset.ID+"/thumb", "image/jpeg", cookie)
 
 	_ = sourceDir
+}
+
+func TestAssetAPIServesDerivedPreview(t *testing.T) {
+	ctx := context.Background()
+	database, store, _ := seedHTTPAsset(t, ctx)
+	var id string
+	if err := database.QueryRowContext(ctx, `SELECT id FROM assets`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Write(ctx, "derivatives/"+id+"/preview.jpg", strings.NewReader("preview")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.ExecContext(ctx, `
+		INSERT INTO derivatives (asset_id, kind, format, path) VALUES (?, 'preview', 'jpeg', ?)
+		ON CONFLICT(asset_id, kind) DO UPDATE SET path = excluded.path`, id, id+"/preview.jpg"); err != nil {
+		t.Fatal(err)
+	}
+	router := NewRouter(Deps{Version: "test", DB: database, Store: store, Logger: slog.Default()})
+	cookie := setupTestSession(t, router)
+	asset := getJSONWithCookie[assetDTO](t, router, "/api/assets/"+id, cookie)
+	if asset.PreviewURL == nil || asset.ViewURL != *asset.PreviewURL {
+		t.Fatalf("asset = %+v, want derived view URL", asset)
+	}
+	assertServes(t, router, *asset.PreviewURL, "image/jpeg", cookie)
 }
 
 func TestAssetAPIEmptyListReturnsArray(t *testing.T) {

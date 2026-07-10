@@ -58,6 +58,7 @@ func (p *PureGo) Probe(ctx context.Context, srcPath string) (Meta, error) {
 		MimeType:  "image/" + format,
 		MediaType: domain.MediaImage,
 	}
+	meta.WebViewable = IsWebImage(meta.MimeType)
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return meta, nil
 	}

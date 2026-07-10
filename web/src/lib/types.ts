@@ -20,6 +20,9 @@ export type Asset = {
   place_country?: string;
   original_url: string;
   thumbnail_url?: string;
+  preview_url?: string;
+  view_url: string;
+  web_viewable: boolean;
   created_at: string;
 };
 
@@ -67,6 +70,15 @@ export type Job = {
   errors_detail?: { filename: string; error: string }[];
   created_at: string;
   updated_at: string;
+};
+
+export type MediaIssue = {
+  asset_id: string;
+  filename: string;
+  media_type: 'image' | 'video';
+  kind: string;
+  message: string;
+  created_at: string;
 };
 
 export type LibraryStats = {

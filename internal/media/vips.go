@@ -56,6 +56,7 @@ func (p *Vips) Probe(ctx context.Context, srcPath string) (Meta, error) {
 	if meta.MimeType == "" {
 		meta.MimeType = mimeForVipsType(img.Format())
 	}
+	meta.WebViewable = IsWebImage(meta.MimeType)
 	mergeImageMeta(&meta, srcPath)
 	return meta, nil
 }

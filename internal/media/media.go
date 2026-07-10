@@ -31,6 +31,9 @@ type Meta struct {
 	GPSLat      *float64
 	GPSLon      *float64
 	DurationMS  int64
+	// WebViewable means the original may be rendered directly in the web UI.
+	// False means an optional preview/playback derivative is required.
+	WebViewable bool
 }
 
 // Processor inspects and derives representations of media files. Source files

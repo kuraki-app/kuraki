@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -301,6 +300,7 @@ func (i *Importer) importFile(ctx context.Context, ownerID, path string, kind do
 		PlaceCountry: placeCountry,
 		Favorite:     favorite,
 		Description:  description,
+		WebViewable:  meta.WebViewable,
 	}); err != nil {
 		return nil, err
 	}
@@ -319,7 +319,7 @@ func (i *Importer) runDerivativeWorkers(ctx context.Context, jobs []derivativeJo
 	}
 	workers = normalizeWorkers(workers)
 	jobCh := make(chan derivativeJob)
-	errCh := make(chan FileError, len(jobs))
+	errCh := make(chan FileError, len(jobs)*3)
 	var wg sync.WaitGroup
 	for range workers {
 		wg.Add(1)
@@ -327,10 +327,19 @@ func (i *Importer) runDerivativeWorkers(ctx context.Context, jobs []derivativeJo
 			defer wg.Done()
 			for job := range jobCh {
 				if err := i.createThumbnail(ctx, job.AssetID, job.Path, job.Meta); err != nil {
+					i.recordMediaIssue(ctx, job.AssetID, "thumbnail", err)
 					errCh <- FileError{Path: job.Path, Err: err}
-					continue
 				}
 				if err := i.createPoster(ctx, job.AssetID, job.Path, job.Meta); err != nil {
+					i.recordMediaIssue(ctx, job.AssetID, "poster", err)
+					errCh <- FileError{Path: job.Path, Err: err}
+				}
+				if err := i.createPreview(ctx, job.AssetID, job.Path, job.Meta); err != nil {
+					kind := "preview"
+					if job.Meta.MediaType == domain.MediaVideo {
+						kind = "playback"
+					}
+					i.recordMediaIssue(ctx, job.AssetID, kind, err)
 					errCh <- FileError{Path: job.Path, Err: err}
 				}
 			}
@@ -414,10 +423,115 @@ func (i *Importer) createPoster(ctx context.Context, assetID, srcPath string, me
 	return nil
 }
 
+// createPreview produces a safe browser representation only when the original
+// is not known to be web-viewable. Originals remain untouched and downloadable.
+func (i *Importer) createPreview(ctx context.Context, assetID, srcPath string, meta media.Meta) error {
+	if meta.WebViewable {
+		return nil
+	}
+	if meta.MediaType == domain.MediaImage {
+		var buf bytes.Buffer
+		const previewEdge = 2560
+		if err := i.Media.Thumbnail(ctx, srcPath, previewEdge, &buf); err != nil {
+			if errors.Is(err, media.ErrUnsupported) {
+				return fmt.Errorf("create preview: no decoder available: %w", err)
+			}
+			return fmt.Errorf("create preview: encode derivative: %w", err)
+		}
+		format, ext := thumbnailFormat(i.Media)
+		rel := fmt.Sprintf("derivatives/%s/preview.%s", assetID, ext)
+		if _, err := i.Store.Write(ctx, rel, &buf); err != nil {
+			return fmt.Errorf("create preview: write derivative: %w", err)
+		}
+		w, h := thumbSize(meta.Width, meta.Height, previewEdge)
+		if err := i.upsertPreview(ctx, assetID, format, strings.TrimPrefix(rel, "derivatives/"), w, h); err != nil {
+			return err
+		}
+		return i.markWebViewable(ctx, assetID)
+	}
+	if meta.MediaType != domain.MediaVideo {
+		return nil
+	}
+
+	tmp, err := os.CreateTemp("", "kuraki-playback-*.mp4")
+	if err != nil {
+		return fmt.Errorf("create playback: temp file: %w", err)
+	}
+	tmpPath := tmp.Name()
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("create playback: close temp file: %w", err)
+	}
+	defer os.Remove(tmpPath)
+	if err := media.TranscodeVideo(ctx, srcPath, tmpPath); err != nil {
+		return fmt.Errorf("create playback: %w", err)
+	}
+	f, err := os.Open(tmpPath)
+	if err != nil {
+		return fmt.Errorf("create playback: open derivative: %w", err)
+	}
+	defer f.Close()
+	rel := fmt.Sprintf("derivatives/%s/playback.mp4", assetID)
+	if _, err := i.Store.Write(ctx, rel, f); err != nil {
+		return fmt.Errorf("create playback: write derivative: %w", err)
+	}
+	if err := i.upsertPreview(ctx, assetID, "mp4", strings.TrimPrefix(rel, "derivatives/"), meta.Width, meta.Height); err != nil {
+		return err
+	}
+	return i.markWebViewable(ctx, assetID)
+}
+
+func (i *Importer) upsertPreview(ctx context.Context, assetID, format, path string, width, height int) error {
+	if _, err := i.DB.ExecContext(ctx, `
+		INSERT INTO derivatives (asset_id, kind, format, path, width, height)
+		VALUES (?, 'preview', ?, ?, ?, ?)
+		ON CONFLICT(asset_id, kind) DO UPDATE SET
+			format = excluded.format,
+			path = excluded.path,
+			width = excluded.width,
+			height = excluded.height
+	`, assetID, format, path, width, height); err != nil {
+		return fmt.Errorf("create preview: insert derivative: %w", err)
+	}
+	return nil
+}
+
+func (i *Importer) markWebViewable(ctx context.Context, assetID string) error {
+	if _, err := i.DB.ExecContext(ctx, `UPDATE assets SET web_viewable = 1 WHERE id = ?`, assetID); err != nil {
+		return fmt.Errorf("create preview: mark viewable: %w", err)
+	}
+	return nil
+}
+
+func (i *Importer) recordMediaIssue(ctx context.Context, assetID, kind string, cause error) {
+	if _, err := i.DB.ExecContext(ctx, `
+		INSERT INTO media_issues (asset_id, kind, message)
+		VALUES (?, ?, ?)
+		ON CONFLICT(asset_id, kind) DO UPDATE SET message = excluded.message, created_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+	`, assetID, kind, cause.Error()); err != nil {
+		return
+	}
+}
+
 func (i *Importer) probe(ctx context.Context, path string, kind domain.MediaType, fallbackMime string) media.Meta {
+	if kind == domain.MediaVideo {
+		info, err := media.ProbeVideo(ctx, path, fallbackMime)
+		if err != nil {
+			return media.Meta{MimeType: fallbackMime, MediaType: kind}
+		}
+		return media.Meta{
+			MimeType:    fallbackMime,
+			MediaType:   kind,
+			Width:       info.Width,
+			Height:      info.Height,
+			DurationMS:  info.DurationMS,
+			WebViewable: info.WebViewable,
+		}
+	}
 	meta, err := i.Media.Probe(ctx, path)
 	if err != nil {
-		return media.Meta{MimeType: fallbackMime, MediaType: kind}
+		cap, _ := media.Classify(path)
+		return media.Meta{MimeType: fallbackMime, MediaType: kind, WebViewable: cap.WebViewable}
 	}
 	if meta.MimeType == "" {
 		meta.MimeType = fallbackMime
@@ -425,6 +539,7 @@ func (i *Importer) probe(ctx context.Context, path string, kind domain.MediaType
 	if meta.MediaType == "" {
 		meta.MediaType = kind
 	}
+	meta.WebViewable = meta.WebViewable && media.IsWebImage(meta.MimeType)
 	return meta
 }
 
@@ -527,6 +642,7 @@ type assetRow struct {
 	PlaceCountry string
 	Favorite     bool
 	Description  string
+	WebViewable  bool
 }
 
 func (i *Importer) insertAsset(ctx context.Context, row assetRow) error {
@@ -540,14 +656,14 @@ func (i *Importer) insertAsset(ctx context.Context, row assetRow) error {
 		INSERT INTO assets (
 			id, owner_id, content_hash, original_path, filename, mime_type, media_type,
 			width, height, size_bytes, taken_at, camera_make, camera_model, gps_lat,
-			gps_lon, duration_ms, place_city, place_country, favorite, description
+			gps_lon, duration_ms, place_city, place_country, favorite, description, web_viewable
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, row.ID, row.OwnerID, row.ContentHash, row.OriginalPath, row.Filename, row.MimeType,
 		string(row.MediaType), row.Width, row.Height, row.SizeBytes, timePtrText(row.TakenAt),
 		row.CameraMake, row.CameraModel, floatPtr(row.GPSLat), floatPtr(row.GPSLon), row.DurationMS,
 		nullString(row.PlaceCity), nullString(row.PlaceCountry), boolInt(row.Favorite),
-		nullString(row.Description))
+		nullString(row.Description), boolInt(row.WebViewable))
 	if err != nil {
 		return fmt.Errorf("importer: insert asset: %w", err)
 	}
@@ -587,28 +703,11 @@ func hashFile(path string) (string, error) {
 }
 
 func mediaFromExt(path string) (domain.MediaType, string, bool) {
-	ext := strings.ToLower(filepath.Ext(path))
-	switch ext {
-	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".heif", ".avif", ".tif", ".tiff":
-		return domain.MediaImage, mimeForExt(ext, "image/"+strings.TrimPrefix(ext, ".")), true
-	case ".mp4", ".m4v", ".mov", ".webm":
-		return domain.MediaVideo, mimeForExt(ext, "video/"+strings.TrimPrefix(ext, ".")), true
-	default:
+	cap, ok := media.Classify(path)
+	if !ok {
 		return "", "", false
 	}
-}
-
-func mimeForExt(ext, fallback string) string {
-	if ext == ".jpg" {
-		return "image/jpeg"
-	}
-	if ext == ".mov" {
-		return "video/quicktime"
-	}
-	if m := mime.TypeByExtension(ext); m != "" {
-		return m
-	}
-	return fallback
+	return cap.MediaType, cap.MimeType, true
 }
 
 func originalPath(t time.Time, id, ext string) string {

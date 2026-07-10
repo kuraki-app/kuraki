@@ -81,6 +81,12 @@ Docker-first deployment and a full browser experience over an embedded web UI.
   fallback, driven by a bounded worker pool.
 - Video support: upload, ffmpeg-generated poster frames, and in-browser playback
   with HTTP range requests for seeking.
+- Media compatibility contract: the importer classifies browser-safe originals,
+  uses ffprobe to inspect video codecs, and creates a JPEG/WebP image preview or
+  H.264/AAC MP4 playback derivative when the original is not safe for the web.
+  If no local decoder/transcoder can make a derivative, the UI keeps the
+  original download available, avoids a broken viewer, and reports the issue in
+  Activity's Media health section.
 
 **Trust & integrity**
 - Trash with a 30-day retention window, restore, and an automatic purge that runs

@@ -90,19 +90,25 @@
     {/if}
 
     <div class="stage">
-      {#if asset.media_type === 'image'}
+      {#if !asset.web_viewable}
+        <div class="unsupported">
+          <strong>Preview unavailable</strong>
+          <p>This original is safely stored, but this server cannot yet create a browser-compatible preview.</p>
+          <a href={asset.original_url} download>Download original</a>
+        </div>
+      {:else if asset.media_type === 'image'}
         {#if asset.thumbnail_url && !imgLoaded}
           <img class="preview" src={asset.thumbnail_url} alt="" aria-hidden="true" />
         {/if}
         <img
           class:loaded={imgLoaded}
-          src={asset.original_url}
+          src={asset.view_url}
           alt={asset.filename}
           on:load={() => (imgLoaded = true)}
         />
       {:else}
         <!-- svelte-ignore a11y_media_has_caption -->
-        <video src={asset.original_url} poster={asset.thumbnail_url} controls autoplay></video>
+        <video src={asset.view_url} poster={asset.thumbnail_url} controls autoplay></video>
       {/if}
     </div>
 
@@ -235,6 +241,26 @@
     opacity: 0.4;
     transform: scale(1.05);
     object-fit: contain;
+  }
+  .unsupported {
+    max-width: 420px;
+    padding: 28px;
+    border: 1px solid #ffffff2a;
+    border-radius: 12px;
+    background: #ffffff0d;
+    text-align: center;
+  }
+  .unsupported strong { font-size: 18px; }
+  .unsupported p { color: #c9c0b6; line-height: 1.45; }
+  .unsupported a {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: #f6f3ee;
+    color: #171717;
+    font-weight: 700;
+    text-decoration: none;
   }
   .info {
     display: grid;

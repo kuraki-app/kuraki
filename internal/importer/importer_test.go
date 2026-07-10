@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"image/jpeg"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -142,6 +143,42 @@ func TestRunWritesProgress(t *testing.T) {
 	output := progress.String()
 	if !strings.Contains(output, "1/1") || !strings.Contains(output, "imported=1") {
 		t.Fatalf("progress = %q, want import count", output)
+	}
+}
+
+func TestRunCreatesCompatiblePlaybackForIncompatibleVideo(t *testing.T) {
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg is not installed")
+	}
+	ctx := context.Background()
+	runner, database, dataDir := newTestImporter(t, ctx)
+	sourceDir := t.TempDir()
+	video := filepath.Join(sourceDir, "camera.mp4")
+	if out, err := exec.Command("ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+		"-f", "lavfi", "-i", "testsrc=size=32x24:rate=1", "-t", "1", "-c:v", "mpeg4", "-an", video).CombinedOutput(); err != nil {
+		t.Skipf("ffmpeg test fixture unavailable: %v (%s)", err, out)
+	}
+	result, err := runner.Run(ctx, Options{SourceDir: sourceDir, ThumbnailWorkers: 1})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if len(result.Errors) != 0 {
+		t.Fatalf("derivative errors = %+v", result.Errors)
+	}
+	var id, path, format string
+	var duration int64
+	var viewable int
+	if err := database.QueryRowContext(ctx, `
+		SELECT a.id, a.duration_ms, a.web_viewable, d.path, d.format
+		FROM assets a JOIN derivatives d ON d.asset_id = a.id AND d.kind = 'preview'`).
+		Scan(&id, &duration, &viewable, &path, &format); err != nil {
+		t.Fatalf("playback derivative: %v", err)
+	}
+	if id == "" || duration <= 0 || viewable != 1 || format != "mp4" {
+		t.Fatalf("asset playback state = id=%q duration=%d viewable=%d format=%q", id, duration, viewable, format)
+	}
+	if _, err := os.Stat(filepath.Join(dataDir, "derivatives", filepath.FromSlash(path))); err != nil {
+		t.Fatalf("playback derivative missing: %v", err)
 	}
 }
 

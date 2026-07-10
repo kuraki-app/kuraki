@@ -42,6 +42,9 @@ type assetDTO struct {
 	PlaceCountry *string  `json:"place_country,omitempty"`
 	OriginalURL  string   `json:"original_url"`
 	ThumbnailURL *string  `json:"thumbnail_url,omitempty"`
+	PreviewURL   *string  `json:"preview_url,omitempty"`
+	ViewURL      string   `json:"view_url"`
+	WebViewable  bool     `json:"web_viewable"`
 	CreatedAt    string   `json:"created_at"`
 }
 
@@ -71,6 +74,8 @@ type assetRow struct {
 	PlaceCity    sql.NullString
 	PlaceCountry sql.NullString
 	ThumbPath    sql.NullString
+	PreviewPath  sql.NullString
+	WebViewable  int
 }
 
 func (d Deps) listAssets(w http.ResponseWriter, r *http.Request) {
@@ -196,14 +201,46 @@ func (d Deps) serveThumb(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "query_thumb_failed")
 		return
 	}
-	contentType := "image/jpeg"
-	if format == "webp" {
-		contentType = "image/webp"
-	}
+	contentType := derivativeContentType(format)
 	// Thumbnails are stable per asset; cache for a week so the timeline scrolls
 	// without re-fetching.
 	serveStored(w, r, d, "derivatives/"+rel, contentType, filepath.Base(rel),
 		"private, max-age=604800")
+}
+
+func (d Deps) servePreview(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if _, err := d.lookupAsset(r, id); errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "asset_not_found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "query_asset_failed")
+		return
+	}
+	var rel, format string
+	err := d.DB.QueryRowContext(r.Context(),
+		`SELECT path, format FROM derivatives WHERE asset_id = ? AND kind = 'preview'`, id).Scan(&rel, &format)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "preview_not_found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "query_preview_failed")
+		return
+	}
+	serveStored(w, r, d, "derivatives/"+rel, derivativeContentType(format), filepath.Base(rel),
+		"private, max-age=604800")
+}
+
+func derivativeContentType(format string) string {
+	switch format {
+	case "webp":
+		return "image/webp"
+	case "mp4":
+		return "video/mp4"
+	default:
+		return "image/jpeg"
+	}
 }
 
 func (d Deps) lookupAsset(r *http.Request, id string) (assetRow, error) {
@@ -223,10 +260,12 @@ func assetSelectSQLWithJoin(join, where string) string {
 			a.id, a.original_path, a.filename, a.mime_type, a.media_type,
 			a.width, a.height, a.size_bytes, a.taken_at, a.camera_make,
 			a.camera_model, a.gps_lat, a.gps_lon, a.duration_ms, a.favorite,
-			a.created_at, a.description, a.place_city, a.place_country, COALESCE(d_thumb.path, d_poster.path)
+			a.created_at, a.description, a.place_city, a.place_country, COALESCE(d_thumb.path, d_poster.path),
+			d_preview.path, a.web_viewable
 		FROM assets a
 		LEFT JOIN derivatives d_thumb ON d_thumb.asset_id = a.id AND d_thumb.kind = 'thumb'
 		LEFT JOIN derivatives d_poster ON d_poster.asset_id = a.id AND d_poster.kind = 'poster'
+		LEFT JOIN derivatives d_preview ON d_preview.asset_id = a.id AND d_preview.kind = 'preview'
 		` + join + `
 		` + where + `
 		ORDER BY COALESCE(a.taken_at, a.created_at) DESC, a.id DESC`
@@ -238,6 +277,7 @@ func assetScanDest(row *assetRow) []any {
 		&row.Width, &row.Height, &row.SizeBytes, &row.TakenAt, &row.CameraMake,
 		&row.CameraModel, &row.GPSLat, &row.GPSLon, &row.DurationMS, &row.Favorite,
 		&row.CreatedAt, &row.Description, &row.PlaceCity, &row.PlaceCountry, &row.ThumbPath,
+		&row.PreviewPath, &row.WebViewable,
 	}
 }
 
@@ -302,6 +342,15 @@ func (row assetRow) toDTO() assetDTO {
 		u := "/api/assets/" + row.ID + "/thumb"
 		thumbURL = &u
 	}
+	var previewURL *string
+	if row.PreviewPath.Valid {
+		u := "/api/assets/" + row.ID + "/preview"
+		previewURL = &u
+	}
+	viewURL := originalURL
+	if previewURL != nil {
+		viewURL = *previewURL
+	}
 	return assetDTO{
 		ID:           row.ID,
 		Filename:     row.Filename,
@@ -324,6 +373,9 @@ func (row assetRow) toDTO() assetDTO {
 		PlaceCountry: placeCountry,
 		OriginalURL:  originalURL,
 		ThumbnailURL: thumbURL,
+		PreviewURL:   previewURL,
+		ViewURL:      viewURL,
+		WebViewable:  row.WebViewable != 0,
 		CreatedAt:    row.CreatedAt,
 	}
 }

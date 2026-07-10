@@ -1,5 +1,5 @@
 import { session } from './stores';
-import type { Album, Asset, AssetList, Job, LibraryStats, PlaceGroup, SetupStatus } from './types';
+import type { Album, Asset, AssetList, Job, LibraryStats, MediaIssue, PlaceGroup, SetupStatus } from './types';
 
 export type AssetPatch = {
   taken_at?: string;
@@ -82,7 +82,8 @@ export const api = {
   placesSummary: () => req<{ places: PlaceGroup[] }>('/api/places/summary'),
   stats: () => req<LibraryStats>('/api/stats'),
   jobs: () => req<{ jobs: Job[] }>('/api/jobs'),
-  job: (id: string) => req<Job>(`/api/jobs/${id}`)
+  job: (id: string) => req<Job>(`/api/jobs/${id}`),
+  mediaIssues: () => req<{ issues: MediaIssue[] }>('/api/media/issues')
 };
 
 // downloadZip streams a zip of the given originals to a browser download.
