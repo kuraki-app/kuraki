@@ -78,8 +78,17 @@ func (q *Queue) EnqueueUpload(ctx context.Context, owner string, files []*multip
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("queue: stage dir: %w", err)
 	}
-	for _, fh := range files {
-		if err := stage(dir, fh); err != nil {
+	for index, fh := range files {
+		// Each upload gets its own subdirectory. Browsers routinely upload
+		// several files with the same basename (for example IMG_0001.jpg from
+		// different folders); staging them directly in dir would overwrite the
+		// earlier file before the importer ever sees it.
+		fileDir := filepath.Join(dir, fmt.Sprintf("%06d", index+1))
+		if err := os.MkdirAll(fileDir, 0o755); err != nil {
+			os.RemoveAll(dir)
+			return "", fmt.Errorf("queue: stage upload directory: %w", err)
+		}
+		if err := stage(fileDir, fh); err != nil {
 			os.RemoveAll(dir)
 			return "", err
 		}
@@ -101,9 +110,13 @@ func stage(dir string, fh *multipart.FileHeader) error {
 		return err
 	}
 	defer src.Close()
-	dst, err := os.Create(filepath.Join(dir, filepath.Base(fh.Filename)))
+	name := filepath.Base(fh.Filename)
+	if name == "." || name == ".." || name == string(filepath.Separator) {
+		return fmt.Errorf("queue: invalid upload filename %q", fh.Filename)
+	}
+	dst, err := os.OpenFile(filepath.Join(dir, name), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
-		return err
+		return fmt.Errorf("queue: create staged file: %w", err)
 	}
 	defer dst.Close()
 	_, err = io.Copy(dst, src)

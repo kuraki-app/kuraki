@@ -15,10 +15,13 @@ import (
 )
 
 const manifestName = "kuraki-backup.json"
+const currentFormat = 2
 
 type Manifest struct {
-	Format    int       `json:"format"`
-	CreatedAt time.Time `json:"created_at"`
+	Format     int       `json:"format"`
+	CreatedAt  time.Time `json:"created_at"`
+	FileCount  int       `json:"file_count,omitempty"`
+	TotalBytes int64     `json:"total_bytes,omitempty"`
 }
 
 // Create archives all durable library data except transient staging and upgrade
@@ -33,14 +36,9 @@ func Create(ctx context.Context, dataDir, destination string) error {
 	defer zw.Close()
 	tw := tar.NewWriter(zw)
 	defer tw.Close()
-	manifest, _ := json.Marshal(Manifest{Format: 1, CreatedAt: time.Now().UTC()})
-	if err := tw.WriteHeader(&tar.Header{Name: manifestName, Mode: 0o600, Size: int64(len(manifest)), ModTime: time.Now()}); err != nil {
-		return err
-	}
-	if _, err := tw.Write(manifest); err != nil {
-		return err
-	}
-	return filepath.WalkDir(dataDir, func(path string, entry os.DirEntry, walkErr error) error {
+	var fileCount int
+	var totalBytes int64
+	if err := filepath.WalkDir(dataDir, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
@@ -86,20 +84,52 @@ func Create(ctx context.Context, dataDir, destination string) error {
 		if copyErr != nil {
 			return copyErr
 		}
-		return closeErr
+		if closeErr != nil {
+			return closeErr
+		}
+		fileCount++
+		totalBytes += info.Size()
+		return nil
+	}); err != nil {
+		return err
+	}
+	manifest, err := json.Marshal(Manifest{
+		Format: currentFormat, CreatedAt: time.Now().UTC(), FileCount: fileCount, TotalBytes: totalBytes,
 	})
+	if err != nil {
+		return fmt.Errorf("backup: marshal manifest: %w", err)
+	}
+	if err := tw.WriteHeader(&tar.Header{Name: manifestName, Mode: 0o600, Size: int64(len(manifest)), ModTime: time.Now()}); err != nil {
+		return fmt.Errorf("backup: write manifest header: %w", err)
+	}
+	if _, err := tw.Write(manifest); err != nil {
+		return fmt.Errorf("backup: write manifest: %w", err)
+	}
+	return nil
 }
 
 // Restore expands an archive into an empty directory. It rejects traversal and
-// incomplete archives before any durable library path is created.
+// incomplete archives before replacing the destination directory.
 func Restore(ctx context.Context, source, dataDir string) error {
-	entries, err := os.ReadDir(dataDir)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("backup: inspect target: %w", err)
+	targetExists, err := emptyTarget(dataDir)
+	if err != nil {
+		return err
 	}
-	if len(entries) > 0 {
-		return fmt.Errorf("backup: target directory must be empty")
+	dataDir = filepath.Clean(dataDir)
+	parent, base := filepath.Dir(dataDir), filepath.Base(dataDir)
+	if err := os.MkdirAll(parent, 0o755); err != nil {
+		return fmt.Errorf("backup: create restore parent: %w", err)
 	}
+	staging, err := os.MkdirTemp(parent, "."+base+".restore-*")
+	if err != nil {
+		return fmt.Errorf("backup: create restore staging: %w", err)
+	}
+	if err := os.Chmod(staging, 0o755); err != nil {
+		os.RemoveAll(staging)
+		return fmt.Errorf("backup: set restore staging permissions: %w", err)
+	}
+	defer os.RemoveAll(staging)
+
 	in, err := os.Open(source)
 	if err != nil {
 		return fmt.Errorf("backup: open archive: %w", err)
@@ -111,7 +141,9 @@ func Restore(ctx context.Context, source, dataDir string) error {
 	}
 	defer zr.Close()
 	tr := tar.NewReader(zr)
-	seenManifest := false
+	var manifest *Manifest
+	var fileCount int
+	var totalBytes int64
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -124,22 +156,25 @@ func Restore(ctx context.Context, source, dataDir string) error {
 			return fmt.Errorf("backup: read archive: %w", err)
 		}
 		if h.Name == manifestName {
+			if manifest != nil {
+				return fmt.Errorf("backup: duplicate manifest")
+			}
 			var m Manifest
 			if err := json.NewDecoder(io.LimitReader(tr, 1<<20)).Decode(&m); err != nil {
 				return fmt.Errorf("backup: manifest: %w", err)
 			}
-			if m.Format != 1 {
+			if m.Format != 1 && m.Format != currentFormat {
 				return fmt.Errorf("backup: unsupported format")
 			}
-			seenManifest = true
+			manifest = &m
 			continue
 		}
 		clean := filepath.Clean(h.Name)
 		if clean == "." || filepath.IsAbs(clean) || strings.HasPrefix(clean, ".."+string(os.PathSeparator)) {
 			return fmt.Errorf("backup: unsafe archive path %q", h.Name)
 		}
-		dest := filepath.Join(dataDir, clean)
-		if !strings.HasPrefix(dest, filepath.Clean(dataDir)+string(os.PathSeparator)) {
+		dest := filepath.Join(staging, clean)
+		if !strings.HasPrefix(dest, staging+string(os.PathSeparator)) {
 			return fmt.Errorf("backup: unsafe archive path %q", h.Name)
 		}
 		switch h.Typeflag {
@@ -147,7 +182,7 @@ func Restore(ctx context.Context, source, dataDir string) error {
 			if err := os.MkdirAll(dest, os.FileMode(h.Mode)); err != nil {
 				return err
 			}
-		case tar.TypeReg:
+		case tar.TypeReg, tar.TypeRegA:
 			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 				return err
 			}
@@ -163,10 +198,75 @@ func Restore(ctx context.Context, source, dataDir string) error {
 			if closeErr != nil {
 				return closeErr
 			}
+			fileCount++
+			totalBytes += h.Size
+		default:
+			return fmt.Errorf("backup: unsupported archive entry %q", h.Name)
 		}
 	}
-	if !seenManifest {
+	if manifest == nil {
 		return fmt.Errorf("backup: manifest missing")
+	}
+	if manifest.Format == currentFormat && (manifest.FileCount != fileCount || manifest.TotalBytes != totalBytes) {
+		return fmt.Errorf("backup: manifest does not match archive contents")
+	}
+	if err := installRestore(staging, dataDir, targetExists); err != nil {
+		return err
+	}
+	return nil
+}
+
+// emptyTarget confirms that dataDir is either absent or an empty real directory.
+func emptyTarget(dataDir string) (bool, error) {
+	info, err := os.Lstat(dataDir)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("backup: inspect target: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return false, fmt.Errorf("backup: target must be an empty directory")
+	}
+	entries, err := os.ReadDir(dataDir)
+	if err != nil {
+		return false, fmt.Errorf("backup: inspect target: %w", err)
+	}
+	if len(entries) > 0 {
+		return false, fmt.Errorf("backup: target directory must be empty")
+	}
+	return true, nil
+}
+
+// installRestore swaps validated staging data into the empty target. Keeping
+// the old empty directory aside gives us a rollback path if the final rename
+// fails, so failed archive validation never leaves a partial library behind.
+func installRestore(staging, target string, targetExists bool) error {
+	if !targetExists {
+		if err := os.Rename(staging, target); err != nil {
+			return fmt.Errorf("backup: install restore: %w", err)
+		}
+		return nil
+	}
+	parent, base := filepath.Dir(target), filepath.Base(target)
+	previous, err := os.MkdirTemp(parent, "."+base+".restore-old-*")
+	if err != nil {
+		return fmt.Errorf("backup: prepare restore swap: %w", err)
+	}
+	if err := os.Remove(previous); err != nil {
+		return fmt.Errorf("backup: prepare restore swap: %w", err)
+	}
+	if err := os.Rename(target, previous); err != nil {
+		return fmt.Errorf("backup: prepare restore swap: %w", err)
+	}
+	if err := os.Rename(staging, target); err != nil {
+		if rollbackErr := os.Rename(previous, target); rollbackErr != nil {
+			return fmt.Errorf("backup: install restore: %w (rollback: %v)", err, rollbackErr)
+		}
+		return fmt.Errorf("backup: install restore: %w", err)
+	}
+	if err := os.Remove(previous); err != nil {
+		return fmt.Errorf("backup: remove old restore target: %w", err)
 	}
 	return nil
 }

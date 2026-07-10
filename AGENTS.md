@@ -33,6 +33,7 @@ Phase 1 = single-owner personal backup.
 - **Builds & tests:** `go build ./...`, `go vet ./...`, `gofmt`, `go test -race ./...` all green;
   `npm run build` (web) clean. Cross-compiles linux/amd64+arm64, darwin/arm64, windows/amd64 (CGO off).
 - **R1 media core (2026-07-10):** current import admission covers JPEG/PNG/GIF/WebP/HEIC/HEIF/AVIF/TIFF plus MP4/M4V/MOV/WebM. A per-asset capability flag now prevents the viewer from rendering known-incompatible originals: libvips/pure-Go creates image previews where possible, ffprobe identifies browser-compatible video codecs, and ffmpeg creates H.264/AAC playback derivatives otherwise. Failed derivatives remain downloadable and appear in Activity's Media health section. Cross-engine and libvips fixture certification remains env-gated.
+- **Import/export safety (2026-07-10):** browser queue staging isolates each uploaded file, so repeated filenames cannot overwrite one another. Portable backup format v2 records an archive manifest; restore validates it in a temporary sibling directory before swapping into an empty target. Live-server SQLite snapshot consistency remains a follow-up.
 - **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00011`.
 - **Not browser-click-tested:** the SvelteKit UI compiles and serves and all endpoints are E2E-verified
   via curl, but no headless-browser pass has been run (per human request).
@@ -131,6 +132,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | R1 media compatibility: explicit view state, safe preview/transcode fallback, media-health rebuild | ✅ done |
 | R2: tags/hierarchical tags, saved searches, ratings, archive/hidden, external libraries, backup/restore | ✅ done |
 | R2: duplicate review (exact + near-duplicate by hamming), stacks (RAW+JPEG / Live-Motion), whole-library export, scheduled integrity verification | ✅ done |
+| Import/export safety: duplicate upload basenames preserved; backup restore staged and manifest-validated | ✅ done |
 | R1/R2 exit criteria | ✅ met (Takeout + mounted folder re-import without metadata loss; backup/restore on clean instance; org actions on indexed queries) |
 | R1 full fixture matrix across libvips and Chromium/Firefox/WebKit | ⬜ env-gated release certification |
 | R2 remaining (nice-to-haves): XMP sidecars, non-destructive edit, burst grouping, slideshow/jump-to-date/grid-density/dark-mode/a11y polish | ⬜ roadmap |
@@ -161,6 +163,8 @@ Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./R
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `HEAD` — **Import/export safety hardening (Codex).** Browser upload staging now gives every multipart file its own numbered directory, preventing same-basename uploads from overwriting one another before import; a queue regression test uploads two different `IMG_0001.jpg` files and verifies two assets. Backup format v2 writes a file-count/byte-count manifest and restore extracts into a sibling temporary directory, rejects missing/mismatched/unsafe archives, then swaps only a validated archive into an empty target (with rollback for the existing empty directory). Format v1 restore compatibility remains. Focused queue/backup tests plus `make check` and the web build are green. **Live-server SQLite snapshot consistency remains outstanding.**
 
 - `HEAD` — **R2 completion: near-duplicate grouping, stacks, whole-library export, scheduled verify (Claude).**
   `GET /api/duplicates` now clusters exact **and** near-duplicates via union-find over hamming distance

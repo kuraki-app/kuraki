@@ -38,6 +38,8 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - Watch-folder mode that rescans a directory on an interval and auto-imports new
   files — pairs with folder-sync tools like Syncthing and rsync.
 - Browser drag-and-drop upload that runs through the same import pipeline.
+- Browser uploads preserve every selected file even when several share a
+  filename, instead of overwriting earlier staged files.
 - Uploads are processed by a background import queue: the request returns
   immediately, a worker imports each job with retries and crash recovery, and the
   UI polls progress. A self-refreshing Activity page lists recent import jobs with
@@ -45,6 +47,9 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - Google Takeout import: reads the JSON sidecars (tolerant of Google's naming
   variants) so capture dates, locations, captions, and favorites survive a
   migration from Google Photos.
+- Portable backups now carry a versioned file-count/byte-count manifest;
+  restores validate the archive in a temporary directory before atomically
+  replacing an empty destination.
 
 **Browsing & search**
 - Virtualized, day- and month-grouped timeline that stays smooth on large libraries.
