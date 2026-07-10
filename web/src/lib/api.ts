@@ -36,6 +36,10 @@ export type SearchParams = {
   type?: string;
   camera?: string;
   rating?: string;
+  favorite?: string;
+  place_city?: string;
+  place_country?: string;
+  album?: string;
   archived?: string;
   hidden?: string;
 };
@@ -50,9 +54,10 @@ export const api = {
 
   assets: (cursor = '') =>
     req<AssetList>(`/api/assets?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
-  search: (params: SearchParams) => {
-    const p = new URLSearchParams({ limit: '300' });
+  search: (params: SearchParams, cursor?: string) => {
+    const p = new URLSearchParams({ limit: '100' });
     for (const [k, v] of Object.entries(params)) if (v) p.set(k, v);
+    if (cursor) p.set('cursor', cursor);
     return req<AssetList>(`/api/search?${p.toString()}`);
   },
   favorites: () => req<AssetList>('/api/favorites?limit=500'),
