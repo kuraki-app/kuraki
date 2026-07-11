@@ -47,6 +47,11 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - Docker image with libvips and ffmpeg bundled, a `docker-compose.yml` for
   one-command hosting, a container health check that self-probes via the binary,
   a non-root runtime user, and OCI image labels.
+- Production deployment guide (`DEPLOYMENT.md`) with a ready-to-run Caddy
+  stack (automatic Let's Encrypt HTTPS, Kuraki reachable only through the proxy)
+  and an nginx alternative, spelling out why `KURAKI_TRUST_PROXY` and
+  `KURAKI_SECURE_COOKIES` belong on behind TLS and how a misconfigured
+  `TRUST_PROXY` weakens the login rate limits.
 
 **Import & backup**
 - Command-line bulk import: recursive, with a progress bar, a dry-run mode, and
@@ -162,6 +167,12 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - Index on `album_assets(asset_id)` so album membership lookups and the cascade
   that runs when an asset is trashed stay fast as libraries grow, instead of
   scanning the whole join table per asset.
+- Expression index on `(archived, hidden, deleted_at, COALESCE(taken_at,
+  created_at) DESC, id DESC)` matching how the timeline, search, places, and
+  mobile library page and sort. Each page is now an index seek that stops after
+  the page size instead of filtering and sorting the whole library into a temp
+  B-tree — verified against a 50k-asset library where the sort step disappears
+  from the query plan.
 
 **Media**
 - Thumbnail generation through libvips (HEIC/AVIF/RAW previews) with a pure-Go

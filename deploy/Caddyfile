@@ -1,0 +1,14 @@
+# Minimal Caddyfile for Kuraki (pairs with deploy/docker-compose.caddy.yml).
+# Replace the domain with yours. Caddy obtains and renews HTTPS automatically.
+
+photos.example.com {
+	# Reverse-proxy to the kuraki service on the internal Docker network. Caddy
+	# sets X-Forwarded-For / X-Forwarded-Proto, which Kuraki honours only when
+	# KURAKI_TRUST_PROXY=1 (set in the compose file).
+	reverse_proxy kuraki:3000
+
+	# Photo/video originals are large; allow big uploads through the proxy.
+	request_body {
+		max_size 2GB
+	}
+}

@@ -77,6 +77,12 @@ docker compose up -d
 Open <http://localhost:3000> and create your admin account on first visit. Your library lives in
 `./kuraki-data` — back up that directory and you have everything.
 
+> **Exposing it to the internet?** Put Kuraki behind a reverse proxy that terminates HTTPS and
+> turn on `KURAKI_SECURE_COOKIES` and `KURAKI_TRUST_PROXY`. See
+> **[DEPLOYMENT.md](DEPLOYMENT.md)** for a ready-to-run Caddy (automatic HTTPS) or
+> nginx setup and the security rationale — getting `TRUST_PROXY` wrong silently weakens the
+> login rate limits.
+
 ### Docker
 
 ```sh

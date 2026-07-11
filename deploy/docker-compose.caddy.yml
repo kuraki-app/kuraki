@@ -1,0 +1,63 @@
+# Production deployment: Kuraki behind Caddy with automatic HTTPS.
+#
+# Caddy fetches and renews a Let's Encrypt certificate for your domain and
+# terminates TLS, then reverse-proxies to Kuraki over the private Docker
+# network. Kuraki itself is never published on a host port — only Caddy's 80/443
+# are exposed — so the app is reached exclusively over HTTPS.
+#
+# Usage:
+#   1. Point an A/AAAA record for photos.example.com at this host.
+#   2. Replace photos.example.com and the email below.
+#   3. docker compose -f deploy/docker-compose.caddy.yml up -d
+#   4. Open https://photos.example.com and create the owner account.
+#
+# See DEPLOYMENT.md for the security rationale behind each setting.
+
+services:
+  kuraki:
+    image: ghcr.io/kuraki-app/kuraki:latest
+    container_name: kuraki
+    restart: unless-stopped
+    # No `ports:` — Kuraki is only reachable through Caddy on the internal
+    # network, not from the host or LAN directly.
+    expose:
+      - "3000"
+    volumes:
+      - ./kuraki-data:/data
+      # Keep automatic backups on a SEPARATE disk/mount from ./kuraki-data so a
+      # disk failure cannot take the library and its backups together.
+      - /mnt/backups/kuraki:/backups
+    environment:
+      KURAKI_DATA_DIR: /data
+      KURAKI_ADDR: ":3000"
+      # Behind TLS: send the session cookie only over HTTPS.
+      KURAKI_SECURE_COOKIES: "1"
+      # Trust the proxy's X-Forwarded-For so per-IP login/pairing rate limits key
+      # on the real client, not Caddy's address. Safe ONLY because Caddy sets that
+      # header and Kuraki is not reachable except through Caddy (see above).
+      KURAKI_TRUST_PROXY: "1"
+      # Unattended, SQLite-consistent backups onto the separate mount above.
+      KURAKI_BACKUP_DIR: /backups
+    healthcheck:
+      test: ["CMD", "kuraki", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2
+    container_name: kuraki-caddy
+    restart: unless-stopped
+    depends_on:
+      - kuraki
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
