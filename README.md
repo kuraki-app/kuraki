@@ -1,6 +1,6 @@
 <div align="center">
 
-# 蔵 Kuraki
+# Kuraki
 
 **Self-hosted photo & video backup with a fast web library — run it on your own server.**
 
@@ -174,6 +174,7 @@ kuraki/
 │   └── httpapi/            # chi router, handlers, middleware; assets/ = embedded UI
 ├── web/                    # SvelteKit source, built into internal/httpapi/assets
 ├── scripts/                # start.sh (one production-like process) + dev.sh (hot-reload)
+├── site/                   # self-contained marketing landing page (static, host anywhere)
 ├── deploy/                 # production compose: Caddy (auto-HTTPS) + Caddyfile
 ├── Dockerfile              # runtime bundles libvips + ffmpeg
 ├── docker-compose.yml      # simple one-command local host

@@ -184,7 +184,14 @@
     on:drop={onDrop}
   >
     <aside class="side">
-      <a class="brand" href="/">蔵 Kuraki</a>
+      <a class="brand" href="/" aria-label="Kuraki home">
+        <svg class="brand-mark" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="4.5" />
+          <path d="M12 6.5 17.5 12 12 17.5 6.5 12Z" />
+          <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+        </svg>
+        <span>Kuraki</span>
+      </a>
       <nav aria-label="Library sections">
         {#each nav as item (item.href)}
           <a
@@ -295,11 +302,18 @@
     background: var(--sidebar);
   }
   .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     padding: 6px 10px 14px;
     font-size: 20px;
     font-weight: 700;
     color: var(--foreground);
     text-decoration: none;
+  }
+  .brand-mark {
+    flex: none;
+    color: var(--highlight);
   }
   nav {
     display: grid;

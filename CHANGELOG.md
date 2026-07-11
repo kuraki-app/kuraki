@@ -135,6 +135,11 @@ Docker-first deployment and a full browser experience over an embedded web UI.
   location change — plus batch capture-time shifting to correct camera timezones.
 
 **Accessibility & appearance**
+- New wordmark: replaced the placeholder logo with a "Kuraki" wordmark and a
+  simple diamond-in-frame mark (a nod to the *namako-kabe* lattice of a kura
+  storehouse), used in the sidebar and as the browser favicon.
+- Added a self-contained marketing landing page under `site/` (static HTML,
+  theme-aware, no external assets) that can be hosted anywhere.
 - Rebuilt the web UI on **shadcn-svelte + Tailwind v4**. A single design-token
   palette (the warm "kura" scheme, mapped onto shadcn's `--primary` /
   `--foreground` / … tokens) themes every surface, with Geist / Public Sans
