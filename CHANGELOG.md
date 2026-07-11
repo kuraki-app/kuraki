@@ -19,6 +19,9 @@ Docker-first deployment and a full browser experience over an embedded web UI.
   port, and database location, and prompts for an admin account on first visit.
 - Admin account creation and login, with argon2id password hashing and
   HttpOnly/SameSite session cookies. Failed logins are rate-limited per IP.
+- First-run onboarding: the setup screen now defaults the username to `admin`,
+  asks for the password twice (with a live "passwords do not match" check and an
+  8-character minimum), and explains it is creating the server's owner account.
 - Change your password from the web UI's Settings page (verifies the current
   password and signs out every other browser/device session), and an offline
   `kuraki passwd` command to reset it directly against the library — the recovery

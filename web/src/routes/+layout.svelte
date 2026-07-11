@@ -31,10 +31,18 @@
   import { session, bumpLibrary, showToast } from '$lib/stores';
   import '../app.css';
 
-  let username = 'owner';
+  let username = 'admin';
   let password = '';
+  let confirmPassword = '';
   let authBusy = false;
   let authError = '';
+
+  // Friendly copy for the error codes the auth API returns.
+  const authErrorText: Record<string, string> = {
+    invalid_credentials: 'Incorrect username or password.',
+    password_too_short: 'Password must be at least 8 characters.',
+    setup_already_complete: 'Setup is already complete. Please sign in.'
+  };
   let dragging = false;
   let uploadPct = -1;
   let importStatus = '';
@@ -73,16 +81,29 @@
   }
 
   async function submitAuth() {
-    authBusy = true;
     authError = '';
+    // First-run setup: validate the account before hitting the server.
+    if ($session.setupRequired) {
+      if (password.length < 8) {
+        authError = 'Password must be at least 8 characters.';
+        return;
+      }
+      if (password !== confirmPassword) {
+        authError = 'Passwords do not match.';
+        return;
+      }
+    }
+    authBusy = true;
     try {
       const s = $session.setupRequired
-        ? await api.setup(username, password)
+        ? await api.setup(username.trim() || 'admin', password)
         : await api.login(username, password);
       session.set({ checking: false, setupRequired: s.setup_required, user: s.user ?? null });
       password = '';
+      confirmPassword = '';
     } catch (e) {
-      authError = e instanceof Error ? e.message : 'Authentication failed';
+      const code = e instanceof Error ? e.message : '';
+      authError = authErrorText[code] ?? (code || 'Authentication failed');
     } finally {
       authBusy = false;
     }
@@ -155,7 +176,10 @@
   <div class="auth">
     <form on:submit|preventDefault={submitAuth}>
       <Lock size={22} aria-hidden="true" />
-      <h1>{$session.setupRequired ? 'Create admin access' : 'Sign in'}</h1>
+      <h1>{$session.setupRequired ? 'Welcome to Kuraki' : 'Sign in'}</h1>
+      {#if $session.setupRequired}
+        <p class="auth-sub">Create the owner account for this server. You can change the password later in Settings.</p>
+      {/if}
       <label class="sr-only" for="auth-username">Username</label>
       <Input id="auth-username" bind:value={username} autocomplete="username" placeholder="Username" />
       <label class="sr-only" for="auth-password">Password</label>
@@ -166,9 +190,21 @@
         autocomplete={$session.setupRequired ? 'new-password' : 'current-password'}
         placeholder="Password"
       />
+      {#if $session.setupRequired}
+        <label class="sr-only" for="auth-confirm">Confirm password</label>
+        <Input
+          id="auth-confirm"
+          bind:value={confirmPassword}
+          type="password"
+          autocomplete="new-password"
+          placeholder="Confirm password"
+          aria-invalid={confirmPassword.length > 0 && confirmPassword !== password}
+        />
+        <p class="auth-hint">At least 8 characters.</p>
+      {/if}
       {#if authError}<p class="err" role="alert">{authError}</p>{/if}
       <Button type="submit" class="w-full" disabled={authBusy}>
-        {authBusy ? 'Working' : $session.setupRequired ? 'Set up' : 'Sign in'}
+        {authBusy ? 'Working' : $session.setupRequired ? 'Create account' : 'Sign in'}
       </Button>
     </form>
   </div>
@@ -277,6 +313,17 @@
   .auth h1 {
     margin: 0;
     font-size: 22px;
+  }
+  .auth-sub {
+    margin: -4px 0 4px;
+    color: var(--muted-foreground);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .auth-hint {
+    margin: -6px 0 0;
+    color: var(--muted-foreground);
+    font-size: 12px;
   }
   .err {
     margin: 0;

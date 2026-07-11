@@ -15,6 +15,29 @@ import (
 	"github.com/kuraki-app/kuraki/internal/storage"
 )
 
+func TestSetupDefaultsUsernameToAdmin(t *testing.T) {
+	router, _ := newAuthTestRouter(t)
+
+	// A blank username on first-run setup lands as "admin" (the web form's
+	// default), not the internal "owner" placeholder name.
+	rec := postJSON(t, router, "/api/setup",
+		credentialsRequest{Username: "", Password: "correct horse"}, nil)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("setup status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var resp setupStatusResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode setup response: %v", err)
+	}
+	if resp.User == nil || resp.User.Username != "admin" {
+		t.Fatalf("default username = %+v, want admin", resp.User)
+	}
+	if code := postJSON(t, router, "/api/login",
+		credentialsRequest{Username: "admin", Password: "correct horse"}, nil).Code; code != http.StatusOK {
+		t.Fatalf("login as admin = %d, want 200", code)
+	}
+}
+
 func TestSetupLoginAndProtectedAPI(t *testing.T) {
 	router, _ := newAuthTestRouter(t)
 

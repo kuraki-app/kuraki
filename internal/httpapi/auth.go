@@ -57,7 +57,10 @@ func (d Deps) setup(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Username = strings.TrimSpace(req.Username)
 	if req.Username == "" {
-		req.Username = "owner"
+		// Default the owner account name; the placeholder row that CLI imports
+		// create (username "owner", empty password) is still claimed by
+		// upsertSetupUser regardless of the name chosen here.
+		req.Username = "admin"
 	}
 	if len(req.Password) < 8 {
 		writeError(w, http.StatusBadRequest, "password_too_short")
