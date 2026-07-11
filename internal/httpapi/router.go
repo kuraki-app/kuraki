@@ -37,7 +37,10 @@ type Deps struct {
 	TrustProxy bool
 	// MetricsToken optionally guards /metrics for bearer-token scrapers.
 	MetricsToken string
-	Logger       *slog.Logger
+	// BackupEnabled reports whether unattended backups are configured, so the
+	// dashboard can distinguish "not set up" from "set up but not yet run".
+	BackupEnabled bool
+	Logger        *slog.Logger
 }
 
 // NewRouter builds the top-level HTTP handler.
@@ -111,6 +114,7 @@ func NewRouter(d Deps) http.Handler {
 			r.Get("/export", d.exportLibrary)
 			r.Get("/integrity", d.integrity)
 			r.Post("/integrity/run", d.runIntegrity)
+			r.Get("/backup", d.backupStatus)
 			r.Get("/tags", d.listTags)
 			r.Post("/tags", d.createTag)
 			r.Delete("/tags/{id}", d.deleteTag)

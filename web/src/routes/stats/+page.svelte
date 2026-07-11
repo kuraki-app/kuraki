@@ -3,27 +3,42 @@
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
   import { fileSize, relativeTime } from '$lib/format';
-  import type { IntegrityRun, LibraryStats } from '$lib/types';
+  import type { BackupStatus, IntegrityRun, LibraryStats } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import StatCard from '$lib/components/StatCard.svelte';
   import { Button } from '$lib/components/ui/button';
 
   let stats: LibraryStats | null = null;
   let integrity: IntegrityRun | null = null;
+  let backup: BackupStatus | null = null;
   let verifying = false;
   let loading = true;
 
   onMount(async () => {
     try {
-      const [s, i] = await Promise.all([api.stats(), api.integrity()]);
+      const [s, i, b] = await Promise.all([api.stats(), api.integrity(), api.backup()]);
       stats = s;
       integrity = i.last;
+      backup = b;
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to load stats');
     } finally {
       loading = false;
     }
   });
+
+  // A configured backup that has not run in over ~1.5 days is stale-ish; surface it.
+  $: backupStale =
+    !!backup?.enabled &&
+    !!backup.last?.finished_at &&
+    Date.now() - new Date(backup.last.finished_at).getTime() > 36 * 60 * 60 * 1000;
+  $: backupClass = !backup?.enabled
+    ? 'off'
+    : backup.last?.status === 'error'
+      ? 'error'
+      : backupStale
+        ? 'problems'
+        : 'ok';
 
   async function verifyNow() {
     verifying = true;
@@ -84,6 +99,21 @@
     <Button variant="outline" disabled={verifying || integrity?.status === 'running'} onclick={verifyNow}>
       {verifying || integrity?.status === 'running' ? 'Verifying…' : 'Verify now'}
     </Button>
+  </section>
+
+  <section class="integrity {backupClass}">
+    <div class="int-text">
+      <strong>Backup</strong>
+      {#if !backup?.enabled}
+        <span>Automatic backup is off. Set <code>KURAKI_BACKUP_DIR</code> to keep scheduled copies, or run <code>kuraki backup</code> by hand.</span>
+      {:else if backup.last?.status === 'error'}
+        <span>Last automatic backup failed{#if backup.last.finished_at} · {relativeTime(backup.last.finished_at)}{/if}{#if backup.last.error} · {backup.last.error}{/if}</span>
+      {:else if backup.last}
+        <span>Last backup {fileSize(backup.last.bytes)}{#if backup.last.finished_at} · {relativeTime(backup.last.finished_at)}{/if}{#if backupStale} · overdue{/if}</span>
+      {:else}
+        <span>Automatic backup is on; no backup has run yet.</span>
+      {/if}
+    </div>
   </section>
 
   {#if stats.by_year.length > 0}

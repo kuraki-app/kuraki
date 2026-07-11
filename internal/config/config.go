@@ -48,15 +48,31 @@ type Config struct {
 	// of this value, a logged-in owner session may always read /metrics; an
 	// unauthenticated request with no matching token is rejected.
 	MetricsToken string
+
+	// BackupDir, when set, turns on unattended library backups: the server
+	// writes a SQLite-consistent archive into this directory on an interval so a
+	// passive user always has a recent backup (KURAKI_BACKUP_DIR). Empty (the
+	// default) leaves backups fully manual via `kuraki backup`.
+	BackupDir string
+
+	// BackupIntervalHours is how often the unattended backup runs when BackupDir
+	// is set (KURAKI_BACKUP_INTERVAL_HOURS, default 24).
+	BackupIntervalHours int
+
+	// BackupKeep is how many recent automatic archives to retain before older
+	// ones are pruned (KURAKI_BACKUP_KEEP, default 7).
+	BackupKeep int
 }
 
 // Default returns the zero-config configuration used when nothing overrides it.
 func Default() Config {
 	return Config{
-		DataDir:            "./kuraki-data",
-		Addr:               ":3000",
-		TrashRetentionDays: 30,
-		ThumbnailSize:      512,
+		DataDir:             "./kuraki-data",
+		Addr:                ":3000",
+		TrashRetentionDays:  30,
+		ThumbnailSize:       512,
+		BackupIntervalHours: 24,
+		BackupKeep:          7,
 	}
 }
 
@@ -87,6 +103,15 @@ func Load(getenv func(string) string) Config {
 	}
 	if v := strings.TrimSpace(getenv("KURAKI_METRICS_TOKEN")); v != "" {
 		c.MetricsToken = v
+	}
+	if v := strings.TrimSpace(getenv("KURAKI_BACKUP_DIR")); v != "" {
+		c.BackupDir = v
+	}
+	if n, ok := positiveInt(getenv("KURAKI_BACKUP_INTERVAL_HOURS")); ok {
+		c.BackupIntervalHours = n
+	}
+	if n, ok := positiveInt(getenv("KURAKI_BACKUP_KEEP")); ok {
+		c.BackupKeep = n
 	}
 	return c
 }

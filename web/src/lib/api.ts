@@ -1,5 +1,5 @@
 import { session } from './stores';
-import type { Album, Asset, AssetList, DupAsset, IntegrityRun, Job, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SetupStatus, Tag } from './types';
+import type { Album, Asset, AssetList, BackupStatus, DupAsset, IntegrityRun, Job, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SetupStatus, Tag } from './types';
 
 export type AssetPatch = {
   taken_at?: string;
@@ -101,6 +101,7 @@ export const api = {
   duplicates: () => req<{ groups: DupAsset[][] }>('/api/duplicates'),
   integrity: () => req<{ last: IntegrityRun | null }>('/api/integrity'),
   runIntegrity: () => req<{ status: string }>('/api/integrity/run', { method: 'POST' }),
+  backup: () => req<BackupStatus>('/api/backup'),
   createPairingCode: () =>
     req<{ code: string; expires_at: string }>('/api/devices/pair', { method: 'POST' }),
   tags: () => req<{ tags: Tag[] }>('/api/tags'),

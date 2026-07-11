@@ -106,6 +106,9 @@ Sensible defaults, no config file required. Override via flags or environment
 | — | `KURAKI_SECURE_COOKIES` | off | Mark the session cookie `Secure` — enable behind HTTPS |
 | — | `KURAKI_TRUST_PROXY` | off | Trust `X-Forwarded-For`/`X-Real-IP` for the client IP — enable **only** behind a trusted reverse proxy |
 | — | `KURAKI_METRICS_TOKEN` | — | Bearer token that lets scrapers read `/metrics`; an owner session can always read it |
+| — | `KURAKI_BACKUP_DIR` | — | Enable unattended backups: write a SQLite-consistent archive here on an interval (keep it on a **separate disk/mount**) |
+| — | `KURAKI_BACKUP_INTERVAL_HOURS` | `24` | How often the unattended backup runs when `KURAKI_BACKUP_DIR` is set |
+| — | `KURAKI_BACKUP_KEEP` | `7` | How many recent automatic archives to retain before pruning older ones |
 
 ## Commands
 

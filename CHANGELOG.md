@@ -26,6 +26,12 @@ Docker-first deployment and a full browser experience over an embedded web UI.
   also revokes any stolen cookie.
 - Automatic database snapshot taken before every schema migration, so upgrades
   are safe and reversible.
+- Opt-in unattended backups (`KURAKI_BACKUP_DIR`): the server writes a
+  SQLite-consistent archive on an interval (`KURAKI_BACKUP_INTERVAL_HOURS`,
+  default 24), prunes to the most recent `KURAKI_BACKUP_KEEP` (default 7), and
+  records each run. The Library dashboard shows the last backup's age, size, and
+  outcome — and flags an overdue or failed one — so a passive user who never runs
+  `kuraki backup` by hand still has a recent, visible safety net.
 - `/healthz` liveness endpoint (public) and a `/metrics` endpoint reporting
   memory, goroutines, uptime, and library counts. `/metrics` requires an owner
   session or an `Authorization: Bearer <KURAKI_METRICS_TOKEN>` header, so library

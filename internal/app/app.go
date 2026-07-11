@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/kuraki-app/kuraki/internal/backup"
 	"github.com/kuraki-app/kuraki/internal/config"
 	"github.com/kuraki-app/kuraki/internal/db"
 	"github.com/kuraki-app/kuraki/internal/geo"
@@ -251,6 +252,67 @@ func (a *App) startIntegrityScheduler(ctx context.Context) {
 			run()
 		}
 		t := time.NewTicker(24 * time.Hour)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				if due() {
+					run()
+				}
+			}
+		}
+	}()
+}
+
+// startBackupScheduler writes an unattended, SQLite-consistent library backup
+// into the configured directory at startup (if one is due) and on an interval
+// thereafter, then prunes to the retention count. It is opt-in: with no
+// BackupDir set it does nothing, leaving backups fully manual. This is the
+// safety net for a passive user who never runs `kuraki backup` by hand.
+func (a *App) startBackupScheduler(ctx context.Context) {
+	if a.Cfg.BackupDir == "" {
+		return
+	}
+	hours := a.Cfg.BackupIntervalHours
+	if hours <= 0 {
+		hours = 24
+	}
+	interval := time.Duration(hours) * time.Hour
+
+	due := func() bool {
+		last, ok, err := backup.LastRun(ctx, a.DB)
+		if err != nil || !ok || last.FinishedAt == "" {
+			return true
+		}
+		t, err := time.Parse(time.RFC3339Nano, last.FinishedAt)
+		if err != nil {
+			return true
+		}
+		return time.Since(t) >= interval
+	}
+	run := func() {
+		summary, err := backup.RunAndRecord(ctx, a.DB, a.Cfg.DataDir, a.Cfg.BackupDir)
+		if err != nil {
+			a.Log.Warn("automatic backup failed", "err", err)
+			return
+		}
+		a.Log.Info("automatic backup complete", "dest", summary.Destination, "bytes", summary.Bytes)
+		if err := backup.Prune(a.Cfg.BackupDir, a.Cfg.BackupKeep); err != nil {
+			a.Log.Warn("backup prune failed", "err", err)
+		}
+	}
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(45 * time.Second): // after integrity/startup settle
+		}
+		if due() {
+			run()
+		}
+		t := time.NewTicker(interval)
 		defer t.Stop()
 		for {
 			select {
@@ -509,6 +571,7 @@ func (a *App) Serve(ctx context.Context) error {
 	a.startTrashJanitor(ctx)
 	a.startCaptureJanitor(ctx)
 	a.startIntegrityScheduler(ctx)
+	a.startBackupScheduler(ctx)
 	a.startOCRWorker(ctx)
 	go a.backfillPlaces(ctx)
 	go a.backfillPHashes(ctx)
@@ -529,6 +592,7 @@ func (a *App) Serve(ctx context.Context) error {
 		SecureCookies: a.Cfg.SecureCookies,
 		TrustProxy:    a.Cfg.TrustProxy,
 		MetricsToken:  a.Cfg.MetricsToken,
+		BackupEnabled: a.Cfg.BackupDir != "",
 		Logger:        a.Log,
 	})
 	srv := &http.Server{

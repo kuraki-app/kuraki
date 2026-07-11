@@ -106,6 +106,20 @@ export type IntegrityRun = {
   status: 'running' | 'clean' | 'problems' | 'error';
 };
 
+export type BackupRun = {
+  started_at: string;
+  finished_at?: string;
+  destination?: string;
+  bytes: number;
+  status: 'running' | 'ok' | 'error';
+  error?: string;
+};
+
+export type BackupStatus = {
+  enabled: boolean;
+  last: BackupRun | null;
+};
+
 export type LibraryStats = {
   total: number;
   images: number;
