@@ -31,14 +31,26 @@ type Deps struct {
 	ThumbSize int
 	// SecureCookies marks the session cookie Secure (HTTPS-only) in production.
 	SecureCookies bool
-	Logger        *slog.Logger
+	// TrustProxy derives the client IP from X-Forwarded-For / X-Real-IP. Only
+	// enable it behind a trusted reverse proxy; otherwise the true TCP peer is
+	// used so per-IP rate limits cannot be spoofed away.
+	TrustProxy bool
+	// MetricsToken optionally guards /metrics for bearer-token scrapers.
+	MetricsToken string
+	Logger       *slog.Logger
 }
 
 // NewRouter builds the top-level HTTP handler.
 func NewRouter(d Deps) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
+	// RealIP rewrites RemoteAddr from X-Forwarded-For / X-Real-IP, which a client
+	// can forge unless a trusted proxy overwrites those headers. Only enable it
+	// when explicitly told we sit behind such a proxy, so the login/pairing rate
+	// limiters key on the unspoofable TCP peer by default.
+	if d.TrustProxy {
+		r.Use(middleware.RealIP)
+	}
 	r.Use(middleware.Recoverer)
 	// Compress text responses (JSON API + UI bundles); media types are skipped
 	// so range requests and already-compressed images/videos pass through.
@@ -53,7 +65,7 @@ func NewRouter(d Deps) http.Handler {
 	pairLimiter := newIPLimiter(rate.Every(6*time.Second), 10, 10*time.Minute)
 
 	r.Get("/healthz", d.healthz)
-	r.Get("/metrics", d.metrics)
+	r.With(d.requireMetricsAuth).Get("/metrics", d.metrics)
 
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/status", d.status)

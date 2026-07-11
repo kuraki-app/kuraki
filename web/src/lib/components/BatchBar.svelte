@@ -47,9 +47,9 @@
     max-width: calc(100vw - 24px);
     padding: 8px 8px 8px 12px;
     border-radius: 12px;
-    background: #24211f;
-    color: #f7f3ec;
-    box-shadow: 0 12px 34px #0004;
+    background: var(--chrome);
+    color: var(--chrome-text);
+    box-shadow: var(--shadow-strong);
     overflow-x: auto;
   }
   .clear {
@@ -59,7 +59,7 @@
     height: 32px;
     border: 0;
     border-radius: 8px;
-    background: #ffffff18;
+    background: var(--chrome-fill-strong);
     color: inherit;
     cursor: pointer;
   }
@@ -80,13 +80,13 @@
     padding: 0 12px;
     border: 0;
     border-radius: 8px;
-    background: #ffffff14;
-    color: #f7f3ec;
+    background: var(--chrome-fill);
+    color: var(--chrome-text);
     cursor: pointer;
     font-size: 13px;
     white-space: nowrap;
   }
   .acts button.danger {
-    color: #ff9a86;
+    color: var(--chrome-danger);
   }
 </style>

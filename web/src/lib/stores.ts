@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store';
+import { toast as sonner } from 'svelte-sonner';
 import type { User } from './types';
 
 export const session = writable<{ checking: boolean; setupRequired: boolean; user: User | null }>({
@@ -13,10 +14,8 @@ export function bumpLibrary() {
   libraryVersion.update((n) => n + 1);
 }
 
-export const toast = writable('');
-let toastTimer: ReturnType<typeof setTimeout> | undefined;
+// Notifications go through shadcn-svelte's Sonner toaster (rendered once in the
+// root layout). showToast stays the single call site the rest of the app uses.
 export function showToast(message: string) {
-  toast.set(message);
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.set(''), 3200);
+  sonner(message);
 }

@@ -35,6 +35,19 @@ type Config struct {
 	// SecureCookies marks the session cookie Secure so browsers only send it
 	// over HTTPS. Enable it in production behind TLS (KURAKI_SECURE_COOKIES=1).
 	SecureCookies bool
+
+	// TrustProxy makes Kuraki derive the client IP from X-Forwarded-For /
+	// X-Real-IP headers. Only enable it when Kuraki runs behind a trusted
+	// reverse proxy that sets those headers (KURAKI_TRUST_PROXY=1); when Kuraki
+	// is directly exposed, leaving it off prevents clients from spoofing their
+	// address to bypass the per-IP login and pairing rate limits.
+	TrustProxy bool
+
+	// MetricsToken, when set, allows scrapers to read /metrics with an
+	// "Authorization: Bearer <token>" header (KURAKI_METRICS_TOKEN). Regardless
+	// of this value, a logged-in owner session may always read /metrics; an
+	// unauthenticated request with no matching token is rejected.
+	MetricsToken string
 }
 
 // Default returns the zero-config configuration used when nothing overrides it.
@@ -68,6 +81,12 @@ func Load(getenv func(string) string) Config {
 	}
 	if boolEnv(getenv("KURAKI_SECURE_COOKIES")) {
 		c.SecureCookies = true
+	}
+	if boolEnv(getenv("KURAKI_TRUST_PROXY")) {
+		c.TrustProxy = true
+	}
+	if v := strings.TrimSpace(getenv("KURAKI_METRICS_TOKEN")); v != "" {
+		c.MetricsToken = v
 	}
 	return c
 }

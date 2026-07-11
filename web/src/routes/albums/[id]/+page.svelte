@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { Pencil, Trash2, ArrowLeft } from '@lucide/svelte';
   import LibraryView from '$lib/components/LibraryView.svelte';
+  import { Button } from '$lib/components/ui/button';
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
 
@@ -46,34 +47,14 @@
     title={name}
     emptyText="This album is empty — add photos from the timeline"
   >
-    <div slot="actions" class="actions">
-      <a href="/albums" class="ghost" aria-label="Back to albums"><ArrowLeft size={16} /></a>
-      <button type="button" class="ghost" on:click={rename}><Pencil size={15} /> Rename</button>
-      <button type="button" class="ghost danger" on:click={remove}><Trash2 size={15} /> Delete</button>
+    <div slot="actions" class="flex gap-1.5">
+      <Button variant="outline" size="icon" href="/albums" aria-label="Back to albums">
+        <ArrowLeft size={16} aria-hidden="true" />
+      </Button>
+      <Button variant="outline" onclick={rename}><Pencil size={15} aria-hidden="true" /> Rename</Button>
+      <Button variant="outline" class="text-destructive hover:text-destructive" onclick={remove}>
+        <Trash2 size={15} aria-hidden="true" /> Delete
+      </Button>
     </div>
   </LibraryView>
 {/key}
-
-<style>
-  .actions {
-    display: flex;
-    gap: 6px;
-  }
-  .ghost {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 38px;
-    padding: 0 12px;
-    border: 1px solid #d8d0c5;
-    border-radius: 8px;
-    background: #fffaf3;
-    color: #4f4942;
-    text-decoration: none;
-    cursor: pointer;
-    font-size: 14px;
-  }
-  .ghost.danger {
-    color: #a33a2a;
-  }
-</style>

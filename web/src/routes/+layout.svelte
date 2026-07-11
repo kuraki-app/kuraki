@@ -16,10 +16,19 @@
     Lock,
     Archive,
     EyeOff,
-    Smartphone
+    Smartphone,
+    Monitor,
+    Sun,
+    Moon
   } from '@lucide/svelte';
+  import { ModeWatcher, setMode, userPrefersMode } from 'mode-watcher';
+  import { Toaster } from '$lib/components/ui/sonner';
+  import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
+  import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
   import { api, uploadFiles } from '$lib/api';
-  import { session, bumpLibrary, toast, showToast } from '$lib/stores';
+  import { session, bumpLibrary, showToast } from '$lib/stores';
+  import '../app.css';
 
   let username = 'owner';
   let password = '';
@@ -29,6 +38,10 @@
   let uploadPct = -1;
   let importStatus = '';
   let fileInput: HTMLInputElement;
+
+  // Dark mode is owned by mode-watcher: it toggles `.dark` on <html>, persists
+  // the choice, and prevents the flash of the wrong theme on load.
+  const themeIcon = { system: Monitor, light: Sun, dark: Moon } as const;
 
   const nav = [
     { href: '/', label: 'Timeline', icon: Images },
@@ -132,58 +145,87 @@
 
 <svelte:head>
   <title>Kuraki</title>
-  <meta name="theme-color" content="#f6f3ee" />
 </svelte:head>
 
 {#if $session.checking}
-  <div class="boot">Loading…</div>
+  <div class="boot" role="status">Loading…</div>
 {:else if !$session.user}
   <div class="auth">
     <form on:submit|preventDefault={submitAuth}>
       <Lock size={22} aria-hidden="true" />
-      <h2>{$session.setupRequired ? 'Create admin access' : 'Sign in'}</h2>
-      <input bind:value={username} autocomplete="username" placeholder="Username" />
-      <input
+      <h1>{$session.setupRequired ? 'Create admin access' : 'Sign in'}</h1>
+      <label class="sr-only" for="auth-username">Username</label>
+      <Input id="auth-username" bind:value={username} autocomplete="username" placeholder="Username" />
+      <label class="sr-only" for="auth-password">Password</label>
+      <Input
+        id="auth-password"
         bind:value={password}
         type="password"
         autocomplete={$session.setupRequired ? 'new-password' : 'current-password'}
         placeholder="Password"
       />
-      {#if authError}<p class="err">{authError}</p>{/if}
-      <button disabled={authBusy}
-        >{authBusy ? 'Working' : $session.setupRequired ? 'Set up' : 'Sign in'}</button
-      >
+      {#if authError}<p class="err" role="alert">{authError}</p>{/if}
+      <Button type="submit" class="w-full" disabled={authBusy}>
+        {authBusy ? 'Working' : $session.setupRequired ? 'Set up' : 'Sign in'}
+      </Button>
     </form>
   </div>
 {:else}
+  <a class="skip-link" href="#main">Skip to content</a>
+  <!-- The whole page is a drag-and-drop target as a pointer-only enhancement;
+       the keyboard-accessible upload path is the Upload button + file input. -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="app"
-    role="application"
     on:dragover|preventDefault={() => (dragging = true)}
     on:dragleave={() => (dragging = false)}
     on:drop={onDrop}
   >
     <aside class="side">
       <a class="brand" href="/">蔵 Kuraki</a>
-      <nav>
+      <nav aria-label="Library sections">
         {#each nav as item (item.href)}
-          <a href={item.href} class:active={isActive(item.href)}>
-            <svelte:component this={item.icon} size={18} />
+          <a
+            href={item.href}
+            class:active={isActive(item.href)}
+            aria-current={isActive(item.href) ? 'page' : undefined}
+          >
+            <svelte:component this={item.icon} size={18} aria-hidden="true" />
             <span>{item.label}</span>
           </a>
         {/each}
       </nav>
       <div class="side-foot">
-        <button class="up" type="button" on:click={() => fileInput.click()}>
-          <Upload size={18} /> <span>Upload</span>
-        </button>
-        <button class="lo" type="button" on:click={logout} aria-label="Sign out">
-          <LogOut size={18} />
-        </button>
+        <Button class="flex-1" onclick={() => fileInput.click()}>
+          <Upload size={18} aria-hidden="true" /> <span>Upload</span>
+        </Button>
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger>
+            {#snippet child({ props })}
+              <Button {...props} variant="outline" size="icon" aria-label="Theme">
+                <svelte:component this={themeIcon[userPrefersMode.current]} size={18} aria-hidden="true" />
+              </Button>
+            {/snippet}
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content align="end">
+            <DropdownMenu.Item onclick={() => setMode('light')}>
+              <Sun size={16} aria-hidden="true" /> Light
+            </DropdownMenu.Item>
+            <DropdownMenu.Item onclick={() => setMode('dark')}>
+              <Moon size={16} aria-hidden="true" /> Dark
+            </DropdownMenu.Item>
+            <DropdownMenu.Item onclick={() => setMode('system')}>
+              <Monitor size={16} aria-hidden="true" /> System
+            </DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
+        <Button variant="outline" size="icon" onclick={logout} aria-label="Sign out">
+          <LogOut size={18} aria-hidden="true" />
+        </Button>
       </div>
     </aside>
 
-    <main class="content"><slot /></main>
+    <main class="content" id="main"><slot /></main>
 
     <input
       bind:this={fileInput}
@@ -197,72 +239,39 @@
         t.value = '';
       }}
     />
-    {#if dragging}<div class="drop">Drop to upload</div>{/if}
+    {#if dragging}<div class="drop" aria-hidden="true">Drop to upload</div>{/if}
     {#if uploadPct >= 0}
-      <div class="uploading"><div class="ubar" style="width:{uploadPct}%"></div><span>Uploading {uploadPct}%</span></div>
+      <div class="uploading" role="status"><div class="ubar" style="width:{uploadPct}%"></div><span>Uploading {uploadPct}%</span></div>
     {:else if importStatus}
-      <div class="uploading"><div class="ubar indet"></div><span>{importStatus}</span></div>
+      <div class="uploading" role="status"><div class="ubar indet"></div><span>{importStatus}</span></div>
     {/if}
   </div>
 {/if}
 
-{#if $toast}<div class="toast">{$toast}</div>{/if}
+<ModeWatcher />
+<Toaster />
 
 <style>
-  :global(*) {
-    box-sizing: border-box;
-  }
-  :global(body) {
-    margin: 0;
-    min-width: 320px;
-    background: #f6f3ee;
-    color: #171717;
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  }
-  :global(button),
-  :global(input) {
-    font: inherit;
-  }
-
   .boot,
   .auth {
     display: grid;
     place-items: center;
     min-height: 100vh;
-    color: #6a6259;
+    color: var(--muted-foreground);
   }
   .auth form {
     display: grid;
     width: min(360px, 90vw);
     gap: 12px;
-    color: #24211f;
+    color: var(--foreground);
   }
-  .auth h2 {
+  .auth h1 {
     margin: 0;
     font-size: 22px;
   }
-  .auth input {
-    height: 44px;
-    padding: 0 12px;
-    border: 1px solid #d8d0c5;
-    border-radius: 8px;
-    background: #fffaf3;
-  }
-  .auth button {
-    min-height: 44px;
-    border: 0;
-    border-radius: 8px;
-    background: #24211f;
-    color: #fff;
-    font-weight: 700;
-    cursor: pointer;
-  }
-  .auth button:disabled {
-    opacity: 0.7;
-  }
   .err {
     margin: 0;
-    color: #a33a2a;
+    color: var(--destructive);
     font-size: 14px;
   }
 
@@ -280,14 +289,14 @@
     gap: 8px;
     height: 100vh;
     padding: 18px 14px;
-    border-right: 1px solid #e5ddd1;
-    background: #fbf8f2;
+    border-right: 1px solid var(--border);
+    background: var(--sidebar);
   }
   .brand {
     padding: 6px 10px 14px;
     font-size: 20px;
     font-weight: 700;
-    color: #24211f;
+    color: var(--foreground);
     text-decoration: none;
   }
   nav {
@@ -300,43 +309,18 @@
     gap: 11px;
     padding: 10px 12px;
     border-radius: 8px;
-    color: #4f4942;
+    color: var(--text-dim);
     text-decoration: none;
     font-weight: 500;
   }
   nav a.active {
-    background: #efe7da;
-    color: #201d1a;
+    background: var(--accent);
+    color: var(--foreground);
   }
   .side-foot {
     display: flex;
     gap: 8px;
     margin-top: auto;
-  }
-  .up {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    flex: 1;
-    height: 42px;
-    padding: 0 12px;
-    border: 0;
-    border-radius: 8px;
-    background: #24211f;
-    color: #fff;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  .lo {
-    display: grid;
-    place-items: center;
-    width: 42px;
-    height: 42px;
-    border: 1px solid #d8d0c5;
-    border-radius: 8px;
-    background: #fffaf3;
-    color: #4f4942;
-    cursor: pointer;
   }
   .content {
     width: min(1440px, 100%);
@@ -348,7 +332,7 @@
     z-index: 50;
     display: grid;
     place-items: center;
-    background: #24211fcc;
+    background: var(--scrim);
     color: #fff;
     font-size: 24px;
     font-weight: 700;
@@ -362,15 +346,15 @@
     width: 240px;
     padding: 12px 14px;
     border-radius: 10px;
-    background: #24211f;
-    color: #fff;
-    box-shadow: 0 12px 30px #0003;
+    background: var(--chrome);
+    color: var(--chrome-text);
+    box-shadow: var(--shadow);
   }
   .uploading .ubar {
     height: 4px;
     margin-bottom: 8px;
     border-radius: 4px;
-    background: #ffd35c;
+    background: var(--highlight);
     transition: width 150ms ease;
   }
   .uploading .ubar.indet {
@@ -391,19 +375,6 @@
   .uploading span {
     font-size: 13px;
   }
-  .toast {
-    position: fixed;
-    left: 50%;
-    bottom: 76px;
-    transform: translateX(-50%);
-    z-index: 45;
-    padding: 10px 18px;
-    border-radius: 999px;
-    background: #201d1a;
-    color: #f7f3ec;
-    font-size: 14px;
-    box-shadow: 0 10px 24px #0003;
-  }
 
   @media (max-width: 820px) {
     .app {
@@ -418,7 +389,7 @@
       height: auto;
       padding: 10px 12px;
       border-right: 0;
-      border-bottom: 1px solid #e5ddd1;
+      border-bottom: 1px solid var(--border);
       overflow-x: auto;
     }
     .brand {
@@ -435,15 +406,6 @@
     .side-foot {
       margin-top: 0;
       margin-left: auto;
-    }
-    .up span {
-      display: none;
-    }
-    .up {
-      width: 42px;
-      flex: none;
-      justify-content: center;
-      padding: 0;
     }
     .content {
       padding: 16px;

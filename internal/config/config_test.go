@@ -59,3 +59,28 @@ func TestLoadEnvOverride(t *testing.T) {
 		t.Errorf("OriginalsDir = %q, want %q", got, want)
 	}
 }
+
+func TestLoadHardeningDefaults(t *testing.T) {
+	d := Default()
+	if d.TrustProxy {
+		t.Error("TrustProxy should be off by default so client IPs cannot be spoofed")
+	}
+	if d.SecureCookies {
+		t.Error("SecureCookies should be off by default (opt-in behind TLS)")
+	}
+	if d.MetricsToken != "" {
+		t.Errorf("MetricsToken default = %q, want empty", d.MetricsToken)
+	}
+
+	env := map[string]string{
+		"KURAKI_TRUST_PROXY":   "1",
+		"KURAKI_METRICS_TOKEN": "  scrape-me  ",
+	}
+	c := Load(func(k string) string { return env[k] })
+	if !c.TrustProxy {
+		t.Error("TrustProxy = false, want true for KURAKI_TRUST_PROXY=1")
+	}
+	if c.MetricsToken != "scrape-me" {
+		t.Errorf("MetricsToken = %q, want trimmed \"scrape-me\"", c.MetricsToken)
+	}
+}

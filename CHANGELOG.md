@@ -21,11 +21,17 @@ Docker-first deployment and a full browser experience over an embedded web UI.
   HttpOnly/SameSite session cookies. Failed logins are rate-limited per IP.
 - Automatic database snapshot taken before every schema migration, so upgrades
   are safe and reversible.
-- `/healthz` liveness endpoint and a `/metrics` endpoint reporting memory,
-  goroutines, uptime, and library counts.
+- `/healthz` liveness endpoint (public) and a `/metrics` endpoint reporting
+  memory, goroutines, uptime, and library counts. `/metrics` requires an owner
+  session or an `Authorization: Bearer <KURAKI_METRICS_TOKEN>` header, so library
+  size and storage counters are never exposed to anonymous callers.
 - Configurable trash retention and thumbnail size via `KURAKI_TRASH_RETENTION_DAYS`
   and `KURAKI_THUMBNAIL_SIZE`; `KURAKI_SECURE_COOKIES=1` marks the session cookie
   Secure for HTTPS production; `KURAKI_OCR=1` enables the local OCR worker.
+- `KURAKI_TRUST_PROXY=1` opts into deriving the client IP from
+  `X-Forwarded-For`/`X-Real-IP`. Off by default so a directly-exposed server
+  keys rate limits on the real TCP peer and forged headers cannot bypass the
+  per-IP login and pairing throttles.
 - The Docker image bundles `tesseract` so opt-in OCR works out of the box.
 - Docker image with libvips and ffmpeg bundled, a `docker-compose.yml` for
   one-command hosting, a container health check that self-probes via the binary,
@@ -112,6 +118,26 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - Editing a photo's capture date, location, and caption — re-geocoding on a
   location change — plus batch capture-time shifting to correct camera timezones.
 
+**Accessibility & appearance**
+- Rebuilt the web UI on **shadcn-svelte + Tailwind v4**. A single design-token
+  palette (the warm "kura" scheme, mapped onto shadcn's `--primary` /
+  `--foreground` / … tokens) themes every surface, with Geist / Public Sans
+  typography. Shared primitives — Button, Dialog, Input, Card, DropdownMenu, and
+  Sonner toasts — come straight from shadcn so behaviour stays consistent.
+- Dark mode across the whole UI, driven by `mode-watcher`. It follows the
+  operating system by default and can be pinned to Light or Dark from the
+  sidebar; the choice persists and is applied before first paint so there is no
+  flash of the wrong theme. Every text/background pair meets WCAG AA contrast in
+  both themes.
+- Extracted the repeated markup into small components — `PageHeader`,
+  `StatCard`, `FilterChip`, `SkeletonGrid`, `EmptyState`, `IconButton` — so the
+  route files stay short and consistent.
+- Keyboard and screen-reader pass on the web UI: a "skip to content" link, a
+  visible focus ring on every control, `aria-current` on the active nav item,
+  labelled form fields, live-region toasts (Sonner) and upload/import progress,
+  Escape-to-close and focus-trapped dialogs (bits-ui), and honouring
+  `prefers-reduced-motion`.
+
 **Places**
 - A map of geotagged photos (Leaflet + OpenStreetMap) with clustered thumbnails.
 - Offline reverse geocoding resolves GPS to city and country names locally, with
@@ -122,6 +148,9 @@ Docker-first deployment and a full browser experience over an embedded web UI.
   week-long cache on thumbnails, so the timeline scrolls without re-fetching.
 - Gzip compression for JSON and UI responses; SQLite cache, memory-mapped I/O,
   and in-memory temp store for faster queries.
+- Index on `album_assets(asset_id)` so album membership lookups and the cascade
+  that runs when an asset is trashed stay fast as libraries grow, instead of
+  scanning the whole join table per asset.
 
 **Media**
 - Thumbnail generation through libvips (HEIC/AVIF/RAW previews) with a pure-Go

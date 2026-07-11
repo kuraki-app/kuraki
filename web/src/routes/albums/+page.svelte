@@ -5,6 +5,9 @@
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
   import type { Album } from '$lib/types';
+  import PageHeader from '$lib/components/PageHeader.svelte';
+  import EmptyState from '$lib/components/EmptyState.svelte';
+  import { Button } from '$lib/components/ui/button';
 
   let albums: Album[] = [];
   let loading = true;
@@ -32,18 +35,14 @@
   }
 </script>
 
-<header class="head">
-  <div>
-    <h1>Albums</h1>
-    <p>{albums.length} {albums.length === 1 ? 'album' : 'albums'}</p>
-  </div>
-  <button class="new" type="button" on:click={create}><Plus size={16} /> New album</button>
-</header>
+<PageHeader title="Albums" subtitle={`${albums.length} ${albums.length === 1 ? 'album' : 'albums'}`}>
+  <Button onclick={create}><Plus size={16} aria-hidden="true" /> New album</Button>
+</PageHeader>
 
 {#if loading}
-  <div class="grid">{#each Array(6) as _}<div class="card skel"></div>{/each}</div>
+  <div class="grid">{#each Array(6) as _}<div class="h-40 animate-pulse rounded-xl bg-muted"></div>{/each}</div>
 {:else if albums.length === 0}
-  <div class="empty"><h2>No albums yet</h2></div>
+  <EmptyState title="No albums yet" />
 {:else}
   <div class="grid">
     {#each albums as album (album.id)}
@@ -59,37 +58,6 @@
 {/if}
 
 <style>
-  .head {
-    display: flex;
-    align-items: center;
-    margin-bottom: 20px;
-  }
-  .head > div {
-    margin-right: auto;
-  }
-  .head h1 {
-    margin: 0;
-    font-size: 22px;
-    font-weight: 700;
-  }
-  .head p {
-    margin: 3px 0 0;
-    color: #6a6259;
-    font-size: 14px;
-  }
-  .new {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 40px;
-    padding: 0 16px;
-    border: 0;
-    border-radius: 8px;
-    background: #24211f;
-    color: #fff;
-    font-weight: 600;
-    cursor: pointer;
-  }
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -99,10 +67,10 @@
     display: grid;
     gap: 10px;
     padding: 12px;
-    border: 1px solid #e5ddd1;
+    border: 1px solid var(--border);
     border-radius: 12px;
-    background: #fffaf3;
-    color: #24211f;
+    background: var(--card);
+    color: var(--foreground);
     text-decoration: none;
   }
   .thumb {
@@ -110,33 +78,15 @@
     place-items: center;
     aspect-ratio: 16 / 10;
     border-radius: 8px;
-    background: #efe7da;
-    color: #8a8175;
+    background: var(--accent);
+    color: var(--text-faint);
   }
   .meta strong {
     display: block;
     overflow-wrap: anywhere;
   }
   .meta span {
-    color: #8a8175;
+    color: var(--text-faint);
     font-size: 13px;
-  }
-  .card.skel {
-    height: 160px;
-    border: 0;
-    background: linear-gradient(90deg, #e6ded3, #f9f5ee, #e6ded3);
-    background-size: 220% 100%;
-    animation: pulse 1.4s infinite;
-  }
-  .empty {
-    display: grid;
-    place-items: center;
-    min-height: 260px;
-    color: #6a6259;
-  }
-  @keyframes pulse {
-    to {
-      background-position: -220% 0;
-    }
   }
 </style>

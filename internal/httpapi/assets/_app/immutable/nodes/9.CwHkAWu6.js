@@ -1,0 +1,1 @@
+import"../chunks/Bc7W5Dix.js";import{i as a,a as e}from"../chunks/C0O6lC9w.js";import{p as i,a as r}from"../chunks/DXAbhbgU.js";import{L as p}from"../chunks/CEyhw5Gd.js";function v(o,t){i(t,!1),a(),p(o,{load:()=>e.favorites(),title:"Favorites",favoritesMode:!0,emptyText:"No favorites yet — tap the star on a photo"}),r()}export{v as component};

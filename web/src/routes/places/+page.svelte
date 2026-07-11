@@ -7,6 +7,7 @@
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
   import type { Asset, PlaceGroup } from '$lib/types';
+  import PageHeader from '$lib/components/PageHeader.svelte';
 
   let mapEl: HTMLDivElement;
   let map: any;
@@ -77,12 +78,7 @@
   }
 </script>
 
-<header class="head">
-  <div>
-    <h1>Places</h1>
-    <p>{assets.length} located {assets.length === 1 ? 'photo' : 'photos'}</p>
-  </div>
-</header>
+<PageHeader title="Places" subtitle={`${assets.length} located ${assets.length === 1 ? 'photo' : 'photos'}`} />
 
 <div class="map" bind:this={mapEl}></div>
 
@@ -113,25 +109,12 @@
 {/if}
 
 <style>
-  .head {
-    margin-bottom: 16px;
-  }
-  .head h1 {
-    margin: 0;
-    font-size: 22px;
-    font-weight: 700;
-  }
-  .head p {
-    margin: 3px 0 0;
-    color: #6a6259;
-    font-size: 14px;
-  }
   .map {
     height: 60vh;
     min-height: 360px;
     border-radius: 12px;
     overflow: hidden;
-    border: 1px solid #e5ddd1;
+    border: 1px solid var(--border);
   }
   .places {
     display: grid;
@@ -144,9 +127,9 @@
     align-items: center;
     gap: 12px;
     padding: 8px;
-    border: 1px solid #e5ddd1;
+    border: 1px solid var(--border);
     border-radius: 10px;
-    background: #fffaf3;
+    background: var(--card);
     cursor: pointer;
     text-align: left;
   }
@@ -158,16 +141,16 @@
   }
   .place strong {
     display: block;
-    color: #24211f;
+    color: var(--foreground);
     overflow-wrap: anywhere;
   }
   .place span {
-    color: #8a8175;
+    color: var(--text-faint);
     font-size: 13px;
   }
   .none {
     margin-top: 18px;
-    color: #6a6259;
+    color: var(--muted-foreground);
   }
   :global(.photo-pin img) {
     width: 46px;

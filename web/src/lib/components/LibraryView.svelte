@@ -8,6 +8,10 @@
   import Viewer from './Viewer.svelte';
   import BatchBar from './BatchBar.svelte';
   import AlbumPicker from './AlbumPicker.svelte';
+  import PageHeader from './PageHeader.svelte';
+  import EmptyState from './EmptyState.svelte';
+  import SkeletonGrid from './SkeletonGrid.svelte';
+  import { Button } from '$lib/components/ui/button';
 
   export let load: (cursor?: string) => Promise<AssetList>;
   export let title = '';
@@ -232,30 +236,27 @@
   }
 </script>
 
-<header class="head">
-  <div>
-    {#if title}<h1>{title}</h1>{/if}
-    <p>{subtitle || `${assets.length} ${assets.length === 1 ? 'item' : 'items'}`}</p>
-  </div>
+<PageHeader {title} subtitle={subtitle || `${assets.length} ${assets.length === 1 ? 'item' : 'items'}`}>
   <slot name="actions" />
   {#if assets.length > 0}
-    <button class="select" type="button" class:on={selectMode} on:click={() => (selectMode ? clearSel() : (selectMode = true))}>
-      <CheckSquare size={16} />
+    <Button
+      variant={selectMode ? 'default' : 'outline'}
+      onclick={() => (selectMode ? clearSel() : (selectMode = true))}
+    >
+      <CheckSquare size={16} aria-hidden="true" />
       {selectMode ? 'Cancel' : 'Select'}
-    </button>
+    </Button>
   {/if}
-</header>
+</PageHeader>
 
 {#if error}
-  <div class="notice">{error}</div>
+  <div class="grid min-h-[120px] place-items-center text-destructive" role="alert">{error}</div>
 {/if}
 
 {#if loading}
-  <div class="grid skeleton">
-    {#each Array(18) as _}<div></div>{/each}
-  </div>
+  <SkeletonGrid />
 {:else if assets.length === 0}
-  <div class="empty"><h2>{emptyText}</h2></div>
+  <EmptyState title={emptyText} />
 {:else}
   <AssetGrid
     {assets}
@@ -266,9 +267,11 @@
     on:toggle={(e) => toggle(e.detail)}
   />
   {#if cursor}
-    <button class="more" type="button" disabled={loadingMore} on:click={loadMore}>
-      {loadingMore ? 'Loading' : 'Load more'}
-    </button>
+    <div class="mt-6 flex justify-center">
+      <Button variant="outline" disabled={loadingMore} onclick={loadMore}>
+        {loadingMore ? 'Loading' : 'Load more'}
+      </Button>
+    </div>
   {/if}
 {/if}
 
@@ -310,83 +313,3 @@
     on:close={() => (pickerOpen = false)}
   />
 {/if}
-
-<style>
-  .head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 20px;
-  }
-  .head h1 {
-    margin: 0;
-    font-size: 22px;
-    font-weight: 700;
-  }
-  .head p {
-    margin: 3px 0 0;
-    color: #6a6259;
-    font-size: 14px;
-  }
-  .head > div {
-    margin-right: auto;
-  }
-  .select {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 38px;
-    padding: 0 14px;
-    border: 1px solid #d8d0c5;
-    border-radius: 8px;
-    background: #fffaf3;
-    color: #24211f;
-    cursor: pointer;
-    font-weight: 600;
-  }
-  .select.on {
-    background: #24211f;
-    color: #fff;
-    border-color: #24211f;
-  }
-  .notice {
-    display: grid;
-    place-items: center;
-    min-height: 120px;
-    color: #a33a2a;
-  }
-  .empty {
-    display: grid;
-    place-items: center;
-    min-height: 260px;
-    color: #6a6259;
-  }
-  .grid.skeleton {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
-    gap: 8px;
-  }
-  .skeleton div {
-    aspect-ratio: 1;
-    border-radius: 6px;
-    background: linear-gradient(90deg, #e6ded3, #f9f5ee, #e6ded3);
-    background-size: 220% 100%;
-    animation: pulse 1.4s infinite;
-  }
-  .more {
-    display: block;
-    min-width: 140px;
-    height: 42px;
-    margin: 26px auto 0;
-    border: 1px solid #cfc5b8;
-    border-radius: 8px;
-    background: #fffaf3;
-    color: #24211f;
-    cursor: pointer;
-  }
-  @keyframes pulse {
-    to {
-      background-position: -220% 0;
-    }
-  }
-</style>

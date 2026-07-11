@@ -4,6 +4,9 @@
   import { showToast } from '$lib/stores';
   import { fileSize, relativeTime } from '$lib/format';
   import type { IntegrityRun, LibraryStats } from '$lib/types';
+  import PageHeader from '$lib/components/PageHeader.svelte';
+  import StatCard from '$lib/components/StatCard.svelte';
+  import { Button } from '$lib/components/ui/button';
 
   let stats: LibraryStats | null = null;
   let integrity: IntegrityRun | null = null;
@@ -51,23 +54,22 @@
   $: maxYear = stats ? Math.max(1, ...stats.by_year.map((y) => y.count)) : 1;
 </script>
 
-<header class="head">
-  <h1>Library</h1>
-  <a class="export" href="/api/export" download>Export library (.zip)</a>
-</header>
+<PageHeader title="Library">
+  <Button variant="outline" href="/api/export" download>Export library (.zip)</Button>
+</PageHeader>
 
 {#if loading}
   <p class="muted">Loading…</p>
 {:else if stats}
   <div class="cards">
-    <div class="card"><strong>{stats.total.toLocaleString()}</strong><span>Photos & videos</span></div>
-    <div class="card"><strong>{fileSize(stats.total_bytes)}</strong><span>Total size</span></div>
-    <div class="card"><strong>{stats.images.toLocaleString()}</strong><span>Photos</span></div>
-    <div class="card"><strong>{stats.videos.toLocaleString()}</strong><span>Videos</span></div>
-    <div class="card"><strong>{stats.favorites.toLocaleString()}</strong><span>Favorites</span></div>
-    <div class="card"><strong>{stats.albums.toLocaleString()}</strong><span>Albums</span></div>
-    <div class="card"><strong>{stats.places.toLocaleString()}</strong><span>Places</span></div>
-    <div class="card"><strong>{stats.trashed.toLocaleString()}</strong><span>In trash</span></div>
+    <StatCard value={stats.total.toLocaleString()} label="Photos & videos" />
+    <StatCard value={fileSize(stats.total_bytes)} label="Total size" />
+    <StatCard value={stats.images.toLocaleString()} label="Photos" />
+    <StatCard value={stats.videos.toLocaleString()} label="Videos" />
+    <StatCard value={stats.favorites.toLocaleString()} label="Favorites" />
+    <StatCard value={stats.albums.toLocaleString()} label="Albums" />
+    <StatCard value={stats.places.toLocaleString()} label="Places" />
+    <StatCard value={stats.trashed.toLocaleString()} label="In trash" />
   </div>
 
   <section class="integrity {integrity?.status ?? ''}">
@@ -79,9 +81,9 @@
         <span>Not verified yet</span>
       {/if}
     </div>
-    <button type="button" class="verify" disabled={verifying || integrity?.status === 'running'} on:click={verifyNow}>
+    <Button variant="outline" disabled={verifying || integrity?.status === 'running'} onclick={verifyNow}>
       {verifying || integrity?.status === 'running' ? 'Verifying…' : 'Verify now'}
-    </button>
+    </Button>
   </section>
 
   {#if stats.by_year.length > 0}
@@ -101,52 +103,13 @@
 {/if}
 
 <style>
-  .head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 20px;
-  }
-  .head h1 {
-    margin: 0;
-    margin-right: auto;
-    font-size: 22px;
-    font-weight: 700;
-  }
-  .export {
-    padding: 8px 14px;
-    border: 1px solid #d8d0c5;
-    border-radius: 8px;
-    background: #fffaf3;
-    color: #24211f;
-    text-decoration: none;
-    font-size: 14px;
-    font-weight: 600;
-  }
   .muted {
-    color: #6a6259;
+    color: var(--muted-foreground);
   }
   .cards {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 12px;
-  }
-  .card {
-    display: grid;
-    gap: 4px;
-    padding: 16px;
-    border: 1px solid #e5ddd1;
-    border-radius: 12px;
-    background: #fffaf3;
-  }
-  .card strong {
-    font-size: 24px;
-    font-weight: 700;
-    color: #201d1a;
-  }
-  .card span {
-    color: #8a8175;
-    font-size: 13px;
   }
   .integrity {
     display: flex;
@@ -154,14 +117,14 @@
     gap: 12px;
     margin-top: 16px;
     padding: 14px 16px;
-    border: 1px solid #e5ddd1;
+    border: 1px solid var(--border);
     border-radius: 12px;
-    background: #fffaf3;
+    background: var(--card);
   }
   .integrity.problems,
   .integrity.error {
-    border-color: #e6c3bb;
-    background: #f8efec;
+    border-color: var(--destructive-border);
+    background: var(--destructive-bg);
   }
   .int-text {
     display: grid;
@@ -170,30 +133,15 @@
     min-width: 0;
   }
   .int-text strong {
-    color: #201d1a;
+    color: var(--foreground);
   }
   .int-text span {
-    color: #6a6259;
+    color: var(--muted-foreground);
     font-size: 13px;
   }
   .integrity.problems .int-text span,
   .integrity.error .int-text span {
-    color: #a33a2a;
-  }
-  .verify {
-    flex: none;
-    padding: 8px 14px;
-    border: 1px solid #d8d0c5;
-    border-radius: 8px;
-    background: #fff;
-    color: #24211f;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 600;
-  }
-  .verify:disabled {
-    opacity: 0.6;
-    cursor: default;
+    color: var(--destructive);
   }
   .years {
     margin-top: 28px;
@@ -202,7 +150,7 @@
     margin: 0 0 12px;
     font-size: 16px;
     font-weight: 700;
-    color: #4f4942;
+    color: var(--text-dim);
   }
   .bars {
     display: grid;
@@ -215,23 +163,23 @@
     gap: 10px;
   }
   .yr {
-    color: #6a6259;
+    color: var(--muted-foreground);
     font-size: 14px;
   }
   .track {
     height: 12px;
     border-radius: 6px;
-    background: #ece3d6;
+    background: var(--muted);
     overflow: hidden;
   }
   .fill {
     height: 100%;
     border-radius: 6px;
-    background: #24211f;
+    background: var(--primary);
   }
   .n {
     text-align: right;
-    color: #4f4942;
+    color: var(--text-dim);
     font-size: 14px;
   }
 </style>

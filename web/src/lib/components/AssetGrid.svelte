@@ -70,7 +70,7 @@
     margin: 0;
     font-size: 15px;
     font-weight: 700;
-    color: #4f4942;
+    color: var(--text-dim);
   }
   .grid {
     display: grid;
@@ -83,13 +83,13 @@
     overflow: hidden;
     border: 0;
     border-radius: 6px;
-    background: #ded6ca;
-    color: #5f574e;
+    background: var(--thumb);
+    color: var(--text-dim);
     cursor: pointer;
     padding: 0;
   }
   .tile.selected {
-    outline: 3px solid #24211f;
+    outline: 3px solid var(--primary);
     outline-offset: -3px;
   }
   .tile img {
@@ -154,8 +154,8 @@
     color: transparent;
   }
   .check.on {
-    background: #24211f;
-    color: #fff;
+    background: var(--primary);
+    color: var(--primary-foreground);
   }
   @media (max-width: 780px) {
     .grid {

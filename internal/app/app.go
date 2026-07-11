@@ -527,6 +527,8 @@ func (a *App) Serve(ctx context.Context) error {
 		Queue:         a.Queue,
 		ThumbSize:     a.Cfg.ThumbnailSize,
 		SecureCookies: a.Cfg.SecureCookies,
+		TrustProxy:    a.Cfg.TrustProxy,
+		MetricsToken:  a.Cfg.MetricsToken,
 		Logger:        a.Log,
 	})
 	srv := &http.Server{

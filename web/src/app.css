@@ -1,0 +1,267 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import "shadcn-svelte/tailwind.css";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/public-sans";
+
+/* shadcn-svelte dark mode is a `.dark` class on <html> (driven by mode-watcher),
+ * not a media query, so a pinned choice always wins. */
+@custom-variant dark (&:is(.dark *));
+
+/* ── Kuraki "kura" palette, mapped onto shadcn-svelte token names. ──────────
+ * Warm-neutral, verified for WCAG AA contrast in both themes. Light is :root;
+ * dark overrides live under .dark. Extra semantic tokens (--ok/--warn/--chrome…)
+ * carry Kuraki-specific meaning shadcn does not model. */
+:root {
+  --radius: 0.625rem;
+
+  --background: #f6f3ee;
+  --foreground: #201d1a;
+  --card: #fffaf3;
+  --card-foreground: #201d1a;
+  --popover: #fffaf3;
+  --popover-foreground: #201d1a;
+  --primary: #24211f;
+  --primary-foreground: #ffffff;
+  --secondary: #efe7da;
+  --secondary-foreground: #201d1a;
+  --muted: #ece3d6;
+  --muted-foreground: #6a6259;
+  --accent: #efe7da;
+  --accent-foreground: #201d1a;
+  --destructive: #a33a2a;
+  --destructive-foreground: #ffffff;
+  --border: #e5ddd1;
+  --input: #d8d0c5;
+  --ring: #1f5fbf;
+
+  --chart-1: #24211f;
+  --chart-2: #2b7548;
+  --chart-3: #2b5c9c;
+  --chart-4: #ffd35c;
+  --chart-5: #a33a2a;
+
+  --sidebar: #fbf8f2;
+  --sidebar-foreground: #201d1a;
+  --sidebar-primary: #24211f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #efe7da;
+  --sidebar-accent-foreground: #201d1a;
+  --sidebar-border: #e5ddd1;
+  --sidebar-ring: #1f5fbf;
+
+  /* Kuraki extras (not part of shadcn). */
+  --text-dim: #4f4942;
+  --text-faint: #8a8175;
+  --thumb: #ded6ca;
+  --ok: #2b7548;
+  --ok-bg: #e5f2e9;
+  --info: #2b5c9c;
+  --info-bg: #e4edf7;
+  --warn: #8a5a2a;
+  --warn-text: #7a4a3a;
+  --warn-bg: #fff8ea;
+  --warn-border: #ead7b8;
+  --destructive-bg: #f6e3df;
+  --destructive-border: #e6c3bb;
+  --skel-a: #e6ded3;
+  --skel-b: #f9f5ee;
+  --highlight: #ffd35c;
+
+  /* Floating "dark glass" chrome — constant in both themes. */
+  --chrome: #201d1a;
+  --chrome-text: #f7f3ec;
+  --chrome-muted: #c9c0b6;
+  --chrome-fill: rgba(255, 255, 255, 0.08);
+  --chrome-fill-strong: rgba(255, 255, 255, 0.14);
+  --chrome-danger: #ff9a86;
+
+  --scrim: rgba(20, 18, 14, 0.55);
+  --shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  --shadow-strong: 0 12px 34px rgba(0, 0, 0, 0.26);
+}
+.dark {
+  --scrim: rgba(0, 0, 0, 0.62);
+  --shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  --shadow-strong: 0 12px 34px rgba(0, 0, 0, 0.6);
+}
+
+.dark {
+  --background: #14120e;
+  --foreground: #f2ede3;
+  --card: #211d17;
+  --card-foreground: #f2ede3;
+  --popover: #211d17;
+  --popover-foreground: #f2ede3;
+  --primary: #f0eadf;
+  --primary-foreground: #201d1a;
+  --secondary: #2c2820;
+  --secondary-foreground: #f2ede3;
+  --muted: #2c2820;
+  --muted-foreground: #b3aa9c;
+  --accent: #2c2820;
+  --accent-foreground: #f2ede3;
+  --destructive: #ff9a86;
+  --destructive-foreground: #201d1a;
+  --border: #322d24;
+  --input: #403a2f;
+  --ring: #8fb6e6;
+
+  --chart-1: #f0eadf;
+  --chart-2: #7cc79a;
+  --chart-3: #8fb6e6;
+  --chart-4: #ffd35c;
+  --chart-5: #ff9a86;
+
+  --sidebar: #1b1813;
+  --sidebar-foreground: #f2ede3;
+  --sidebar-primary: #f0eadf;
+  --sidebar-primary-foreground: #201d1a;
+  --sidebar-accent: #2c2820;
+  --sidebar-accent-foreground: #f2ede3;
+  --sidebar-border: #322d24;
+  --sidebar-ring: #8fb6e6;
+
+  --text-dim: #c4bbac;
+  --text-faint: #948b7d;
+  --thumb: #2a2620;
+  --ok: #7cc79a;
+  --ok-bg: #1c3a2a;
+  --info: #8fb6e6;
+  --info-bg: #1e2e42;
+  --warn: #d69a5a;
+  --warn-text: #d0a184;
+  --warn-bg: #33281a;
+  --warn-border: #4d3d24;
+  --destructive-bg: #3a221c;
+  --destructive-border: #5c332a;
+  --skel-a: #241f19;
+  --skel-b: #2c261e;
+  --highlight: #ffd35c;
+}
+
+/* Expose tokens to Tailwind utilities (bg-primary, text-muted-foreground, …). */
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Kuraki semantic utilities. */
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-warn: var(--warn);
+  --color-warn-text: var(--warn-text);
+  --color-warn-bg: var(--warn-bg);
+  --color-warn-border: var(--warn-border);
+  --color-thumb: var(--thumb);
+  --color-highlight: var(--highlight);
+  --font-sans: 'Geist Variable', sans-serif;
+  --font-heading: 'Public Sans Variable', sans-serif;
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    color-scheme: light;
+  	@apply font-sans;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    min-width: 320px;
+  }
+
+  /* Consistent keyboard focus ring for non-shadcn interactive elements. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Honour reduced-motion: keep meaning, drop the movement. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* Screen-reader-only content, revealed on focus (skip link). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 700;
+  text-decoration: none;
+  transform: translateY(-160%);
+  transition: transform 120ms ease;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}

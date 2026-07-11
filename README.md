@@ -62,7 +62,7 @@ HEIC/AVIF/RAW previews and video posters work out of the box.
 - Automatic **pre-migration database snapshot** on every schema change — upgrades are boring
 - Single-owner **auth** (argon2id, session cookies, rate-limited login)
 - Aggressive HTTP caching for media/UI, gzip for API responses, and SQLite tuning
-- `/healthz` and `/metrics` endpoints for monitoring
+- `/healthz` (public) and `/metrics` (owner-session or `KURAKI_METRICS_TOKEN` bearer) endpoints for monitoring
 
 ## Quick start
 
@@ -102,6 +102,10 @@ Sensible defaults, no config file required. Override via flags or environment
 | `--addr` | `KURAKI_ADDR` | `:3000` | HTTP listen address |
 | — | `KURAKI_TRASH_RETENTION_DAYS` | `30` | Days a trashed item is restorable before purge |
 | — | `KURAKI_THUMBNAIL_SIZE` | `512` | Thumbnail longest-edge size in pixels |
+| — | `KURAKI_OCR` | off | Enable the opt-in local OCR worker (needs `tesseract` on PATH) |
+| — | `KURAKI_SECURE_COOKIES` | off | Mark the session cookie `Secure` — enable behind HTTPS |
+| — | `KURAKI_TRUST_PROXY` | off | Trust `X-Forwarded-For`/`X-Real-IP` for the client IP — enable **only** behind a trusted reverse proxy |
+| — | `KURAKI_METRICS_TOKEN` | — | Bearer token that lets scrapers read `/metrics`; an owner session can always read it |
 
 ## Commands
 

@@ -5,6 +5,8 @@
   import { showToast } from '$lib/stores';
   import { relativeTime } from '$lib/format';
   import type { Job, MediaIssue } from '$lib/types';
+  import PageHeader from '$lib/components/PageHeader.svelte';
+  import EmptyState from '$lib/components/EmptyState.svelte';
 
   let jobs: Job[] = [];
   let mediaIssues: MediaIssue[] = [];
@@ -65,12 +67,7 @@
   const pct = (j: Job) => (j.total ? Math.round((j.imported / j.total) * 100) : 0);
 </script>
 
-<header class="head">
-  <div>
-    <h1>Activity</h1>
-    <p>Recent imports</p>
-  </div>
-</header>
+<PageHeader title="Activity" subtitle="Recent imports" />
 
 {#if loading}
   <p class="muted">Loading…</p>
@@ -100,7 +97,7 @@
   {/if}
 
   {#if jobs.length === 0}
-    {#if mediaIssues.length === 0}<div class="empty"><h2>No recent activity</h2></div>{/if}
+    {#if mediaIssues.length === 0}<EmptyState title="No recent activity" />{/if}
   {:else}
   <div class="list">
     {#each jobs as job (job.id)}
@@ -157,24 +154,8 @@
 {/if}
 
 <style>
-  .head h1 {
-    margin: 0;
-    font-size: 22px;
-    font-weight: 700;
-  }
-  .head p {
-    margin: 3px 0 20px;
-    color: #6a6259;
-    font-size: 14px;
-  }
   .muted {
-    color: #6a6259;
-  }
-  .empty {
-    display: grid;
-    place-items: center;
-    min-height: 260px;
-    color: #6a6259;
+    color: var(--muted-foreground);
   }
   .list {
     display: grid;
@@ -183,24 +164,24 @@
   .media-health {
     margin-bottom: 20px;
     padding: 14px;
-    border: 1px solid #ead7b8;
+    border: 1px solid var(--warn-border);
     border-radius: 12px;
-    background: #fff8ea;
+    background: var(--warn-bg);
   }
   .media-health h2 { margin: 0; font-size: 16px; }
-  .media-health p { margin: 5px 0 10px; color: #6a6259; font-size: 13px; }
+  .media-health p { margin: 5px 0 10px; color: var(--muted-foreground); font-size: 13px; }
   .media-health ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
   .media-health li { display: flex; align-items: center; gap: 10px; font-size: 13px; }
   .media-health .mi-text { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
-  .media-health .mi-text span { color: #7a4a3a; }
+  .media-health .mi-text span { color: var(--warn-text); }
   .media-health .rebuild {
     margin-left: auto;
     flex: none;
     padding: 5px 12px;
-    border: 1px solid #d8d0c5;
+    border: 1px solid var(--input);
     border-radius: 8px;
-    background: #fffaf3;
-    color: #24211f;
+    background: var(--card);
+    color: var(--foreground);
     cursor: pointer;
     font-size: 13px;
   }
@@ -211,9 +192,9 @@
     align-items: start;
     gap: 12px;
     padding: 14px;
-    border: 1px solid #e5ddd1;
+    border: 1px solid var(--border);
     border-radius: 12px;
-    background: #fffaf3;
+    background: var(--card);
   }
   .icon {
     display: grid;
@@ -221,20 +202,20 @@
     width: 40px;
     height: 40px;
     border-radius: 10px;
-    background: #efe7da;
-    color: #6a6259;
+    background: var(--accent);
+    color: var(--muted-foreground);
   }
   .icon.succeeded {
-    color: #2f7d4f;
-    background: #e5f2e9;
+    color: var(--ok);
+    background: var(--ok-bg);
   }
   .icon.failed {
-    color: #a33a2a;
-    background: #f6e3df;
+    color: var(--destructive);
+    background: var(--destructive-bg);
   }
   .icon.running {
-    color: #2b5c9c;
-    background: #e4edf7;
+    color: var(--info);
+    background: var(--info-bg);
   }
   .body {
     display: grid;
@@ -247,48 +228,48 @@
     gap: 8px;
   }
   .row1 strong {
-    color: #201d1a;
+    color: var(--foreground);
   }
   .pill {
     padding: 2px 8px;
     border-radius: 999px;
-    background: #ece3d6;
-    color: #5f574e;
+    background: var(--muted);
+    color: var(--text-dim);
     font-size: 12px;
     text-transform: capitalize;
   }
   .pill.succeeded {
-    background: #e5f2e9;
-    color: #2f7d4f;
+    background: var(--ok-bg);
+    color: var(--ok);
   }
   .pill.failed {
-    background: #f6e3df;
-    color: #a33a2a;
+    background: var(--destructive-bg);
+    color: var(--destructive);
   }
   .pill.running {
-    background: #e4edf7;
-    color: #2b5c9c;
+    background: var(--info-bg);
+    color: var(--info);
   }
   .time {
     margin-left: auto;
-    color: #8a8175;
+    color: var(--text-faint);
     font-size: 13px;
     white-space: nowrap;
   }
   .row2 {
-    color: #4f4942;
+    color: var(--text-dim);
     font-size: 14px;
     overflow-wrap: anywhere;
   }
   .err {
-    color: #a33a2a;
+    color: var(--destructive);
   }
   .errbtn {
     justify-self: start;
     padding: 2px 0;
     border: 0;
     background: none;
-    color: #8a5a2a;
+    color: var(--warn);
     cursor: pointer;
     font-size: 13px;
     text-decoration: underline;
@@ -300,7 +281,7 @@
     padding: 10px 12px;
     list-style: none;
     border-radius: 8px;
-    background: #f7efe4;
+    background: var(--warn-bg);
   }
   .errlist li {
     display: grid;
@@ -309,22 +290,22 @@
   }
   .errlist .fn {
     font-weight: 600;
-    color: #201d1a;
+    color: var(--foreground);
     overflow-wrap: anywhere;
   }
   .errlist .msg {
-    color: #7a4a3a;
+    color: var(--warn-text);
     overflow-wrap: anywhere;
   }
   .track {
     height: 6px;
     border-radius: 4px;
-    background: #ece3d6;
+    background: var(--muted);
     overflow: hidden;
   }
   .fill {
     height: 100%;
-    background: #24211f;
+    background: var(--primary);
     transition: width 200ms ease;
   }
   :global(.spin) {
