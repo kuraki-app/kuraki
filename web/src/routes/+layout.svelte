@@ -17,6 +17,7 @@
     Archive,
     EyeOff,
     Smartphone,
+    Settings,
     Monitor,
     Sun,
     Moon
@@ -55,7 +56,8 @@
     { href: '/stats', label: 'Library', icon: BarChart3 },
     { href: '/devices', label: 'Devices', icon: Smartphone },
     { href: '/activity', label: 'Activity', icon: Activity },
-    { href: '/trash', label: 'Trash', icon: Trash2 }
+    { href: '/trash', label: 'Trash', icon: Trash2 },
+    { href: '/settings', label: 'Settings', icon: Settings }
   ];
 
   onMount(init);

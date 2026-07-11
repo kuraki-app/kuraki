@@ -114,6 +114,9 @@ Sensible defaults, no config file required. Override via flags or environment
 | `kuraki serve` | Start the web server |
 | `kuraki import <dir>` | Bulk-import a directory (`--dry-run`, `--watch`, `--watch-interval`, `--thumb-workers`) |
 | `kuraki verify` | Re-checksum the library and report mismatches |
+| `kuraki backup <archive.tar.gz>` | Create a portable, SQLite-consistent library backup |
+| `kuraki restore <archive.tar.gz>` | Restore a backup into an empty library |
+| `kuraki passwd` | Reset an account password offline (`--username`, reads the new password from the terminal or piped stdin) — the recovery path when locked out of the web UI |
 | `kuraki version` | Print version |
 
 ## Architecture

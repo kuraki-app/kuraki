@@ -78,6 +78,7 @@ func NewRouter(d Deps) http.Handler {
 
 		r.Group(func(r chi.Router) {
 			r.Use(d.requireAuth)
+			r.Post("/account/password", d.changePassword)
 			r.Get("/assets", d.listAssets)
 			r.Post("/devices", d.registerDevice)
 			r.Post("/devices/pair", d.createPairingCode)

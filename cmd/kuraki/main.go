@@ -7,6 +7,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log/slog"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/kuraki-app/kuraki/internal/app"
+	"github.com/kuraki-app/kuraki/internal/auth"
 	"github.com/kuraki-app/kuraki/internal/backup"
 	"github.com/kuraki-app/kuraki/internal/config"
 	"github.com/kuraki-app/kuraki/internal/db"
@@ -25,6 +27,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/verify"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 // version is set at build time via -ldflags "-X main.version=...".
@@ -44,8 +47,94 @@ func rootCmd() *cobra.Command {
 		SilenceErrors: false,
 		Version:       version,
 	}
-	root.AddCommand(serveCmd(), importCmd(), verifyCmd(), backupCmd(), restoreCmd(), healthcheckCmd(), versionCmd())
+	root.AddCommand(serveCmd(), importCmd(), verifyCmd(), backupCmd(), restoreCmd(), passwdCmd(), healthcheckCmd(), versionCmd())
 	return root
+}
+
+// passwdCmd resets an account password offline, directly against the library
+// database — the recovery path when the owner is locked out of the web UI. It
+// reads the new password from an interactive terminal (no echo) or from stdin
+// when piped, so it works both by hand and in scripts/containers. Every existing
+// session for the account is invalidated so a forgotten-password reset also cuts
+// off any sessions an attacker might hold.
+func passwdCmd() *cobra.Command {
+	var dataDir, username string
+	cmd := &cobra.Command{
+		Use:   "passwd",
+		Short: "Reset an account password directly against the library (offline recovery)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := config.Load(os.Getenv)
+			if cmd.Flags().Changed("data-dir") {
+				cfg.DataDir = dataDir
+			}
+
+			password, err := readNewPassword(cmd)
+			if err != nil {
+				return err
+			}
+			if len(password) < 8 {
+				return fmt.Errorf("password must be at least 8 characters")
+			}
+			hash, err := auth.HashPassword(password)
+			if err != nil {
+				return err
+			}
+
+			database, err := db.Open(cmd.Context(), cfg.DBPath())
+			if err != nil {
+				return err
+			}
+			defer database.Close()
+
+			res, err := database.ExecContext(cmd.Context(),
+				`UPDATE users SET password_hash = ? WHERE username = ?`, hash, username)
+			if err != nil {
+				return err
+			}
+			if n, _ := res.RowsAffected(); n == 0 {
+				return fmt.Errorf("no account named %q; set --username to match the owner", username)
+			}
+			// Cut every existing session so the reset also revokes stolen cookies.
+			if _, err := database.ExecContext(cmd.Context(),
+				`DELETE FROM sessions WHERE user_id = (SELECT id FROM users WHERE username = ?)`, username); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "password updated for %q; all existing sessions were signed out\n", username)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&dataDir, "data-dir", config.Default().DataDir, "library data directory")
+	cmd.Flags().StringVar(&username, "username", "owner", "account username to reset")
+	return cmd
+}
+
+// readNewPassword reads a new password without echo from an interactive
+// terminal (asking twice to catch typos), or a single line from stdin when the
+// input is piped — e.g. `echo newpass | kuraki passwd`.
+func readNewPassword(cmd *cobra.Command) (string, error) {
+	if f, ok := cmd.InOrStdin().(*os.File); ok && term.IsTerminal(int(f.Fd())) {
+		fmt.Fprint(cmd.OutOrStdout(), "New password: ")
+		first, err := term.ReadPassword(int(f.Fd()))
+		fmt.Fprintln(cmd.OutOrStdout())
+		if err != nil {
+			return "", err
+		}
+		fmt.Fprint(cmd.OutOrStdout(), "Confirm password: ")
+		second, err := term.ReadPassword(int(f.Fd()))
+		fmt.Fprintln(cmd.OutOrStdout())
+		if err != nil {
+			return "", err
+		}
+		if string(first) != string(second) {
+			return "", fmt.Errorf("passwords did not match")
+		}
+		return string(first), nil
+	}
+	line, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+	if err != nil && line == "" {
+		return "", err
+	}
+	return strings.TrimRight(line, "\r\n"), nil
 }
 
 func backupCmd() *cobra.Command {

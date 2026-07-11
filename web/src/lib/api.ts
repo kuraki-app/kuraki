@@ -51,6 +51,8 @@ export const api = {
   login: (username: string, password: string) =>
     req<SetupStatus>('/api/login', jsonBody({ username, password })),
   logout: () => req<void>('/api/logout', { method: 'POST' }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    req<void>('/api/account/password', jsonBody({ current_password: currentPassword, new_password: newPassword })),
 
   assets: (cursor = '') =>
     req<AssetList>(`/api/assets?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),

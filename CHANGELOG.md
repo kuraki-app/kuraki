@@ -19,6 +19,11 @@ Docker-first deployment and a full browser experience over an embedded web UI.
   port, and database location, and prompts for an admin account on first visit.
 - Admin account creation and login, with argon2id password hashing and
   HttpOnly/SameSite session cookies. Failed logins are rate-limited per IP.
+- Change your password from the web UI's Settings page (verifies the current
+  password and signs out every other browser/device session), and an offline
+  `kuraki passwd` command to reset it directly against the library — the recovery
+  path when the owner is locked out. Both invalidate existing sessions so a reset
+  also revokes any stolen cookie.
 - Automatic database snapshot taken before every schema migration, so upgrades
   are safe and reversible.
 - `/healthz` liveness endpoint (public) and a `/metrics` endpoint reporting
