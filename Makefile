@@ -30,6 +30,14 @@ build-vips: ## Build with the libvips backend (needs libvips-dev)
 run: build ## Build and start the server
 	$(BIN_DIR)/$(BINARY) serve
 
+.PHONY: start
+start: ## Build web + binary and run one production-like server (scripts/start.sh)
+	./scripts/start.sh
+
+.PHONY: dev
+dev: ## Run API (:3000) + Vite UI (:5173) separately with hot reload (scripts/dev.sh)
+	./scripts/dev.sh
+
 .PHONY: web
 web: ## Build SvelteKit UI into embedded assets
 	cd web && npm run build

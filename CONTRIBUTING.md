@@ -8,19 +8,21 @@ Kuraki aims to be a focused, self-hosted photo backup you actually enjoy running
 
 ## Getting started
 
-Requirements: **Go 1.26+**. libvips + ffmpeg are optional (only for the full media pipeline; the default build is pure-Go).
+Requirements: **Go 1.26+** and **Node 20+** (for the web UI). libvips + ffmpeg are optional (only for
+the full media pipeline; the default build is pure-Go).
 
 ```sh
 git clone https://github.com/kuraki-app/kuraki
 cd kuraki
-make build       # -> ./bin/kuraki
-make run         # build + serve on :3000
-make test        # go test -race ./...
+./scripts/start.sh   # build UI + binary, run one server on :3000 (production-like)
+./scripts/dev.sh     # API (:3000) + Vite UI (:5173) separately, with hot reload
+make test            # go test -race ./...
 ```
 
 **Frontend:** the web UI (`web/`, SvelteKit) is built into `internal/httpapi/assets/` and embedded in
-the binary. Working on the UI needs Node; iterate with `cd web && npm install && npm run dev`, and run
-`npm run build` (which writes the embedded assets) before committing so the Go binary serves your changes.
+the binary. Use **`./scripts/dev.sh`** while iterating — it runs Vite with hot reload and proxies the
+API. Before committing a UI change, run **`make web`** (or `./scripts/start.sh`) so the rebuilt embedded
+assets are included; the Go binary serves those, not the Vite dev output.
 
 ## Development workflow
 

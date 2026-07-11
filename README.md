@@ -155,7 +155,7 @@ kuraki-data/
 
 ```
 kuraki/
-├── cmd/kuraki/              # CLI entrypoint (cobra): serve / import / verify / healthcheck / version
+├── cmd/kuraki/              # CLI entrypoint (cobra): serve / import / verify / backup / restore / passwd / version
 ├── internal/
 │   ├── app/                # composition root — wires config→db→storage→media→http
 │   ├── config/             # zero-config defaults + env/flag resolution
@@ -173,8 +173,11 @@ kuraki/
 │   ├── auth/               # argon2id hashing, session tokens
 │   └── httpapi/            # chi router, handlers, middleware; assets/ = embedded UI
 ├── web/                    # SvelteKit source, built into internal/httpapi/assets
+├── scripts/                # start.sh (one production-like process) + dev.sh (hot-reload)
+├── deploy/                 # production compose: Caddy (auto-HTTPS) + Caddyfile
 ├── Dockerfile              # runtime bundles libvips + ffmpeg
-├── docker-compose.yml
+├── docker-compose.yml      # simple one-command local host
+├── DEPLOYMENT.md           # production deployment & security guide
 └── ROADMAP.md              # milestone & progress tracker
 ```
 
@@ -183,12 +186,37 @@ kuraki/
 
 ## Development
 
-Requires **Go 1.26+**. For the full media pipeline you also need libvips and ffmpeg — or just
-use Docker, which includes them.
+Requires **Go 1.26+** and **Node 20+** (to build the web UI). For the full media pipeline you
+also need libvips and ffmpeg — or just use Docker, which includes them.
+
+### Run from source
 
 ```sh
-make build        # build the server binary
-make run          # build + serve on :3000
+./scripts/start.sh   # build the UI + binary, run ONE server on :3000 (production-like)
+./scripts/dev.sh     # run API (:3000) + Vite UI (:5173) SEPARATELY with hot reload
+```
+
+- **`scripts/start.sh`** (aka `make start`) compiles the SvelteKit UI into the Go binary and runs
+  a single process — the same way it runs in production. Open <http://localhost:3000>.
+- **`scripts/dev.sh`** (aka `make dev`) runs the backend and frontend as two processes so the UI
+  hot-reloads on save; Vite proxies `/api` to the Go server. Open <http://localhost:5173>.
+
+Both forward extra arguments to `kuraki serve`, e.g. `./scripts/dev.sh --addr :4000`.
+
+### Deploy with Docker
+
+```sh
+docker compose up -d                                   # simple local host on :3000
+docker compose -f deploy/docker-compose.caddy.yml up -d # production: automatic HTTPS via Caddy
+```
+
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the production setup and security settings.
+
+### Lower-level make targets
+
+```sh
+make build        # build the server binary into ./bin (UI must be built first: make web)
+make web          # build the SvelteKit UI into the embedded assets
 make test         # go test -race ./...
 make build-vips   # build with the libvips backend (-tags vips)
 make docker       # build the container image
@@ -201,8 +229,11 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a PR.
 
 ## Roadmap
 
-Phase 1 (personal backup & sync) → Phase 2 (multi-user & sharing) → Phase 3 (mobile & optional ML).
-Live status: **[ROADMAP.md](./ROADMAP.md)**.
+Ordered by the recurring jobs of a personal library: **Keep** (backup is a daily habit) and
+**Find** (retrieve a moment in seconds) are shipped; **Maintain** (prove you can move, repair, and
+recover the library) is the current focus. Sharing, multi-user accounts, and any bundled ML are
+deliberately **parked** — see the non-goals in **[ROADMAP.md](./ROADMAP.md)** for the full plan and
+rationale.
 
 ## Contributing
 

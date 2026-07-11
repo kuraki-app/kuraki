@@ -1,10 +1,14 @@
-# Kuraki — one-command self-hosting.
+# Kuraki — one-command self-hosting (simple local host, plain HTTP on :3000).
 #
 #   docker compose up -d      # build + start, then open http://localhost:3000
 #
 # Your photos live in ./kuraki-data (originals/, derivatives/, the
 # SQLite DB, and pre-migration snapshots) — back that directory up and you have
 # your whole library. Point an optional watch folder at anything Syncthing syncs.
+#
+# Exposing Kuraki to the internet? Use deploy/docker-compose.caddy.yml instead —
+# it adds automatic HTTPS via Caddy and the production security settings. See
+# DEPLOYMENT.md.
 
 services:
   kuraki:

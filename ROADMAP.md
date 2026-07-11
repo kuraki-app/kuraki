@@ -18,7 +18,10 @@ Activity view; libvips/pure-Go thumbnails, ffmpeg posters, and per-asset
 web-viewability with playback/preview derivatives; timeline, viewer, Places,
 albums, favorites, memories, stacks, duplicate review, metadata editing, tags,
 saved searches, ratings, archive/hidden, trash; whole-library export; live
-SQLite-consistent backup/restore; and scheduled integrity verification.
+SQLite-consistent backup/restore; opt-in scheduled backups with a dashboard
+backup-age indicator; scheduled integrity verification; owner password change
+plus an offline `kuraki passwd` recovery command; and a production deployment
+guide (Caddy automatic HTTPS).
 
 **Capture — backup is a daily habit** *(complete)*. Revocable device tokens and
 resumable upload sessions; a React Native iOS/Android client that automatically
@@ -71,7 +74,9 @@ sequence below is about trust, reliability, and staying light.
   never loses the application's metadata.
 - **Restore rehearsals.** Scheduled test restores into a disposable target that
   record a result; the dashboard reports last restore result, integrity result,
-  backup age, and a storage-growth forecast.
+  backup age, and a storage-growth forecast. *(Shipped so far: opt-in scheduled
+  backups with pruning, and last-backup age/outcome + integrity result on the
+  dashboard. Still to do: automated restore rehearsals and the storage forecast.)*
 - **Safe source cleanup.** Recommend removing originals from a source only after
   a verified backup and restore evidence; never make deletion part of ordinary
   backup.
@@ -96,10 +101,14 @@ a user can restore a current backup on a clean machine and see recorded proof
   ready.
 - **Web experience polish.** Jump-to-date, configurable grid density, slideshow,
   a keyboard and screen-reader audit, dark mode, a localization foundation, and
-  progressive image placeholders.
+  progressive image placeholders. *(Shipped: dark mode and the keyboard/
+  screen-reader audit, via the shadcn-svelte rebuild. Still to do: jump-to-date,
+  grid density, slideshow, localization, progressive placeholders.)*
 - **Operational edges.** Ship tesseract in the Docker image so opt-in OCR works
-  in the container; add indexes (place, tags, album) ahead of large libraries;
-  publish a low-resource benchmark.
+  in the container; add indexes ahead of large libraries; publish a low-resource
+  benchmark. *(Shipped: tesseract in the image; album and timeline-sort indexes
+  verified against a 50k-asset library; a production deployment guide with a
+  Caddy auto-HTTPS stack. Still to do: the published low-resource benchmark.)*
 
 **Exit criteria:** every advertised format has a passing fixture test on both
 profiles; the mobile client has a signed-off device pass; the web UI meets a

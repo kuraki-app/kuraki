@@ -225,6 +225,9 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - Cross-platform builds, continuous integration, and open-source project docs
   (README, contributing guide, code of conduct, security policy, issue and PR
   templates).
+- `scripts/start.sh` runs the UI and server together as one production-like
+  process; `scripts/dev.sh` runs the API and a hot-reloading Vite UI separately
+  (Vite proxies the API), also exposed as `make start` / `make dev`.
 
 ### Fixed
 - Filename search returned nothing for partial words (for example, searching
