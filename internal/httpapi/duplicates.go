@@ -45,7 +45,7 @@ func (d Deps) duplicates(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := d.DB.QueryContext(r.Context(), `
 		SELECT gm.group_id,a.id,a.filename,a.size_bytes,a.taken_at,
-		       (SELECT dv.path FROM derivatives dv WHERE dv.asset_id=a.id AND dv.kind='thumb')
+		       (SELECT dv.path FROM derivatives dv WHERE dv.asset_id=a.id AND dv.kind IN ('thumb','poster') ORDER BY CASE dv.kind WHEN 'thumb' THEN 0 ELSE 1 END LIMIT 1)
 		FROM duplicate_group_members gm JOIN assets a ON a.id=gm.asset_id
 		WHERE gm.run_id=? ORDER BY gm.group_id,a.id`, run.ID)
 	if err != nil {

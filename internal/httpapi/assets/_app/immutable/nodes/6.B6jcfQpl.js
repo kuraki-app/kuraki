@@ -1,0 +1,1 @@
+import"../chunks/In_r4Pg7.js";import{i as a,a as e}from"../chunks/BNU3oQhZ.js";import{p as o,a as r}from"../chunks/BkxjBBuX.js";import{L as p}from"../chunks/DMF3CT7s.js";function f(i,t){o(t,!1),a(),p(i,{load:()=>e.archived(),title:"Archive",subtitle:"Archived items stay private and out of your timeline",emptyText:"Your archive is empty"}),r()}export{f as component};

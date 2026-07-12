@@ -193,6 +193,14 @@ audited baseline and release checklist.
 
 ## 11. Handoff log (append newest at top)
 
+- `HEAD` — **Daily-use navigation and complete media duplicate review (Codex).** Timeline now supports
+  jump-to-date filtering, a persisted Compact/Comfortable/Large grid-density control, and progressive
+  thumbnail reveal; failed library loads have an explicit retry and the mobile Backup screen exposes retry
+  state for persisted failures. Video posters now receive perceptual hashes, so durable duplicate runs cover
+  both images and videos; thumbnail serving already falls back to posters. Migration regression now preserves
+  a simulated legacy row through the latest upgrade. `make check`, web build, mobile TypeScript, and Expo lint
+  are green. No co-author trailer.
+
 - `HEAD` — **Production foundations batch: media, durable duplicates, security, migration, mobile release (Codex).**
   Docker now builds the `vips` profile and CI compiles/tests it; `MEDIA_SUPPORT.md` records the
   explicit contract. Duplicate review is an all-library, durable SQLite run with progress and persisted

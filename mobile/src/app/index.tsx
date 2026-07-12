@@ -156,7 +156,15 @@ export default function BackupScreen() {
 
         {progress?.failed.length ? (
           <ThemedView type="backgroundElement" style={styles.card}>
-            <ThemedText type="subtitle">Needs attention</ThemedText>
+            <View style={styles.row}>
+              <ThemedText type="subtitle">Needs attention</ThemedText>
+              <Pressable disabled={running} style={styles.retryButton} onPress={() => void backupEngine.run()}>
+                <ThemedText type="smallBold">{running ? 'Retrying…' : 'Retry now'}</ThemedText>
+              </Pressable>
+            </View>
+            <ThemedText type="small" themeColor="textSecondary">
+              Retry checks the server offset and skips items already accepted by Kuraki.
+            </ThemedText>
             {progress.failed.slice(0, 8).map((item) => (
               <View key={item.localId} style={styles.session}>
                 <ThemedText selectable>{item.filename}</ThemedText>
@@ -217,4 +225,5 @@ const styles = StyleSheet.create({
   button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three, backgroundColor: '#cde7f7' },
   buttonSmall: { flex: 1, alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three, backgroundColor: '#cde7f7' },
   buttonGhost: { alignItems: 'center', borderRadius: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: Spacing.three, borderWidth: 1, borderColor: '#b8b9be' },
+  retryButton: { marginLeft: 'auto', borderRadius: Spacing.two, paddingHorizontal: Spacing.two, paddingVertical: Spacing.one, backgroundColor: '#cde7f7' },
 });

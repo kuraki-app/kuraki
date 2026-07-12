@@ -179,7 +179,7 @@ func (a *App) backfillPHashes(ctx context.Context) {
 	rows, err := a.DB.QueryContext(ctx, `
 		SELECT a.id, d.path FROM assets a
 		JOIN derivatives d ON d.asset_id = a.id AND d.kind = 'thumb'
-		WHERE a.media_type = 'image' AND a.phash IS NULL AND a.deleted_at IS NULL`)
+		WHERE a.media_type IN ('image','video') AND a.phash IS NULL AND a.deleted_at IS NULL`)
 	if err != nil {
 		a.Log.Warn("phash backfill query failed", "err", err)
 		return
@@ -488,7 +488,7 @@ func (a *App) startOCRWorker(ctx context.Context) {
 func (a *App) ocrBatch(ctx context.Context, limit int) (int, error) {
 	rows, err := a.DB.QueryContext(ctx, `
 		SELECT a.id, d.path FROM assets a
-		JOIN derivatives d ON d.asset_id = a.id AND d.kind = 'thumb'
+		JOIN derivatives d ON d.asset_id = a.id AND d.kind IN ('thumb','poster')
 		WHERE a.media_type = 'image' AND a.deleted_at IS NULL AND a.ocr_text IS NULL
 		LIMIT ?`, limit)
 	if err != nil {

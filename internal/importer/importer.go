@@ -421,6 +421,9 @@ func (i *Importer) createPoster(ctx context.Context, assetID, srcPath string, me
 		}
 		return fmt.Errorf("create poster: encode derivative: %w", err)
 	}
+	if h, ok := media.PerceptualHash(buf.Bytes()); ok {
+		_, _ = i.DB.ExecContext(ctx, `UPDATE assets SET phash = ? WHERE id = ?`, int64(h), assetID)
+	}
 	rel := fmt.Sprintf("derivatives/%s/poster.jpg", assetID)
 	if _, err := i.Store.Write(ctx, rel, &buf); err != nil {
 		return fmt.Errorf("create poster: write derivative: %w", err)

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Search, X, SlidersHorizontal } from '@lucide/svelte';
+  import { Search, X, SlidersHorizontal, CalendarDays } from '@lucide/svelte';
   import LibraryView from '$lib/components/LibraryView.svelte';
   import FilterChip from '$lib/components/FilterChip.svelte';
   import IconButton from '$lib/components/IconButton.svelte';
@@ -11,6 +11,7 @@
   let from = '';
   let to = '';
   let showFilters = false;
+  let jumpDate = '';
 
   // The applied filter set. A new object identity re-keys LibraryView so it
   // reloads from the first page whenever the filter changes.
@@ -35,6 +36,13 @@
     from = '';
     to = '';
     applied = {};
+  }
+  function jumpToDate() {
+    if (!jumpDate) return;
+    from = jumpDate;
+    to = '';
+    showFilters = true;
+    apply();
   }
 
   function summary(p: SearchParams): string {
@@ -70,6 +78,10 @@
       >
         <SlidersHorizontal size={16} aria-hidden="true" />
       </IconButton>
+      <label class="jump">
+        <CalendarDays size={16} aria-hidden="true" />
+        <input bind:value={jumpDate} type="date" aria-label="Jump to date" on:change={jumpToDate} />
+      </label>
       {#if filtered}
         <IconButton label="Clear filters" onclick={clearAll}>
           <X size={16} aria-hidden="true" />
@@ -116,6 +128,18 @@
     background: transparent;
     color: var(--foreground);
   }
+  .jump {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 38px;
+    padding: 0 8px;
+    border: 1px solid var(--input);
+    border-radius: 8px;
+    color: var(--muted-foreground);
+    background: var(--card);
+  }
+  .jump input { width: 122px; border: 0; outline: 0; background: transparent; color: var(--foreground); }
   .panel {
     display: flex;
     flex-wrap: wrap;

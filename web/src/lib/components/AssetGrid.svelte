@@ -8,9 +8,11 @@
   export let selectMode = false;
   export let selected: Set<string> = new Set();
   export let grouped = true;
+  export let density: 'compact' | 'comfortable' | 'large' = 'comfortable';
 
   const dispatch = createEventDispatcher<{ open: Asset; toggle: string }>();
   $: groups = grouped ? groupByDay(assets) : [{ day: '', items: assets }];
+  let loaded = new Set<string>();
 
   function activate(asset: Asset) {
     if (selectMode) dispatch('toggle', asset.id);
@@ -24,7 +26,7 @@
       {#if grouped && group.day}
         <h2>{labelDate(group.day)}</h2>
       {/if}
-      <div class="grid">
+      <div class="grid {density}">
         {#each group.items as asset (asset.id)}
           <button
             class="tile"
@@ -34,7 +36,15 @@
             aria-label={asset.filename}
           >
             {#if asset.thumbnail_url}
-              <img src={asset.thumbnail_url} alt={asset.filename} loading="lazy" />
+              <span class="shimmer" class:done={loaded.has(asset.id)}></span>
+              <img
+                class:loaded={loaded.has(asset.id)}
+                src={asset.thumbnail_url}
+                alt={asset.filename}
+                loading="lazy"
+                decoding="async"
+                on:load={() => (loaded = new Set(loaded).add(asset.id))}
+              />
             {:else}
               <span class="ph">{asset.media_type}</span>
             {/if}
@@ -77,6 +87,8 @@
     grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
     gap: 8px;
   }
+  .grid.compact { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 5px; }
+  .grid.large { grid-template-columns: repeat(auto-fill, minmax(188px, 1fr)); gap: 12px; }
   .tile {
     position: relative;
     aspect-ratio: 1;
@@ -97,7 +109,19 @@
     height: 100%;
     object-fit: cover;
     display: block;
+    opacity: 0;
+    transition: opacity 160ms ease;
   }
+  .tile img.loaded { opacity: 1; }
+  .shimmer {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, var(--thumb), color-mix(in srgb, var(--thumb) 72%, white), var(--thumb));
+    background-size: 200% 100%;
+    animation: shimmer 1.25s infinite;
+  }
+  .shimmer.done { opacity: 0; transition: opacity 160ms ease; animation: none; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
   .tile.selected img {
     transform: scale(0.9);
     border-radius: 4px;
@@ -162,5 +186,6 @@
       grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
       gap: 6px;
     }
+    .grid.large { grid-template-columns: repeat(auto-fill, minmax(144px, 1fr)); }
   }
 </style>

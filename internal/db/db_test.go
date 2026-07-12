@@ -75,6 +75,11 @@ func TestLatestMigrationDownUp(t *testing.T) {
 	if err := goose.Down(d, "."); err != nil {
 		t.Fatalf("down: %v", err)
 	}
+	// This models an existing v17 library with real rows before the new migration
+	// is applied, rather than merely exercising empty-schema DDL.
+	if _, err := d.ExecContext(ctx, `INSERT INTO users(id,username,password_hash) VALUES ('legacy','legacy','hash')`); err != nil {
+		t.Fatalf("insert historical row: %v", err)
+	}
 	if err := Migrate(d, nil); err != nil {
 		t.Fatalf("up after down: %v", err)
 	}
@@ -84,6 +89,10 @@ func TestLatestMigrationDownUp(t *testing.T) {
 	}
 	if after != before {
 		t.Fatalf("version after down/up = %d, want %d", after, before)
+	}
+	var username string
+	if err := d.QueryRowContext(ctx, `SELECT username FROM users WHERE id='legacy'`).Scan(&username); err != nil || username != "legacy" {
+		t.Fatalf("historical row after upgrade = %q, %v", username, err)
 	}
 	if _, err := d.ExecContext(ctx, `INSERT INTO users(id,username,password_hash) VALUES ('test','test','hash')`); err != nil {
 		t.Fatalf("database unusable after down/up: %v", err)

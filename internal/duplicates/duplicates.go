@@ -92,7 +92,7 @@ func Execute(ctx context.Context, db *sql.DB, runID string) (Run, error) {
 		_, _ = db.ExecContext(ctx, `UPDATE duplicate_runs SET status=?,total=?,processed=?,group_count=?,error=?,finished_at=? WHERE id=?`, run.Status, run.Total, run.Processed, run.Groups, run.Error, now(), run.ID)
 		return run, err
 	}
-	rows, err := db.QueryContext(ctx, `SELECT id,phash FROM assets WHERE owner_id=? AND media_type='image' AND phash IS NOT NULL AND deleted_at IS NULL`, ownerID)
+	rows, err := db.QueryContext(ctx, `SELECT id,phash FROM assets WHERE owner_id=? AND media_type IN ('image','video') AND phash IS NOT NULL AND deleted_at IS NULL`, ownerID)
 	if err != nil {
 		return finish(err)
 	}

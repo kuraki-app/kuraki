@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { CheckSquare } from '@lucide/svelte';
+  import { CheckSquare, Grid2X2, Grid3X3, Grid } from '@lucide/svelte';
   import type { Album, Asset, AssetList } from '$lib/types';
   import { api, downloadZip } from '$lib/api';
   import { libraryVersion, showToast } from '$lib/stores';
@@ -33,6 +33,7 @@
   let pickerOpen = false;
   let albums: Album[] = [];
   let mounted = false;
+  let density: 'compact' | 'comfortable' | 'large' = 'comfortable';
 
   const unsub = libraryVersion.subscribe(() => {
     if (mounted) reload();
@@ -40,6 +41,8 @@
 
   onMount(() => {
     mounted = true;
+    const saved = localStorage.getItem('kuraki:grid-density');
+    if (saved === 'compact' || saved === 'comfortable' || saved === 'large') density = saved;
     reload();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -48,6 +51,10 @@
 
   function msg(e: unknown) {
     return e instanceof Error ? e.message : 'Something went wrong';
+  }
+  function setDensity(next: typeof density) {
+    density = next;
+    localStorage.setItem('kuraki:grid-density', next);
   }
 
   async function reload() {
@@ -239,6 +246,11 @@
 <PageHeader {title} subtitle={subtitle || `${assets.length} ${assets.length === 1 ? 'item' : 'items'}`}>
   <slot name="actions" />
   {#if assets.length > 0}
+    <div class="inline-flex rounded-md border border-border" aria-label="Grid density">
+      <Button size="icon" variant={density === 'compact' ? 'secondary' : 'ghost'} onclick={() => setDensity('compact')} aria-label="Compact grid"><Grid2X2 size={16} /></Button>
+      <Button size="icon" variant={density === 'comfortable' ? 'secondary' : 'ghost'} onclick={() => setDensity('comfortable')} aria-label="Comfortable grid"><Grid3X3 size={16} /></Button>
+      <Button size="icon" variant={density === 'large' ? 'secondary' : 'ghost'} onclick={() => setDensity('large')} aria-label="Large grid"><Grid size={16} /></Button>
+    </div>
     <Button
       variant={selectMode ? 'default' : 'outline'}
       onclick={() => (selectMode ? clearSel() : (selectMode = true))}
@@ -250,7 +262,7 @@
 </PageHeader>
 
 {#if error}
-  <div class="grid min-h-[120px] place-items-center text-destructive" role="alert">{error}</div>
+  <div class="grid min-h-[120px] place-items-center gap-3 text-destructive" role="alert"><span>{error}</span><Button variant="outline" onclick={reload}>Try again</Button></div>
 {/if}
 
 {#if loading}
@@ -262,6 +274,7 @@
     {assets}
     {selectMode}
     {selected}
+    {density}
     grouped={!trashMode && !albumId}
     on:open={(e) => open(e.detail)}
     on:toggle={(e) => toggle(e.detail)}
