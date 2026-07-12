@@ -163,7 +163,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Find: web timeline filter bar aligned to mobile | ✅ done |
 | Find: opt-in local OCR (tesseract) indexes screenshot/document text into FTS | ✅ done |
 | **Maintain**: portable sidecars/manifest, canonical external identity, restore rehearsals, storage forecast | ⬜ release blocker |
-| **Harden**: truthful Docker media build, media fixture certification, mobile device/release pass, security/metrics/capacity gates | ⬜ release blocker |
+| **Harden**: Docker now uses the vips build; duplicate runs, private artifacts, security headers, metrics text, migration regression, and mobile build foundations landed; certification/capacity remain | 🟡 in progress |
 | Optional local intelligence (faces/semantic), scale (S3/Postgres/hardware) | ⬜ later phases |
 | Sharing & multi-user (links, household albums, roles, OIDC) | ⏸ parked by decision |
 
@@ -192,6 +192,16 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `HEAD` — **Production foundations batch: media, durable duplicates, security, migration, mobile release (Codex).**
+  Docker now builds the `vips` profile and CI compiles/tests it; `MEDIA_SUPPORT.md` records the
+  explicit contract. Duplicate review is an all-library, durable SQLite run with progress and persisted
+  members; its API returns the latest completed result rather than performing request-time scans. Added
+  global same-origin write protection, security headers, authenticated Prometheus text negotiation, and
+  private directory/archive/snapshot modes. Added latest migration down/up coverage and a duplicate-run
+  persistence test. Mobile now has platform identifiers, EAS internal/production profiles, and a physical
+  device release checklist. The remaining recovery, browser-fixture, audit telemetry, and capacity work
+  remains deliberately unimplemented for the next batch. No co-author trailer.
 
 - `HEAD` — **Evidence-backed product roadmap and production-readiness audit (Codex).** Added
   `PRODUCTION_READINESS_AUDIT.md`, an implementation-backed Web/Ops/Mobile feature matrix,

@@ -55,6 +55,8 @@ func NewRouter(d Deps) http.Handler {
 		r.Use(middleware.RealIP)
 	}
 	r.Use(middleware.Recoverer)
+	r.Use(securityHeaders)
+	r.Use(sameOriginWrites)
 	// Compress text responses (JSON API + UI bundles); media types are skipped
 	// so range requests and already-compressed images/videos pass through.
 	r.Use(middleware.Compress(5, "application/json", "text/html", "text/css",
@@ -111,6 +113,7 @@ func NewRouter(d Deps) http.Handler {
 			r.Get("/media/issues", d.mediaIssues)
 			r.Post("/assets/{id}/rebuild", d.rebuildAsset)
 			r.Get("/duplicates", d.duplicates)
+			r.Post("/duplicates/run", d.runDuplicates)
 			r.Get("/export", d.exportLibrary)
 			r.Get("/integrity", d.integrity)
 			r.Post("/integrity/run", d.runIntegrity)

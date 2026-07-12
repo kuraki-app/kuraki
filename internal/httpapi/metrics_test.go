@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kuraki-app/kuraki/internal/db"
@@ -76,5 +77,23 @@ func TestMetricsBearerToken(t *testing.T) {
 	}
 	if code := getMetrics(t, router, "", nil); code != http.StatusUnauthorized {
 		t.Fatalf("missing bearer /metrics = %d, want 401", code)
+	}
+}
+
+func TestMetricsPrometheusNegotiation(t *testing.T) {
+	router := newMetricsRouter(t, "s3cret-scrape-token")
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer s3cret-scrape-token")
+	req.Header.Set("Accept", "text/plain; version=0.0.4")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("metrics status = %d", rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); !strings.Contains(got, "text/plain") {
+		t.Fatalf("content type = %q", got)
+	}
+	if !strings.Contains(rec.Body.String(), "kuraki_uptime_seconds ") {
+		t.Fatalf("missing uptime metric: %q", rec.Body.String())
 	}
 }

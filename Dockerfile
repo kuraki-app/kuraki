@@ -19,12 +19,15 @@ RUN cd web && npm run build
 # --- Go build stage ---
 FROM golang:1.26-bookworm AS build
 WORKDIR /src
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libvips-dev pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=web /src/internal/httpapi/assets ./internal/httpapi/assets
 ARG VERSION=dev
-RUN CGO_ENABLED=0 go build -trimpath \
+RUN CGO_ENABLED=1 go build -trimpath -tags vips \
       -ldflags "-s -w -X main.version=${VERSION}" \
       -o /out/kuraki ./cmd/kuraki
 

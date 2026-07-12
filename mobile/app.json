@@ -8,9 +8,13 @@
     "scheme": "kuraki",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "app.kuraki.mobile",
+      "buildNumber": "1"
     },
     "android": {
+      "package": "app.kuraki.mobile",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -60,6 +64,9 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "crashReporting": "disabled"
     }
   }
 }

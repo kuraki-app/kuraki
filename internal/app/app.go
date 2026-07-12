@@ -17,6 +17,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/backup"
 	"github.com/kuraki-app/kuraki/internal/config"
 	"github.com/kuraki-app/kuraki/internal/db"
+	"github.com/kuraki-app/kuraki/internal/duplicates"
 	"github.com/kuraki-app/kuraki/internal/geo"
 	"github.com/kuraki-app/kuraki/internal/httpapi"
 	"github.com/kuraki-app/kuraki/internal/importer"
@@ -48,8 +49,11 @@ type App struct {
 // default; builds tagged "vips" swap in the libvips backend.
 func New(ctx context.Context, cfg config.Config, version string, log *slog.Logger) (*App, error) {
 	for _, dir := range []string{cfg.DataDir, cfg.OriginalsDir(), cfg.DerivativesDir(), cfg.TrashDir(), cfg.SnapshotsDir(), cfg.StagingDir()} {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return nil, fmt.Errorf("app: create %s: %w", dir, err)
+		}
+		if err := os.Chmod(dir, 0o750); err != nil {
+			return nil, fmt.Errorf("app: secure %s: %w", dir, err)
 		}
 	}
 
@@ -83,6 +87,7 @@ func New(ctx context.Context, cfg config.Config, version string, log *slog.Logge
 		return nil, err
 	}
 
+	duplicates.Start(ctx, database, log)
 	return &App{
 		Cfg:     cfg,
 		Log:     log,

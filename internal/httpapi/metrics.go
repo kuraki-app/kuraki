@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"crypto/subtle"
+	"fmt"
 	"net/http"
 	"runtime"
 	"strings"
@@ -43,8 +44,8 @@ func bearerToken(r *http.Request) (string, bool) {
 }
 
 // metrics reports runtime and library counters so Kuraki can be monitored like
-// any other service (idle RAM is a headline goal). JSON keeps it dependency-free;
-// a Prometheus exposition format can be added later behind content negotiation.
+// any other service (idle RAM is a headline goal). JSON remains the default;
+// Prometheus text is available through standard Accept negotiation.
 func (d Deps) metrics(w http.ResponseWriter, r *http.Request) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
@@ -68,6 +69,15 @@ func (d Deps) metrics(w http.ResponseWriter, r *http.Request) {
 		if n, err := scalarInt(r, d, `SELECT COALESCE(SUM(size_bytes),0) FROM assets WHERE deleted_at IS NULL`); err == nil {
 			out["library_bytes"] = n
 		}
+	}
+	if strings.Contains(r.Header.Get("Accept"), "text/plain") {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		for _, key := range []string{"uptime_seconds", "goroutines", "mem_alloc_bytes", "mem_sys_bytes", "mem_heap_objects", "gc_num", "assets_total", "assets_trashed", "library_bytes"} {
+			if value, ok := out[key]; ok {
+				_, _ = fmt.Fprintf(w, "kuraki_%s %v\n", key, value)
+			}
+		}
+		return
 	}
 	writeJSON(w, http.StatusOK, out)
 }

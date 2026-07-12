@@ -52,7 +52,7 @@ func CreateLive(ctx context.Context, database *sql.DB, dataDir, destination stri
 }
 
 func create(ctx context.Context, dataDir, destination, snapshotPath string) error {
-	out, err := os.Create(destination)
+	out, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("backup: create archive: %w", err)
 	}

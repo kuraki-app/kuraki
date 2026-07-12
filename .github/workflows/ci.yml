@@ -106,3 +106,17 @@ jobs:
           tags: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
           build-args: |
             VERSION=${{ github.ref_name }}
+
+  media-vips:
+    name: Media contract (libvips build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install media build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libvips-dev pkg-config ffmpeg
+      - name: Test tagged backend
+        run: CGO_ENABLED=1 go test -race -tags vips ./...

@@ -58,4 +58,6 @@ npx expo start
 
 Use Expo Go on an iOS or Android device first. The app stores the server address
 and device token in SecureStore. Create the token from an authenticated Kuraki
-web session with `POST /api/devices`, then enter it in Settings.
+web session with `POST /api/devices`, then enter it in Settings. Signed internal
+and production build profiles live in `eas.json`; see
+[RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) before a store build.

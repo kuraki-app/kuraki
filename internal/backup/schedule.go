@@ -31,8 +31,11 @@ const backupPrefix = "kuraki-backup-"
 // scanning the directory. The archive name carries a UTC timestamp; a failed
 // run leaves a row with status 'error' rather than silently vanishing.
 func RunAndRecord(ctx context.Context, db *sql.DB, dataDir, dir string) (RunSummary, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return RunSummary{}, fmt.Errorf("backup: create destination dir: %w", err)
+	}
+	if err := os.Chmod(dir, 0o750); err != nil {
+		return RunSummary{}, fmt.Errorf("backup: secure destination dir: %w", err)
 	}
 	dest := filepath.Join(dir, backupPrefix+time.Now().UTC().Format("20060102T150405Z")+".tar.gz")
 

@@ -23,10 +23,11 @@ and favorites — over a library you fully control. Your originals stay on your 
 written once and never modified after import, and remain organized in a readable
 `originals/YYYY/MM/` folder layout, so you are never locked in.
 
-The Docker image bundles ffmpeg for video posters and OCR support. Its current
-binary uses the pure-Go media backend, so common browser-decodable images and
-videos are supported while HEIC/AVIF/RAW preview certification remains an
-explicit roadmap gate; unsupported originals remain downloadable.
+The Docker image uses libvips for broad image decoding, ffmpeg for video
+posters, and optional OCR support. The native default stays pure-Go. Browser
+preview/playback support is deliberately narrower than import support; see the
+[media support matrix](./MEDIA_SUPPORT.md), and unsupported originals remain
+downloadable.
 
 ## Features
 
@@ -55,8 +56,8 @@ explicit roadmap gate; unsupported originals remain downloadable.
 - Manual **albums** (create, rename, delete, add/remove)
 
 **Media**
-- Pure-Go thumbnails for common web-decodable images; the optional `-tags vips`
-  build enables a broader libvips-backed profile that is not the current Docker default
+- Docker/libvips thumbnails for supported still-image formats; the native
+  `go build` default stays pure-Go for common browser-decodable images
 - **Video** upload, ffmpeg poster frames, and in-browser playback with range/seek support
 
 **Trust, performance & operations**
@@ -226,9 +227,10 @@ make build-vips   # build with the libvips backend (-tags vips)
 make docker       # build the container image
 ```
 
-The default `go build` and current Docker image produce a CGO-free build with
-pure-Go media (JPEG thumbnails, no HEIC). Build with `-tags vips` to link the
-broader libvips backend; its Docker certification is tracked in the roadmap.
+The default `go build` produces a CGO-free build with pure-Go media (JPEG
+thumbnails, no HEIC). Docker and `make build-vips` link the broader libvips
+backend. Import acceptance is not a promise of browser preview; consult the
+media support matrix.
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a PR.
 

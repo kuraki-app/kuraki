@@ -4,6 +4,8 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+
+	"github.com/pressly/goose/v3"
 )
 
 func TestOpenAndMigrate(t *testing.T) {
@@ -50,5 +52,40 @@ func TestOpenAndMigrate(t *testing.T) {
 	}
 	if snapshotCalled {
 		t.Error("snapshot should not run when already at latest version")
+	}
+}
+
+// TestLatestMigrationDownUp verifies every release can execute the latest
+// rollback script and re-apply it. User-facing rollback remains the automatic
+// pre-migration snapshot; this test catches broken Goose Down statements.
+func TestLatestMigrationDownUp(t *testing.T) {
+	ctx := context.Background()
+	d, err := Open(ctx, filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer d.Close()
+	if err := Migrate(d, nil); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	before, err := goose.GetDBVersion(d)
+	if err != nil {
+		t.Fatalf("version before down: %v", err)
+	}
+	if err := goose.Down(d, "."); err != nil {
+		t.Fatalf("down: %v", err)
+	}
+	if err := Migrate(d, nil); err != nil {
+		t.Fatalf("up after down: %v", err)
+	}
+	after, err := goose.GetDBVersion(d)
+	if err != nil {
+		t.Fatalf("version after up: %v", err)
+	}
+	if after != before {
+		t.Fatalf("version after down/up = %d, want %d", after, before)
+	}
+	if _, err := d.ExecContext(ctx, `INSERT INTO users(id,username,password_hash) VALUES ('test','test','hash')`); err != nil {
+		t.Fatalf("database unusable after down/up: %v", err)
 	}
 }

@@ -14,7 +14,10 @@ import (
 // would not). Returns the snapshot path. This is the pre-migration backup that
 // makes upgrades boring (F-11).
 func Snapshot(ctx context.Context, db *sql.DB, snapshotsDir string) (string, error) {
-	if err := os.MkdirAll(snapshotsDir, 0o755); err != nil {
+	if err := os.MkdirAll(snapshotsDir, 0o750); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(snapshotsDir, 0o750); err != nil {
 		return "", err
 	}
 	name := "kuraki-" + time.Now().UTC().Format("20060102T150405Z") + ".db"
@@ -26,6 +29,9 @@ func Snapshot(ctx context.Context, db *sql.DB, snapshotsDir string) (string, err
 	}
 	if _, err := db.ExecContext(ctx, "VACUUM INTO ?", dst); err != nil {
 		return "", fmt.Errorf("db: vacuum into %s: %w", dst, err)
+	}
+	if err := os.Chmod(dst, 0o600); err != nil {
+		return "", fmt.Errorf("db: secure snapshot %s: %w", dst, err)
 	}
 	return dst, nil
 }
