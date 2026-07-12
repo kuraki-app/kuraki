@@ -1,170 +1,101 @@
-# Kuraki roadmap — daily-use plan
+# Kuraki roadmap
 
-Kuraki exists to make a personal photo library **easy to keep, easy to find,
-and possible to recover without Kuraki**. This plan is ordered by those
-recurring user jobs, not by competitor feature checklists. Shipped work and
-fixes live in **[CHANGELOG.md](./CHANGELOG.md)**.
+Kuraki makes a personal photo library easy to keep, easy to find, and possible
+to recover without Kuraki. This is a maintained delivery order, not a feature
+wishlist. The evidence behind it is in
+[PRODUCTION_READINESS_AUDIT.md](./PRODUCTION_READINESS_AUDIT.md); shipped work
+is recorded in [CHANGELOG.md](./CHANGELOG.md).
 
-## Product promise
+**Effort:** S = up to one engineering week; M = one to three weeks; L = three
+to six weeks. New work must improve Keep, Find, or Maintain—or prove that an
+existing promise works.
 
-> Take a photo, know the original is safely home, find it years later, and
-> retain a readable library if you ever leave Kuraki.
+## Now — release and data-trust blockers
 
-## What is already shipped
+- **[production blocker] Truthful, certified media contract — Regular users and
+  self-hosters — M.** Make Docker's libvips claim true with a tested `-tags
+  vips` build while keeping native defaults pure-Go, or remove the broad-format
+  claim. Publish a support matrix and certify import, derivative, MIME/range,
+  and Chromium/Firefox/WebKit behavior for each advertised format. Do not claim
+  HEIC/RAW/JXL or exotic-video preview without that proof.
 
-**Foundation.** Write-once, date-organised originals; BLAKE3 deduplication;
-CLI / watch-folder / browser imports; a crash-recovering import queue with an
-Activity view; libvips/pure-Go thumbnails, ffmpeg posters, and per-asset
-web-viewability with playback/preview derivatives; timeline, viewer, Places,
-albums, favorites, memories, stacks, duplicate review, metadata editing, tags,
-saved searches, ratings, archive/hidden, trash; whole-library export; live
-SQLite-consistent backup/restore; opt-in scheduled backups with a dashboard
-backup-age indicator; scheduled integrity verification; owner password change
-plus an offline `kuraki passwd` recovery command; and a production deployment
-guide (Caddy automatic HTTPS).
+- **[bug fix] Complete, scalable duplicate review — Large-library users — M.**
+  Replace the newest-20k request-time quadratic comparison with a resumable,
+  all-library dHash candidate-bucket job. Persist coverage/version and show
+  completion; never delete automatically.
 
-**Capture — backup is a daily habit** *(complete)*. Revocable device tokens and
-resumable upload sessions; a React Native iOS/Android client that automatically
-backs up the camera roll with a persisted, restart- and network-loss-safe queue;
-OS background scheduling; streamed large-file uploads; QR pairing; and per-album
-selection.
+- **[production blocker] Portable metadata and demonstrated recovery —
+  Self-hosters — L.** Add an idempotent XMP core subset for caption, date, GPS,
+  rating, and tags plus a versioned Kuraki manifest for favorites, albums,
+  archive/hidden, and saved searches. Originals remain immutable. Rebind
+  external locations by canonical content identity, then add opt-in isolated
+  restore rehearsals with integrity proof, backup age, and storage forecast.
 
-**Find — retrieve a moment in seconds** *(complete)*. One filter language
-(query, date, media type, camera, favorite, rating, place, album, archive/hidden)
-over a single paginated search, used identically by the web timeline, the web
-search, and the mobile Library tab; a device-authenticated library read with an
-offline cache; and opt-in, fully local OCR that makes text inside screenshots
-and documents searchable.
+- **[production blocker] Security and operational evidence — Internet-facing
+  self-hosters — M.** Add security-header/origin coverage, private storage and
+  backup permissions, deployment validation for TLS/secure-cookie/trusted-proxy
+  settings, dependency/container scanning, Prometheus-compatible metrics, and
+  structured security/operation audit events.
 
-Those areas are maintained but are no longer primary milestones. New work must
-improve a routine user job or make that job safer.
+- **[production blocker] Mobile release certification — Mobile users — M.** Add
+  iOS/Android identifiers and signed release profiles, decide crash/error
+  reporting, and pass a physical-device matrix covering permissions, pairing,
+  revoked tokens, restarts, offloaded media, large video, retries, battery,
+  metered network, OS expiration, and user termination. Background backup is
+  best-effort by OS design; add Wi-Fi/charging controls only if test evidence
+  shows a need.
 
-## 0. Release guardrail — the media contract
+- **[production blocker] Capacity and regression evidence — Advanced
+  self-hosters — L.** Publish reproducible 10k/50k/500k fixtures and budgets
+  for import, timeline/search, queue recovery, duplicate processing, memory,
+  WAL growth, backup, restore, and verification. Gate releases on those budgets
+  and query plans.
 
-Runs alongside every release rather than blocking daily-use work with unbounded
-format scope.
+## Next — after the release gates pass
 
-- Maintain a versioned support matrix with four explicit states: accepted,
-  metadata, thumbnail/poster, and browser preview/playback.
-- Test standard content signatures, derivatives, HTTP MIME/range responses, and
-  download-only fallbacks. Camera RAW stays an extension-based exception until
-  its fixture-backed decoder policy exists.
-- Certify the Docker/libvips path with Chromium, Firefox, and WebKit before
-  advertising wider HEIC/HEIF, TIFF, RAW, JXL, or exotic-video support.
-- Show reduced pure-Go capability and actionable media-health recovery instead
-  of silently promising unsupported previews.
+- **[improvement] Safe source-cleanup guidance — Self-hosters — S.** Show a
+  checklist only after a current backup, successful restore rehearsal, and
+  integrity pass. Never automate deletion of a source.
 
----
+- **[improvement] Practical web-library navigation — Regular users — M.** Add
+  jump-to-date, configurable grid density, and progressive image loading.
+  Defer slideshow until usage research shows a repeated viewing job.
 
-# Forward plan
+- **[new feature] Smart albums — Organizers — M.** Build on saved searches with
+  explicit ownership, preview, and reversible membership semantics.
 
-Sharing (public/household links, contributor uploads, multi-user accounts) is
-**parked by decision** — see [Parked](#parked-not-being-built-now). The active
-sequence below is about trust, reliability, and staying light.
+- **[improvement] Fixture-first media expansion — Camera users — M per format.**
+  Expand only formats that pass the support matrix; a decoder dependency alone
+  is not user-visible support.
 
-## 1. Maintain — prove ownership over time (now)
+## Later — gated expansion, not commitments
 
-**User job:** “Can I move, repair, or recover this library — with proof?”
+- **[new feature] Non-destructive recipes and burst grouping — Enthusiast
+  photographers — L.** Store reproducible edit recipes and capture groups
+  outside originals; export their sidecar metadata.
 
-- **Portable metadata.** XMP/JSON sidecar import and export plus a versioned
-  library manifest, so edits, captions, ratings, tags, GPS, and source identity
-  remain usable outside Kuraki. Originals stay immutable.
-- **Stable external-library identity** based on content hash and sidecar
-  identity, not just a mounted filesystem path, so moving or remounting a folder
-  never loses the application's metadata.
-- **Restore rehearsals.** Scheduled test restores into a disposable target that
-  record a result; the dashboard reports last restore result, integrity result,
-  backup age, and a storage-growth forecast. *(Shipped so far: opt-in scheduled
-  backups with pruning, and last-backup age/outcome + integrity result on the
-  dashboard. Still to do: automated restore rehearsals and the storage forecast.)*
-- **Safe source cleanup.** Recommend removing originals from a source only after
-  a verified backup and restore evidence; never make deletion part of ordinary
-  backup.
-- Continue duplicate review, stacks, archive/hidden, trash, and whole-library
-  export as maintenance tools.
+- **[new feature] Optional local semantic search — Advanced users — L.** Require
+  an approved local model, lifecycle/deletion controls, and recall/latency
+  benchmarks. Exact search remains acceptable until embeddings create a measured
+  need for a pure-Go approximate-neighbor design.
 
-**Exit criteria:** moving or remounting an external library retains its metadata;
-a user can restore a current backup on a clean machine and see recorded proof
-(restore + integrity + age) in the dashboard.
+- **[new feature] S3/PostgreSQL/hardware workers — Homelab operators — L+.**
+  Treat these as explicit architecture changes only after capacity evidence shows
+  filesystem/SQLite limits; preserve the simple local default.
 
-## 2. Harden — make the good behaviour boring (continuous)
+## Explicitly not doing
 
-**User job:** “Does it keep working, look right, and stay trustworthy?”
+- Sharing, household accounts, OIDC, and multi-user roles: parked until
+  single-owner recovery and operational evidence are complete.
+- Automatic source deletion: unsafe without independently verified recovery.
+- Bundled cloud ML, mandatory GPU use, face recognition, or ANN infrastructure:
+  no approved user job or benchmark yet.
+- Broad untested media promises, S3/PostgreSQL-before-evidence, and mobile
+  release claims without physical-device certification.
 
-- **Media-contract certification.** Build the licensed fixture corpus and CI
-  matrix across the Docker/libvips and pure-Go profiles, asserting import
-  outcome, metadata, derivative decodability, HTTP MIME/range, and real browser
-  playback on Chromium, Firefox, and WebKit. Closes the roadmap guardrail.
-- **Mobile real-device shakeout.** Exercise the Capture and Library flows on
-  physical iOS and Android hardware (background cadence, large videos, iCloud
-  offloaded assets, permission edge cases) before calling the client production
-  ready.
-- **Web experience polish.** Jump-to-date, configurable grid density, slideshow,
-  a keyboard and screen-reader audit, dark mode, a localization foundation, and
-  progressive image placeholders. *(Shipped: dark mode and the keyboard/
-  screen-reader audit, via the shadcn-svelte rebuild. Still to do: jump-to-date,
-  grid density, slideshow, localization, progressive placeholders.)*
-- **Operational edges.** Ship tesseract in the Docker image so opt-in OCR works
-  in the container; add indexes ahead of large libraries; publish a low-resource
-  benchmark. *(Shipped: tesseract in the image; album and timeline-sort indexes
-  verified against a 50k-asset library; a production deployment guide with a
-  Caddy auto-HTTPS stack. Still to do: the published low-resource benchmark.)*
+## Release definition
 
-**Exit criteria:** every advertised format has a passing fixture test on both
-profiles; the mobile client has a signed-off device pass; the web UI meets a
-basic accessibility and dark-mode bar.
-
-## 3. Organize deeper — optional, non-destructive (later)
-
-**User job:** “Shape my library without risking the originals.”
-
-- Non-destructive edit recipes (crop, rotate, straighten, light adjustments)
-  stored as sidecar instructions; originals never change.
-- Burst-shot grouping alongside the existing RAW+JPEG / Live-Motion stacks.
-- Smart albums over the shared filter language, and clean-up suggestions that
-  are always reviewable and reversible.
-
-## 4. Optional local intelligence — only after the foundation is boring
-
-**User job:** “Help me find people and things, without sending my photos away.”
-
-Opt-in, on-device or self-hosted only; user-controlled model download,
-CPU/GPU limits, pause/resume, deletion of embeddings, and no silent outbound
-upload. Local OCR already ships as the first, safest example.
-
-- Face detection and people confirmation; semantic object/scene search;
-  quality flags. Each signal feeds smart albums but every action stays
-  reviewable and reversible.
-
-## 5. Scale & deployment — keep the simple default, enable homelabs
-
-**User job:** “Run this on bigger or off-site infrastructure when I need to.”
-
-- S3-compatible storage backend and an optional PostgreSQL deployment profile
-  behind the existing interfaces; replicated / off-site backup targets.
-- Hardware-assisted derivative and transcode workers with capability detection
-  and CPU-only fallback.
-- Prometheus-format metrics, structured audit events, load/soak tests, and
-  published benchmarks for 10k / 100k / 1M-asset libraries.
-
-## Parked (not being built now)
-
-Deferred by decision, kept here so the design intent is not lost:
-
-- **Sharing and household accounts** — selected-item/album share links with
-  expiry, password, download permission, revoke, and audit; authenticated
-  household albums; contributor/collect mode; multi-user roles, OIDC, and
-  partner sharing. Revisit after Maintain and Harden.
-- Broad format admission without fixture-backed preview/playback behaviour.
-- Bundled ML models or a mandatory GPU.
-
-## Planning rules
-
-1. A feature must improve **Keep, Find, or Maintain**, or it waits.
-2. Originals remain immutable; derivatives, edits, and sidecars are replaceable.
-3. Every destructive-looking action requires a recoverable path and visible
-   evidence.
-4. Mobile and desktop clients consume a documented server protocol; they do not
-   bypass the queue, deduplication, or activity record.
-5. New cloud, ML, GPU, or database dependencies require a separate explicit
-   decision. Sharing/multi-user stays parked until deliberately unparked.
+Public launch requires every Now production blocker, a documented clean-machine
+restore, deployment-guide validation, and trademark counsel clearance of
+"Kuraki" for the initial US and India markets. This is a legal sign-off, not a
+repository search.

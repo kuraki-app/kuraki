@@ -15,8 +15,10 @@
 
 A self-hosted photo & video backup server with a Google-Photos-style web library.
 **Thesis: own your library** — originals kept intact on disk in a readable layout,
-boring snapshot-protected upgrades, zero lock-in. Docker-first (libvips + ffmpeg
-bundled). It targets the gap between Immich (heavy) and Ente (hard to self-host).
+boring snapshot-protected upgrades, zero lock-in. Docker-first (ffmpeg bundled;
+libvips runtime packages are present, but the current image binary is still
+pure-Go until the media-contract blocker is closed). It targets the gap between
+Immich (heavy) and Ente (hard to self-host).
 Phase 1 = single-owner personal backup.
 
 ## 2. Current state
@@ -42,6 +44,12 @@ Phase 1 = single-owner personal backup.
 - **Env-gated / pending:** `-tags vips` build (needs libvips + `pkg-config`), HEIC out of the box,
   low-resource benchmark; plus roadmap items (slideshow, stacks, near-duplicate grouping,
   multi-user, mobile, optional ML).
+- **Production-readiness audit (2026-07-12):** `PRODUCTION_READINESS_AUDIT.md`
+  reconciles the code, documentation, and peer practices. It makes the current
+  Docker/libvips claim, 20k quadratic duplicate limit, untested migration
+  rollback path, absent web/mobile automation, mobile release packaging, and
+  limited operations telemetry explicit release blockers. `ROADMAP.md` now
+  prioritizes evidence before scope expansion.
 
 ## 3. Locked decisions (do NOT relitigate without human sign-off)
 
@@ -154,8 +162,8 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Find: device-authenticated library read + mobile Library tab (grid, filters, offline cache) | ✅ done |
 | Find: web timeline filter bar aligned to mobile | ✅ done |
 | Find: opt-in local OCR (tesseract) indexes screenshot/document text into FTS | ✅ done |
-| **Maintain** (next): XMP/JSON sidecars, stable external-library identity, restore rehearsals, storage forecast | ⬜ active phase |
-| **Harden** (continuous): media-contract fixture cert, mobile device shakeout, UI polish, OCR-in-Docker, indexes | ⬜ |
+| **Maintain**: portable sidecars/manifest, canonical external identity, restore rehearsals, storage forecast | ⬜ release blocker |
+| **Harden**: truthful Docker media build, media fixture certification, mobile device/release pass, security/metrics/capacity gates | ⬜ release blocker |
 | Optional local intelligence (faces/semantic), scale (S3/Postgres/hardware) | ⬜ later phases |
 | Sharing & multi-user (links, household albums, roles, OIDC) | ⏸ parked by decision |
 
@@ -164,14 +172,11 @@ Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./R
 ## 9. Next up
 
 Capture and Find are complete; **Sharing is parked by decision**. The active
-phase is **Maintain** (roadmap §1): XMP/JSON sidecar import/export + a portable
-library manifest, stable content-hash/sidecar external-library identity,
-scheduled restore rehearsals with a dashboard proof (restore + integrity + age +
-storage forecast), and safe post-backup source-cleanup guidance. Run alongside
-it the continuous **Harden** track (roadmap §2): media-contract fixture
-certification, a real-device mobile shakeout, web UI polish (dark mode,
-jump-to-date, slideshow, a11y), tesseract in the Docker image, and place/tags/
-album indexes.
+work is the evidence-backed Maintain/Harden release sequence in `ROADMAP.md`:
+truthful Docker media support, scalable duplicate review, portable metadata and
+restore proof, security/operability gates, mobile release certification, and
+10k/50k/500k capacity evidence. See `PRODUCTION_READINESS_AUDIT.md` for the
+audited baseline and release checklist.
 
 ## 10. Coordination protocol (multi-agent)
 
@@ -187,6 +192,15 @@ album indexes.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `HEAD` — **Evidence-backed product roadmap and production-readiness audit (Codex).** Added
+  `PRODUCTION_READINESS_AUDIT.md`, an implementation-backed Web/Ops/Mobile feature matrix,
+  documentation-drift register, peer-product research, release checklist, and explicit exclusions.
+  Replaced the daily-use roadmap with Now/Next/Later delivery gates. Key verified blockers are that
+  Docker installs libvips but compiles `CGO_ENABLED=0` (so its HEIC/AVIF/RAW claim is false), duplicate
+  review covers only the newest 20k images with an O(n²) request path, migrations have Down sections but
+  no upgrade/down/up compatibility test, Web/Mobile have no project-owned tests, and Mobile lacks release
+  identifiers/profiles. No production code changed. No co-author trailer.
 
 - `HEAD` — **Production hardening batch 1: mobile viewer + reconnect, secure cookies, Docker OCR, CI gates (Claude).**
   New north star = make internal/web/mobile production-ready and correctly linked. (1) **Mobile photo viewer**

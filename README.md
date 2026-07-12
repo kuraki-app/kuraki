@@ -23,8 +23,10 @@ and favorites — over a library you fully control. Your originals stay on your 
 written once and never modified after import, and remain organized in a readable
 `originals/YYYY/MM/` folder layout, so you are never locked in.
 
-It's delivered as a Docker image with the media toolchain (libvips + ffmpeg) built in, so
-HEIC/AVIF/RAW previews and video posters work out of the box.
+The Docker image bundles ffmpeg for video posters and OCR support. Its current
+binary uses the pure-Go media backend, so common browser-decodable images and
+videos are supported while HEIC/AVIF/RAW preview certification remains an
+explicit roadmap gate; unsupported originals remain downloadable.
 
 ## Features
 
@@ -53,7 +55,8 @@ HEIC/AVIF/RAW previews and video posters work out of the box.
 - Manual **albums** (create, rename, delete, add/remove)
 
 **Media**
-- Thumbnails via **libvips** (HEIC/AVIF/RAW previews) with a pure-Go fallback
+- Pure-Go thumbnails for common web-decodable images; the optional `-tags vips`
+  build enables a broader libvips-backed profile that is not the current Docker default
 - **Video** upload, ffmpeg poster frames, and in-browser playback with range/seek support
 
 **Trust, performance & operations**
@@ -133,8 +136,8 @@ Sensible defaults, no config file required. Override via flags or environment
 - **Server:** Go with an embedded SvelteKit web UI (`go:embed`).
 - **Database:** SQLite (WAL) via pure-Go `modernc.org/sqlite`; FTS5 search; versioned `goose`
   migrations with automatic pre-migration snapshots.
-- **Media:** libvips (govips) for thumbnails and ffmpeg for video posters, behind a `Processor`
-  interface with a pure-Go fallback.
+- **Media:** a pure-Go default processor plus an optional `-tags vips` libvips
+  profile, with ffmpeg for video posters, behind a `Processor` interface.
 - **Storage:** filesystem, write-once originals, all access behind a `Storage` interface (S3 later).
 - **Schema principles:** UUIDv7 keys, `owner_id` on every asset, soft deletes, BLAKE3 hashes,
   and a `change_log` table for future sync.
@@ -223,8 +226,9 @@ make build-vips   # build with the libvips backend (-tags vips)
 make docker       # build the container image
 ```
 
-The default `go build` produces a CGO-free build with pure-Go media (JPEG thumbnails, no HEIC).
-Build with `-tags vips` (or use the Docker image) to link libvips for the full format support.
+The default `go build` and current Docker image produce a CGO-free build with
+pure-Go media (JPEG thumbnails, no HEIC). Build with `-tags vips` to link the
+broader libvips backend; its Docker certification is tracked in the roadmap.
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a PR.
 

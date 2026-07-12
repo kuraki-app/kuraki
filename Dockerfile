@@ -1,12 +1,11 @@
 # syntax=docker/dockerfile:1
 #
-# Kuraki container — the primary "just works" install path. libvips + ffmpeg are
-# baked into the runtime image so the media pipeline (HEIC/AVIF/RAW previews,
-# video posters) works out of the box.
+# Kuraki container — the primary "just works" install path. The current image
+# builds the default CGO-free binary: ffmpeg provides video posters, while wider
+# libvips image-format support remains a separately certified `-tags vips` path.
 #
 # M1 compiles the SvelteKit UI into internal/httpapi/assets before the Go build
-# embeds it. The default binary stays pure-Go; the libvips backend remains a
-# build-tagged follow-up.
+# embeds it. The default binary stays pure-Go.
 
 # --- web build stage ---
 FROM node:24-bookworm-slim AS web
@@ -37,8 +36,9 @@ LABEL org.opencontainers.image.title="Kuraki" \
       org.opencontainers.image.source="https://github.com/kuraki-app/kuraki" \
       org.opencontainers.image.licenses="AGPL-3.0"
 
-# libvips + ffmpeg power the media pipeline; tesseract (with the English model)
-# enables the opt-in local OCR worker when KURAKI_OCR=1.
+# ffmpeg powers video posters; tesseract (with the English model) enables the
+# opt-in local OCR worker when KURAKI_OCR=1. libvips is installed for the future
+# tagged image profile but is not linked by this default binary.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libvips42 ffmpeg tesseract-ocr tesseract-ocr-eng ca-certificates \
     && rm -rf /var/lib/apt/lists/*
