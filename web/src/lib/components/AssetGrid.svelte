@@ -216,10 +216,21 @@
     border: 2px solid #fff;
     background: #0006;
     color: transparent;
+    /* --t-instant: selection is confirmation, not travel, so the check stamps
+     * in at the shortest step on the scale rather than settling like the tile
+     * beneath it. No transform — at zero gap a scaling badge would overhang
+     * the neighbouring photo. */
+    transition:
+      background-color var(--t-instant) var(--e-kura),
+      color var(--t-instant) var(--e-kura);
   }
+  /* --stamp, matching `.tile.selected::after` above: both affordances mark the
+   * same tile as selected, so they speak with one colour. --stamp-foreground is
+   * the token for a glyph on a stamp fill and is contrast-gated against it by
+   * scripts/check-contrast.py. */
   .check.on {
-    background: var(--primary);
-    color: var(--primary-foreground);
+    background: var(--stamp);
+    color: var(--stamp-foreground);
   }
   @media (max-width: 780px) {
     .grid {

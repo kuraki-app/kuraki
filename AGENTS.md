@@ -44,6 +44,18 @@ Phase 1 = single-owner personal backup.
 - **Env-gated / pending:** `-tags vips` build (needs libvips + `pkg-config`), HEIC out of the box,
   low-resource benchmark; plus roadmap items (slideshow, stacks, near-duplicate grouping,
   multi-user, mobile, optional ML).
+- **Web design pass (2026-07-17, `feat/web-kura-vault`):** the SvelteKit client has a deliberate
+  aesthetic for the first time — hybrid **Kura/Vault registers**, a re-derived palette (oxblood
+  `--stamp` for Kuraki's own marks; `--primary` stays ink so buttons never fight the photographs),
+  Fraunces display + Geist Mono for Vault data, a **motion system where there was none** (the app
+  previously had zero Svelte transitions), a **gapless proof-sheet grid**, a native View-Transitions
+  **grid→viewer morph** (zero new deps), and a grouped nav + real mobile tab bar replacing a
+  13-unlabelled-glyph scroller. **Six pre-existing WCAG AA failures closed** — `web/scripts/check-contrast.py`
+  now gates the palette by parsing `app.css` directly. **Not browser-verified**: no browser was
+  available in the authoring environment; the morph, reduced-motion skip, font loading, keyboard
+  focus and mobile sheet all need a human pass. See §11 for the traps this work uncovered
+  (`@theme inline` never emits custom properties; box-shadow paints under children;
+  `view-transition-name` must be uniquely held; Svelte transitions ignore the CSS reduced-motion rule).
 - **Production-readiness audit (2026-07-12):** `PRODUCTION_READINESS_AUDIT.md`
   reconciles the code, documentation, and peer practices. It makes the current
   Docker/libvips claim, 20k quadratic duplicate limit, untested migration
@@ -167,6 +179,10 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Docker image runs both surfaces on split origins in one container: Go API+media on :3000 (embedded UI fallback) + Caddy static SvelteKit UI on :8080 proxying /api → :3000; CLI subcommands still pass through the entrypoint | ✅ done |
 | Phone pairing hardened: codes hashed at rest (code_hash, migration 00019), web shows no plaintext code, QR is an opaque app-only `kuraki://pair?d=…` blob the mobile scanner decodes | ✅ done |
 | Public `GET /download/android` serves an operator-supplied APK (KURAKI_ANDROID_APK, default `<data>/downloads/kuraki-android.apk`), linked from Devices; Caddy :8080 proxies /download/*; APK built out of band | ✅ done |
+| Web design pass (`feat/web-kura-vault`): Kura/Vault registers, re-derived palette + type, motion system, gapless proof-sheet grid, native View-Transitions morph, grouped nav + mobile tab bar | 🟡 built, **needs a human browser pass** |
+| Web a11y: 6 pre-existing WCAG AA failures closed (`--text-faint` body contrast; `--input` 1.4.11 control boundary, both themes). `web/scripts/check-contrast.py` gates the palette against `app.css` | ✅ done |
+| Web registers applied to **shared chrome only** (PageHeader/cards/EmptyState/`.content`) by human decision; per-route Vault treatment (mono data columns, dense tables, Overview stat tiles) | ⬜ deliberate scope cut |
+| **Timeline virtualization — README claims it, `web/` does not have it.** `LibraryView` appends into one array; `AssetGrid` renders one DOM node per asset, unbounded | ⬜ **release blocker** (see ROADMAP) |
 | Optional local intelligence (faces/semantic), scale (S3/Postgres/hardware) | ⬜ later phases |
 | Sharing & multi-user (links, household albums, roles, OIDC) | ⏸ parked by decision |
 
@@ -195,6 +211,46 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `feat/web-kura-vault` (2026-07-17) — **Web design pass: Kura/Vault registers, motion system, gapless grid.**
+  Design-only by human decision; no functionality features. Spec + plan live in `docs/superpowers/`
+  (gitignored, local). Branch is 3 batched commits: foundation / grid+morph / nav+polish.
+  - **Aesthetic:** identity re-derived. Palette keeps shadcn's variable names (renaming breaks every
+    shadcn component). `--primary` stays ink so buttons never compete with photographs; `--stamp`
+    (oxblood) is new and reserved for Kuraki's own marks; `--highlight` demoted from brand colour to
+    FTS5 search-hit highlighting. Type: Public Sans out, Fraunces in for display, Geist Mono new for
+    Vault data (rule-6 justification is *meaning* — hashes/paths must disambiguate 0/O and 1/l).
+  - **Registers:** one system, two voices, keyed off `<main data-register>` from `lib/nav.ts`.
+    Kura (8px rhythm, Fraunces, soft paper) fronts photo surfaces; Vault (4px rhythm, mono data,
+    flat hairline panels) backs operational ones. **Colour is shared** — only density/type/surface/
+    motion shift. Scoped to shared chrome by human decision; per-route Vault treatment is NOT done.
+    **The register rule: register belongs to the page frame, never the photo components.** `AssetGrid`
+    and `Viewer` always render Kura — a photograph is a memory even in Trash. Trash/Duplicates are
+    Vault frames hosting Kura grids.
+  - **Six pre-existing WCAG AA failures fixed**, found by the new gate: `--text-faint` at 3.46:1/3.69:1
+    light (needs 4.5), and `--input` at 1.38/1.47 light and 1.66/1.49 dark (1.4.11 needs 3.0 — it is
+    the border that identifies a text field, so those were real defects in both themes).
+  - **`web/scripts/check-contrast.py` is a gate, not a doc.** It parses tokens straight out of
+    `app.css` so it cannot drift from what ships. Run it after any palette change; it exits non-zero.
+  - **Traps that bit this work — do not re-introduce:**
+    1. Tailwind v4 `@theme inline` **never emits the custom property** — it inlines values into
+       utilities. Any token read by hand-written component CSS via `var()` MUST be in plain `:root`.
+       This silently killed the motion tokens and `--font-heading`. Build stays green; motion just
+       does nothing. Grep the built CSS under `internal/httpapi/assets` to prove emission.
+    2. An element's own `box-shadow` paints **beneath** its in-flow children. The tile hairline and
+       selection ring are drawn by a positioned `::after` for this reason; a photo covered the
+       box-shadow version entirely.
+    3. `view-transition-name` must be held by **exactly one** element at a time or the browser
+       aborts the whole transition silently. The grid stays mounted under the viewer, so the tag is
+       cleared *inside* the transition callback, not after it.
+    4. Svelte's `fly`/`fade` are JS-driven and are **not** covered by the global CSS reduced-motion
+       rule. They gate themselves via `prefersReducedMotion()` from `lib/motion.ts`.
+  - **Not verified:** no browser was available. The morph rendering, reduced-motion skip, Fraunces
+    actually loading, keyboard focus on the gapless grid, and the mobile More sheet all need a human
+    pass. Opening a photo with zero console warnings is the cheap check that the morph is really
+    firing — a "skipped or aborted" warning means it is silently no-op'ing.
+  - **Found, deliberately not fixed:** README claims a virtualized timeline that does not exist.
+    Logged as a production blocker in ROADMAP.md.
 
 - `working tree` — **Android APK download endpoint.** Public `GET /download/android` (outside `/api`,
   no session — a new phone has no credentials yet) serves an operator-supplied APK from

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from 'svelte';
+  import { fade } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { CheckSquare, Grid2X2, Grid3X3, Grid } from '@lucide/svelte';
   import type { Album, Asset, AssetList } from '$lib/types';
   import { api, downloadZip } from '$lib/api';
@@ -54,6 +56,21 @@
 
   function msg(e: unknown) {
     return e instanceof Error ? e.message : 'Something went wrong';
+  }
+
+  // Svelte's `fade` is WAAPI-driven, not a CSS transition, so the global
+  // `prefers-reduced-motion` rule in app.css (which only zeroes CSS
+  // animation/transition durations) never reaches it — same matchMedia check
+  // `motion.ts` uses, duplicated here since this task must not touch that file.
+  // Deliberately plain `fade` here, not `crossfade`/`animate:flip`: those have
+  // open Svelte 5 bugs (#10251/#10252) on keyed grid items, which is exactly
+  // why the grid morph uses the native View Transitions API instead. This is
+  // a container-level swap (skeleton out, grid in), not per-tile, so a plain
+  // fade is safe and does not touch AssetGrid's own items.
+  function fadeParams() {
+    const reduced =
+      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return reduced ? { duration: 0 } : { duration: 240, easing: cubicOut }; // --t-settle
   }
   function setDensity(next: typeof density) {
     density = next;
@@ -341,20 +358,24 @@
 {/if}
 
 {#if loading}
-  <SkeletonGrid />
+  <div out:fade={fadeParams()}>
+    <SkeletonGrid {density} />
+  </div>
 {:else if assets.length === 0}
   <EmptyState title={emptyText} />
 {:else}
-  <AssetGrid
-    {assets}
-    {selectMode}
-    {selected}
-    {density}
-    {morphId}
-    grouped={!trashMode && !albumId}
-    on:open={(e) => open(e.detail)}
-    on:toggle={(e) => toggle(e.detail)}
-  />
+  <div in:fade={fadeParams()}>
+    <AssetGrid
+      {assets}
+      {selectMode}
+      {selected}
+      {density}
+      {morphId}
+      grouped={!trashMode && !albumId}
+      on:open={(e) => open(e.detail)}
+      on:toggle={(e) => toggle(e.detail)}
+    />
+  </div>
   {#if cursor}
     <div class="mt-6 flex justify-center">
       <Button variant="outline" disabled={loadingMore} onclick={loadMore}>

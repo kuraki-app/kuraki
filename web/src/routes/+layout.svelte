@@ -1,27 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { page } from '$app/stores';
-  import {
-    Images,
-    Star,
-    FolderOpen,
-    CalendarClock,
-    MapPin,
-    Trash2,
-    BarChart3,
-    Activity,
-    Copy,
-    Upload,
-    LogOut,
-    Lock,
-    Archive,
-    EyeOff,
-    Smartphone,
-    Settings,
-    Monitor,
-    Sun,
-    Moon
-  } from '@lucide/svelte';
+  import { Upload, LogOut, Lock, Monitor, Sun, Moon } from '@lucide/svelte';
   import { ModeWatcher, setMode, userPrefersMode } from 'mode-watcher';
   import { Toaster } from '$lib/components/ui/sonner';
   import { Button } from '$lib/components/ui/button';
@@ -29,6 +9,8 @@
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
   import { api, uploadFiles } from '$lib/api';
   import { session, bumpLibrary, showToast } from '$lib/stores';
+  import { NAV_GROUPS, isActive, registerFor } from '$lib/nav';
+  import MobileNav from '$lib/components/MobileNav.svelte';
   import '../app.css';
 
   let username = 'admin';
@@ -51,22 +33,6 @@
   // Dark mode is owned by mode-watcher: it toggles `.dark` on <html>, persists
   // the choice, and prevents the flash of the wrong theme on load.
   const themeIcon = { system: Monitor, light: Sun, dark: Moon } as const;
-
-  const nav = [
-    { href: '/', label: 'Timeline', icon: Images },
-    { href: '/favorites', label: 'Favorites', icon: Star },
-    { href: '/albums', label: 'Albums', icon: FolderOpen },
-    { href: '/memories', label: 'On this day', icon: CalendarClock },
-    { href: '/places', label: 'Places', icon: MapPin },
-    { href: '/archive', label: 'Archive', icon: Archive },
-    { href: '/hidden', label: 'Hidden', icon: EyeOff },
-    { href: '/duplicates', label: 'Duplicates', icon: Copy },
-    { href: '/stats', label: 'Library', icon: BarChart3 },
-    { href: '/devices', label: 'Devices', icon: Smartphone },
-    { href: '/activity', label: 'Activity', icon: Activity },
-    { href: '/trash', label: 'Trash', icon: Trash2 },
-    { href: '/settings', label: 'Settings', icon: Settings }
-  ];
 
   onMount(init);
 
@@ -161,9 +127,6 @@
     dragging = false;
     if (e.dataTransfer?.files?.length) doUpload(Array.from(e.dataTransfer.files));
   }
-
-  $: isActive = (href: string) =>
-    href === '/' ? $page.url.pathname === '/' : $page.url.pathname.startsWith(href);
 </script>
 
 <svelte:head>
@@ -229,15 +192,20 @@
         <span>Kuraki</span>
       </a>
       <nav aria-label="Library sections">
-        {#each nav as item (item.href)}
-          <a
-            href={item.href}
-            class:active={isActive(item.href)}
-            aria-current={isActive(item.href) ? 'page' : undefined}
-          >
-            <svelte:component this={item.icon} size={18} aria-hidden="true" />
-            <span>{item.label}</span>
-          </a>
+        {#each NAV_GROUPS as group (group.label)}
+          <div class="group">
+            <h2 class="group-label">{group.label}</h2>
+            {#each group.items as item (item.href)}
+              <a
+                href={item.href}
+                class:active={isActive(item.href, $page.url.pathname)}
+                aria-current={isActive(item.href, $page.url.pathname) ? 'page' : undefined}
+              >
+                <svelte:component this={item.icon} size={18} aria-hidden="true" />
+                <span>{item.label}</span>
+              </a>
+            {/each}
+          </div>
         {/each}
       </nav>
       <div class="side-foot">
@@ -270,7 +238,11 @@
       </div>
     </aside>
 
-    <main class="content" id="main"><slot /></main>
+    <main class="content" id="main" data-register={registerFor($page.url.pathname)}><slot /></main>
+
+    <!-- Below 820px `.side` is hidden, so this is the only route to Upload,
+         theme and sign-out; both actions are owned here and handed down. -->
+    <MobileNav on:upload={() => fileInput.click()} on:signout={logout} />
 
     <input
       bind:this={fileInput}
@@ -358,11 +330,19 @@
     color: var(--foreground);
     text-decoration: none;
   }
+  /* --stamp, not --highlight: this is Kuraki's mark, and the mark is oxblood.
+   * It sits inches above the active nav item's oxblood rule in this same
+   * sidebar — an amber mark there was the incoherence the palette work existed
+   * to remove. --stamp is contrast-gated against --background/--card. */
   .brand-mark {
     flex: none;
-    color: var(--highlight);
+    color: var(--stamp);
   }
   nav {
+    display: grid;
+    gap: 3px;
+  }
+  .group {
     display: grid;
     gap: 3px;
   }
@@ -379,6 +359,19 @@
   nav a.active {
     background: var(--accent);
     color: var(--foreground);
+    box-shadow: inset 2px 0 0 var(--stamp);
+  }
+  .group + .group {
+    margin-top: 14px;
+  }
+  .group-label {
+    margin: 0 0 4px;
+    padding: 0 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
   }
   .side-foot {
     display: flex;
@@ -387,7 +380,9 @@
   }
   .content {
     width: min(1440px, 100%);
-    padding: 22px;
+    /* This element carries data-register, so it reads its own step: the frame
+     * itself tightens from 24px to 12px as you cross into the Vault. */
+    padding: calc(var(--space-step) * 3);
   }
   .drop {
     position: fixed;
@@ -439,39 +434,30 @@
     font-size: 13px;
   }
 
+  /* The sidebar used to collapse into a horizontal scroller with labels
+   * hidden — thirteen unidentifiable glyphs. MobileNav replaces it wholesale;
+   * everything the sidebar carried (Upload, theme, sign-out) lives in its
+   * More sheet. The bottom padding clears the fixed tab bar. */
   @media (max-width: 820px) {
     .app {
       grid-template-columns: 1fr;
     }
     .side {
-      position: sticky;
-      top: 0;
-      z-index: 15;
-      flex-direction: row;
-      align-items: center;
-      height: auto;
-      padding: 10px 12px;
-      border-right: 0;
-      border-bottom: 1px solid var(--border);
-      overflow-x: auto;
-    }
-    .brand {
-      padding: 0 8px 0 4px;
-      white-space: nowrap;
-    }
-    nav {
-      grid-auto-flow: column;
-      gap: 2px;
-    }
-    nav a span {
       display: none;
     }
-    .side-foot {
-      margin-top: 0;
-      margin-left: auto;
-    }
     .content {
-      padding: 16px;
+      /* Thumb reach beats rhythm at the bottom edge, but the horizontal step
+       * still carries the register. */
+      padding: calc(var(--space-step) * 2) calc(var(--space-step) * 2)
+        calc(70px + env(safe-area-inset-bottom, 0));
+    }
+    /* The tab bar now owns the bottom edge; lift the progress toast clear of it
+     * rather than let it sit over the tabs. */
+    .uploading {
+      right: 12px;
+      bottom: calc(70px + env(safe-area-inset-bottom, 0));
+      width: auto;
+      max-width: calc(100vw - 24px);
     }
   }
 </style>

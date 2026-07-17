@@ -72,6 +72,11 @@
   --destructive-border: #e6c3bb;
   --skel-a: #e6ded3;
   --skel-b: #f9f5ee;
+  /* Transient progress/attention. Its one consumer is the upload/import
+   * progress bar in +layout.svelte — amber reads as "something is happening
+   * right now", so it belongs on things that finish and then disappear.
+   * Explicitly NOT the brand colour: the mark is --stamp. Anything that
+   * persists (brand, active nav, selection) is --stamp's job, not this. */
   --highlight: #ffd35c;
 
   /* Floating "dark glass" chrome — constant in both themes. */
@@ -101,7 +106,12 @@
 
   /* Same reasoning as the motion tokens above: raw font-family: var(--font-mono)
    * in component CSS needs the actual custom property, which @theme inline
-   * below does not emit (it only powers the font-mono utility). */
+   * below does not emit (it only powers the font-mono utility). The register
+   * blocks select between these three by name, so all three must be real
+   * properties here — @theme inline alone would make var() resolve to nothing
+   * and silently drop the register's type shift. */
+  --font-sans: 'Geist Variable', sans-serif;
+  --font-heading: 'Fraunces Variable', Georgia, serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
 }
 .dark {
@@ -280,6 +290,91 @@
 ::view-transition-group(kuraki-morph) {
   animation-duration: var(--t-morph);
   animation-timing-function: var(--e-kura);
+}
+
+/* Registers: one system, two voices. Colour is deliberately shared — only
+ * density, type and surface shift. Plain CSS, never @theme inline: these must
+ * be emitted as real custom properties for component <style> var() to read. */
+[data-register='kura'] {
+  /* Density: 8px rhythm — 8/16/24/32/48 as calc(var(--space-step) * n). */
+  --space-step: 8px;
+  --frame-radius: 8px;
+  --frame-duration: var(--t-settle);
+  --frame-ease: var(--e-kura);
+
+  /* Type: editorial. Fraunces display headings, generous, settled. */
+  --frame-title-font: var(--font-heading);
+  --frame-title-size: 26px;
+  --frame-title-weight: 700;
+  --frame-title-tracking: -0.015em;
+
+  /* Secondary labels stay conversational sans. */
+  --frame-label-font: var(--font-sans);
+  --frame-label-size: 14px;
+  --frame-label-tracking: 0;
+  --frame-label-transform: none;
+
+  /* Numbers are prose here, not readouts. */
+  --frame-data-font: var(--font-sans);
+
+  /* Surface: paper. Card-as-print — soft lift, no hairline. Shadows are black
+   * rgba like --shadow/--shadow-strong above; this is surface, not palette. */
+  --frame-border-color: transparent;
+  --frame-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 8px 20px -12px rgba(0, 0, 0, 0.22);
+}
+[data-register='vault'] {
+  /* Density: 4px rhythm — the same calc() expressions land twice as tight. */
+  --space-step: 4px;
+  --frame-radius: 4px;
+  --frame-duration: var(--t-crisp);
+  --frame-ease: var(--e-vault);
+
+  /* Type: dense. No display face; headings step down and tighten. */
+  --frame-title-font: var(--font-sans);
+  --frame-title-size: 18px;
+  --frame-title-weight: 600;
+  --frame-title-tracking: -0.005em;
+
+  /* Mono-accented: labels become clipped, spaced micro-caps. */
+  --frame-label-font: var(--font-mono);
+  --frame-label-size: 11px;
+  --frame-label-tracking: 0.06em;
+  --frame-label-transform: uppercase;
+
+  /* Vault states technical truth in mono: 0/O and 1/l must never be ambiguous. */
+  --frame-data-font: var(--font-mono);
+
+  /* Surface: panel. Hairline border, flat — same shared --border colour. */
+  --frame-border-color: var(--border);
+  /* Transparent rather than `none`: Tailwind's shadow-* utilities splice this
+   * into a comma list (`box-shadow: <ring>, <inset>, var(--tw-shadow)`), and
+   * `none` inside a list is invalid — it would drop the whole declaration and
+   * take any ring on a Vault card down with it. */
+  --frame-shadow: 0 0 #0000;
+}
+
+/* Both registers enter the same way; only duration/ease differ, so a Kura frame
+ * settles in and a Vault frame snaps. Global so component <style> blocks can
+ * reference it — Svelte only rewrites @keyframes declared in the same file.
+ * The reduced-motion belt in @layer base collapses this to a no-op. */
+@keyframes kuraki-frame-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Preflight already renders <code> in a generic mono; inside the Vault we
+ * upgrade it to the app's own face. Narrowed from :is(code, .mono, [data-mono])
+ * — nothing in the codebase carries .mono or data-mono, so those two matched
+ * nothing. Register-specific mono for *data* is --frame-data-font, not a
+ * class contract. */
+[data-register='vault'] code {
+  font-family: var(--font-mono);
 }
 
 /* Screen-reader-only content, revealed on focus (skip link). */

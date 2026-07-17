@@ -1,16 +1,26 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { fly } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import { Star, Trash2, Download, FolderPlus, FolderMinus, RotateCcw, X, Archive, EyeOff } from '@lucide/svelte';
+  import { prefersReducedMotion } from '$lib/motion';
 
   export let count = 0;
   export let trashMode = false;
   export let albumMode = false;
 
   const dispatch = createEventDispatcher();
+
+  // This bar is a Kura surface (it acts on photos) — it rises and settles,
+  // it does not bounce. --t-settle / --e-kura; cubicOut is the closest JS
+  // easing function to the CSS cubic-bezier token (Svelte needs a function).
+  function rise() {
+    return prefersReducedMotion() ? { duration: 0 } : { y: 32, duration: 240, easing: cubicOut };
+  }
 </script>
 
 {#if count > 0}
-  <div class="bar" role="toolbar" aria-label="Batch actions">
+  <div class="bar" role="toolbar" aria-label="Batch actions" transition:fly={rise()}>
     <button class="clear" type="button" on:click={() => dispatch('clear')} aria-label="Clear selection">
       <X size={18} />
     </button>
@@ -88,5 +98,16 @@
   }
   .acts button.danger {
     color: var(--chrome-danger);
+  }
+
+  /* Below 820px MobileNav's tab bar owns the bottom edge (~58px, z-index 20).
+   * At `bottom: 20px` this bar (z-index 25) paints straight over the primary
+   * navigation, so entering select mode would bury it. Same lift, same
+   * breakpoint, same idiom as `.uploading` in +layout.svelte, which already
+   * solved this exact collision. Desktop is untouched: no tab bar there. */
+  @media (max-width: 820px) {
+    .bar {
+      bottom: calc(70px + env(safe-area-inset-bottom, 0));
+    }
   }
 </style>
