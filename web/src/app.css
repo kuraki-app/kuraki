@@ -274,6 +274,14 @@
   }
 }
 
+/* The morph carries a thumbnail to full-screen — a long travel, so it runs
+ * longer than a Kura settle. Outside @layer base so it is not out-ranked, and
+ * so the reduced-motion `animation: none` belt in that layer still wins. */
+::view-transition-group(kuraki-morph) {
+  animation-duration: var(--t-morph);
+  animation-timing-function: var(--e-kura);
+}
+
 /* Screen-reader-only content, revealed on focus (skip link). */
 .sr-only {
   position: absolute;

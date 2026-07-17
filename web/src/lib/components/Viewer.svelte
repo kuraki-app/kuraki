@@ -13,6 +13,7 @@
   } from '@lucide/svelte';
   import type { Asset } from '$lib/types';
   import { fileSize, placeLabel } from '$lib/format';
+  import { MORPH_NAME, viewerShowsImage } from '$lib/motion';
 
   export let assets: Asset[] = [];
   export let index = 0;
@@ -96,12 +97,22 @@
           <p>This original is safely stored, but this server cannot yet create a browser-compatible preview.</p>
           <a href={asset.original_url} download>Download original</a>
         </div>
-      {:else if asset.media_type === 'image'}
+      {:else if viewerShowsImage(asset)}
+        <!-- `viewerShowsImage`, not an inline `media_type === 'image'`: callers
+             must tag a grid tile only for assets that land in *this* branch, and
+             sharing the predicate is what stops the two rules from drifting.
+             Equivalent here — the branch above already excludes !web_viewable. -->
         {#if asset.thumbnail_url && !imgLoaded}
           <img class="preview" src={asset.thumbnail_url} alt="" aria-hidden="true" />
         {/if}
+        <!-- Only this image is tagged: the blurred `preview` behind it must stay
+             in the document so it can back-fill while the full view loads. At
+             most one Viewer is mounted at a time, so the tag cannot collide
+             with another Viewer — only with the grid tile it morphs from, which
+             LibraryView clears inside the same flush. -->
         <img
           class:loaded={imgLoaded}
+          style:view-transition-name={MORPH_NAME}
           src={asset.view_url}
           alt={asset.filename}
           on:load={() => (imgLoaded = true)}
