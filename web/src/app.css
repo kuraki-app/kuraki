@@ -2,7 +2,8 @@
 @import 'tw-animate-css';
 @import "shadcn-svelte/tailwind.css";
 @import "@fontsource-variable/geist";
-@import "@fontsource-variable/public-sans";
+@import "@fontsource-variable/fraunces";
+@import "@fontsource-variable/geist-mono";
 
 /* shadcn-svelte dark mode is a `.dark` class on <html> (driven by mode-watcher),
  * not a media query, so a pinned choice always wins. */
@@ -15,25 +16,30 @@
 :root {
   --radius: 0.625rem;
 
-  --background: #f6f3ee;
-  --foreground: #201d1a;
-  --card: #fffaf3;
-  --card-foreground: #201d1a;
-  --popover: #fffaf3;
-  --popover-foreground: #201d1a;
+  --background: #f2efe8;
+  --foreground: #191612;
+  --card: #fbf9f4;
+  --card-foreground: #191612;
+  --popover: #fbf9f4;
+  --popover-foreground: #191612;
   --primary: #24211f;
   --primary-foreground: #ffffff;
-  --secondary: #efe7da;
-  --secondary-foreground: #201d1a;
-  --muted: #ece3d6;
-  --muted-foreground: #6a6259;
-  --accent: #efe7da;
-  --accent-foreground: #201d1a;
+  --secondary: #e9e3d7;
+  --secondary-foreground: #191612;
+  --muted: #e9e3d7;
+  --muted-foreground: #5c554a;
+  --accent: #e9e3d7;
+  --accent-foreground: #191612;
   --destructive: #a33a2a;
   --destructive-foreground: #ffffff;
-  --border: #e5ddd1;
-  --input: #d8d0c5;
+  --border: #ded7c9;
+  --input: #7e7664;
   --ring: #1f5fbf;
+
+  /* Kuraki's own mark. Deliberately NOT --primary: as the button fill it would
+   * compete with the photographs. Reserved for brand, active nav, selection. */
+  --stamp: #8c3a2b;
+  --stamp-foreground: #ffffff;
 
   --chart-1: #24211f;
   --chart-2: #2b7548;
@@ -51,8 +57,8 @@
   --sidebar-ring: #1f5fbf;
 
   /* Kuraki extras (not part of shadcn). */
-  --text-dim: #4f4942;
-  --text-faint: #8a8175;
+  --text-dim: #4a443c;
+  --text-faint: #6f685c;
   --thumb: #ded6ca;
   --ok: #2b7548;
   --ok-bg: #e5f2e9;
@@ -79,6 +85,24 @@
   --scrim: rgba(20, 18, 14, 0.55);
   --shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
   --shadow-strong: 0 12px 34px rgba(0, 0, 0, 0.26);
+
+  /* Motion scale. Kura settles; Vault is crisp. Durations scale with how far
+   * and how large the thing that moves is. These live in plain :root (not
+   * @theme inline) because component <style> blocks read them via var() —
+   * @theme inline only inlines a token's value into generated Tailwind
+   * utilities, it does NOT emit the custom property, so var(--t-settle) would
+   * resolve to nothing if this moved back there. */
+  --t-instant: 80ms;
+  --t-crisp: 140ms;
+  --t-settle: 240ms;
+  --t-morph: 320ms;
+  --e-kura: cubic-bezier(0.2, 0, 0, 1);
+  --e-vault: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Same reasoning as the motion tokens above: raw font-family: var(--font-mono)
+   * in component CSS needs the actual custom property, which @theme inline
+   * below does not emit (it only powers the font-mono utility). */
+  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
 }
 .dark {
   --scrim: rgba(0, 0, 0, 0.62);
@@ -87,11 +111,11 @@
 }
 
 .dark {
-  --background: #14120e;
+  --background: #131108;
   --foreground: #f2ede3;
-  --card: #211d17;
+  --card: #1e1b14;
   --card-foreground: #f2ede3;
-  --popover: #211d17;
+  --popover: #1e1b14;
   --popover-foreground: #f2ede3;
   --primary: #f0eadf;
   --primary-foreground: #201d1a;
@@ -103,9 +127,12 @@
   --accent-foreground: #f2ede3;
   --destructive: #ff9a86;
   --destructive-foreground: #201d1a;
-  --border: #322d24;
-  --input: #403a2f;
+  --border: #332e24;
+  --input: #7e7666;
   --ring: #8fb6e6;
+
+  --stamp: #e8836b;
+  --stamp-foreground: #1a120f;
 
   --chart-1: #f0eadf;
   --chart-2: #7cc79a;
@@ -183,6 +210,8 @@
   --color-sidebar-ring: var(--sidebar-ring);
 
   /* Kuraki semantic utilities. */
+  --color-stamp: var(--stamp);
+  --color-stamp-foreground: var(--stamp-foreground);
   --color-ok: var(--ok);
   --color-ok-bg: var(--ok-bg);
   --color-info: var(--info);
@@ -194,7 +223,8 @@
   --color-thumb: var(--thumb);
   --color-highlight: var(--highlight);
   --font-sans: 'Geist Variable', sans-serif;
-  --font-heading: 'Public Sans Variable', sans-serif;
+  --font-heading: 'Fraunces Variable', Georgia, serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
@@ -231,6 +261,15 @@
       animation-iteration-count: 1 !important;
       transition-duration: 0.001ms !important;
       scroll-behavior: auto !important;
+    }
+
+    /* View transitions animate pseudo-elements outside the document tree, so
+     * the `*` rule above never reaches them. Without this, a reduced-motion
+     * user still gets the full grid→viewer morph. */
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+      animation: none !important;
     }
   }
 }
