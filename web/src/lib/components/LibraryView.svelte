@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { CheckSquare, Grid2X2, Grid3X3, Grid } from '@lucide/svelte';
   import type { Album, Asset, AssetList } from '$lib/types';
   import { api, downloadZip } from '$lib/api';
+  import { canMorph, morph } from '$lib/motion';
   import { libraryVersion, showToast } from '$lib/stores';
   import AssetGrid from './AssetGrid.svelte';
   import Viewer from './Viewer.svelte';
@@ -34,6 +35,8 @@
   let albums: Album[] = [];
   let mounted = false;
   let density: 'compact' | 'comfortable' | 'large' = 'comfortable';
+  /** The tile the viewer is morphing out of, or back into. Handed to AssetGrid. */
+  let morphId: string | null = null;
 
   const unsub = libraryVersion.subscribe(() => {
     if (mounted) reload();
@@ -103,19 +106,91 @@
 
   async function open(asset: Asset) {
     // A stacked tile opens its members (RAW+JPEG / Live Photo); otherwise the
-    // viewer pages through the current list.
+    // viewer pages through the current list. Resolve the list up front: a view
+    // transition suppresses rendering until its callback resolves, so awaiting
+    // the network inside it would freeze the page mid-morph.
+    let next: Asset[];
+    let at: number;
     if (asset.stack_size > 1) {
       try {
         const members = (await api.stack(asset.id)).assets;
-        viewerAssets = members.length ? members : [asset];
+        next = members.length ? members : [asset];
       } catch {
-        viewerAssets = [asset];
+        next = [asset];
       }
-      viewerIndex = 0;
+      at = 0;
     } else {
-      viewerAssets = assets;
-      viewerIndex = assets.findIndex((a) => a.id === asset.id);
+      next = assets;
+      at = assets.findIndex((a) => a.id === asset.id);
     }
+
+    // Image-only. A video's tile *does* have a thumbnail, so it would happily
+    // take the name — but the viewer renders a <video>, which is not tagged.
+    // The group would then hold only an old snapshot and the UA fades that
+    // thumbnail out from the tile's old position, in the ::view-transition
+    // overlay that paints above the fixed viewer: a ghost over the video.
+    if (canMorph(asset)) {
+      morphId = asset.id;
+      await tick(); // let the tag land on the tile before the old-state snapshot
+    }
+    await morph(() => {
+      viewerAssets = next;
+      viewerIndex = at;
+      // Cleared *inside* the callback, not after it: the grid stays mounted
+      // beneath the viewer, so the tile must drop the name in the same flush
+      // that the viewer's image takes it. Two elements holding one
+      // view-transition-name at the new-state snapshot aborts the whole
+      // transition, silently.
+      morphId = null;
+    });
+    morphId = null; // belt: the fallback path and any aborted transition
+  }
+
+  /**
+   * The tile id to morph the viewer back into on close, or null to just snap.
+   *
+   * Closing is the mirror of opening and has two extra ways to have no target.
+   * The asset may not be in the grid at all — a stacked tile opens its *members*
+   * into the viewer, and none of them but the cover is in `assets`. And the tile
+   * may be scrolled out of view after paging or arrow-key navigation. Either way
+   * the group would hold only the viewer's old snapshot and orphan-fade it over
+   * the grid, which is the Finding-2 ghost again. A correct snap beats that, so
+   * the target is confirmed live in the DOM and on screen before we commit.
+   */
+  function closeMorphTarget(asset: Asset | undefined): string | null {
+    if (!asset || !canMorph(asset)) return null; // videos must not morph either
+    if (typeof document === 'undefined') return null;
+    const tile = document.querySelector(`[data-asset-id="${CSS.escape(asset.id)}"]`);
+    if (!tile) return null; // not in `assets`: stacked member, trashed, archived
+    const r = tile.getBoundingClientRect();
+    const onScreen =
+      r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth;
+    return onScreen ? asset.id : null;
+  }
+
+  async function closeViewer() {
+    const target = closeMorphTarget(viewerAssets[viewerIndex]);
+    if (!target) {
+      // No tile to morph into. Unlike open() — where withholding morphId also
+      // withholds the tile's tag, because the tile's tag is conditional on it —
+      // the viewer's <img> tags itself unconditionally. A null target here would
+      // still leave the viewer's old snapshot holding the name with nothing on
+      // the new side: an old-only group, which the UA animates as a full-screen
+      // fade-out over the grid, painted in the ::view-transition overlay above
+      // all page content. Bypassing morph() entirely avoids ever starting that
+      // transition, so this is a plain, instant state change instead.
+      viewerIndex = -1;
+      morphId = null;
+      return;
+    }
+    await morph(() => {
+      // The exact inverse of open(): the viewer unmounts and drops the name in
+      // the same flush that the tile takes it, so each snapshot sees exactly one
+      // holder — old: the viewer's img; new: the tile.
+      viewerIndex = -1;
+      morphId = target;
+    });
+    morphId = null; // the transition is over; the tile must not keep the name
   }
 
   function dropAsset(id: string) {
@@ -275,6 +350,7 @@
     {selectMode}
     {selected}
     {density}
+    {morphId}
     grouped={!trashMode && !albumId}
     on:open={(e) => open(e.detail)}
     on:toggle={(e) => toggle(e.detail)}
@@ -295,7 +371,7 @@
     {trashMode}
     editable={!trashMode}
     on:navigate={(e) => (viewerIndex = e.detail)}
-    on:close={() => (viewerIndex = -1)}
+    on:close={closeViewer}
     on:favorite={(e) => favoriteOne(e.detail)}
     on:remove={(e) => removeOne(e.detail)}
     on:restore={(e) => restoreOne(e.detail)}

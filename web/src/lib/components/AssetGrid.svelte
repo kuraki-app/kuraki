@@ -3,12 +3,20 @@
   import { Star, Play, Check, Layers } from '@lucide/svelte';
   import type { Asset } from '$lib/types';
   import { groupByDay, labelDate } from '$lib/format';
+  import { MORPH_NAME } from '$lib/motion';
 
   export let assets: Asset[] = [];
   export let selectMode = false;
   export let selected: Set<string> = new Set();
   export let grouped = true;
   export let density: 'compact' | 'comfortable' | 'large' = 'comfortable';
+
+  /**
+   * The asset currently morphing. Exactly one, or the transition aborts.
+   * Callers must only ever set this to an asset `canMorph()` accepts — the tag
+   * below is a no-op without a thumbnail, but the viewer end is not.
+   */
+  export let morphId: string | null = null;
 
   const dispatch = createEventDispatcher<{ open: Asset; toggle: string }>();
   $: groups = grouped ? groupByDay(assets) : [{ day: '', items: assets }];
@@ -28,10 +36,14 @@
       {/if}
       <div class="grid {density}">
         {#each group.items as asset (asset.id)}
+          <!-- data-asset-id lets LibraryView locate a tile before morphing the
+               viewer back into it: the morph target must be rendered and on
+               screen, and only the DOM can answer that. -->
           <button
             class="tile"
             class:selected={selected.has(asset.id)}
             type="button"
+            data-asset-id={asset.id}
             on:click={() => activate(asset)}
             aria-label={asset.filename}
           >
@@ -39,6 +51,7 @@
               <span class="shimmer" class:done={loaded.has(asset.id)}></span>
               <img
                 class:loaded={loaded.has(asset.id)}
+                style:view-transition-name={morphId === asset.id ? MORPH_NAME : undefined}
                 src={asset.thumbnail_url}
                 alt={asset.filename}
                 loading="lazy"
@@ -85,24 +98,46 @@
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
-    gap: 8px;
+    gap: 0;
   }
-  .grid.compact { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 5px; }
-  .grid.large { grid-template-columns: repeat(auto-fill, minmax(188px, 1fr)); gap: 12px; }
+  .grid.compact { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+  .grid.large { grid-template-columns: repeat(auto-fill, minmax(188px, 1fr)); }
   .tile {
     position: relative;
     aspect-ratio: 1;
     overflow: hidden;
     border: 0;
-    border-radius: 6px;
+    /* Gapless forces square: rounded corners at zero gap punch diamond-shaped
+     * holes at every four-corner junction. Geometry, not preference. */
+    border-radius: 0;
     background: var(--thumb);
     color: var(--text-dim);
     cursor: pointer;
     padding: 0;
   }
-  .tile.selected {
-    outline: 3px solid var(--primary);
-    outline-offset: -3px;
+  /* The cell edge and the selection ring are drawn by a positioned overlay,
+   * not by the tile's own box-shadow: an element's shadow paints beneath its
+   * in-flow children, so an opaque photo would cover it completely. */
+  .tile::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.06);
+  }
+  :global(.dark) .tile::after {
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06);
+  }
+  .tile.selected::after {
+    box-shadow: inset 0 0 0 3px var(--stamp);
+  }
+  /* The global rule uses outline-offset: 2px, which at zero gap draws the ring
+   * on top of the neighbouring photos. Inset it so focus is unambiguous.
+   * outline paints above everything (including the ::after overlay), so a
+   * tile that is both selected and focused shows both affordances at once. */
+  .tile:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -2px;
   }
   .tile img {
     width: 100%;
@@ -110,7 +145,9 @@
     object-fit: cover;
     display: block;
     opacity: 0;
-    transition: opacity 160ms ease;
+    /* Opacity only — never scale. At zero gap and zero radius a scale-in
+     * overflows into the neighbouring photo. */
+    transition: opacity var(--t-settle) var(--e-kura);
   }
   .tile img.loaded { opacity: 1; }
   .shimmer {
@@ -122,9 +159,12 @@
   }
   .shimmer.done { opacity: 0; transition: opacity 160ms ease; animation: none; }
   @keyframes shimmer { to { background-position: -200% 0; } }
+  /* Selection manufactures its own gap: the sheet is solid, then selected
+   * photos recede into their cells. */
   .tile.selected img {
     transform: scale(0.9);
-    border-radius: 4px;
+    border-radius: 2px;
+    transition: transform var(--t-settle) var(--e-kura), opacity var(--t-settle) var(--e-kura);
   }
   .ph {
     display: grid;
@@ -184,7 +224,6 @@
   @media (max-width: 780px) {
     .grid {
       grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-      gap: 6px;
     }
     .grid.large { grid-template-columns: repeat(auto-fill, minmax(144px, 1fr)); }
   }
