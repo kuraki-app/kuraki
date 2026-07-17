@@ -33,7 +33,19 @@ export function canMorph(
   return viewerShowsImage(asset) && !!asset.thumbnail_url;
 }
 
-function prefersReducedMotion(): boolean {
+/**
+ * True when the user has asked for reduced motion.
+ *
+ * Svelte's `fly`/`fade` transitions are JS-driven — they animate by directly
+ * setting styles on each frame, not by triggering a CSS `transition` or
+ * `animation` — so the global `transition-duration: 0.001ms !important` rule
+ * in app.css (which only targets CSS-driven animations) does not cover them.
+ * Any component using a JS transition must check this itself.
+ *
+ * Guarded for `typeof window` so it is safe to call during SSR/prerender,
+ * even though this app is a SPA that normally never hits that path.
+ */
+export function prefersReducedMotion(): boolean {
   return (
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches

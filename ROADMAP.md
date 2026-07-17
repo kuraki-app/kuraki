@@ -58,8 +58,19 @@ existing promise works.
   integrity pass. Never automate deletion of a source.
 
 - **[improvement] Practical web-library navigation — Regular users — M.** Add
-  jump-to-date, configurable grid density, and progressive image loading.
-  Defer slideshow until usage research shows a repeated viewing job.
+  jump-to-date. Defer slideshow until usage research shows a repeated viewing job.
+  (Configurable grid density already shipped — `LibraryView.svelte`, persisted to
+  `localStorage` under `kuraki:grid-density`. Progressive image loading also
+  shipped: shimmer placeholder plus an opacity fade on decode in `AssetGrid`.)
+
+- **[production blocker] Timeline virtualization — all users — M.** README
+  advertises a "virtualized, day/month-grouped timeline that stays smooth at
+  large libraries". **There is no virtualization in `web/`.** `LibraryView`
+  cursor-paginates and appends into one array; `AssetGrid` renders one DOM
+  button per asset, unbounded. Either build it or correct the README — the
+  claim cannot stand alongside the 10k/50k/500k capacity evidence this roadmap
+  gates releases on. Found during the 2026-07-17 web design pass and
+  deliberately scoped out of it.
 
 - **[new feature] Smart albums — Organizers — M.** Build on saved searches with
   explicit ownership, preview, and reversible membership semantics.

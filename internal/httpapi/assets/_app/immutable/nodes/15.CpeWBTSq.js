@@ -1,1 +1,0 @@
-import"../chunks/In_r4Pg7.js";import{i as e,a as r}from"../chunks/BNU3oQhZ.js";import{p as s,a as o}from"../chunks/BkxjBBuX.js";import{L as p}from"../chunks/DMF3CT7s.js";function h(a,t){s(t,!1),e(),p(a,{load:()=>r.trash(),title:"Trash",subtitle:"Items are permanently removed after 30 days",trashMode:!0,emptyText:"Trash is empty"}),o()}export{h as component};
