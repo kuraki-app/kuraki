@@ -33,6 +33,9 @@ web/assets/
 __pycache__/
 *.pyc
 
+# Agent execution scratch
+.superpowers/
+
 # Editor / tooling
 .idea/
 .vscode/
