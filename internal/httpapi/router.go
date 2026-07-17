@@ -40,7 +40,10 @@ type Deps struct {
 	// BackupEnabled reports whether unattended backups are configured, so the
 	// dashboard can distinguish "not set up" from "set up but not yet run".
 	BackupEnabled bool
-	Logger        *slog.Logger
+	// AndroidAPKPath is the filesystem path served at /download/android. Empty
+	// disables the endpoint (404); a missing file also 404s until one is placed.
+	AndroidAPKPath string
+	Logger         *slog.Logger
 }
 
 // NewRouter builds the top-level HTTP handler.
@@ -71,6 +74,10 @@ func NewRouter(d Deps) http.Handler {
 
 	r.Get("/healthz", d.healthz)
 	r.With(d.requireMetricsAuth).Get("/metrics", d.metrics)
+
+	// Public app download: a new phone fetches the APK before it has any
+	// credentials, so this sits outside /api and requires no session.
+	r.Get("/download/android", d.downloadAndroid)
 
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/status", d.status)

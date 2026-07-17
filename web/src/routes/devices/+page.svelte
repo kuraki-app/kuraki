@@ -1,25 +1,31 @@
 <script lang="ts">
   import QRCode from 'qrcode';
-  import { Smartphone, RefreshCw } from '@lucide/svelte';
+  import { Smartphone, RefreshCw, Download } from '@lucide/svelte';
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { Button } from '$lib/components/ui/button';
 
   let qrSvg = '';
-  let code = '';
   let expiresAt = '';
   let loading = false;
+
+  // base64url-encode so the QR carries an opaque blob, not a readable code. A
+  // generic QR reader sees only `kuraki://pair?d=…`; only the Kuraki app decodes
+  // it. The code itself is never shown as text and is stored hashed server-side.
+  function base64url(s: string): string {
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
 
   async function pair() {
     loading = true;
     try {
       const res = await api.createPairingCode();
-      code = res.code;
       expiresAt = res.expires_at;
       // The phone needs both where to reach this server and the one-time code.
-      const payload = JSON.stringify({ base_url: location.origin, code: res.code });
-      qrSvg = await QRCode.toString(payload, { type: 'svg', margin: 1, width: 240 });
+      const payload = base64url(JSON.stringify({ base_url: location.origin, code: res.code }));
+      const qrData = `kuraki://pair?d=${payload}`;
+      qrSvg = await QRCode.toString(qrData, { type: 'svg', margin: 1, width: 240 });
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Could not create a pairing code');
     } finally {
@@ -40,10 +46,13 @@
     <li>Turn on <strong>Automatic backup</strong> on the phone.</li>
   </ol>
 
+  <a class="download" href="/download/android" download>
+    <Download size={15} aria-hidden="true" /> Download the Android app (.apk)
+  </a>
+
   {#if qrSvg}
     <div class="qr">{@html qrSvg}</div>
-    <p class="code">Code: <code>{code}</code></p>
-    <p class="hint">Expires at {expiryLabel}. Single use. Generate a new one if it expires.</p>
+    <p class="hint">Scan with the Kuraki app only. Expires at {expiryLabel}. Single use — generate a new one if it expires.</p>
     <Button variant="outline" onclick={pair} disabled={loading}>
       <RefreshCw size={15} aria-hidden="true" /> New code
     </Button>
@@ -92,20 +101,22 @@
     height: auto;
     display: block;
   }
-  .code {
-    text-align: center;
-    margin: 0 0 4px;
-    font-size: 14px;
-  }
-  .code code {
-    font-size: 12px;
-    word-break: break-all;
-    color: var(--muted-foreground);
-  }
   .hint {
     text-align: center;
     color: var(--muted-foreground);
     font-size: 13px;
     margin: 0 0 14px;
+  }
+  .download {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 16px;
+    font-size: 14px;
+    color: var(--primary, #208aef);
+    text-decoration: none;
+  }
+  .download:hover {
+    text-decoration: underline;
   }
 </style>

@@ -6,6 +6,11 @@
 #
 # M1 compiles the SvelteKit UI into internal/httpapi/assets before the Go build
 # embeds it. The default binary stays pure-Go.
+#
+# The runtime image runs BOTH surfaces in one container: the Go server on :3000
+# (API + media, and the embedded UI as a fallback) and a Caddy static server on
+# :8080 that serves the SvelteKit UI as its own origin, proxying /api, /healthz,
+# and /metrics back to :3000. See scripts/docker-entrypoint.sh + deploy/ui.Caddyfile.
 
 # --- web build stage ---
 FROM node:24-bookworm-slim AS web
@@ -47,19 +52,39 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /out/kuraki /usr/local/bin/kuraki
 
+# Caddy serves the SvelteKit UI on :8080 as its own origin. Pull the static
+# binary from the official image (no apt), the built SPA from the web stage, and
+# the in-container UI config. See deploy/ui.Caddyfile + scripts/docker-entrypoint.sh.
+COPY --from=caddy:2 /usr/bin/caddy /usr/local/bin/caddy
+COPY --from=web /src/internal/httpapi/assets /srv/web
+COPY deploy/ui.Caddyfile /etc/caddy/Caddyfile
+COPY --chmod=0755 scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
+# Ship the prebuilt Android app served at /download/android. It lives outside
+# /data (a runtime volume that would shadow it) and is not embedded in the Go
+# binary. KURAKI_ANDROID_APK below points the download endpoint at it.
+COPY web/assets/download/kuraki-android.apk /opt/kuraki/kuraki-android.apk
+
 # Run as an unprivileged user; /data is owned by it so the volume is writable.
 RUN useradd --system --uid 10001 --home /data kuraki \
     && mkdir -p /data && chown kuraki:kuraki /data
 USER kuraki
 
 VOLUME ["/data"]
+# Keep Caddy's scratch state off the /data volume (admin/persist are disabled,
+# so this stays tiny) and out of the read-only home.
 ENV KURAKI_DATA_DIR=/data \
-    KURAKI_ADDR=:3000
-EXPOSE 3000
+    KURAKI_ADDR=:3000 \
+    XDG_CONFIG_HOME=/tmp \
+    XDG_DATA_HOME=/tmp \
+    KURAKI_ANDROID_APK=/opt/kuraki/kuraki-android.apk
+# 3000 = Go API + media (canonical origin) · 8080 = SvelteKit UI (proxies /api).
+EXPOSE 3000 8080
 
-# Self-probe via the kuraki binary — no curl/wget needed in the image.
+# Self-probe the API via the kuraki binary — no curl/wget needed in the image.
+# If the API is down the UI is useless too, so probing :3000 covers both.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD ["kuraki", "healthcheck"]
 
-ENTRYPOINT ["kuraki"]
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["serve"]

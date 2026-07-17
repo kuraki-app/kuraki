@@ -25,7 +25,9 @@ type pairClaimRequest struct {
 
 // createPairingCode mints a short-lived, single-use code for an authenticated
 // owner. The web app renders it as a QR (alongside its own origin) so a phone
-// can pair without the owner copying a token by hand.
+// can pair without the owner copying a token by hand. Only the SHA-256 of the
+// code is persisted (like devices.token_hash); the plaintext is returned once,
+// embedded in the QR, and never stored.
 func (d Deps) createPairingCode(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)
 	if user == nil {
@@ -39,8 +41,8 @@ func (d Deps) createPairingCode(w http.ResponseWriter, r *http.Request) {
 	}
 	expires := time.Now().UTC().Add(pairingTTL).Format(time.RFC3339Nano)
 	if _, err := d.DB.ExecContext(r.Context(), `
-		INSERT INTO pairing_codes (code, owner_id, expires_at) VALUES (?, ?, ?)`,
-		code, user.ID, expires); err != nil {
+		INSERT INTO pairing_codes (code_hash, owner_id, expires_at) VALUES (?, ?, ?)`,
+		hashDeviceToken(code), user.ID, expires); err != nil {
 		writeError(w, http.StatusInternalServerError, "pairing_code_failed")
 		return
 	}
@@ -67,10 +69,12 @@ func (d Deps) claimPairingCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The code is stored hashed; look it up by the same SHA-256.
+	codeHash := hashDeviceToken(req.Code)
 	var ownerID, expires string
 	var claimedAt sql.NullString
 	err := d.DB.QueryRowContext(r.Context(), `
-		SELECT owner_id, expires_at, claimed_at FROM pairing_codes WHERE code = ?`, req.Code).
+		SELECT owner_id, expires_at, claimed_at FROM pairing_codes WHERE code_hash = ?`, codeHash).
 		Scan(&ownerID, &expires, &claimedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "invalid_code")
@@ -113,7 +117,7 @@ func (d Deps) claimPairingCode(w http.ResponseWriter, r *http.Request) {
 
 	now := nowCaptureText()
 	claimed, err := tx.ExecContext(r.Context(), `
-		UPDATE pairing_codes SET claimed_at = ? WHERE code = ? AND claimed_at IS NULL`, now, req.Code)
+		UPDATE pairing_codes SET claimed_at = ? WHERE code_hash = ? AND claimed_at IS NULL`, now, codeHash)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "pairing_claim_failed")
 		return
@@ -129,7 +133,7 @@ func (d Deps) claimPairingCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := tx.ExecContext(r.Context(), `
-		UPDATE pairing_codes SET device_id = ? WHERE code = ?`, deviceID.String(), req.Code); err != nil {
+		UPDATE pairing_codes SET device_id = ? WHERE code_hash = ?`, deviceID.String(), codeHash); err != nil {
 		writeError(w, http.StatusInternalServerError, "pairing_claim_failed")
 		return
 	}

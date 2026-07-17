@@ -48,7 +48,7 @@ type App struct {
 // snapshot), and selects the media backend. The pure-Go processor is used by
 // default; builds tagged "vips" swap in the libvips backend.
 func New(ctx context.Context, cfg config.Config, version string, log *slog.Logger) (*App, error) {
-	for _, dir := range []string{cfg.DataDir, cfg.OriginalsDir(), cfg.DerivativesDir(), cfg.TrashDir(), cfg.SnapshotsDir(), cfg.StagingDir()} {
+	for _, dir := range []string{cfg.DataDir, cfg.OriginalsDir(), cfg.DerivativesDir(), cfg.TrashDir(), cfg.SnapshotsDir(), cfg.StagingDir(), cfg.DownloadsDir()} {
 		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return nil, fmt.Errorf("app: create %s: %w", dir, err)
 		}
@@ -588,17 +588,18 @@ func (a *App) Serve(ctx context.Context) error {
 	go a.Queue.Start(ctx)
 
 	handler := httpapi.NewRouter(httpapi.Deps{
-		Version:       a.Version,
-		DB:            a.DB,
-		Store:         a.Store,
-		Media:         a.Media,
-		Queue:         a.Queue,
-		ThumbSize:     a.Cfg.ThumbnailSize,
-		SecureCookies: a.Cfg.SecureCookies,
-		TrustProxy:    a.Cfg.TrustProxy,
-		MetricsToken:  a.Cfg.MetricsToken,
-		BackupEnabled: a.Cfg.BackupDir != "",
-		Logger:        a.Log,
+		Version:        a.Version,
+		DB:             a.DB,
+		Store:          a.Store,
+		Media:          a.Media,
+		Queue:          a.Queue,
+		ThumbSize:      a.Cfg.ThumbnailSize,
+		SecureCookies:  a.Cfg.SecureCookies,
+		TrustProxy:     a.Cfg.TrustProxy,
+		MetricsToken:   a.Cfg.MetricsToken,
+		BackupEnabled:  a.Cfg.BackupDir != "",
+		AndroidAPKPath: a.Cfg.AndroidAPKPath(),
+		Logger:         a.Log,
 	})
 	srv := &http.Server{
 		Addr:              a.Cfg.Addr,

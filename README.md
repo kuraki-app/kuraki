@@ -81,6 +81,10 @@ docker compose up -d
 Open <http://localhost:3000> and create your admin account on first visit. Your library lives in
 `./kuraki-data` — back up that directory and you have everything.
 
+The container runs both surfaces on two origins: the Go API + media on `:3000` (which also
+serves the embedded UI) and the SvelteKit UI on <http://localhost:8080>, served by Caddy and
+proxying `/api` back to `:3000`. Either URL gives you the working app.
+
 > **Exposing it to the internet?** Put Kuraki behind a reverse proxy that terminates HTTPS and
 > turn on `KURAKI_SECURE_COOKIES` and `KURAKI_TRUST_PROXY`. See
 > **[DEPLOYMENT.md](DEPLOYMENT.md)** for a ready-to-run Caddy (automatic HTTPS) or
@@ -90,7 +94,8 @@ Open <http://localhost:3000> and create your admin account on first visit. Your 
 ### Docker
 
 ```sh
-docker run -d -p 3000:3000 -v "$PWD/kuraki-data:/data" ghcr.io/kuraki-app/kuraki:latest
+docker run -d -p 3000:3000 -p 8080:8080 -v "$PWD/kuraki-data:/data" ghcr.io/kuraki-app/kuraki:latest
+# :3000 = API + media (and embedded UI) · :8080 = SvelteKit UI (proxies /api -> :3000)
 ```
 
 ### Bulk import from the command line
@@ -119,6 +124,14 @@ Sensible defaults, no config file required. Override via flags or environment
 | — | `KURAKI_BACKUP_DIR` | — | Enable unattended backups: write a SQLite-consistent archive here on an interval (keep it on a **separate disk/mount**) |
 | — | `KURAKI_BACKUP_INTERVAL_HOURS` | `24` | How often the unattended backup runs when `KURAKI_BACKUP_DIR` is set |
 | — | `KURAKI_BACKUP_KEEP` | `7` | How many recent automatic archives to retain before pruning older ones |
+| — | `KURAKI_ANDROID_APK` | `<data>/downloads/kuraki-android.apk` | Path to the Android app package served at `/download/android` |
+
+### Android app download
+
+The server serves an Android APK at **`/download/android`** (linked from the **Devices** page). Drop
+your built APK at `kuraki-data/downloads/kuraki-android.apk` — or point `KURAKI_ANDROID_APK` at another
+path — and it becomes downloadable; until then the endpoint returns 404. Build the APK with EAS
+(`cd mobile && eas build -p android --profile preview`) or a local Gradle build.
 
 ## Commands
 

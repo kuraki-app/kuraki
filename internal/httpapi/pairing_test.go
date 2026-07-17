@@ -44,6 +44,19 @@ func TestPairingCodeClaimCreatesDevice(t *testing.T) {
 		t.Fatal("pairing code missing")
 	}
 
+	// The code is stored HASHED at rest: the DB holds sha256(code), never the
+	// plaintext the QR carries.
+	var storedHash string
+	if err := database.QueryRowContext(ctx, `SELECT code_hash FROM pairing_codes`).Scan(&storedHash); err != nil {
+		t.Fatalf("read stored pairing code: %v", err)
+	}
+	if storedHash == minted.Code {
+		t.Fatal("pairing code stored in plaintext; must be hashed")
+	}
+	if storedHash != hashDeviceToken(minted.Code) {
+		t.Fatalf("stored hash = %q, want sha256(code)", storedHash)
+	}
+
 	// The phone redeems it with no session cookie and receives a device token.
 	claim := claimPairing(t, router, minted.Code, "Kitchen phone")
 	if claim.Code != http.StatusCreated {

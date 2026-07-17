@@ -164,6 +164,9 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Find: opt-in local OCR (tesseract) indexes screenshot/document text into FTS | ✅ done |
 | **Maintain**: portable sidecars/manifest, canonical external identity, restore rehearsals, storage forecast | ⬜ release blocker |
 | **Harden**: Docker now uses the vips build; duplicate runs, private artifacts, security headers, metrics text, migration regression, and mobile build foundations landed; certification/capacity remain | 🟡 in progress |
+| Docker image runs both surfaces on split origins in one container: Go API+media on :3000 (embedded UI fallback) + Caddy static SvelteKit UI on :8080 proxying /api → :3000; CLI subcommands still pass through the entrypoint | ✅ done |
+| Phone pairing hardened: codes hashed at rest (code_hash, migration 00019), web shows no plaintext code, QR is an opaque app-only `kuraki://pair?d=…` blob the mobile scanner decodes | ✅ done |
+| Public `GET /download/android` serves an operator-supplied APK (KURAKI_ANDROID_APK, default `<data>/downloads/kuraki-android.apk`), linked from Devices; Caddy :8080 proxies /download/*; APK built out of band | ✅ done |
 | Optional local intelligence (faces/semantic), scale (S3/Postgres/hardware) | ⬜ later phases |
 | Sharing & multi-user (links, household albums, roles, OIDC) | ⏸ parked by decision |
 
@@ -193,7 +196,38 @@ audited baseline and release checklist.
 
 ## 11. Handoff log (append newest at top)
 
-- `HEAD` — **Daily-use navigation and complete media duplicate review (Codex).** Timeline now supports
+- `working tree` — **Android APK download endpoint.** Public `GET /download/android` (outside `/api`,
+  no session — a new phone has no credentials yet) serves an operator-supplied APK from
+  `KURAKI_ANDROID_APK` (default `<data>/downloads/kuraki-android.apk`) with
+  `application/vnd.android.package-archive` + `attachment` disposition via `http.ServeContent`; a
+  missing/unset file returns a friendly 404. Startup now creates `<data>/downloads`. The Caddy `:8080`
+  origin proxies `/download/*` to `:3000`, and the web Devices page links "Download the Android app
+  (.apk)". Serve-only by design — the APK itself is built out of band (EAS or local Gradle). New
+  `internal/httpapi/android.go` + `android_test.go` (present→200 w/ headers, missing→404, unset→404).
+  Verified: Go build/vet/tests green; full image rebuilt; APK served identically on :3000 and :8080,
+  404 when absent; the built web bundle contains the download link.
+
+- `working tree` — **Hardened phone pairing (hashed, app-only QR).** Pairing codes are now stored
+  hashed at rest — `pairing_codes.code` → `code_hash` (migration `00019`, ephemeral table recreated),
+  the server persists/looks up only `sha256(code)` like `devices.token_hash`; the plaintext lives only
+  in the QR and the claim request. The web Devices page no longer prints the code as text and encodes
+  the QR as an opaque `kuraki://pair?d=<base64url(JSON{base_url,code})>` blob, so a generic QR reader
+  yields nothing usable — only the app decodes it (`mobile/src/components/pair-scanner.tsx`
+  `decodePairing`). `pairing_test.go` now asserts the DB holds the hash, not the plaintext. Verified:
+  Go build + pairing/db tests green in a golang:1.26 container; web stage compiles; full
+  mint→claim→reuse(409)→unknown(404) round trip passes end-to-end through the container's Caddy :8080
+  proxy on a freshly-migrated DB.
+
+- `working tree` — **Dual-origin Docker container.** The image now runs both surfaces in one
+  container: `kuraki serve` on `:3000` (Go API + media, embedded UI fallback) and a Caddy static
+  server on `:8080` serving the built SvelteKit SPA as its own origin, proxying `/api`, `/healthz`,
+  `/metrics` back to `:3000` (mirrors the Vite dev proxy). New `scripts/docker-entrypoint.sh`
+  supervises both (bash `wait -n`, SIGTERM forwarding, non-`serve` args still pass through to the
+  kuraki CLI so `version`/`import`/`healthcheck` and the container HEALTHCHECK work); new
+  `deploy/ui.Caddyfile`; Dockerfile pulls the `caddy:2` static binary and the built UI, EXPOSEs
+  `3000 8080`, XDG scratch dirs point at `/tmp`. `docker-compose.yml` and README updated. Verified
+  end-to-end: image builds, both ports serve HTTP 200 (direct + proxied + SPA fallback), graceful
+  stop in 0.16s. Timeline now supports
   jump-to-date filtering, a persisted Compact/Comfortable/Large grid-density control, and progressive
   thumbnail reveal; failed library loads have an explicit retry and the mobile Backup screen exposes retry
   state for persisted failures. Video posters now receive perceptual hashes, so durable duplicate runs cover

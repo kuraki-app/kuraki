@@ -13,6 +13,27 @@ type Props = {
   onClose: () => void;
 };
 
+const PAIR_PREFIX = 'kuraki://pair?d=';
+
+// decodePairing reads the app-only QR format `kuraki://pair?d=<base64url(JSON)>`.
+// The payload is deliberately opaque so a generic QR reader reveals nothing
+// usable — only this app knows to decode it. Returns the server URL and the
+// one-time code the phone redeems for its own device token.
+function decodePairing(data: string): { base_url: string; code: string } {
+  const invalid = new Error('That QR code is not a Kuraki pairing code.');
+  if (!data.startsWith(PAIR_PREFIX)) throw invalid;
+  let b64 = data.slice(PAIR_PREFIX.length).replace(/-/g, '+').replace(/_/g, '/');
+  while (b64.length % 4 !== 0) b64 += '='; // restore stripped base64 padding
+  let payload: { base_url?: string; code?: string };
+  try {
+    payload = JSON.parse(atob(b64));
+  } catch {
+    throw invalid;
+  }
+  if (!payload.base_url || !payload.code) throw invalid;
+  return { base_url: payload.base_url, code: payload.code };
+}
+
 // PairScanner reads the QR the Kuraki web app shows. The QR carries the server
 // URL and a one-time code; on a successful scan the phone claims its own device
 // token and stores the connection, so the owner never types a token by hand.
@@ -25,8 +46,7 @@ export default function PairScanner({ onPaired, onClose }: Props) {
     if (busy) return;
     setBusy(true);
     try {
-      const payload = JSON.parse(data) as { base_url?: string; code?: string };
-      if (!payload.base_url || !payload.code) throw new Error('That QR code is not a Kuraki pairing code.');
+      const payload = decodePairing(data);
       const name = Device.deviceName ?? 'My phone';
       const device = await claimPairing(payload.base_url, payload.code, name);
       const baseURL = payload.base_url.replace(/\/+$/, '');

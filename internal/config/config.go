@@ -62,6 +62,11 @@ type Config struct {
 	// BackupKeep is how many recent automatic archives to retain before older
 	// ones are pruned (KURAKI_BACKUP_KEEP, default 7).
 	BackupKeep int
+
+	// AndroidAPK is an optional override for the Android app package served at
+	// /download/android (KURAKI_ANDROID_APK). Empty (the default) uses
+	// AndroidAPKPath() under the data dir; the endpoint 404s when no file exists.
+	AndroidAPK string
 }
 
 // Default returns the zero-config configuration used when nothing overrides it.
@@ -113,6 +118,9 @@ func Load(getenv func(string) string) Config {
 	if n, ok := positiveInt(getenv("KURAKI_BACKUP_KEEP")); ok {
 		c.BackupKeep = n
 	}
+	if v := strings.TrimSpace(getenv("KURAKI_ANDROID_APK")); v != "" {
+		c.AndroidAPK = v
+	}
 	return c
 }
 
@@ -154,3 +162,17 @@ func (c Config) SnapshotsDir() string { return filepath.Join(c.DataDir, "snapsho
 
 // StagingDir holds uploaded files awaiting background import.
 func (c Config) StagingDir() string { return filepath.Join(c.DataDir, "staging") }
+
+// DownloadsDir holds operator-supplied artifacts served under /download,
+// currently the Android app package.
+func (c Config) DownloadsDir() string { return filepath.Join(c.DataDir, "downloads") }
+
+// AndroidAPKPath is the file served at /download/android: the KURAKI_ANDROID_APK
+// override when set, otherwise kuraki-android.apk under DownloadsDir. The file
+// need not exist — the endpoint 404s until an operator drops one in.
+func (c Config) AndroidAPKPath() string {
+	if c.AndroidAPK != "" {
+		return c.AndroidAPK
+	}
+	return filepath.Join(c.DownloadsDir(), "kuraki-android.apk")
+}

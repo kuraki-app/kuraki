@@ -1,6 +1,11 @@
-# Kuraki — one-command self-hosting (simple local host, plain HTTP on :3000).
+# Kuraki — one-command self-hosting (simple local host, plain HTTP).
 #
-#   docker compose up -d      # build + start, then open http://localhost:3000
+#   docker compose up -d      # build + start, then open a URL below
+#
+# One container, two origins:
+#   • http://localhost:3000   Go API + media, plus the embedded UI (canonical)
+#   • http://localhost:8080   SvelteKit UI served by Caddy, proxying /api to :3000
+# Both serve the working app; :8080 is the split UI origin, :3000 is the API.
 #
 # Your photos live in ./kuraki-data (originals/, derivatives/, the
 # SQLite DB, and pre-migration snapshots) — back that directory up and you have
@@ -20,7 +25,8 @@ services:
     container_name: kuraki
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3000:3000"   # Go API + media (and embedded UI)
+      - "8080:8080"   # SvelteKit UI (Caddy), proxies /api -> :3000
     volumes:
       - ./kuraki-data:/data
       # Optional: mount a folder Syncthing/rsync writes into, then run

@@ -23,6 +23,16 @@ web/.svelte-kit/
 web/build/
 web/dist/
 
+# Built app packages. The Android APK is operator-supplied and built out of
+# band (see README "Android app download") — it is a 51MB artifact, not source.
+/prod-builds/
+web/assets/
+*.apk
+
+# Python tooling cache (web/scripts)
+__pycache__/
+*.pyc
+
 # Editor / tooling
 .idea/
 .vscode/
