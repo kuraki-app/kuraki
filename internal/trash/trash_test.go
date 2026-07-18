@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -126,5 +127,33 @@ func TestDeleteRestorePurge(t *testing.T) {
 	}
 	if n != 0 {
 		t.Errorf("purged %d recently-deleted, want 0", n)
+	}
+}
+
+func TestPurgeRemovesTrashedAsset(t *testing.T) {
+	ctx, database, store := setup(t)
+	addAsset(t, ctx, database, store, "p1", "2026/07/p1.jpg")
+	if err := Delete(ctx, database, store, "p1"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := Purge(ctx, database, store, "p1"); err != nil {
+		t.Fatalf("Purge: %v", err)
+	}
+	var n int
+	if err := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM assets WHERE id = ?`, "p1").Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("asset row still present after purge")
+	}
+}
+
+func TestPurgeRefusesLiveAsset(t *testing.T) {
+	ctx, database, store := setup(t)
+	addAsset(t, ctx, database, store, "p2", "2026/07/p2.jpg")
+
+	if err := Purge(ctx, database, store, "p2"); !errors.Is(err, ErrNotDeleted) {
+		t.Fatalf("Purge on live asset = %v, want ErrNotDeleted", err)
 	}
 }

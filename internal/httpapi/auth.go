@@ -243,6 +243,20 @@ func (d Deps) currentUser(r *http.Request) *authUser {
 	return &user
 }
 
+// ownerID returns the authenticated owner under either auth mode. Device auth
+// (Bearer) carries device.OwnerID; session auth carries the cookie user. Inside
+// an authed route group exactly one is present; if neither is, the caller must
+// treat it as unauthorized rather than dereferencing a nil user.
+func (d Deps) ownerID(r *http.Request) (string, bool) {
+	if dev := deviceFromRequest(r); dev.OwnerID != "" {
+		return dev.OwnerID, true
+	}
+	if u := d.currentUser(r); u != nil {
+		return u.ID, true
+	}
+	return "", false
+}
+
 func (d Deps) sessionCookie(value string, expires time.Time) *http.Cookie {
 	return &http.Cookie{
 		Name:     sessionCookieName,

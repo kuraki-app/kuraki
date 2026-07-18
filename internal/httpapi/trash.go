@@ -10,7 +10,15 @@ import (
 
 // deleteAsset soft-deletes an asset into the trash (F-10).
 func (d Deps) deleteAsset(w http.ResponseWriter, r *http.Request) {
-	err := trash.Delete(r.Context(), d.DB, d.Store, chi.URLParam(r, "id"))
+	id := chi.URLParam(r, "id")
+	if ok, err := d.ownsAsset(r, id); err != nil {
+		writeError(w, http.StatusInternalServerError, "asset_lookup_failed")
+		return
+	} else if !ok {
+		writeError(w, http.StatusNotFound, "asset_not_found")
+		return
+	}
+	err := trash.Delete(r.Context(), d.DB, d.Store, id)
 	switch {
 	case errors.Is(err, trash.ErrNotFound):
 		writeError(w, http.StatusNotFound, "asset_not_found")
@@ -25,7 +33,15 @@ func (d Deps) deleteAsset(w http.ResponseWriter, r *http.Request) {
 
 // restoreAsset restores an asset from the trash (F-10).
 func (d Deps) restoreAsset(w http.ResponseWriter, r *http.Request) {
-	err := trash.Restore(r.Context(), d.DB, d.Store, chi.URLParam(r, "id"))
+	id := chi.URLParam(r, "id")
+	if ok, err := d.ownsAsset(r, id); err != nil {
+		writeError(w, http.StatusInternalServerError, "asset_lookup_failed")
+		return
+	} else if !ok {
+		writeError(w, http.StatusNotFound, "asset_not_found")
+		return
+	}
+	err := trash.Restore(r.Context(), d.DB, d.Store, id)
 	switch {
 	case errors.Is(err, trash.ErrNotFound):
 		writeError(w, http.StatusNotFound, "asset_not_found")
@@ -35,6 +51,29 @@ func (d Deps) restoreAsset(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "restore_failed")
 	default:
 		writeJSON(w, http.StatusOK, map[string]string{"status": "restored"})
+	}
+}
+
+// purgeAsset permanently deletes a trashed asset (device-authenticated).
+func (d Deps) purgeAsset(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if ok, err := d.ownsAsset(r, id); err != nil {
+		writeError(w, http.StatusInternalServerError, "asset_lookup_failed")
+		return
+	} else if !ok {
+		writeError(w, http.StatusNotFound, "asset_not_found")
+		return
+	}
+	err := trash.Purge(r.Context(), d.DB, d.Store, id)
+	switch {
+	case errors.Is(err, trash.ErrNotFound):
+		writeError(w, http.StatusNotFound, "asset_not_found")
+	case errors.Is(err, trash.ErrNotDeleted):
+		writeError(w, http.StatusConflict, "not_in_trash")
+	case err != nil:
+		writeError(w, http.StatusInternalServerError, "purge_failed")
+	default:
+		writeJSON(w, http.StatusOK, map[string]string{"status": "purged"})
 	}
 }
 

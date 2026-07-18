@@ -86,6 +86,25 @@ func Restore(ctx context.Context, db *sql.DB, store storage.Storage, assetID str
 	return nil
 }
 
+// Purge permanently deletes one trashed asset (originals, derivatives, row).
+// It refuses an asset that is not currently in the trash.
+func Purge(ctx context.Context, db *sql.DB, store storage.Storage, assetID string) error {
+	var path string
+	var deletedAt sql.NullString
+	err := db.QueryRowContext(ctx,
+		`SELECT original_path, deleted_at FROM assets WHERE id = ?`, assetID).Scan(&path, &deletedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("trash: lookup asset: %w", err)
+	}
+	if !deletedAt.Valid {
+		return ErrNotDeleted
+	}
+	return purgeOne(ctx, db, store, assetID, path)
+}
+
 // PurgeExpired permanently removes assets deleted before cutoff: trash file,
 // derivative files + rows (via FK cascade), FTS row, and the asset row. Returns
 // the number of assets purged.

@@ -24,14 +24,31 @@ type albumDTO struct {
 
 // ownsAlbum verifies the album exists, is not deleted, and belongs to the caller.
 func (d Deps) ownsAlbum(r *http.Request, albumID string) (bool, error) {
-	user := d.currentUser(r)
-	if user == nil {
+	owner, ok := d.ownerID(r)
+	if !ok {
 		return false, nil
 	}
 	var one int
 	err := d.DB.QueryRowContext(r.Context(),
 		`SELECT 1 FROM albums WHERE id = ? AND owner_id = ? AND deleted_at IS NULL`,
-		albumID, user.ID).Scan(&one)
+		albumID, owner).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+// ownsAsset reports whether the authenticated owner owns the asset (any state).
+// Used to scope the device-reachable trash writes so a token can't delete/
+// restore/purge another owner's asset.
+func (d Deps) ownsAsset(r *http.Request, assetID string) (bool, error) {
+	owner, ok := d.ownerID(r)
+	if !ok {
+		return false, nil
+	}
+	var one int
+	err := d.DB.QueryRowContext(r.Context(),
+		`SELECT 1 FROM assets WHERE id = ? AND owner_id = ?`, assetID, owner).Scan(&one)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -49,7 +66,11 @@ func (d Deps) createAlbum(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "name_required")
 		return
 	}
-	user := d.currentUser(r)
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	id, err := uuid.NewV7()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "id_failed")
@@ -57,7 +78,7 @@ func (d Deps) createAlbum(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := d.DB.ExecContext(r.Context(),
 		`INSERT INTO albums (id, owner_id, name) VALUES (?, ?, ?)`,
-		id.String(), user.ID, req.Name); err != nil {
+		id.String(), owner, req.Name); err != nil {
 		writeError(w, http.StatusInternalServerError, "create_album_failed")
 		return
 	}
@@ -65,7 +86,11 @@ func (d Deps) createAlbum(w http.ResponseWriter, r *http.Request) {
 }
 
 func (d Deps) listAlbums(w http.ResponseWriter, r *http.Request) {
-	user := d.currentUser(r)
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	rows, err := d.DB.QueryContext(r.Context(), `
 		SELECT al.id, al.name, al.created_at, COUNT(ast.id)
 		FROM albums al
@@ -73,7 +98,7 @@ func (d Deps) listAlbums(w http.ResponseWriter, r *http.Request) {
 		LEFT JOIN assets ast ON ast.id = aa.asset_id AND ast.deleted_at IS NULL
 		WHERE al.deleted_at IS NULL AND al.owner_id = ?
 		GROUP BY al.id
-		ORDER BY al.created_at DESC`, user.ID)
+		ORDER BY al.created_at DESC`, owner)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_albums_failed")
 		return
@@ -171,6 +196,11 @@ func (d Deps) addAlbumAssets(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "album_not_found")
 		return
 	}
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	var req zipRequest // {ids: [...]}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
@@ -178,10 +208,15 @@ func (d Deps) addAlbumAssets(w http.ResponseWriter, r *http.Request) {
 	}
 	added := 0
 	for _, assetID := range req.IDs {
+		// Only link the asset when it exists and is owned by the caller — this
+		// is the one device write that wasn't owner-scoped (favorite + all
+		// trash writes already are), so without the EXISTS guard any asset_id
+		// could be linked into another owner's album.
 		res, err := d.DB.ExecContext(r.Context(), `
 			INSERT OR IGNORE INTO album_assets (album_id, asset_id, position)
-			VALUES (?, ?, (SELECT COALESCE(MAX(position),0)+1 FROM album_assets WHERE album_id = ?))`,
-			id, assetID, id)
+			SELECT ?, ?, (SELECT COALESCE(MAX(position),0)+1 FROM album_assets WHERE album_id = ?)
+			WHERE EXISTS (SELECT 1 FROM assets WHERE id = ? AND owner_id = ?)`,
+			id, assetID, id, assetID, owner)
 		if err == nil {
 			if n, _ := res.RowsAffected(); n > 0 {
 				added++
