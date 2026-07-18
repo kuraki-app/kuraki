@@ -56,6 +56,7 @@ Phase 1 = single-owner personal backup.
   focus and mobile sheet all need a human pass. See §11 for the traps this work uncovered
   (`@theme inline` never emits custom properties; box-shadow paints under children;
   `view-transition-name` must be uniquely held; Svelte transitions ignore the CSS reduced-motion rule).
+- **Mobile parity (2026-07-18, `feat/mobile-parity`):** the Expo client gained **Albums** (view/create/add/remove), **On this day** (memories), and **Trash** (restore + permanent delete) — server-authoritative in the Immich model (all writes via API, local SQLite mirror + offline mutation queue). A narrow `ownerID(r)` bridge lets album handlers serve both session (web) and device (mobile) auth; the flagged unscoped `setFavorite` is now owner-scoped; device trash writes (delete/restore/purge) are owner-guarded via `ownsAsset`; new `trash.Purge` backs permanent delete. Library tab gained Timeline/Albums/On-this-day segments; Trash lives under Settings; album creation is online-only.
 - **Mobile foundation (2026-07-18, `feat/mobile-foundation`):** the Expo client gained a production
   foundation — a design system GENERATED from the web palette (`mobile/scripts/sync-tokens.mjs` parses
   `web/src/app.css` into `mobile/src/design/tokens.ts`, CI-gated against drift), Kura/Vault registers +
@@ -194,6 +195,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Optional local intelligence (faces/semantic), scale (S3/Postgres/hardware) | ⬜ later phases |
 | Sharing & multi-user (links, household albums, roles, OIDC) | ⏸ parked by decision |
 | Mobile foundation: generated design tokens, Kura/Vault registers, onboarding gate, connection state machine, SQLite offline cache + favorite mutation queue, owner-scoped device favorite route | ✅ done (Spec 1) |
+| Mobile parity: albums/memories/trash device routes, `ownerID` bridge, owner-scoped `setFavorite` + trash writes, `trash.Purge`, Library segments + selection mode + Trash screen, extended offline mirror/queue (album_add/remove, trash, restore, purge) | ✅ done (Spec 2) |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 
@@ -220,6 +222,13 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `feat/mobile-parity` (2026-07-18) — **Mobile parity: Albums/memories/trash via device routes, `ownerID` bridge, Library segments + Trash screen.**
+  - **Ten device-auth routes added.** Five album routes: `GET /api/capture/albums` (list), `POST /api/capture/albums` (create, server-assigns ID), `POST /api/capture/albums/{id}/assets` (add), `DELETE /api/capture/albums/{id}/assets` (remove), `GET /api/capture/albums/{id}/assets` (list members). Five trash/memories routes: `GET /api/capture/trash` (list), `DELETE /api/capture/assets/{id}` (move to trash), `POST /api/capture/assets/{id}/restore` (restore), `POST /api/capture/assets/{id}/purge` (permanent delete), `GET /api/capture/memories` (on-this-day). New `trash.Purge` method backs the permanent delete route.
+  - **`ownerID(r)` bridge in `httpapi/albums.go` and `httpapi/trash.go`.** Closes the Spec 1 §11 `setFavorite` owner-scoping gap. Handlers now accept an `owner` parameter (string) and construct an owner-guarded `r *http.Request` inside the handler body, so both session-auth and device-auth callers call the same handler with their respective owner's ID. Device trash writes (delete/restore/purge) are guarded via `ownsAsset(tx, ownerID, assetID)` — a NEW irreversible purge route deserved explicit owner-scoping even though the implementation plan first said "mount as-is."
+  - **Still single-owner-by-design.** `onThisDay` and `listTrash` reads mount unscoped like their session equivalents (no filter on owner_id at query time). Flagged for multi-user work: the session-auth favorite route itself also needs owner-scoping when multi-user lands.
+  - **Mobile cache schema v2 (migrations 001→002 in `mobile/src/lib/cache/schema.ts`).** Added `albums` and `album_assets` tables; an atomic key/value wrapper manages the version bump and data migration on each app launch. Mutation queue extended to kinds `album_add`, `album_remove`, `trash`, `restore`, `purge` (added to `mutations.ts` enum); new `routeForMutation(kind)` classifies mutations at flush time and calls the right endpoint. Album creation is online-only — temp-id remap complexity ruled it out for offline queuing. Vitest mocks `expo-secure-store` and `expo-sqlite` so pure logic tests run in node.
+  - **Not device-verified.** CI runs tsc + expo lint + vitest only. Physical iOS and Android device pass covered in `mobile/RELEASE_CHECKLIST.md` (Spec 2 test section).
 
 - `feat/mobile-foundation` (2026-07-18) — **Mobile production foundation: generated design tokens,
   Kura/Vault, onboarding gate, connection state machine, offline cache.** Design spec + plan live
