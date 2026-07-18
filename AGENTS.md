@@ -56,6 +56,14 @@ Phase 1 = single-owner personal backup.
   focus and mobile sheet all need a human pass. See §11 for the traps this work uncovered
   (`@theme inline` never emits custom properties; box-shadow paints under children;
   `view-transition-name` must be uniquely held; Svelte transitions ignore the CSS reduced-motion rule).
+- **Mobile foundation (2026-07-18, `feat/mobile-foundation`):** the Expo client gained a production
+  foundation — a design system GENERATED from the web palette (`mobile/scripts/sync-tokens.mjs` parses
+  `web/src/app.css` into `mobile/src/design/tokens.ts`, CI-gated against drift), Kura/Vault registers +
+  Fraunces/Geist-Mono fonts, an onboarding gate keyed on a persisted `setup-complete` flag (mandatory
+  server IP/URL entry + QR fast path), a connection state machine (unreachable vs revoked-token,
+  dismissible on Library / persistent on Backup), an expo-sqlite offline cache with a favorite-write
+  mutation queue, and one owner-scoped device-auth favorite route (`POST /api/capture/assets/{id}/favorite`).
+  Vitest covers the pure logic (URL normalizer, connection machine, mutation classifier).
 - **Production-readiness audit (2026-07-12):** `PRODUCTION_READINESS_AUDIT.md`
   reconciles the code, documentation, and peer practices. It makes the current
   Docker/libvips claim, 20k quadratic duplicate limit, untested migration
@@ -185,6 +193,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | **Timeline virtualization — README claims it, `web/` does not have it.** `LibraryView` appends into one array; `AssetGrid` renders one DOM node per asset, unbounded | ⬜ **release blocker** (see ROADMAP) |
 | Optional local intelligence (faces/semantic), scale (S3/Postgres/hardware) | ⬜ later phases |
 | Sharing & multi-user (links, household albums, roles, OIDC) | ⏸ parked by decision |
+| Mobile foundation: generated design tokens, Kura/Vault registers, onboarding gate, connection state machine, SQLite offline cache + favorite mutation queue, owner-scoped device favorite route | ✅ done (Spec 1) |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 
@@ -211,6 +220,41 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `feat/mobile-foundation` (2026-07-18) — **Mobile production foundation: generated design tokens,
+  Kura/Vault, onboarding gate, connection state machine, offline cache.** Design spec + plan live
+  locally in `docs/superpowers/` (gitignored, not in the repo).
+  - **Generated design tokens, CI-gated.** `mobile/src/design/tokens.ts` is GENERATED —
+    `mobile/scripts/sync-tokens.mjs` parses `web/src/app.css` directly and rewrites it. **Never
+    hand-edit `tokens.ts`**; edit `app.css` and re-run `npm run sync-tokens`. `npm run check-tokens`
+    (regenerate + `git diff --exit-code`) now gates mobile CI, so a mobile palette that has drifted
+    from the web palette fails the build instead of silently diverging.
+  - **Auth decision: device-token surface expanded, session auth NOT introduced.** The plan
+    considered giving mobile a cookie session like the web client; rejected. A phone must keep
+    working for unattended background camera-roll backup, and session auth here is cookie-only with
+    a 30-day expiry — wrong shape for a client that runs headless for months. Instead the existing
+    device-token model gained one more owner-scoped route (below). If a future task reconsiders this,
+    it's a decision, not a bug.
+  - **`setFavorite` in `internal/httpapi/favorites.go` is still NOT scoped by `owner_id`** (session
+    route, `POST /api/assets/{id}/favorite`) — deliberately left as-is, matching the rest of the
+    single-owner-era session API. The **new** capture route, `POST /api/capture/assets/{id}/favorite`
+    → `setFavoriteForDevice`, scopes its `UPDATE` to `WHERE id = ? AND owner_id = ?` from the device's
+    owner so it's correct even before multi-user lands. Flagged here for whoever unparks multi-user
+    (§8 "Sharing & multi-user" row): the session-auth favorite route needs the same `owner_id` scoping
+    at that point, not before.
+  - **Traps for the next agent:**
+    1. Importing a module that transitively loads `expo-sqlite` into the Vitest node environment
+       breaks the test run (no native module in node). `mutations.ts` deliberately uses a dynamic
+       `import('@/lib/cache/db')` inside its function body instead of a static top-level import, so
+       Vitest can exercise the pure mutation-classification logic without ever touching the DB module.
+       Keep new cache-adjacent pure-logic modules on the same pattern.
+    2. The expo-image disk cache cap is set at **runtime** via `Image.configureCache({ maxDiskSize })`
+       — there is no `diskCacheSizeBytes` (or similar) `app.json` plugin key for expo-image. Don't go
+       looking for a config-plugin knob; it doesn't exist on this SDK.
+    3. The onboarding gate keys on the persisted `setup-complete` flag, **never** on token presence —
+       a device can hold a token and still need onboarding (e.g. after a wipe). The flag is read once
+       at mount, so any code path that completes setup must explicitly `router.replace('/(app)')`
+       rather than relying on the gate to notice a state change.
 
 - `feat/web-kura-vault` (2026-07-17) — **Web design pass: Kura/Vault registers, motion system, gapless grid.**
   Design-only by human decision; no functionality features. Spec + plan live in `docs/superpowers/`
