@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { useTokens } from '@/constants/theme';
 import { claimPairing } from '@/lib/capture-api';
 import { clearAuthLost } from '@/lib/session';
 import { saveCaptureSettings } from '@/lib/settings';
@@ -38,6 +39,7 @@ function decodePairing(data: string): { base_url: string; code: string } {
 // URL and a one-time code; on a successful scan the phone claims its own device
 // token and stores the connection, so the owner never types a token by hand.
 export default function PairScanner({ onPaired, onClose }: Props) {
+  const tokens = useTokens();
   const [permission, requestPermission] = useCameraPermissions();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('Point the camera at the QR code in Kuraki › Devices.');
@@ -71,13 +73,13 @@ export default function PairScanner({ onPaired, onClose }: Props) {
     return (
       <View style={styles.center}>
         <ThemedText type="subtitle">Camera access needed</ThemedText>
-        <ThemedText themeColor="textSecondary" style={styles.msg}>
+        <ThemedText themeColor="mutedForeground" style={styles.msg}>
           Allow the camera to scan the pairing QR code.
         </ThemedText>
-        <Pressable style={styles.button} onPress={() => void requestPermission()}>
-          <ThemedText type="smallBold">Allow camera</ThemedText>
+        <Pressable style={[styles.button, { backgroundColor: tokens.primary }]} onPress={() => void requestPermission()}>
+          <ThemedText type="smallBold" themeColor="primaryForeground">Allow camera</ThemedText>
         </Pressable>
-        <Pressable style={styles.ghost} onPress={onClose}>
+        <Pressable style={[styles.ghost, { backgroundColor: tokens.scrim }]} onPress={onClose}>
           <ThemedText type="smallBold">Cancel</ThemedText>
         </Pressable>
       </View>
@@ -94,7 +96,7 @@ export default function PairScanner({ onPaired, onClose }: Props) {
       />
       <View style={styles.overlay}>
         <ThemedText style={styles.msg} selectable>{busy ? 'Pairing…' : message}</ThemedText>
-        <Pressable style={styles.ghost} onPress={onClose}>
+        <Pressable style={[styles.ghost, { backgroundColor: tokens.scrim }]} onPress={onClose}>
           <ThemedText type="smallBold">Cancel</ThemedText>
         </Pressable>
       </View>
@@ -107,6 +109,6 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
   overlay: { position: 'absolute', left: 0, right: 0, bottom: 40, alignItems: 'center', gap: 12, paddingHorizontal: 24 },
   msg: { textAlign: 'center' },
-  button: { alignItems: 'center', borderRadius: 8, padding: 14, backgroundColor: '#cde7f7', minWidth: 180 },
-  ghost: { alignItems: 'center', borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24, backgroundColor: '#00000066', minWidth: 140 },
+  button: { alignItems: 'center', borderRadius: 8, padding: 14, minWidth: 180 },
+  ghost: { alignItems: 'center', borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24, minWidth: 140 },
 });
