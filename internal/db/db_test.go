@@ -98,3 +98,28 @@ func TestLatestMigrationDownUp(t *testing.T) {
 		t.Fatalf("database unusable after down/up: %v", err)
 	}
 }
+
+// TestChangeLogOwnerMigration verifies migration 00020 adds a writable
+// owner_id column and its lookup index to change_log.
+func TestChangeLogOwnerMigration(t *testing.T) {
+	ctx := context.Background()
+	database, err := Open(ctx, filepath.Join(t.TempDir(), "kuraki.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	if err := Migrate(database, nil); err != nil {
+		t.Fatal(err)
+	}
+	// Column exists and is writable.
+	if _, err := database.Exec(
+		`INSERT INTO change_log (entity, entity_id, op, owner_id) VALUES ('asset','x','create','owner-1')`); err != nil {
+		t.Fatalf("owner_id column missing/unusable: %v", err)
+	}
+	// Index exists.
+	var name string
+	if err := database.QueryRow(
+		`SELECT name FROM sqlite_master WHERE type='index' AND name='ix_change_log_owner_id'`).Scan(&name); err != nil {
+		t.Fatalf("index ix_change_log_owner_id missing: %v", err)
+	}
+}
