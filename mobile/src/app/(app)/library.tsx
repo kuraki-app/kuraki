@@ -1,21 +1,26 @@
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AppState, Dimensions, FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
-import PhotoViewer from '@/components/photo-viewer';
+import AlbumList from '@/components/album-list';
+import AlbumTargetPicker from '@/components/album-target-picker';
+import PhotoGrid from '@/components/photo-grid';
+import SelectionBar from '@/components/selection-bar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { readAssets, setCachedFavorite } from '@/lib/cache/assets';
-import { enqueueFavorite, pendingFavorites } from '@/lib/cache/mutations';
+import { enqueueAlbumAdd, enqueueFavorite, enqueueTrash, pendingFavorites } from '@/lib/cache/mutations';
+import { setTrashed } from '@/lib/cache/albums';
 import { nextConnectionState, probeServer, type ConnectionState } from '@/lib/connection';
 import {
+  addToAlbum,
   fetchLibrary,
+  fetchMemories,
   flushFavorites,
   setFavorite,
-  thumbSource,
+  trashAsset,
   type LibraryAsset,
   type LibraryFilters,
 } from '@/lib/library-api';
@@ -31,14 +36,20 @@ const chips: Chip[] = [
   { label: 'Favorites', filter: { favorite: true } },
 ];
 
-const columns = 3;
-const gap = 2;
+type Segment = 'timeline' | 'albums' | 'memories';
+
+const segments: { key: Segment; label: string }[] = [
+  { key: 'timeline', label: 'Timeline' },
+  { key: 'albums', label: 'Albums' },
+  { key: 'memories', label: 'On this day' },
+];
 
 const reg = registerStyle('kura');
 const heading = { fontFamily: reg.heading };
 
 export default function LibraryScreen() {
   const tokens = useTokens();
+  const [segment, setSegment] = useState<Segment>('timeline');
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
@@ -47,13 +58,24 @@ export default function LibraryScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [viewerIndex, setViewerIndex] = useState(-1);
+  // On-this-day has no offline cache (it's a date-filtered resurfacing view,
+  // not the plain recent one) — its own small state so a failure there can
+  // never blank out the Timeline grid or vice versa.
+  const [memories, setMemories] = useState<LibraryAsset[]>([]);
+  const [memoriesCursor, setMemoriesCursor] = useState<string | undefined>(undefined);
+  const [memoriesLoading, setMemoriesLoading] = useState(false);
+  const [memoriesError, setMemoriesError] = useState('');
   // The three-state connection machine: a 401 revoke is `disconnected` (only a
   // re-pair clears it), a network/address failure is `unreachable` (a probe can
   // recover it). Seed disconnected from the process-wide auth-lost signal.
   const [connection, setConnection] = useState<ConnectionState>(isAuthLost() ? 'disconnected' : 'online');
   const [dismissed, setDismissed] = useState(false);
   const disconnected = connection === 'disconnected';
+  // Selection mode (Task 7, Timeline grid only): a Set<string> of selected ids
+  // owned here so the bulk actions below can mutate `assets` directly.
+  // Selection is "active" whenever the set is non-empty (see PhotoGrid).
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   // probe feeds a reachability check through the machine. It can never clear a
   // revoke (nextConnectionState guards that), only move online<->unreachable.
@@ -92,11 +114,6 @@ export default function LibraryScreen() {
     const q = query.trim();
     return { ...chips[chip].filter, ...(q ? { q } : {}) };
   }, [chip, query]);
-
-  const tile = useMemo(() => {
-    const width = Dimensions.get('window').width;
-    return (width - gap * (columns - 1)) / columns;
-  }, []);
 
   const load = useCallback(async (active: CaptureSettings, f: LibraryFilters) => {
     setLoading(true);
@@ -151,6 +168,7 @@ export default function LibraryScreen() {
   const toggleFavorite = useCallback(
     async (id: string, next: boolean) => {
       setAssets((prev) => prev.map((a) => (a.id === id ? { ...a, favorite: next } : a)));
+      setMemories((prev) => prev.map((a) => (a.id === id ? { ...a, favorite: next } : a)));
       await setCachedFavorite(id, next);
       if (settings && !disconnected) {
         try {
@@ -165,13 +183,77 @@ export default function LibraryScreen() {
     [settings, disconnected],
   );
 
+  const toggleSelect = useCallback((id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // A long-press on any tile starts selection mode by selecting that tile —
+  // selection mode has no separate flag, it's just "the set is non-empty".
+  const startSelection = useCallback((id: string) => {
+    setSelected((prev) => new Set(prev).add(id));
+  }, []);
+
+  function cancelSelection() {
+    setSelected(new Set());
+  }
+
+  // Add-to-album: same optimistic+queue shape as toggleFavorite above — try
+  // the batched online send first and return early on success (nothing to
+  // queue), otherwise fall through and queue each id individually so the
+  // mutation queue (which is per-asset) can replay it on reconnect.
+  const addSelectedToAlbum = useCallback(
+    async (albumId: string) => {
+      const ids = [...selected];
+      setPickerOpen(false);
+      setSelected(new Set());
+      if (settings && !disconnected) {
+        try {
+          await addToAlbum(settings, albumId, ids);
+          return; // synced online — nothing to queue
+        } catch {
+          // fall through: queue for the next reconnect flush
+        }
+      }
+      for (const id of ids) await enqueueAlbumAdd(id, albumId);
+    },
+    [selected, settings, disconnected],
+  );
+
+  // Move to trash: optimistic removal from both visible lists + cache, then
+  // the same send-if-online / leave-queued-on-fail shape per id.
+  const trashSelected = useCallback(async () => {
+    const ids = [...selected];
+    setSelected(new Set());
+    for (const id of ids) {
+      setAssets((prev) => prev.filter((a) => a.id !== id));
+      setMemories((prev) => prev.filter((a) => a.id !== id));
+      await setTrashed(id, true);
+      if (settings && !disconnected) {
+        try {
+          await trashAsset(settings, id);
+          continue; // synced online — nothing to queue
+        } catch {
+          // fall through: queue for the next reconnect flush
+        }
+      }
+      await enqueueTrash(id);
+    }
+  }, [selected, settings, disconnected]);
+
   function selectChip(i: number) {
+    cancelSelection();
     setChip(i);
     const q = query.trim();
     if (settings) void load(settings, { ...chips[i].filter, ...(q ? { q } : {}) });
   }
 
   function submitSearch() {
+    cancelSelection();
     if (settings) void load(settings, filters);
   }
 
@@ -190,6 +272,47 @@ export default function LibraryScreen() {
       /* keep what we have */
     } finally {
       setLoadingMore(false);
+    }
+  }
+
+  const loadMemories = useCallback(async (active: CaptureSettings) => {
+    setMemoriesLoading(true);
+    setMemoriesError('');
+    try {
+      const page = await fetchMemories(active);
+      setMemories(page.assets);
+      setMemoriesCursor(page.next_cursor);
+    } catch (cause) {
+      // fetchMemories has no offline cache — it's a date-filtered resurfacing
+      // view, not the plain recent one, so there's nothing sane to fall back
+      // to. Show a message instead of crashing or displaying stale photos
+      // that don't correspond to "on this day".
+      setMemories([]);
+      setMemoriesError(cause instanceof Error ? cause.message : "Couldn't load memories.");
+    } finally {
+      setMemoriesLoading(false);
+    }
+  }, []);
+
+  // Reload whenever the segment switches to On-this-day (cheap and keeps the
+  // resurfacing view fresh rather than caching a load-once snapshot). Deferred
+  // a tick (matching the Backup tab's refresh-on-mount pattern) so the first
+  // setState inside loadMemories doesn't fire synchronously within the effect.
+  useEffect(() => {
+    if (segment !== 'memories' || !settings) return;
+    const timer = setTimeout(() => void loadMemories(settings), 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segment, settings]);
+
+  async function loadMoreMemories() {
+    if (!settings || !memoriesCursor) return;
+    try {
+      const page = await fetchMemories(settings, memoriesCursor);
+      setMemories((prev) => [...prev, ...page.assets]);
+      setMemoriesCursor(page.next_cursor);
+    } catch {
+      /* keep what we have */
     }
   }
 
@@ -228,85 +351,118 @@ export default function LibraryScreen() {
           </View>
         </View>
       )}
-      <View style={styles.header}>
-        <TextInput
-          placeholder="Search your library"
-          autoCapitalize="none"
-          autoCorrect={false}
-          value={query}
-          onChangeText={setQuery}
-          onSubmitEditing={submitSearch}
-          style={[styles.search, { borderColor: tokens.input }]}
-          returnKeyType="search"
-        />
-        <View style={styles.chips}>
-          {chips.map((c, i) => (
-            <Pressable
-              key={c.label}
-              onPress={() => selectChip(i)}
-              style={[
-                styles.chip,
-                { borderColor: tokens.input },
-                i === chip && { backgroundColor: tokens.primary, borderColor: tokens.primary },
-              ]}>
-              <ThemedText
-                type="small"
-                themeColor={i === chip ? 'primaryForeground' : undefined}
-                style={heading}>
-                {c.label}
-              </ThemedText>
-            </Pressable>
-          ))}
-        </View>
+      <View style={styles.segments}>
+        {segments.map((s) => (
+          <Pressable
+            key={s.key}
+            onPress={() => {
+              cancelSelection();
+              setSegment(s.key);
+            }}
+            style={[
+              styles.segment,
+              { borderColor: tokens.input },
+              segment === s.key && { backgroundColor: tokens.primary, borderColor: tokens.primary },
+            ]}>
+            <ThemedText
+              type="small"
+              themeColor={segment === s.key ? 'primaryForeground' : undefined}
+              style={heading}>
+              {s.label}
+            </ThemedText>
+          </Pressable>
+        ))}
       </View>
 
-      {error ? (
-        <View style={styles.center}>
-          <ThemedText type="subtitle" style={heading}>Nothing to show</ThemedText>
-          <ThemedText themeColor="mutedForeground" style={styles.msg} selectable>{error}</ThemedText>
-        </View>
-      ) : (
-        <FlatList
-          data={assets}
-          keyExtractor={(a) => a.id}
-          numColumns={columns}
-          columnWrapperStyle={{ gap }}
-          contentContainerStyle={{ gap }}
-          onEndReached={() => void loadMore()}
-          onEndReachedThreshold={0.6}
-          renderItem={({ item, index }) => {
-            const source = settings ? thumbSource(settings, item) : null;
-            return (
-              <Pressable
-                style={[styles.tile, { width: tile, height: tile, backgroundColor: tokens.thumb }]}
-                onPress={() => setViewerIndex(index)}>
-                {source ? (
-                  <Image source={source} style={styles.thumb} contentFit="cover" transition={120} cachePolicy="disk" />
-                ) : (
-                  <ThemedText type="small" themeColor="mutedForeground">{item.media_type}</ThemedText>
-                )}
-                {item.media_type === 'video' && <View style={styles.videoDot} />}
-              </Pressable>
-            );
-          }}
-          ListEmptyComponent={
-            loading ? null : (
-              <View style={styles.center}>
-                <ThemedText themeColor="mutedForeground">No photos match this filter yet.</ThemedText>
-              </View>
-            )
-          }
+      {segment === 'timeline' && (
+        <>
+          <View style={styles.header}>
+            <TextInput
+              placeholder="Search your library"
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={query}
+              onChangeText={setQuery}
+              onSubmitEditing={submitSearch}
+              style={[styles.search, { borderColor: tokens.input }]}
+              returnKeyType="search"
+            />
+            <View style={styles.chips}>
+              {chips.map((c, i) => (
+                <Pressable
+                  key={c.label}
+                  onPress={() => selectChip(i)}
+                  style={[
+                    styles.chip,
+                    { borderColor: tokens.input },
+                    i === chip && { backgroundColor: tokens.primary, borderColor: tokens.primary },
+                  ]}>
+                  <ThemedText
+                    type="small"
+                    themeColor={i === chip ? 'primaryForeground' : undefined}
+                    style={heading}>
+                    {c.label}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          {error ? (
+            <View style={styles.center}>
+              <ThemedText type="subtitle" style={heading}>Nothing to show</ThemedText>
+              <ThemedText themeColor="mutedForeground" style={styles.msg} selectable>{error}</ThemedText>
+            </View>
+          ) : (
+            <PhotoGrid
+              assets={assets}
+              settings={settings}
+              loading={loading}
+              onEndReached={() => void loadMore()}
+              onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
+              selectedIds={selected}
+              onToggleSelect={toggleSelect}
+              onLongPressItem={startSelection}
+              emptyMessage="No photos match this filter yet."
+            />
+          )}
+        </>
+      )}
+
+      {segment === 'albums' && <AlbumList />}
+
+      {segment === 'memories' && (
+        memoriesError ? (
+          <View style={styles.center}>
+            <ThemedText type="subtitle" style={heading}>Nothing to show</ThemedText>
+            <ThemedText themeColor="mutedForeground" style={styles.msg} selectable>{memoriesError}</ThemedText>
+          </View>
+        ) : (
+          <PhotoGrid
+            assets={memories}
+            settings={settings}
+            loading={memoriesLoading}
+            onEndReached={() => void loadMoreMemories()}
+            onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
+            emptyMessage="No memories from this day yet."
+          />
+        )
+      )}
+
+      {segment === 'timeline' && selected.size > 0 && (
+        <SelectionBar
+          count={selected.size}
+          onAddToAlbum={() => setPickerOpen(true)}
+          onTrash={() => void trashSelected()}
+          onCancel={cancelSelection}
         />
       )}
-      {viewerIndex >= 0 && settings && (
-        <PhotoViewer
-          assets={assets}
-          initialIndex={viewerIndex}
-          settings={settings}
-          onClose={() => setViewerIndex(-1)}
-          onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
-        />
-      )}
+      <AlbumTargetPicker
+        visible={pickerOpen}
+        settings={settings}
+        onPick={(albumId) => void addSelectedToAlbum(albumId)}
+        onClose={() => setPickerOpen(false)}
+      />
     </ThemedView>
   );
 }
@@ -323,6 +479,8 @@ const styles = StyleSheet.create({
   },
   bannerText: { flex: 1 },
   bannerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  segments: { flexDirection: 'row', gap: Spacing.one, paddingHorizontal: Spacing.two, paddingTop: Spacing.two },
+  segment: { flex: 1, alignItems: 'center', paddingVertical: Spacing.two, borderRadius: Spacing.two, borderWidth: 1 },
   header: { padding: Spacing.two, gap: Spacing.two },
   search: {
     borderRadius: Spacing.two,
@@ -333,9 +491,6 @@ const styles = StyleSheet.create({
   },
   chips: { flexDirection: 'row', gap: Spacing.one, flexWrap: 'wrap' },
   chip: { paddingVertical: Spacing.one, paddingHorizontal: Spacing.two, borderRadius: 999, borderWidth: 1 },
-  tile: { alignItems: 'center', justifyContent: 'center' },
-  thumb: { width: '100%', height: '100%' },
-  videoDot: { position: 'absolute', bottom: 6, left: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24, minHeight: 200 },
   msg: { textAlign: 'center' },
 });

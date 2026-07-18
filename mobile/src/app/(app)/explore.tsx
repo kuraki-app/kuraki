@@ -101,6 +101,14 @@ export default function SettingsScreen() {
         </Pressable>
         {saved && <ThemedText themeColor="mutedForeground" selectable>Saved securely on this device.</ThemedText>}
 
+        <ThemedText type="smallBold" style={styles.disconnectHeading}>Library</ThemedText>
+        <Pressable
+          style={[styles.button, styles.row, { borderColor: tokens.input }]}
+          onPress={() => router.push('/trash')}>
+          <ThemedText type="smallBold">Trash</ThemedText>
+          <ThemedText themeColor="mutedForeground">Restore or permanently delete items ›</ThemedText>
+        </Pressable>
+
         <ThemedText type="smallBold" style={styles.disconnectHeading}>Danger zone</ThemedText>
         <ThemedText type="small" themeColor="mutedForeground" selectable>
           Disconnecting removes this device&rsquo;s pairing and sends it back through setup. Backed-up photos on
@@ -129,6 +137,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
   },
   button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1 },
   disconnectHeading: { marginTop: Spacing.three },
   disconnectButton: { borderWidth: 1 },
 });
