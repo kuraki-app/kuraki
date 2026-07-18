@@ -60,6 +60,16 @@ downloadable.
   `go build` default stays pure-Go for common browser-decodable images
 - **Video** upload, ffmpeg poster frames, and in-browser playback with range/seek support
 
+**Mobile app (iOS & Android)**
+- A shared Expo/React Native client ([`mobile/`](./mobile)) that pairs to your server with a
+  **revocable device token** (scan the QR on the Devices page, or enter the address by hand)
+- **Automatic camera-roll backup** — restart- and network-loss-safe, resumable, with OS
+  background scheduling and an honest per-item "Needs attention" state
+- **Browse your library on the phone** — search and filter over an infinite grid, with an
+  **offline SQLite cache** so the timeline opens instantly and stays usable with no connection
+- **Favorite from the phone**, connection-aware banners (an unreachable server keeps the cached
+  library browsable; a revoked device prompts a re-pair), and a look ported from the web design
+
 **Trust, performance & operations**
 - **Trash** with configurable retention, restore, and automatic purge
 - `kuraki verify` re-checksums the library and reports corruption or missing originals
@@ -189,7 +199,8 @@ kuraki/
 │   ├── verify/             # integrity re-checksum
 │   ├── auth/               # argon2id hashing, session tokens
 │   └── httpapi/            # chi router, handlers, middleware; assets/ = embedded UI
-├── web/                    # SvelteKit source, built into internal/httpapi/assets
+├── web/                    # SvelteKit source, built into internal/httpapi/assets (see web/README.md)
+├── mobile/                 # Expo/React Native app (iOS + Android): camera-roll backup + library browsing
 ├── scripts/                # start.sh (one production-like process) + dev.sh (hot-reload)
 ├── site/                   # self-contained marketing landing page (static, host anywhere)
 ├── deploy/                 # production compose: Caddy (auto-HTTPS) + Caddyfile
@@ -244,6 +255,17 @@ The default `go build` produces a CGO-free build with pure-Go media (JPEG
 thumbnails, no HEIC). Docker and `make build-vips` link the broader libvips
 backend. Import acceptance is not a promise of browser preview; consult the
 media support matrix.
+
+### Web UI and mobile app
+
+The two front-end surfaces have their own guides:
+
+- **Web** ([web/README.md](./web/README.md)) — the SvelteKit SPA that is embedded into the Go
+  binary. Develop it with `./scripts/dev.sh` (API + hot-reloading UI).
+- **Mobile** ([mobile/README.md](./mobile/README.md)) — the Expo/React Native app. Develop with
+  `cd mobile && npm install && npx expo start`, then pair it to a running server from the app's
+  setup flow. The two surfaces share one palette: `web/src/app.css` is the source of truth, and
+  the mobile app generates its design tokens from it (drift is CI-gated).
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a PR.
 
