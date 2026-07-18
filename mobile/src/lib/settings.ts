@@ -24,3 +24,42 @@ export async function saveCaptureSettings(settings: CaptureSettings): Promise<vo
 export async function clearDeviceToken(): Promise<void> {
   await deleteSecret(deviceTokenKey);
 }
+
+const setupCompleteKey = 'kuraki.setup.complete';
+
+// The setup-complete flag is a reactive signal (mirroring session.ts): a
+// synchronous mirror lets the persistent root layout seed instantly, and the
+// subscription lets it re-read after markSetupComplete()/clearSetupComplete()
+// so the onboarding gate does not bounce across a group switch.
+type SetupListener = () => void;
+const setupListeners = new Set<SetupListener>();
+let setupCompleteMirror: boolean | null = null; // null = not yet read from SecureStore
+
+export function setupCompleteSnapshot(): boolean | null {
+  return setupCompleteMirror;
+}
+export function onSetupChange(listener: SetupListener): () => void {
+  setupListeners.add(listener);
+  return () => setupListeners.delete(listener);
+}
+function notifySetupChange(): void {
+  for (const l of setupListeners) l();
+}
+
+export async function isSetupComplete(): Promise<boolean> {
+  const complete = (await getSecret(setupCompleteKey)) === '1';
+  setupCompleteMirror = complete;
+  return complete;
+}
+
+export async function markSetupComplete(): Promise<void> {
+  await setSecret(setupCompleteKey, '1');
+  setupCompleteMirror = true;
+  notifySetupChange();
+}
+
+export async function clearSetupComplete(): Promise<void> {
+  await deleteSecret(setupCompleteKey);
+  setupCompleteMirror = false;
+  notifySetupChange();
+}
