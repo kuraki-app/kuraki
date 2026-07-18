@@ -157,3 +157,20 @@ func TestPurgeRefusesLiveAsset(t *testing.T) {
 		t.Fatalf("Purge on live asset = %v, want ErrNotDeleted", err)
 	}
 }
+
+func TestTrashChangeCarriesOwner(t *testing.T) {
+	ctx, database, store := setup(t)
+	addAsset(t, ctx, database, store, "o1", "2026/07/o1.jpg")
+
+	if err := Delete(ctx, database, store, "o1"); err != nil {
+		t.Fatal(err)
+	}
+	var owner string
+	if err := database.QueryRowContext(ctx,
+		`SELECT owner_id FROM change_log WHERE entity_id=? AND op='delete' ORDER BY id DESC LIMIT 1`, "o1").Scan(&owner); err != nil {
+		t.Fatal(err)
+	}
+	if owner == "" {
+		t.Fatal("trash Delete change_log row has empty owner_id")
+	}
+}

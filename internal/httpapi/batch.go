@@ -36,8 +36,17 @@ func (d Deps) batchAssets(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "too_many_ids")
 		return
 	}
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 
+	// logsHere is true for ops whose mutation doesn't already log a change_log
+	// row itself. delete/restore route through trash.Delete/trash.Restore,
+	// which already log — logging again here would double-log them.
 	var apply func(context.Context, string) error
+	var logsHere bool
 	switch req.Op {
 	case "delete":
 		apply = func(ctx context.Context, id string) error { return trash.Delete(ctx, d.DB, d.Store, id) }
@@ -45,16 +54,22 @@ func (d Deps) batchAssets(w http.ResponseWriter, r *http.Request) {
 		apply = func(ctx context.Context, id string) error { return trash.Restore(ctx, d.DB, d.Store, id) }
 	case "favorite":
 		apply = func(ctx context.Context, id string) error { return d.updateFavorite(ctx, id, true) }
+		logsHere = true
 	case "unfavorite":
 		apply = func(ctx context.Context, id string) error { return d.updateFavorite(ctx, id, false) }
+		logsHere = true
 	case "archive":
 		apply = func(ctx context.Context, id string) error { return d.updateLibraryState(ctx, id, "archived", true) }
+		logsHere = true
 	case "unarchive":
 		apply = func(ctx context.Context, id string) error { return d.updateLibraryState(ctx, id, "archived", false) }
+		logsHere = true
 	case "hide":
 		apply = func(ctx context.Context, id string) error { return d.updateLibraryState(ctx, id, "hidden", true) }
+		logsHere = true
 	case "unhide":
 		apply = func(ctx context.Context, id string) error { return d.updateLibraryState(ctx, id, "hidden", false) }
+		logsHere = true
 	default:
 		writeError(w, http.StatusBadRequest, "invalid_op")
 		return
@@ -66,6 +81,9 @@ func (d Deps) batchAssets(w http.ResponseWriter, r *http.Request) {
 			resp.Failed[id] = err.Error()
 		} else {
 			resp.Succeeded++
+			if logsHere {
+				d.logAssetChange(r.Context(), id, owner, "update")
+			}
 		}
 	}
 	if len(resp.Failed) == 0 {

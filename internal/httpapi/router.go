@@ -95,6 +95,7 @@ func NewRouter(d Deps) http.Handler {
 			r.Post("/devices", d.registerDevice)
 			r.Post("/devices/pair", d.createPairingCode)
 			r.Delete("/devices/{id}", d.revokeDevice)
+			r.Get("/changes", d.changes)
 			r.Post("/assets", d.uploadAsset)
 			r.Post("/assets/batch", d.batchAssets)
 			r.Post("/assets/zip", d.downloadZip)
@@ -149,6 +150,7 @@ func NewRouter(d Deps) http.Handler {
 		r.Group(func(r chi.Router) {
 			r.Use(d.requireDeviceAuth)
 			r.Get("/capture/status", d.captureStatus)
+			r.Get("/capture/changes", d.changes)
 			r.Post("/capture/uploads", d.captureStart)
 			r.Patch("/capture/uploads/{id}", d.captureAppend)
 			r.Post("/capture/uploads/{id}/complete", d.captureComplete)

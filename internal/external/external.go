@@ -72,7 +72,7 @@ func Scan(ctx context.Context, db *sql.DB, processor media.Processor, libraryID,
 		if _, err := db.ExecContext(ctx, `INSERT INTO assets_fts(asset_id,filename,camera_model,taken_text,description) VALUES(?,?,?,?,?)`, id.String(), filepath.Base(path), meta.CameraModel, "", ""); err != nil {
 			return err
 		}
-		if _, err := db.ExecContext(ctx, `INSERT INTO change_log(entity,entity_id,op) VALUES('asset',?,'create')`, id.String()); err != nil {
+		if _, err := db.ExecContext(ctx, `INSERT INTO change_log(entity,entity_id,op,owner_id) VALUES('asset',?,'create',?)`, id.String(), ownerID); err != nil {
 			return err
 		}
 		result.Indexed++

@@ -220,6 +220,7 @@ func (d Deps) addAlbumAssets(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			if n, _ := res.RowsAffected(); n > 0 {
 				added++
+				d.logAssetChange(r.Context(), assetID, owner, "update")
 			}
 		}
 	}
@@ -231,6 +232,11 @@ func (d Deps) removeAlbumAssets(w http.ResponseWriter, r *http.Request) {
 	ok, err := d.ownsAlbum(r, id)
 	if err != nil || !ok {
 		writeError(w, http.StatusNotFound, "album_not_found")
+		return
+	}
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	var req zipRequest
@@ -245,6 +251,7 @@ func (d Deps) removeAlbumAssets(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			if n, _ := res.RowsAffected(); n > 0 {
 				removed++
+				d.logAssetChange(r.Context(), assetID, owner, "update")
 			}
 		}
 	}

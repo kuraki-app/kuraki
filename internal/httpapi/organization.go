@@ -157,6 +157,7 @@ func (d Deps) replaceAssetTags(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "update_tags_failed")
 		return
 	}
+	d.logAssetChange(r.Context(), id, user.ID, "update")
 	d.assetTags(w, r)
 }
 

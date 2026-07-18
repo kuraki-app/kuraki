@@ -41,6 +41,7 @@ func (d Deps) setFavorite(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "asset_not_found")
 		return
 	}
+	d.logAssetChange(r.Context(), chi.URLParam(r, "id"), owner, "update")
 	writeJSON(w, http.StatusOK, map[string]bool{"favorite": req.Favorite})
 }
 

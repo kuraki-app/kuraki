@@ -764,8 +764,8 @@ func (i *Importer) insertAsset(ctx context.Context, row assetRow) error {
 		return fmt.Errorf("importer: insert asset fts: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO change_log (entity, entity_id, op) VALUES ('asset', ?, 'create')`,
-		row.ID); err != nil {
+		`INSERT INTO change_log (entity, entity_id, op, owner_id) VALUES ('asset', ?, 'create', ?)`,
+		row.ID, row.OwnerID); err != nil {
 		return fmt.Errorf("importer: insert change log: %w", err)
 	}
 	if err := tx.Commit(); err != nil {

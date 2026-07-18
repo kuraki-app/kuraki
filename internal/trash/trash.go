@@ -31,8 +31,9 @@ func nowText() string { return time.Now().UTC().Format(time.RFC3339Nano) }
 func Delete(ctx context.Context, db *sql.DB, store storage.Storage, assetID string) error {
 	var path string
 	var deletedAt sql.NullString
+	var owner string
 	err := db.QueryRowContext(ctx,
-		`SELECT original_path, deleted_at FROM assets WHERE id = ?`, assetID).Scan(&path, &deletedAt)
+		`SELECT original_path, deleted_at, owner_id FROM assets WHERE id = ?`, assetID).Scan(&path, &deletedAt, &owner)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrNotFound
 	}
@@ -53,7 +54,7 @@ func Delete(ctx context.Context, db *sql.DB, store storage.Storage, assetID stri
 		return fmt.Errorf("trash: mark deleted: %w", err)
 	}
 	_, _ = db.ExecContext(ctx,
-		`INSERT INTO change_log (entity, entity_id, op) VALUES ('asset', ?, 'delete')`, assetID)
+		`INSERT INTO change_log (entity, entity_id, op, owner_id) VALUES ('asset', ?, 'delete', ?)`, assetID, owner)
 	return nil
 }
 
@@ -61,8 +62,9 @@ func Delete(ctx context.Context, db *sql.DB, store storage.Storage, assetID stri
 func Restore(ctx context.Context, db *sql.DB, store storage.Storage, assetID string) error {
 	var path string
 	var deletedAt sql.NullString
+	var owner string
 	err := db.QueryRowContext(ctx,
-		`SELECT original_path, deleted_at FROM assets WHERE id = ?`, assetID).Scan(&path, &deletedAt)
+		`SELECT original_path, deleted_at, owner_id FROM assets WHERE id = ?`, assetID).Scan(&path, &deletedAt, &owner)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrNotFound
 	}
@@ -82,7 +84,7 @@ func Restore(ctx context.Context, db *sql.DB, store storage.Storage, assetID str
 		return fmt.Errorf("trash: clear deleted: %w", err)
 	}
 	_, _ = db.ExecContext(ctx,
-		`INSERT INTO change_log (entity, entity_id, op) VALUES ('asset', ?, 'update')`, assetID)
+		`INSERT INTO change_log (entity, entity_id, op, owner_id) VALUES ('asset', ?, 'update', ?)`, assetID, owner)
 	return nil
 }
 
@@ -91,8 +93,9 @@ func Restore(ctx context.Context, db *sql.DB, store storage.Storage, assetID str
 func Purge(ctx context.Context, db *sql.DB, store storage.Storage, assetID string) error {
 	var path string
 	var deletedAt sql.NullString
+	var owner string
 	err := db.QueryRowContext(ctx,
-		`SELECT original_path, deleted_at FROM assets WHERE id = ?`, assetID).Scan(&path, &deletedAt)
+		`SELECT original_path, deleted_at, owner_id FROM assets WHERE id = ?`, assetID).Scan(&path, &deletedAt, &owner)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrNotFound
 	}
@@ -102,7 +105,7 @@ func Purge(ctx context.Context, db *sql.DB, store storage.Storage, assetID strin
 	if !deletedAt.Valid {
 		return ErrNotDeleted
 	}
-	return purgeOne(ctx, db, store, assetID, path)
+	return purgeOne(ctx, db, store, assetID, path, owner)
 }
 
 // PurgeExpired permanently removes assets deleted before cutoff: trash file,
@@ -110,16 +113,16 @@ func Purge(ctx context.Context, db *sql.DB, store storage.Storage, assetID strin
 // the number of assets purged.
 func PurgeExpired(ctx context.Context, db *sql.DB, store storage.Storage, cutoff time.Time) (int, error) {
 	rows, err := db.QueryContext(ctx,
-		`SELECT id, original_path FROM assets WHERE deleted_at IS NOT NULL AND deleted_at < ?`,
+		`SELECT id, original_path, owner_id FROM assets WHERE deleted_at IS NOT NULL AND deleted_at < ?`,
 		cutoff.UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return 0, fmt.Errorf("trash: query expired: %w", err)
 	}
-	type target struct{ id, path string }
+	type target struct{ id, path, owner string }
 	var targets []target
 	for rows.Next() {
 		var t target
-		if err := rows.Scan(&t.id, &t.path); err != nil {
+		if err := rows.Scan(&t.id, &t.path, &t.owner); err != nil {
 			rows.Close()
 			return 0, fmt.Errorf("trash: scan expired: %w", err)
 		}
@@ -132,7 +135,7 @@ func PurgeExpired(ctx context.Context, db *sql.DB, store storage.Storage, cutoff
 
 	purged := 0
 	for _, t := range targets {
-		if err := purgeOne(ctx, db, store, t.id, t.path); err != nil {
+		if err := purgeOne(ctx, db, store, t.id, t.path, t.owner); err != nil {
 			return purged, err
 		}
 		purged++
@@ -140,7 +143,7 @@ func PurgeExpired(ctx context.Context, db *sql.DB, store storage.Storage, cutoff
 	return purged, nil
 }
 
-func purgeOne(ctx context.Context, db *sql.DB, store storage.Storage, id, path string) error {
+func purgeOne(ctx context.Context, db *sql.DB, store storage.Storage, id, path, owner string) error {
 	// Remove derivative files first (we need their paths before rows vanish).
 	drows, err := db.QueryContext(ctx, `SELECT path FROM derivatives WHERE asset_id = ?`, id)
 	if err != nil {
@@ -176,7 +179,7 @@ func purgeOne(ctx context.Context, db *sql.DB, store storage.Storage, id, path s
 		return fmt.Errorf("trash: delete asset: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO change_log (entity, entity_id, op) VALUES ('asset', ?, 'delete')`, id); err != nil {
+		`INSERT INTO change_log (entity, entity_id, op, owner_id) VALUES ('asset', ?, 'delete', ?)`, id, owner); err != nil {
 		return fmt.Errorf("trash: change log: %w", err)
 	}
 	return tx.Commit()

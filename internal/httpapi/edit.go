@@ -25,6 +25,11 @@ type assetPatch struct {
 // the location re-runs offline reverse geocoding; any change refreshes search.
 func (d Deps) patchAsset(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	var p assetPatch
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
@@ -103,6 +108,8 @@ func (d Deps) patchAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	d.logAssetChange(r.Context(), id, owner, "update")
+
 	row, err := d.lookupAsset(r, id)
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
@@ -119,6 +126,11 @@ type shiftRequest struct {
 // shiftTime shifts the capture time of many assets by a fixed offset, for fixing
 // wrong camera timezones on a batch of imports.
 func (d Deps) shiftTime(w http.ResponseWriter, r *http.Request) {
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	var req shiftRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
@@ -142,6 +154,7 @@ func (d Deps) shiftTime(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 
 	updated := 0
+	shiftedIDs := make([]string, 0, len(req.IDs))
 	for _, id := range req.IDs {
 		res, err := tx.ExecContext(r.Context(), `
 			UPDATE assets
@@ -157,11 +170,18 @@ func (d Deps) shiftTime(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			updated++
+			shiftedIDs = append(shiftedIDs, id)
 		}
 	}
 	if err := tx.Commit(); err != nil {
 		writeError(w, http.StatusInternalServerError, "shift_failed")
 		return
+	}
+	// Logged only after a successful commit — logAssetChange writes via d.DB,
+	// outside this transaction, so logging inside the loop (before commit)
+	// would leave change_log rows for updates a later rollback undid.
+	for _, id := range shiftedIDs {
+		d.logAssetChange(r.Context(), id, owner, "update")
 	}
 	writeJSON(w, http.StatusOK, map[string]int{"updated": updated})
 }
