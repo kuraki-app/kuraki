@@ -23,20 +23,10 @@ export async function upsertAssets(assets: LibraryAsset[]): Promise<void> {
   });
 }
 
-type CacheFilter = { type?: string; favorite?: boolean; q?: string; limit?: number };
-
-export async function readAssets(filter: CacheFilter): Promise<LibraryAsset[]> {
-  const db = await getDB();
-  const where: string[] = [];
-  const args: (string | number)[] = [];
-  if (filter.type) { where.push('media_type = ?'); args.push(filter.type); }
-  if (filter.favorite) { where.push('favorite = 1'); }
-  if (filter.q) { where.push('filename LIKE ?'); args.push(`%${filter.q}%`); }
-  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  args.push(filter.limit ?? 200);
-  const rows = await db.getAllAsync<Record<string, unknown>>(
-    `SELECT * FROM assets ${clause} ORDER BY taken_at DESC LIMIT ?`, args);
-  return rows.map((r) => ({
+// Shared row -> LibraryAsset mapping, reused by albums.ts so the cache mirror
+// (and its nullable/optional shape) has exactly one source of truth.
+export function rowToAsset(r: Record<string, unknown>): LibraryAsset {
+  return {
     id: r.id as string,
     filename: r.filename as string,
     media_type: r.media_type as string,
@@ -47,7 +37,26 @@ export async function readAssets(filter: CacheFilter): Promise<LibraryAsset[]> {
     web_viewable: !!r.web_viewable,
     place_city: (r.place_city as string) ?? undefined,
     place_country: (r.place_country as string) ?? undefined,
-  }));
+  };
+}
+
+type CacheFilter = { type?: string; favorite?: boolean; q?: string; limit?: number };
+
+export async function readAssets(filter: CacheFilter): Promise<LibraryAsset[]> {
+  const db = await getDB();
+  // Trashed rows stay in the mirror (Trash's offline fallback reads them via
+  // readTrashed), but the Timeline's offline fallback must never resurrect
+  // them — always exclude, regardless of the caller's other filters.
+  const where: string[] = ['IFNULL(trashed,0) = 0'];
+  const args: (string | number)[] = [];
+  if (filter.type) { where.push('media_type = ?'); args.push(filter.type); }
+  if (filter.favorite) { where.push('favorite = 1'); }
+  if (filter.q) { where.push('filename LIKE ?'); args.push(`%${filter.q}%`); }
+  const clause = `WHERE ${where.join(' AND ')}`;
+  args.push(filter.limit ?? 200);
+  const rows = await db.getAllAsync<Record<string, unknown>>(
+    `SELECT * FROM assets ${clause} ORDER BY taken_at DESC LIMIT ?`, args);
+  return rows.map(rowToAsset);
 }
 
 export async function setCachedFavorite(id: string, favorite: boolean): Promise<void> {

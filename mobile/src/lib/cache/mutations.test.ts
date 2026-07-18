@@ -17,4 +17,10 @@ describe('classifyMutationResult', () => {
   it('401 is retried, not dropped — reconnect will resend', () => {
     expect(classifyMutationResult(401, false)).toBe('retry');
   });
+  it('409 is dropped — an already-trashed/not-in-trash conflict cannot succeed on retry', () => {
+    expect(classifyMutationResult(409, false)).toBe('drop');
+  });
+  it('400 is dropped — a bad request cannot succeed on retry', () => {
+    expect(classifyMutationResult(400, false)).toBe('drop');
+  });
 });

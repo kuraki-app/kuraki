@@ -7,6 +7,10 @@ export default defineConfig({
     include: ['src/**/*.test.ts'],
   },
   resolve: {
-    alias: { '@': new URL('./src', import.meta.url).pathname },
+    alias: {
+      '@': new URL('./src', import.meta.url).pathname,
+      'expo-secure-store': new URL('./test/mocks/expo-secure-store.ts', import.meta.url).pathname,
+      'expo-sqlite': new URL('./test/mocks/expo-sqlite.ts', import.meta.url).pathname,
+    },
   },
 });

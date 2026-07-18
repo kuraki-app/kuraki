@@ -2,13 +2,16 @@ export type MutationOutcome = 'sent' | 'drop' | 'retry';
 export type PendingMutation = { id: number; asset_id: string; kind: string; payload: string; attempts: number };
 
 // classifyMutationResult decides a queued write's fate from the server reply.
-// 404 means the asset no longer exists, so the local intent is meaningless —
-// drop it. Everything else that is not success (including 401, which clears on
-// reconnect) is worth another attempt.
+// 401 is retried — auth is lost, not the mutation's fault, and the queue
+// drains after re-pair. Any other 4xx (404 gone, 409 already-trashed/
+// not-in-trash conflict, 400 bad request, ...) can never succeed by retrying
+// as-is, so it's dropped rather than wedging the FIFO queue behind it forever.
+// 5xx / unknown / network errors are worth another attempt.
 export function classifyMutationResult(status: number, networkError: boolean): MutationOutcome {
   if (networkError) return 'retry';
   if (status >= 200 && status < 300) return 'sent';
-  if (status === 404) return 'drop';
+  if (status === 401) return 'retry';
+  if (status >= 400 && status < 500) return 'drop';
   return 'retry';
 }
 
@@ -27,6 +30,66 @@ export async function enqueueFavorite(assetId: string, favorite: boolean): Promi
   await db.runAsync(
     `INSERT INTO pending_mutations (asset_id, kind, payload, created_at) VALUES (?, 'favorite', ?, ?)`,
     [assetId, JSON.stringify({ favorite }), new Date().toISOString()],
+  );
+}
+
+export async function enqueueAlbumAdd(assetId: string, albumId: string): Promise<void> {
+  // Dynamic import keeps expo-sqlite (a native module) out of the Vitest node
+  // environment when only the pure classifyMutationResult above is imported.
+  // Do not change to a static top-level import — it breaks `npm run test`.
+  const { getDB } = await import('@/lib/cache/db');
+  const db = await getDB();
+  await db.runAsync(
+    `INSERT INTO pending_mutations (asset_id, kind, payload, created_at) VALUES (?, 'album_add', ?, ?)`,
+    [assetId, JSON.stringify({ album_id: albumId }), new Date().toISOString()],
+  );
+}
+
+export async function enqueueAlbumRemove(assetId: string, albumId: string): Promise<void> {
+  // Dynamic import keeps expo-sqlite (a native module) out of the Vitest node
+  // environment when only the pure classifyMutationResult above is imported.
+  // Do not change to a static top-level import — it breaks `npm run test`.
+  const { getDB } = await import('@/lib/cache/db');
+  const db = await getDB();
+  await db.runAsync(
+    `INSERT INTO pending_mutations (asset_id, kind, payload, created_at) VALUES (?, 'album_remove', ?, ?)`,
+    [assetId, JSON.stringify({ album_id: albumId }), new Date().toISOString()],
+  );
+}
+
+export async function enqueueTrash(assetId: string): Promise<void> {
+  // Dynamic import keeps expo-sqlite (a native module) out of the Vitest node
+  // environment when only the pure classifyMutationResult above is imported.
+  // Do not change to a static top-level import — it breaks `npm run test`.
+  const { getDB } = await import('@/lib/cache/db');
+  const db = await getDB();
+  await db.runAsync(
+    `INSERT INTO pending_mutations (asset_id, kind, payload, created_at) VALUES (?, 'trash', ?, ?)`,
+    [assetId, JSON.stringify({}), new Date().toISOString()],
+  );
+}
+
+export async function enqueueRestore(assetId: string): Promise<void> {
+  // Dynamic import keeps expo-sqlite (a native module) out of the Vitest node
+  // environment when only the pure classifyMutationResult above is imported.
+  // Do not change to a static top-level import — it breaks `npm run test`.
+  const { getDB } = await import('@/lib/cache/db');
+  const db = await getDB();
+  await db.runAsync(
+    `INSERT INTO pending_mutations (asset_id, kind, payload, created_at) VALUES (?, 'restore', ?, ?)`,
+    [assetId, JSON.stringify({}), new Date().toISOString()],
+  );
+}
+
+export async function enqueuePurge(assetId: string): Promise<void> {
+  // Dynamic import keeps expo-sqlite (a native module) out of the Vitest node
+  // environment when only the pure classifyMutationResult above is imported.
+  // Do not change to a static top-level import — it breaks `npm run test`.
+  const { getDB } = await import('@/lib/cache/db');
+  const db = await getDB();
+  await db.runAsync(
+    `INSERT INTO pending_mutations (asset_id, kind, payload, created_at) VALUES (?, 'purge', ?, ?)`,
+    [assetId, JSON.stringify({}), new Date().toISOString()],
   );
 }
 

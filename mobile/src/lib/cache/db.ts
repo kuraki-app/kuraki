@@ -34,6 +34,28 @@ export function getDB(): Promise<SQLite.SQLiteDatabase> {
           attempts INTEGER NOT NULL DEFAULT 0
         );
       `);
+      const { user_version: v } = (await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version')) ?? { user_version: 0 };
+      if (v < 2) {
+        // Wrapped in an explicit transaction so this migration is all-or-nothing:
+        // ALTER TABLE and PRAGMA user_version are both transactional in SQLite,
+        // so a process death mid-migration rolls back cleanly and re-runs the
+        // whole block next launch instead of re-running just the ALTER (which
+        // would crash on "duplicate column" against the bricked cache).
+        await db.execAsync(`
+          BEGIN;
+          ALTER TABLE assets ADD COLUMN trashed INTEGER NOT NULL DEFAULT 0;
+          CREATE TABLE IF NOT EXISTS albums (
+            id TEXT PRIMARY KEY, name TEXT NOT NULL,
+            cover_asset_id TEXT, count INTEGER NOT NULL DEFAULT 0, cached_at TEXT NOT NULL
+          );
+          CREATE TABLE IF NOT EXISTS album_assets (
+            album_id TEXT NOT NULL, asset_id TEXT NOT NULL,
+            PRIMARY KEY (album_id, asset_id)
+          );
+          PRAGMA user_version = 2;
+          COMMIT;
+        `);
+      }
       return db;
     })();
   }
