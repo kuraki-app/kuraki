@@ -31,5 +31,7 @@ export function reportAuthLost(): void {
 
 /** clearAuthLost is called after the user re-pairs successfully. */
 export function clearAuthLost(): void {
+  if (!lost) return;
   lost = false;
+  for (const listener of listeners) listener();
 }

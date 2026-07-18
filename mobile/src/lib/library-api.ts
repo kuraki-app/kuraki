@@ -1,5 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import { upsertAssets } from '@/lib/cache/assets';
+import { flushMutations, type PendingMutation } from '@/lib/cache/mutations';
 import { reportAuthLost } from '@/lib/session';
 import type { CaptureSettings } from '@/lib/settings';
 
@@ -33,9 +33,19 @@ export type LibraryFilters = {
   place_city?: string;
 };
 
-const recentCacheKey = 'kuraki.library.recent.v1';
+export class LibraryError extends Error {
+  constructor(message: string, readonly status = 0) {
+    super(message);
+    this.name = 'LibraryError';
+  }
+}
 
-export class LibraryError extends Error {}
+// A page is "unfiltered" when it is the plain recent view (no search, type,
+// favorite, date range, or place filter) — that's the only view worth caching
+// for instant paint on the next open / offline fallback.
+function isUnfiltered(filters: LibraryFilters): boolean {
+  return !filters.q && !filters.type && !filters.favorite && !filters.from && !filters.to && !filters.place_city;
+}
 
 export async function fetchLibrary(
   settings: CaptureSettings,
@@ -59,13 +69,58 @@ export async function fetchLibrary(
   });
   if (response.status === 401) {
     reportAuthLost();
-    throw new LibraryError('This device was disconnected. Re-pair it in Settings.');
+    throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
   }
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new LibraryError(typeof body.error === 'string' ? body.error : `Request failed (${response.status})`);
+    throw new LibraryError(
+      typeof body.error === 'string' ? body.error : `Request failed (${response.status})`,
+      response.status,
+    );
   }
-  return (await response.json()) as LibraryPage;
+  const page = (await response.json()) as LibraryPage;
+  // Feed the offline cache from the plain recent view so the grid can paint
+  // instantly next open and fall back to something when the network is down.
+  if (isUnfiltered(filters)) void upsertAssets(page.assets);
+  return page;
+}
+
+/** setFavorite pushes a favorite toggle to the server for one asset. */
+export async function setFavorite(settings: CaptureSettings, id: string, favorite: boolean): Promise<void> {
+  const response = await fetch(`${settings.baseURL}/api/capture/assets/${id}/favorite`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${settings.deviceToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ favorite }),
+  });
+  if (response.status === 401) {
+    reportAuthLost();
+    throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
+  }
+  if (!response.ok) {
+    throw new LibraryError(`Could not update favorite (${response.status})`, response.status);
+  }
+}
+
+// flushFavorites drains the offline favorite queue over a reconnected link. Each
+// queued write maps to the {status, networkError} shape flushMutations expects:
+// a clean send is a 200, a 401 (device re-revoked mid-flush) is reported
+// explicitly, anything else thrown by fetch itself is a network error worth
+// retrying later. Shared by Settings (on Save) and Library (on recovery) so the
+// send shape lives in exactly one place.
+export async function flushFavorites(settings: CaptureSettings): Promise<void> {
+  const send = async (m: PendingMutation) => {
+    try {
+      const { favorite } = JSON.parse(m.payload) as { favorite: boolean };
+      await setFavorite(settings, m.asset_id, favorite);
+      return { status: 200, networkError: false };
+    } catch (cause) {
+      if (cause instanceof LibraryError) {
+        return { status: cause.status, networkError: false };
+      }
+      return { status: 0, networkError: true };
+    }
+  };
+  await flushMutations(send);
 }
 
 function authed(settings: CaptureSettings, id: string, kind: 'thumb' | 'preview' | 'original'): AuthedSource {
@@ -97,20 +152,4 @@ export function fullImageSource(settings: CaptureSettings, asset: LibraryAsset):
 export function videoSource(settings: CaptureSettings, asset: LibraryAsset): AuthedSource | null {
   if (!settings.baseURL) return null;
   return authed(settings, asset.id, 'original');
-}
-
-// A small slice of the most recent items is cached so the grid paints instantly
-// on open, before the network responds — the offline-cache half of the Find job.
-export async function loadCachedRecent(): Promise<LibraryAsset[]> {
-  const raw = await AsyncStorage.getItem(recentCacheKey);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw) as LibraryAsset[];
-  } catch {
-    return [];
-  }
-}
-
-export async function saveCachedRecent(assets: LibraryAsset[]): Promise<void> {
-  await AsyncStorage.setItem(recentCacheKey, JSON.stringify(assets.slice(0, 60)));
 }

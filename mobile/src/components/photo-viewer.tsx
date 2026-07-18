@@ -12,12 +12,13 @@ type Props = {
   initialIndex: number;
   settings: CaptureSettings;
   onClose: () => void;
+  onToggleFavorite?: (id: string, next: boolean) => void;
 };
 
 // PhotoViewer is a full-screen, swipeable pager over the library grid. Images
 // use the best browser-safe source; videos play the original through
 // expo-video. Only the active video plays, so scrolling does not stack players.
-export default function PhotoViewer({ assets, initialIndex, settings, onClose }: Props) {
+export default function PhotoViewer({ assets, initialIndex, settings, onClose, onToggleFavorite }: Props) {
   const width = Dimensions.get('window').width;
   const [active, setActive] = useState(initialIndex);
   const onViewable = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -55,6 +56,16 @@ export default function PhotoViewer({ assets, initialIndex, settings, onClose }:
                 <ThemedText style={styles.captionSub}>{current.taken_at.slice(0, 10)}</ThemedText>
               ) : null}
             </View>
+          )}
+          {current && onToggleFavorite && (
+            <Pressable
+              style={styles.favorite}
+              onPress={() => onToggleFavorite(current.id, !current.favorite)}
+              hitSlop={12}>
+              <ThemedText type="smallBold" style={styles.closeText}>
+                {current.favorite ? '♥ Favorited' : '♡ Favorite'}
+              </ThemedText>
+            </Pressable>
           )}
         </View>
       </View>
@@ -121,6 +132,7 @@ const styles = StyleSheet.create({
   top: { position: 'absolute', top: 48, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 12 },
   close: { backgroundColor: '#00000088', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14 },
   closeText: { color: '#fff' },
+  favorite: { backgroundColor: '#00000088', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14 },
   caption: { flex: 1 },
   captionText: { color: '#fff' },
   captionSub: { color: '#cfcfcf', fontSize: 12 },

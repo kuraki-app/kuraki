@@ -5,21 +5,31 @@ import * as ImagePicker from 'expo-image-picker';
 import AlbumPicker from '@/components/album-picker';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { Spacing, useTokens } from '@/constants/theme';
+import { registerStyle } from '@/design/registers';
 import { disableBackgroundBackup, enableBackgroundBackup } from '@/lib/background';
 import { backupEngine, type BackupProgress } from '@/lib/backup-engine';
 import { getCaptureStatus, uploadPhoto, type CaptureStatus } from '@/lib/capture-api';
+import { isAuthLost, onAuthLost } from '@/lib/session';
 import { loadCaptureSettings } from '@/lib/settings';
 
+const reg = registerStyle('vault');
+const heading = { fontFamily: reg.heading };
+
 export default function BackupScreen() {
+  const tokens = useTokens();
   const [progress, setProgress] = useState<BackupProgress | null>(null);
   const [status, setStatus] = useState<CaptureStatus | null>(null);
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [disconnected, setDisconnected] = useState(isAuthLost());
 
   useEffect(() => backupEngine.subscribe(setProgress), []);
+  // Reflect the current auth-lost signal on any notification (not just set true)
+  // so a recovery/re-pair clears the persistent disconnected notice.
+  useEffect(() => onAuthLost(() => setDisconnected(isAuthLost())), []);
 
   // If automatic backup was left on, catch up in the foreground on open; the
   // engine ignores the call when a run is already in progress.
@@ -87,54 +97,72 @@ export default function BackupScreen() {
       contentInsetAdjustmentBehavior="automatic"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
       <ThemedView style={styles.content}>
-        <ThemedText type="title">Backup</ThemedText>
-        <ThemedText themeColor="textSecondary" selectable>
+        {disconnected && (
+          // Deliberately not dismissible: unlike the Library banner, this must
+          // never be hideable — a paired device silently not backing up is the
+          // one state the user must always be able to see.
+          <ThemedView style={[styles.banner, { backgroundColor: tokens.destructiveBg }]}>
+            <ThemedText type="smallBold" style={{ color: tokens.destructive }}>
+              This device is disconnected — your photos are not being backed up.
+            </ThemedText>
+            <ThemedText type="small" style={{ color: tokens.destructive }}>
+              Reconnect it on the Settings tab to resume automatic backup.
+            </ThemedText>
+          </ThemedView>
+        )}
+        <ThemedText type="title" style={heading}>Backup</ThemedText>
+        <ThemedText themeColor="mutedForeground" selectable>
           Your phone will show every item waiting for Kuraki, not just a generic sync spinner.
         </ThemedText>
 
         {error ? (
-          <ThemedView type="backgroundElement" style={styles.card}>
-            <ThemedText type="subtitle">Connect this device</ThemedText>
-            <ThemedText themeColor="textSecondary" selectable>{error}</ThemedText>
+          <ThemedView type="card" style={styles.card}>
+            <ThemedText type="subtitle" style={heading}>Connect this device</ThemedText>
+            <ThemedText themeColor="mutedForeground" selectable>{error}</ThemedText>
           </ThemedView>
         ) : null}
 
-        <ThemedView type="backgroundElement" style={styles.card}>
+        <ThemedView type="card" style={styles.card}>
           <View style={styles.row}>
             <View style={styles.rowText}>
-              <ThemedText type="subtitle">Automatic backup</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText type="subtitle" style={heading}>Automatic backup</ThemedText>
+              <ThemedText type="small" themeColor="mutedForeground">
                 Back up new photos and videos from this phone.
               </ThemedText>
             </View>
             <Switch value={autoOn} onValueChange={(next) => void toggleAuto(next)} />
           </View>
           {progress?.permission === 'denied' && (
-            <ThemedText type="small" themeColor="textSecondary" selectable>
+            <ThemedText type="small" themeColor="mutedForeground" selectable>
               Photo access is off. Enable it in system settings to back up automatically.
             </ThemedText>
           )}
           {bgNote ? (
-            <ThemedText type="small" themeColor="textSecondary" selectable>{bgNote}</ThemedText>
+            <ThemedText type="small" themeColor="mutedForeground" selectable>{bgNote}</ThemedText>
           ) : null}
           <Pressable style={styles.albumRow} onPress={() => setPickingAlbums(true)}>
-            <ThemedText type="small" themeColor="textSecondary">Albums</ThemedText>
+            <ThemedText type="small" themeColor="mutedForeground">Albums</ThemedText>
             <ThemedText type="smallBold">
               {albumCount ? `${albumCount} selected` : 'All photos & videos'}
             </ThemedText>
           </Pressable>
           <View style={styles.actions}>
-            <Pressable disabled={running} style={styles.buttonSmall} onPress={() => void backupEngine.run()}>
-              <ThemedText type="smallBold">{running ? 'Backing up…' : 'Back up new photos'}</ThemedText>
+            <Pressable
+              disabled={running}
+              style={[styles.buttonSmall, { backgroundColor: tokens.primary }]}
+              onPress={() => void backupEngine.run()}>
+              <ThemedText type="smallBold" themeColor="primaryForeground">
+                {running ? 'Backing up…' : 'Back up new photos'}
+              </ThemedText>
             </Pressable>
             {running && (
-              <Pressable style={styles.buttonGhost} onPress={() => backupEngine.stop()}>
+              <Pressable style={[styles.buttonGhost, { borderColor: tokens.input }]} onPress={() => backupEngine.stop()}>
                 <ThemedText type="smallBold">Pause</ThemedText>
               </Pressable>
             )}
           </View>
           {progress?.message ? (
-            <ThemedText type="small" themeColor="textSecondary" selectable>
+            <ThemedText type="small" themeColor="mutedForeground" selectable>
               {running && progress.currentFile
                 ? `${progress.currentFile} · ${progress.currentPercent}%`
                 : progress.message}
@@ -149,51 +177,61 @@ export default function BackupScreen() {
         </View>
 
         {progress?.lastSuccess && (
-          <ThemedText type="small" themeColor="textSecondary" selectable>
+          <ThemedText type="small" themeColor="mutedForeground" selectable>
             Last backed up: {progress.lastSuccess.filename}
           </ThemedText>
         )}
 
         {progress?.failed.length ? (
-          <ThemedView type="backgroundElement" style={styles.card}>
+          <ThemedView type="card" style={styles.card}>
             <View style={styles.row}>
-              <ThemedText type="subtitle">Needs attention</ThemedText>
-              <Pressable disabled={running} style={styles.retryButton} onPress={() => void backupEngine.run()}>
-                <ThemedText type="smallBold">{running ? 'Retrying…' : 'Retry now'}</ThemedText>
+              <ThemedText type="subtitle" style={heading}>Needs attention</ThemedText>
+              <Pressable
+                disabled={running}
+                style={[styles.retryButton, { backgroundColor: tokens.primary }]}
+                onPress={() => void backupEngine.run()}>
+                <ThemedText type="smallBold" themeColor="primaryForeground">
+                  {running ? 'Retrying…' : 'Retry now'}
+                </ThemedText>
               </Pressable>
             </View>
-            <ThemedText type="small" themeColor="textSecondary">
+            <ThemedText type="small" themeColor="mutedForeground">
               Retry checks the server offset and skips items already accepted by Kuraki.
             </ThemedText>
             {progress.failed.slice(0, 8).map((item) => (
               <View key={item.localId} style={styles.session}>
                 <ThemedText selectable>{item.filename}</ThemedText>
-                <ThemedText type="small" themeColor="textSecondary" selectable>{item.error}</ThemedText>
+                <ThemedText type="small" themeColor="mutedForeground" selectable>{item.error}</ThemedText>
               </View>
             ))}
           </ThemedView>
         ) : null}
 
-        <ThemedView type="backgroundElement" style={styles.card}>
-          <ThemedText type="subtitle">Server activity</ThemedText>
+        <ThemedView type="card" style={styles.card}>
+          <ThemedText type="subtitle" style={heading}>Server activity</ThemedText>
           {status?.sessions.length ? (
             status.sessions.slice(0, 8).map((session) => (
               <View key={session.id} style={styles.session}>
                 <ThemedText selectable>{session.filename}</ThemedText>
-                <ThemedText type="small" themeColor="textSecondary" selectable>
+                <ThemedText type="small" themeColor="mutedForeground" selectable>
                   {session.status} · {Math.round((session.received_bytes / session.size_bytes) * 100)}%
                 </ThemedText>
               </View>
             ))
           ) : (
-            <ThemedText themeColor="textSecondary">No recent uploads from this device.</ThemedText>
+            <ThemedText themeColor="mutedForeground">No recent uploads from this device.</ThemedText>
           )}
         </ThemedView>
 
-        <Pressable disabled={isUploading} style={styles.button} onPress={() => void chooseAndUpload()}>
-          <ThemedText type="smallBold">{isUploading ? 'Backing up…' : 'Choose a single photo'}</ThemedText>
+        <Pressable
+          disabled={isUploading}
+          style={[styles.button, { backgroundColor: tokens.primary }]}
+          onPress={() => void chooseAndUpload()}>
+          <ThemedText type="smallBold" themeColor="primaryForeground">
+            {isUploading ? 'Backing up…' : 'Choose a single photo'}
+          </ThemedText>
         </Pressable>
-        {uploading ? <ThemedText themeColor="textSecondary" selectable>{uploading}</ThemedText> : null}
+        {uploading ? <ThemedText themeColor="mutedForeground" selectable>{uploading}</ThemedText> : null}
       </ThemedView>
       <Modal visible={pickingAlbums} animationType="slide" onRequestClose={() => setPickingAlbums(false)}>
         <AlbumPicker selected={progress?.albumIds ?? []} onClose={() => setPickingAlbums(false)} />
@@ -204,15 +242,16 @@ export default function BackupScreen() {
 
 function StatusCard({ label, value }: { label: string; value: number }) {
   return (
-    <ThemedView type="backgroundElement" style={styles.countCard}>
+    <ThemedView type="card" style={styles.countCard}>
       <ThemedText style={styles.count} selectable>{value}</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">{label}</ThemedText>
+      <ThemedText type="small" themeColor="mutedForeground">{label}</ThemedText>
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   content: { padding: Spacing.three, gap: Spacing.three, flex: 1 },
+  banner: { padding: Spacing.three, borderRadius: Spacing.three, gap: Spacing.half },
   counts: { flexDirection: 'row', gap: Spacing.two },
   countCard: { flex: 1, padding: Spacing.three, borderRadius: Spacing.three, gap: Spacing.one },
   count: { fontSize: 30, fontVariant: ['tabular-nums'] },
@@ -222,8 +261,8 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, gap: Spacing.half },
   actions: { flexDirection: 'row', gap: Spacing.two },
   session: { gap: Spacing.half },
-  button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three, backgroundColor: '#cde7f7' },
-  buttonSmall: { flex: 1, alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three, backgroundColor: '#cde7f7' },
-  buttonGhost: { alignItems: 'center', borderRadius: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: Spacing.three, borderWidth: 1, borderColor: '#b8b9be' },
-  retryButton: { marginLeft: 'auto', borderRadius: Spacing.two, paddingHorizontal: Spacing.two, paddingVertical: Spacing.one, backgroundColor: '#cde7f7' },
+  button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
+  buttonSmall: { flex: 1, alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
+  buttonGhost: { alignItems: 'center', borderRadius: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: Spacing.three, borderWidth: 1 },
+  retryButton: { marginLeft: 'auto', borderRadius: Spacing.two, paddingHorizontal: Spacing.two, paddingVertical: Spacing.one },
 });
