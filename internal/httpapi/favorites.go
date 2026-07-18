@@ -36,6 +36,34 @@ func (d Deps) setFavorite(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"favorite": req.Favorite})
 }
 
+// setFavoriteForDevice is the device-authenticated favorite toggle. Unlike the
+// session handler it scopes the write to the device's owner, so a device token
+// can never flip favorite on another tenant's asset once multi-user unparks.
+func (d Deps) setFavoriteForDevice(w http.ResponseWriter, r *http.Request) {
+	device := deviceFromRequest(r)
+	var req favoriteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	fav := 0
+	if req.Favorite {
+		fav = 1
+	}
+	res, err := d.DB.ExecContext(r.Context(),
+		`UPDATE assets SET favorite = ? WHERE id = ? AND owner_id = ? AND deleted_at IS NULL`,
+		fav, chi.URLParam(r, "id"), device.OwnerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "favorite_failed")
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		writeError(w, http.StatusNotFound, "asset_not_found")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"favorite": req.Favorite})
+}
+
 // listFavorites returns the favorites feed (F-08 favorites user story).
 func (d Deps) listFavorites(w http.ResponseWriter, r *http.Request) {
 	limit := parseLimit(r.URL.Query().Get("limit"))

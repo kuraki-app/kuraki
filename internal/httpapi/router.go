@@ -159,6 +159,7 @@ func NewRouter(d Deps) http.Handler {
 			r.Get("/capture/assets/{id}/thumb", d.serveThumb)
 			r.Get("/capture/assets/{id}/preview", d.servePreview)
 			r.Get("/capture/assets/{id}/original", d.serveOriginal)
+			r.Post("/capture/assets/{id}/favorite", d.setFavoriteForDevice)
 		})
 	})
 
