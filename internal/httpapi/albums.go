@@ -45,6 +45,16 @@ func (d Deps) ownsAsset(r *http.Request, assetID string) (bool, error) {
 	return err == nil, err
 }
 
+// @Summary Create album
+// @Tags    albums
+// @Accept  json
+// @Produce json
+// @Param   body body apitypes.AlbumRequest true "album name"
+// @Success 201 {object} apitypes.Album
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/albums [post]
+// @Router  /api/capture/albums [post]
 func (d Deps) createAlbum(w http.ResponseWriter, r *http.Request) {
 	var req apitypes.AlbumRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -75,6 +85,13 @@ func (d Deps) createAlbum(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, apitypes.Album{ID: id.String(), Name: req.Name})
 }
 
+// @Summary List albums
+// @Tags    albums
+// @Produce json
+// @Success 200 {object} apitypes.AlbumList
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/albums [get]
+// @Router  /api/capture/albums [get]
 func (d Deps) listAlbums(w http.ResponseWriter, r *http.Request) {
 	owner, ok := d.ownerID(r)
 	if !ok {
@@ -107,6 +124,17 @@ func (d Deps) listAlbums(w http.ResponseWriter, r *http.Request) {
 }
 
 // getAlbum returns the album's assets (in timeline order).
+// @Summary Get album assets
+// @Tags    albums
+// @Produce json
+// @Param   id     path  string true  "album id"
+// @Param   cursor query string false "pagination cursor"
+// @Param   limit  query int    false "page size"
+// @Success 200 {object} apitypes.AssetList
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Router  /api/albums/{id} [get]
+// @Router  /api/capture/albums/{id} [get]
 func (d Deps) getAlbum(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	ok, err := d.ownsAlbum(r, id)
@@ -135,6 +163,17 @@ func (d Deps) getAlbum(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apitypes.AssetList{Assets: assets, NextCursor: next})
 }
 
+// @Summary Rename album
+// @Tags    albums
+// @Accept  json
+// @Produce json
+// @Param   id   path string             true "album id"
+// @Param   body body apitypes.AlbumRequest true "new name"
+// @Success 200 {object} apitypes.Album
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Router  /api/albums/{id} [patch]
 func (d Deps) renameAlbum(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var req apitypes.AlbumRequest
@@ -162,6 +201,14 @@ func (d Deps) renameAlbum(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apitypes.Album{ID: id, Name: req.Name})
 }
 
+// @Summary Delete album
+// @Tags    albums
+// @Produce json
+// @Param   id path string true "album id"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Router  /api/albums/{id} [delete]
 func (d Deps) deleteAlbum(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	user := d.currentUser(r)
@@ -179,6 +226,18 @@ func (d Deps) deleteAlbum(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
 
+// @Summary Add assets to album
+// @Tags    albums
+// @Accept  json
+// @Produce json
+// @Param   id   path string            true "album id"
+// @Param   body body apitypes.AssetIDs true "asset ids"
+// @Success 200 {object} map[string]int
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Router  /api/albums/{id}/assets [post]
+// @Router  /api/capture/albums/{id}/assets [post]
 func (d Deps) addAlbumAssets(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	ok, err := d.ownsAlbum(r, id)
@@ -217,6 +276,18 @@ func (d Deps) addAlbumAssets(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]int{"added": added})
 }
 
+// @Summary Remove assets from album
+// @Tags    albums
+// @Accept  json
+// @Produce json
+// @Param   id   path string            true "album id"
+// @Param   body body apitypes.AssetIDs true "asset ids"
+// @Success 200 {object} map[string]int
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Router  /api/albums/{id}/assets [delete]
+// @Router  /api/capture/albums/{id}/assets [delete]
 func (d Deps) removeAlbumAssets(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	ok, err := d.ownsAlbum(r, id)

@@ -90,6 +90,16 @@ func parseAssetFilters(r *http.Request) (assetFilters, string) {
 // respondFiltered runs the shared filter query with cursor pagination and writes
 // the asset page. Both the authenticated web search and the device-authenticated
 // mobile library use it, so the two surfaces stay byte-for-byte identical.
+// @Summary List captured library (device)
+// @Tags    capture
+// @Produce json
+// @Param   cursor query string false "pagination cursor"
+// @Param   limit  query int    false "page size"
+// @Param   q      query string false "full-text query"
+// @Success 200 {object} apitypes.AssetList
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/capture/library [get]
 func (d Deps) respondFiltered(w http.ResponseWriter, r *http.Request) {
 	limit := parseLimit(r.URL.Query().Get("limit"))
 	filters, ferr := parseAssetFilters(r)

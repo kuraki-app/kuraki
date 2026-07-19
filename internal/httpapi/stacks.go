@@ -11,6 +11,14 @@ import (
 
 // stackAssets returns every member of an asset's stack (or just the asset if it
 // is not stacked), so the viewer can page through a RAW+JPEG or Live/Motion pair.
+// @Summary Get asset stack
+// @Tags    assets
+// @Produce json
+// @Param   id path string true "asset id"
+// @Success 200 {object} apitypes.AssetList
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Router  /api/assets/{id}/stack [get]
 func (d Deps) stackAssets(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	rows, err := d.DB.QueryContext(r.Context(),

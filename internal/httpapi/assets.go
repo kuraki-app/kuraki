@@ -53,6 +53,17 @@ type assetRow struct {
 	StackSize    int
 }
 
+// listAssets returns a page of the owner's library.
+// @Summary List assets
+// @Tags    assets
+// @Produce json
+// @Param   cursor   query string false "pagination cursor"
+// @Param   limit    query int    false "page size"
+// @Param   archived query string false "1 to show archived instead"
+// @Param   hidden   query string false "1 to show hidden instead"
+// @Success 200 {object} apitypes.AssetList
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/assets [get]
 func (d Deps) listAssets(w http.ResponseWriter, r *http.Request) {
 	limit := parseLimit(r.URL.Query().Get("limit"))
 	cursorTime, cursorID, err := decodeCursor(r.URL.Query().Get("cursor"))
@@ -92,6 +103,14 @@ func (d Deps) listAssets(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apitypes.AssetList{Assets: assets, NextCursor: next})
 }
 
+// @Summary Get asset
+// @Tags    assets
+// @Produce json
+// @Param   id path string true "asset id"
+// @Success 200 {object} apitypes.Asset
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Router  /api/assets/{id} [get]
 func (d Deps) getAsset(w http.ResponseWriter, r *http.Request) {
 	row, err := d.lookupAsset(r, chi.URLParam(r, "id"))
 	if errors.Is(err, sql.ErrNoRows) {
@@ -107,6 +126,21 @@ func (d Deps) getAsset(w http.ResponseWriter, r *http.Request) {
 
 // searchAssets is the unified filter endpoint (the "one filter language"). It
 // shares its whole implementation with the mobile library via respondFiltered.
+// @Summary Search assets
+// @Tags    assets
+// @Produce json
+// @Param   cursor        query string false "pagination cursor"
+// @Param   limit         query int    false "page size"
+// @Param   q             query string false "full-text query"
+// @Param   type          query string false "media type filter"
+// @Param   favorite      query string false "1 to filter favorites"
+// @Param   from          query string false "date range start"
+// @Param   to            query string false "date range end"
+// @Param   place_city    query string false "place city filter"
+// @Success 200 {object} apitypes.AssetList
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/search [get]
 func (d Deps) searchAssets(w http.ResponseWriter, r *http.Request) {
 	d.respondFiltered(w, r)
 }

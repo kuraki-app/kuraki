@@ -10,6 +10,12 @@ import (
 	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
 
+// @Summary List tags
+// @Tags    tags
+// @Produce json
+// @Success 200 {object} apitypes.TagList
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/tags [get]
 func (d Deps) listTags(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)
 	if user == nil {
@@ -35,6 +41,17 @@ func (d Deps) listTags(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, apitypes.TagList{Tags: out})
 }
+
+// @Summary Create tag
+// @Tags    tags
+// @Accept  json
+// @Produce json
+// @Param   body body apitypes.TagRequest true "tag name + optional parent"
+// @Success 201 {object} apitypes.Tag
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Failure 409 {object} apitypes.Error
+// @Router  /api/tags [post]
 func (d Deps) createTag(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)
 	if user == nil {
@@ -62,6 +79,15 @@ func (d Deps) createTag(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 201, apitypes.Tag{ID: id.String(), Name: req.Name, ParentID: req.ParentID})
 }
+
+// @Summary Delete tag
+// @Tags    tags
+// @Produce json
+// @Param   id path string true "tag id"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Router  /api/tags/{id} [delete]
 func (d Deps) deleteTag(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)
 	if user == nil {
@@ -79,6 +105,14 @@ func (d Deps) deleteTag(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, map[string]string{"status": "deleted"})
 }
+
+// @Summary List asset tags
+// @Tags    tags
+// @Produce json
+// @Param   id path string true "asset id"
+// @Success 200 {object} apitypes.TagList
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/assets/{id}/tags [get]
 func (d Deps) assetTags(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	rows, err := d.DB.QueryContext(r.Context(), `SELECT t.id,t.name,t.parent_id FROM tags t JOIN asset_tags at ON at.tag_id=t.id WHERE at.asset_id=? ORDER BY t.name`, id)
@@ -100,6 +134,17 @@ func (d Deps) assetTags(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, apitypes.TagList{Tags: out})
 }
+
+// @Summary Replace asset tags
+// @Tags    tags
+// @Accept  json
+// @Produce json
+// @Param   id   path string                     true "asset id"
+// @Param   body body apitypes.AssetTagsRequest true "full tag id set"
+// @Success 200 {object} apitypes.TagList
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/assets/{id}/tags [put]
 func (d Deps) replaceAssetTags(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)
 	if user == nil {
@@ -141,6 +186,12 @@ func (d Deps) replaceAssetTags(w http.ResponseWriter, r *http.Request) {
 	d.assetTags(w, r)
 }
 
+// @Summary List saved searches
+// @Tags    saved-searches
+// @Produce json
+// @Success 200 {object} apitypes.SavedSearchList
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/saved-searches [get]
 func (d Deps) listSavedSearches(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)
 	if user == nil {
@@ -164,6 +215,17 @@ func (d Deps) listSavedSearches(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, apitypes.SavedSearchList{SavedSearches: out})
 }
+
+// @Summary Create saved search
+// @Tags    saved-searches
+// @Accept  json
+// @Produce json
+// @Param   body body apitypes.SavedSearchRequest true "name + query"
+// @Success 201 {object} apitypes.SavedSearch
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Failure 409 {object} apitypes.Error
+// @Router  /api/saved-searches [post]
 func (d Deps) createSavedSearch(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)
 	if user == nil {
@@ -191,6 +253,15 @@ func (d Deps) createSavedSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 201, apitypes.SavedSearch{ID: id.String(), Name: req.Name, Query: req.Query})
 }
+
+// @Summary Delete saved search
+// @Tags    saved-searches
+// @Produce json
+// @Param   id path string true "saved search id"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Router  /api/saved-searches/{id} [delete]
 func (d Deps) deleteSavedSearch(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)
 	if user == nil {

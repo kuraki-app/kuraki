@@ -13,6 +13,12 @@ import (
 
 // mediaIssues exposes durable derivative failures. The original is still safe;
 // this endpoint makes the missing preview or playback path visible to users.
+// @Summary List media issues
+// @Tags    media
+// @Produce json
+// @Success 200 {object} apitypes.MediaIssueList
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/media/issues [get]
 func (d Deps) mediaIssues(w http.ResponseWriter, r *http.Request) {
 	rows, err := d.DB.QueryContext(r.Context(), `
 		SELECT m.asset_id, a.filename, a.media_type, m.kind, m.message, m.created_at
@@ -46,6 +52,15 @@ func (d Deps) mediaIssues(w http.ResponseWriter, r *http.Request) {
 // clearing any media issues it resolves. It runs in the background because a
 // video playback derivative can take a while; the client can watch the media
 // health list update.
+// @Summary Rebuild asset derivatives
+// @Tags    media
+// @Produce json
+// @Param   id path string true "asset id"
+// @Success 202 {object} map[string]string
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Failure 503 {object} apitypes.Error
+// @Router  /api/assets/{id}/rebuild [post]
 func (d Deps) rebuildAsset(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var one int

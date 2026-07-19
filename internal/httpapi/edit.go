@@ -16,6 +16,17 @@ import (
 
 // patchAsset edits a single asset's capture date, location, or caption. Changing
 // the location re-runs offline reverse geocoding; any change refreshes search.
+// @Summary Edit asset
+// @Tags    assets
+// @Accept  json
+// @Produce json
+// @Param   id   path string             true "asset id"
+// @Param   body body apitypes.AssetPatch true "fields to change"
+// @Success 200 {object} apitypes.Asset
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Router  /api/assets/{id} [patch]
 func (d Deps) patchAsset(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	owner, ok := d.ownerID(r)
@@ -113,6 +124,15 @@ func (d Deps) patchAsset(w http.ResponseWriter, r *http.Request) {
 
 // shiftTime shifts the capture time of many assets by a fixed offset, for fixing
 // wrong camera timezones on a batch of imports.
+// @Summary Shift capture time
+// @Tags    assets
+// @Accept  json
+// @Produce json
+// @Param   body body apitypes.ShiftRequest true "ids + minute offset"
+// @Success 200 {object} map[string]int
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/assets/shift-time [post]
 func (d Deps) shiftTime(w http.ResponseWriter, r *http.Request) {
 	owner, ok := d.ownerID(r)
 	if !ok {

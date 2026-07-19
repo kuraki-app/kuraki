@@ -14,6 +14,17 @@ import (
 
 // downloadZip streams a zip archive of the selected originals (zero-lock-in).
 // The archive is streamed, so inputs are validated up front.
+// @Summary Download assets as zip
+// @Tags    assets
+// @Accept  json
+// @Produce application/octet-stream
+// @Param   body body apitypes.ZipRequest true "asset ids"
+// @Success 200 {file} binary
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Failure 409 {object} apitypes.Error
+// @Router  /api/assets/zip [post]
 func (d Deps) downloadZip(w http.ResponseWriter, r *http.Request) {
 	var req apitypes.ZipRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -75,6 +86,14 @@ func (d Deps) downloadZip(w http.ResponseWriter, r *http.Request) {
 // exportLibrary streams a zip of every original in the library, preserving the
 // date-organized folder structure. Backing up this archive (plus the database)
 // is the manual belt-and-braces companion to `kuraki backup`.
+// @Summary Export whole library as zip
+// @Tags    assets
+// @Produce application/octet-stream
+// @Success 200 {file} binary
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Failure 409 {object} apitypes.Error
+// @Router  /api/export [get]
 func (d Deps) exportLibrary(w http.ResponseWriter, r *http.Request) {
 	rows, err := d.DB.QueryContext(r.Context(),
 		`SELECT original_path, filename FROM assets WHERE deleted_at IS NULL ORDER BY original_path`)

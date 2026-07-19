@@ -28,6 +28,15 @@ const (
 // as ?since=; the response's cursor is fed straight back next time. Thin by
 // design — entries carry only the id/op, and the client refetches changed assets
 // via the existing asset endpoints.
+// @Summary Delta feed
+// @Tags    sync
+// @Produce json
+// @Param   since query int false "cursor"
+// @Param   limit query int false "page size"
+// @Success 200 {object} apitypes.ChangesResponse
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/changes [get]
+// @Router  /api/capture/changes [get]
 func (d Deps) changes(w http.ResponseWriter, r *http.Request) {
 	owner, ok := d.ownerID(r)
 	if !ok {

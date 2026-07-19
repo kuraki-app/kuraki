@@ -8,6 +8,12 @@ import (
 
 // placesAssets returns every non-deleted asset that carries GPS, for plotting on
 // the map. It reuses the standard asset DTO (which includes gps + thumbnail).
+// @Summary List assets with GPS
+// @Tags    places
+// @Produce json
+// @Success 200 {object} apitypes.AssetList
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/places [get]
 func (d Deps) placesAssets(w http.ResponseWriter, r *http.Request) {
 	rows, err := d.DB.QueryContext(r.Context(),
 		assetSelectSQL("WHERE a.deleted_at IS NULL AND a.gps_lat IS NOT NULL AND a.gps_lon IS NOT NULL")+" LIMIT 5000")
@@ -26,6 +32,13 @@ func (d Deps) placesAssets(w http.ResponseWriter, r *http.Request) {
 
 // placesSummary groups assets by resolved place so the UI can show a list of
 // places with counts and a cover thumbnail (e.g. "Paris, France · 128").
+// @Summary Places summary
+// @Tags    places
+// @Produce json
+// @Success 200 {object} apitypes.PlaceSummary
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/places/summary [get]
+// @Router  /api/capture/places [get]
 func (d Deps) placesSummary(w http.ResponseWriter, r *http.Request) {
 	rows, err := d.DB.QueryContext(r.Context(), `
 		SELECT place_city, COALESCE(place_country,''), COUNT(*), MAX(id)

@@ -7,6 +7,12 @@ import (
 )
 
 // stats reports library totals for the dashboard.
+// @Summary Library stats
+// @Tags    stats
+// @Produce json
+// @Success 200 {object} apitypes.LibraryStats
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/stats [get]
 func (d Deps) stats(w http.ResponseWriter, r *http.Request) {
 	var s apitypes.LibraryStats
 	ctx := r.Context()

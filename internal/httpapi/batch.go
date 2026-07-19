@@ -13,6 +13,15 @@ import (
 const maxBatchIDs = 1000
 
 // batchAssets applies one operation to many assets at once (multi-select — F-23).
+// @Summary Batch asset operation
+// @Tags    assets
+// @Accept  json
+// @Produce json
+// @Param   body body apitypes.BatchRequest true "ids + operation"
+// @Success 200 {object} apitypes.BatchResponse
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/assets/batch [post]
 func (d Deps) batchAssets(w http.ResponseWriter, r *http.Request) {
 	var req apitypes.BatchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

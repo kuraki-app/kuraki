@@ -16,6 +16,13 @@ import (
 
 const sessionCookieName = "kuraki_session"
 
+// setupStatus reports whether initial setup is required and, if signed in,
+// the current user.
+// @Summary Setup status
+// @Tags    auth
+// @Produce json
+// @Success 200 {object} apitypes.SetupStatus
+// @Router  /api/setup [get]
 func (d Deps) setupStatus(w http.ResponseWriter, r *http.Request) {
 	required, err := d.setupRequired(r.Context())
 	if err != nil {
@@ -26,6 +33,16 @@ func (d Deps) setupStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apitypes.SetupStatus{SetupRequired: required, User: user})
 }
 
+// setup claims the placeholder owner account on a fresh install.
+// @Summary Complete initial setup
+// @Tags    auth
+// @Accept  json
+// @Produce json
+// @Param   body body apitypes.Credentials true "owner credentials"
+// @Success 201 {object} apitypes.SetupStatus
+// @Failure 400 {object} apitypes.Error
+// @Failure 409 {object} apitypes.Error
+// @Router  /api/setup [post]
 func (d Deps) setup(w http.ResponseWriter, r *http.Request) {
 	required, err := d.setupRequired(r.Context())
 	if err != nil {
@@ -73,6 +90,16 @@ func (d Deps) setup(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// login authenticates with username/password and starts a session.
+// @Summary Log in
+// @Tags    auth
+// @Accept  json
+// @Produce json
+// @Param   body body apitypes.Credentials true "credentials"
+// @Success 200 {object} apitypes.SetupStatus
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/login [post]
 func (d Deps) login(w http.ResponseWriter, r *http.Request) {
 	var req apitypes.Credentials
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -107,6 +134,12 @@ func (d Deps) login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// logout clears the session cookie.
+// @Summary Log out
+// @Tags    auth
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Router  /api/logout [post]
 func (d Deps) logout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(sessionCookieName); err == nil {
 		_, _ = d.DB.ExecContext(r.Context(), `DELETE FROM sessions WHERE id = ?`, cookie.Value)
@@ -115,6 +148,13 @@ func (d Deps) logout(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+// me returns the signed-in owner, or setup status when not signed in.
+// @Summary Current user
+// @Tags    auth
+// @Produce json
+// @Success 200 {object} apitypes.SetupStatus
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/me [get]
 func (d Deps) me(w http.ResponseWriter, r *http.Request) {
 	required, err := d.setupRequired(r.Context())
 	if err != nil {

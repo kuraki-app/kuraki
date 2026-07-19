@@ -12,6 +12,18 @@ import (
 // session (web) and device-token (mobile) auth via ownerID, and scopes the
 // write to the caller's own assets so a device token can never flip favorite
 // on another tenant's asset once multi-user unparks.
+// @Summary Set favorite
+// @Tags    assets
+// @Accept  json
+// @Produce json
+// @Param   id   path string                  true "asset id"
+// @Param   body body apitypes.FavoriteRequest true "favorite flag"
+// @Success 200 {object} map[string]bool
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Router  /api/assets/{id}/favorite [post]
+// @Router  /api/capture/assets/{id}/favorite [post]
 func (d Deps) setFavorite(w http.ResponseWriter, r *http.Request) {
 	owner, ok := d.ownerID(r)
 	if !ok {
@@ -43,6 +55,13 @@ func (d Deps) setFavorite(w http.ResponseWriter, r *http.Request) {
 }
 
 // listFavorites returns the favorites feed (F-08 favorites user story).
+// @Summary List favorites
+// @Tags    assets
+// @Produce json
+// @Param   limit query int false "page size"
+// @Success 200 {object} apitypes.AssetList
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/favorites [get]
 func (d Deps) listFavorites(w http.ResponseWriter, r *http.Request) {
 	limit := parseLimit(r.URL.Query().Get("limit"))
 	rows, err := d.DB.QueryContext(r.Context(),

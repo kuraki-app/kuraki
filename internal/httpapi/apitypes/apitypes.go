@@ -297,7 +297,7 @@ type AssetTagsRequest struct {
 // SavedSearch is the wire representation of a saved search.
 type SavedSearch struct {
 	ID, Name  string
-	Query     json.RawMessage `json:"query"`
+	Query     json.RawMessage `json:"query" swaggertype:"object"`
 	CreatedAt string          `json:"created_at"`
 }
 
@@ -309,7 +309,7 @@ type SavedSearchList struct {
 // SavedSearchRequest is the request body for creating a saved search.
 type SavedSearchRequest struct {
 	Name  string          `json:"name"`
-	Query json.RawMessage `json:"query"`
+	Query json.RawMessage `json:"query" swaggertype:"object"`
 }
 
 // PairingCodeResponse is the wire representation of a freshly minted pairing code.

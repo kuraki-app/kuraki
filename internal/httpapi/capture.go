@@ -34,6 +34,15 @@ type captureDeviceKey struct{}
 // registerDevice creates a revocable bearer credential. It is returned once;
 // mobile clients store it in platform secure storage rather than retaining the
 // account password or a browser session cookie.
+// @Summary Register device
+// @Tags    devices
+// @Accept  json
+// @Produce json
+// @Param   body body apitypes.DeviceRequest true "device name"
+// @Success 201 {object} apitypes.DeviceResponse
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/devices [post]
 func (d Deps) registerDevice(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)
 	if user == nil {
@@ -69,6 +78,14 @@ func (d Deps) registerDevice(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, apitypes.DeviceResponse{ID: id.String(), Name: req.Name, Token: token})
 }
 
+// @Summary Revoke device
+// @Tags    devices
+// @Produce json
+// @Param   id path string true "device id"
+// @Success 200 {object} map[string]string
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Router  /api/devices/{id} [delete]
 func (d Deps) revokeDevice(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)
 	if user == nil {
@@ -117,6 +134,16 @@ func deviceFromRequest(r *http.Request) captureDevice {
 	return device
 }
 
+// @Summary Start capture upload session
+// @Tags    capture
+// @Accept  json
+// @Produce json
+// @Param   body body apitypes.CaptureStartRequest true "filename + size"
+// @Success 201 {object} apitypes.CaptureSessionResponse
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Failure 503 {object} apitypes.Error
+// @Router  /api/capture/uploads [post]
 func (d Deps) captureStart(w http.ResponseWriter, r *http.Request) {
 	if d.Queue == nil {
 		writeError(w, http.StatusServiceUnavailable, "queue_unavailable")
@@ -165,6 +192,16 @@ func (d Deps) captureStart(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, apitypes.CaptureSessionResponse{ID: id.String(), Filename: req.Filename, SizeBytes: req.SizeBytes, Status: "receiving"})
 }
 
+// @Summary Append capture upload chunk
+// @Tags    capture
+// @Produce json
+// @Param   id path string true "upload session id"
+// @Success 200 {object} apitypes.CaptureSessionResponse
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Failure 409 {object} apitypes.Error
+// @Router  /api/capture/uploads/{id} [patch]
 func (d Deps) captureAppend(w http.ResponseWriter, r *http.Request) {
 	device := deviceFromRequest(r)
 	session, err := d.captureSession(r.Context(), r.PathValue("id"), device)
@@ -223,6 +260,17 @@ func (d Deps) captureAppend(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apitypes.CaptureSessionResponse{ID: session.ID, Filename: session.Filename, SizeBytes: session.SizeBytes, ReceivedBytes: newOffset, Status: "receiving"})
 }
 
+// @Summary Complete capture upload
+// @Tags    capture
+// @Produce json
+// @Param   id path string true "upload session id"
+// @Success 200 {object} apitypes.CaptureSessionResponse
+// @Success 202 {object} apitypes.CaptureSessionResponse
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Failure 409 {object} apitypes.Error
+// @Failure 503 {object} apitypes.Error
+// @Router  /api/capture/uploads/{id}/complete [post]
 func (d Deps) captureComplete(w http.ResponseWriter, r *http.Request) {
 	if d.Queue == nil {
 		writeError(w, http.StatusServiceUnavailable, "queue_unavailable")
@@ -271,6 +319,12 @@ func (d Deps) captureComplete(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, session.response())
 }
 
+// @Summary Capture status
+// @Tags    capture
+// @Produce json
+// @Success 200 {object} apitypes.CaptureStatusResponse
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/capture/status [get]
 func (d Deps) captureStatus(w http.ResponseWriter, r *http.Request) {
 	device := deviceFromRequest(r)
 	rows, err := d.DB.QueryContext(r.Context(), `

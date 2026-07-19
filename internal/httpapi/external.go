@@ -12,6 +12,12 @@ import (
 	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
 
+// @Summary List external libraries
+// @Tags    external
+// @Produce json
+// @Success 200 {object} apitypes.ExternalLibraryList
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/external-libraries [get]
 func (d Deps) listExternalLibraries(w http.ResponseWriter, r *http.Request) {
 	u := d.currentUser(r)
 	if u == nil {
@@ -35,6 +41,17 @@ func (d Deps) listExternalLibraries(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 200, apitypes.ExternalLibraryList{Libraries: out})
 }
+
+// @Summary Link external library
+// @Tags    external
+// @Accept  json
+// @Produce json
+// @Param   body body apitypes.ExternalLibraryRequest true "name + root path"
+// @Success 201 {object} map[string]interface{}
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Failure 409 {object} apitypes.Error
+// @Router  /api/external-libraries [post]
 func (d Deps) createExternalLibrary(w http.ResponseWriter, r *http.Request) {
 	u := d.currentUser(r)
 	if u == nil {
@@ -69,6 +86,16 @@ func (d Deps) createExternalLibrary(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 201, map[string]any{"id": id.String(), "name": req.Name, "root_path": root, "scanned": result.Scanned, "indexed": result.Indexed})
 }
+
+// @Summary Rescan external library
+// @Tags    external
+// @Produce json
+// @Param   id path string true "external library id"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Router  /api/external-libraries/{id}/scan [post]
 func (d Deps) scanExternalLibrary(w http.ResponseWriter, r *http.Request) {
 	u := d.currentUser(r)
 	if u == nil {

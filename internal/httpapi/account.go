@@ -14,6 +14,15 @@ import (
 // current password, stores a fresh argon2id hash, and invalidates every other
 // session so a leaked or shared cookie cannot outlive the rotation — the caller's
 // own session is preserved and re-issued so they are not logged out mid-change.
+// @Summary Change password
+// @Tags    account
+// @Accept  json
+// @Produce json
+// @Param   body body apitypes.ChangePasswordRequest true "current + new password"
+// @Success 200 {object} map[string]string
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/account/password [post]
 func (d Deps) changePassword(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)
 	if user == nil {

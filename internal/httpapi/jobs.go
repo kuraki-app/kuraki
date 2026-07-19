@@ -19,6 +19,12 @@ func scanJob(s interface{ Scan(...any) error }) (apitypes.Job, error) {
 }
 
 // listJobs returns recent import jobs (most recent first).
+// @Summary List jobs
+// @Tags    jobs
+// @Produce json
+// @Success 200 {object} apitypes.JobList
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/jobs [get]
 func (d Deps) listJobs(w http.ResponseWriter, r *http.Request) {
 	rows, err := d.DB.QueryContext(r.Context(),
 		`SELECT `+jobColumns+` FROM jobs ORDER BY created_at DESC LIMIT 50`)
@@ -40,6 +46,14 @@ func (d Deps) listJobs(w http.ResponseWriter, r *http.Request) {
 }
 
 // getJob returns one job's current status, including any per-file errors.
+// @Summary Get job
+// @Tags    jobs
+// @Produce json
+// @Param   id path string true "job id"
+// @Success 200 {object} apitypes.JobDetail
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Router  /api/jobs/{id} [get]
 func (d Deps) getJob(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	j, err := scanJob(d.DB.QueryRowContext(r.Context(),
