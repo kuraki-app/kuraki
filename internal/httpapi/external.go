@@ -9,16 +9,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/kuraki-app/kuraki/internal/external"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
-
-type externalLibraryDTO struct {
-	ID, Name, RootPath, CreatedAt string
-	AssetCount                    int `json:"asset_count"`
-}
-type externalLibraryRequest struct {
-	Name     string `json:"name"`
-	RootPath string `json:"root_path"`
-}
 
 func (d Deps) listExternalLibraries(w http.ResponseWriter, r *http.Request) {
 	u := d.currentUser(r)
@@ -32,16 +24,16 @@ func (d Deps) listExternalLibraries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	out := make([]externalLibraryDTO, 0)
+	out := make([]apitypes.ExternalLibrary, 0)
 	for rows.Next() {
-		var x externalLibraryDTO
+		var x apitypes.ExternalLibrary
 		if err := rows.Scan(&x.ID, &x.Name, &x.RootPath, &x.CreatedAt, &x.AssetCount); err != nil {
 			writeError(w, 500, "scan_external_libraries_failed")
 			return
 		}
 		out = append(out, x)
 	}
-	writeJSON(w, 200, map[string]any{"libraries": out})
+	writeJSON(w, 200, apitypes.ExternalLibraryList{Libraries: out})
 }
 func (d Deps) createExternalLibrary(w http.ResponseWriter, r *http.Request) {
 	u := d.currentUser(r)
@@ -49,7 +41,7 @@ func (d Deps) createExternalLibrary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 401, "unauthorized")
 		return
 	}
-	var req externalLibraryRequest
+	var req apitypes.ExternalLibraryRequest
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		writeError(w, 400, "invalid_json")
 		return

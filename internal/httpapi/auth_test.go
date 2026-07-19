@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/kuraki-app/kuraki/internal/db"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 	"github.com/kuraki-app/kuraki/internal/storage"
 )
 
@@ -21,11 +22,11 @@ func TestSetupDefaultsUsernameToAdmin(t *testing.T) {
 	// A blank username on first-run setup lands as "admin" (the web form's
 	// default), not the internal "owner" placeholder name.
 	rec := postJSON(t, router, "/api/setup",
-		credentialsRequest{Username: "", Password: "correct horse"}, nil)
+		apitypes.Credentials{Username: "", Password: "correct horse"}, nil)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("setup status = %d body = %s", rec.Code, rec.Body.String())
 	}
-	var resp setupStatusResponse
+	var resp apitypes.SetupStatus
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode setup response: %v", err)
 	}
@@ -33,7 +34,7 @@ func TestSetupDefaultsUsernameToAdmin(t *testing.T) {
 		t.Fatalf("default username = %+v, want admin", resp.User)
 	}
 	if code := postJSON(t, router, "/api/login",
-		credentialsRequest{Username: "admin", Password: "correct horse"}, nil).Code; code != http.StatusOK {
+		apitypes.Credentials{Username: "admin", Password: "correct horse"}, nil).Code; code != http.StatusOK {
 		t.Fatalf("login as admin = %d, want 200", code)
 	}
 }
@@ -41,7 +42,7 @@ func TestSetupDefaultsUsernameToAdmin(t *testing.T) {
 func TestSetupLoginAndProtectedAPI(t *testing.T) {
 	router, _ := newAuthTestRouter(t)
 
-	initial := getJSON[setupStatusResponse](t, router, "/api/setup")
+	initial := getJSON[apitypes.SetupStatus](t, router, "/api/setup")
 	if !initial.SetupRequired {
 		t.Fatal("setup should be required for a fresh database")
 	}
@@ -53,7 +54,7 @@ func TestSetupLoginAndProtectedAPI(t *testing.T) {
 		t.Fatalf("pre-setup assets status = %d, want 403", rec.Code)
 	}
 
-	setupRec := postJSON(t, router, "/api/setup", credentialsRequest{
+	setupRec := postJSON(t, router, "/api/setup", apitypes.Credentials{
 		Username: "saransh",
 		Password: "correct horse",
 	}, nil)
@@ -85,7 +86,7 @@ func TestSetupLoginAndProtectedAPI(t *testing.T) {
 		t.Fatalf("logout status = %d", logoutRec.Code)
 	}
 
-	loginRec := postJSON(t, router, "/api/login", credentialsRequest{
+	loginRec := postJSON(t, router, "/api/login", apitypes.Credentials{
 		Username: "saransh",
 		Password: "correct horse",
 	}, nil)
@@ -133,7 +134,7 @@ func TestSecureCookieFlag(t *testing.T) {
 	}
 	router := NewRouter(Deps{Version: "test", DB: database, Store: store, SecureCookies: true, Logger: slog.Default()})
 
-	rec := postJSON(t, router, "/api/setup", credentialsRequest{Username: "owner", Password: "correct horse"}, nil)
+	rec := postJSON(t, router, "/api/setup", apitypes.Credentials{Username: "owner", Password: "correct horse"}, nil)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("setup status = %d", rec.Code)
 	}

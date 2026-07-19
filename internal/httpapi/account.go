@@ -7,12 +7,8 @@ import (
 	"net/http"
 
 	"github.com/kuraki-app/kuraki/internal/auth"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
-
-type changePasswordRequest struct {
-	CurrentPassword string `json:"current_password"`
-	NewPassword     string `json:"new_password"`
-}
 
 // changePassword lets the signed-in owner rotate their password. It verifies the
 // current password, stores a fresh argon2id hash, and invalidates every other
@@ -25,7 +21,7 @@ func (d Deps) changePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req changePasswordRequest
+	var req apitypes.ChangePasswordRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return

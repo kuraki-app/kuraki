@@ -11,24 +11,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/kuraki-app/kuraki/internal/auth"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
 
 const sessionCookieName = "kuraki_session"
-
-type authUser struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
-}
-
-type setupStatusResponse struct {
-	SetupRequired bool      `json:"setup_required"`
-	User          *authUser `json:"user,omitempty"`
-}
-
-type credentialsRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
 
 func (d Deps) setupStatus(w http.ResponseWriter, r *http.Request) {
 	required, err := d.setupRequired(r.Context())
@@ -37,7 +23,7 @@ func (d Deps) setupStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	user := d.currentUser(r)
-	writeJSON(w, http.StatusOK, setupStatusResponse{SetupRequired: required, User: user})
+	writeJSON(w, http.StatusOK, apitypes.SetupStatus{SetupRequired: required, User: user})
 }
 
 func (d Deps) setup(w http.ResponseWriter, r *http.Request) {
@@ -50,7 +36,7 @@ func (d Deps) setup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "setup_already_complete")
 		return
 	}
-	var req credentialsRequest
+	var req apitypes.Credentials
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
@@ -81,14 +67,14 @@ func (d Deps) setup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "create_session_failed")
 		return
 	}
-	writeJSON(w, http.StatusCreated, setupStatusResponse{
+	writeJSON(w, http.StatusCreated, apitypes.SetupStatus{
 		SetupRequired: false,
-		User:          &authUser{ID: userID, Username: req.Username},
+		User:          &apitypes.User{ID: userID, Username: req.Username},
 	})
 }
 
 func (d Deps) login(w http.ResponseWriter, r *http.Request) {
-	var req credentialsRequest
+	var req apitypes.Credentials
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
@@ -115,9 +101,9 @@ func (d Deps) login(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "create_session_failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, setupStatusResponse{
+	writeJSON(w, http.StatusOK, apitypes.SetupStatus{
 		SetupRequired: false,
-		User:          &authUser{ID: userID, Username: username},
+		User:          &apitypes.User{ID: userID, Username: username},
 	})
 }
 
@@ -140,7 +126,7 @@ func (d Deps) me(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	writeJSON(w, http.StatusOK, setupStatusResponse{SetupRequired: required, User: user})
+	writeJSON(w, http.StatusOK, apitypes.SetupStatus{SetupRequired: required, User: user})
 }
 
 func (d Deps) requireAuth(next http.Handler) http.Handler {
@@ -224,13 +210,13 @@ func (d Deps) createSession(w http.ResponseWriter, r *http.Request, userID strin
 	return nil
 }
 
-func (d Deps) currentUser(r *http.Request) *authUser {
+func (d Deps) currentUser(r *http.Request) *apitypes.User {
 	cookie, err := r.Cookie(sessionCookieName)
 	if err != nil || cookie.Value == "" {
 		return nil
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	var user authUser
+	var user apitypes.User
 	err = d.DB.QueryRowContext(r.Context(), `
 		SELECT u.id, u.username
 		FROM sessions s

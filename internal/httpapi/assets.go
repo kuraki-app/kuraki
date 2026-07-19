@@ -14,50 +14,13 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
 
 const (
 	defaultAssetLimit = 100
 	maxAssetLimit     = 200
 )
-
-type assetDTO struct {
-	ID           string   `json:"id"`
-	Filename     string   `json:"filename"`
-	MimeType     string   `json:"mime_type"`
-	MediaType    string   `json:"media_type"`
-	Width        int      `json:"width"`
-	Height       int      `json:"height"`
-	SizeBytes    int64    `json:"size_bytes"`
-	TakenAt      *string  `json:"taken_at,omitempty"`
-	TakenDay     *string  `json:"taken_day,omitempty"`
-	TakenMonth   *string  `json:"taken_month,omitempty"`
-	CameraMake   string   `json:"camera_make"`
-	CameraModel  string   `json:"camera_model"`
-	GPSLat       *float64 `json:"gps_lat,omitempty"`
-	GPSLon       *float64 `json:"gps_lon,omitempty"`
-	DurationMS   int64    `json:"duration_ms"`
-	Favorite     bool     `json:"favorite"`
-	Rating       int      `json:"rating"`
-	Archived     bool     `json:"archived"`
-	Hidden       bool     `json:"hidden"`
-	Description  *string  `json:"description,omitempty"`
-	PlaceCity    *string  `json:"place_city,omitempty"`
-	PlaceCountry *string  `json:"place_country,omitempty"`
-	OriginalURL  string   `json:"original_url"`
-	ThumbnailURL *string  `json:"thumbnail_url,omitempty"`
-	PreviewURL   *string  `json:"preview_url,omitempty"`
-	ViewURL      string   `json:"view_url"`
-	WebViewable  bool     `json:"web_viewable"`
-	StackID      *string  `json:"stack_id,omitempty"`
-	StackSize    int      `json:"stack_size"`
-	CreatedAt    string   `json:"created_at"`
-}
-
-type assetListResponse struct {
-	Assets     []assetDTO `json:"assets"`
-	NextCursor string     `json:"next_cursor,omitempty"`
-}
 
 type assetRow struct {
 	ID           string
@@ -126,7 +89,7 @@ func (d Deps) listAssets(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "scan_assets_failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, assetListResponse{Assets: assets, NextCursor: next})
+	writeJSON(w, http.StatusOK, apitypes.AssetList{Assets: assets, NextCursor: next})
 }
 
 func (d Deps) getAsset(w http.ResponseWriter, r *http.Request) {
@@ -273,8 +236,8 @@ func assetScanDest(row *assetRow) []any {
 	}
 }
 
-func scanAssetRows(rows *sql.Rows, limit int) ([]assetDTO, string, error) {
-	out := make([]assetDTO, 0)
+func scanAssetRows(rows *sql.Rows, limit int) ([]apitypes.Asset, string, error) {
+	out := make([]apitypes.Asset, 0)
 	for rows.Next() {
 		var row assetRow
 		if err := rows.Scan(assetScanDest(&row)...); err != nil {
@@ -297,7 +260,7 @@ func scanAssetRows(rows *sql.Rows, limit int) ([]assetDTO, string, error) {
 	return out, encodeCursor(cursorTime, nextRow.ID), nil
 }
 
-func (row assetRow) toDTO() assetDTO {
+func (row assetRow) toDTO() apitypes.Asset {
 	var takenAt, takenDay, takenMonth *string
 	if row.TakenAt.Valid {
 		takenAt = &row.TakenAt.String
@@ -343,7 +306,7 @@ func (row assetRow) toDTO() assetDTO {
 	if previewURL != nil {
 		viewURL = *previewURL
 	}
-	return assetDTO{
+	return apitypes.Asset{
 		ID:           row.ID,
 		Filename:     row.Filename,
 		MimeType:     row.MimeType,

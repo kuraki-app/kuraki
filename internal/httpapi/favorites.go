@@ -5,11 +5,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
-
-type favoriteRequest struct {
-	Favorite bool `json:"favorite"`
-}
 
 // setFavorite marks or unmarks an asset as a favorite. It runs under both
 // session (web) and device-token (mobile) auth via ownerID, and scopes the
@@ -21,7 +18,7 @@ func (d Deps) setFavorite(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	var req favoriteRequest
+	var req apitypes.FavoriteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
@@ -60,5 +57,5 @@ func (d Deps) listFavorites(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "scan_favorites_failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, assetListResponse{Assets: assets, NextCursor: next})
+	writeJSON(w, http.StatusOK, apitypes.AssetList{Assets: assets, NextCursor: next})
 }

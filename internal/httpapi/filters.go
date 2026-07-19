@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
 
 // assetFilters holds the SQL fragments for one query built from the shared
@@ -123,5 +125,5 @@ func (d Deps) respondFiltered(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "scan_assets_failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, assetListResponse{Assets: assets, NextCursor: next})
+	writeJSON(w, http.StatusOK, apitypes.AssetList{Assets: assets, NextCursor: next})
 }

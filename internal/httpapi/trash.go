@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 	"github.com/kuraki-app/kuraki/internal/trash"
 )
 
@@ -92,5 +93,5 @@ func (d Deps) listTrash(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "scan_trash_failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, assetListResponse{Assets: assets, NextCursor: next})
+	writeJSON(w, http.StatusOK, apitypes.AssetList{Assets: assets, NextCursor: next})
 }

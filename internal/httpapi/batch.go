@@ -6,24 +6,15 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 	"github.com/kuraki-app/kuraki/internal/trash"
 )
 
 const maxBatchIDs = 1000
 
-type batchRequest struct {
-	IDs []string `json:"ids"`
-	Op  string   `json:"op"` // delete | restore | favorite | unfavorite | archive | unarchive | hide | unhide
-}
-
-type batchResponse struct {
-	Succeeded int               `json:"succeeded"`
-	Failed    map[string]string `json:"failed,omitempty"`
-}
-
 // batchAssets applies one operation to many assets at once (multi-select — F-23).
 func (d Deps) batchAssets(w http.ResponseWriter, r *http.Request) {
-	var req batchRequest
+	var req apitypes.BatchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
@@ -75,7 +66,7 @@ func (d Deps) batchAssets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := batchResponse{Failed: map[string]string{}}
+	resp := apitypes.BatchResponse{Failed: map[string]string{}}
 	for _, id := range req.IDs {
 		if err := apply(r.Context(), id); err != nil {
 			resp.Failed[id] = err.Error()

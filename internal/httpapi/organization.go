@@ -7,28 +7,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
-
-type tagDTO struct {
-	ID, Name string
-	ParentID *string `json:"parent_id,omitempty"`
-}
-type tagRequest struct {
-	Name     string  `json:"name"`
-	ParentID *string `json:"parent_id"`
-}
-type assetTagsRequest struct {
-	IDs []string `json:"ids"`
-}
-type savedSearchDTO struct {
-	ID, Name  string
-	Query     json.RawMessage `json:"query"`
-	CreatedAt string          `json:"created_at"`
-}
-type savedSearchRequest struct {
-	Name  string          `json:"name"`
-	Query json.RawMessage `json:"query"`
-}
 
 func (d Deps) listTags(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)
@@ -42,9 +22,9 @@ func (d Deps) listTags(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	out := make([]tagDTO, 0)
+	out := make([]apitypes.Tag, 0)
 	for rows.Next() {
-		var x tagDTO
+		var x apitypes.Tag
 		var p *string
 		if err := rows.Scan(&x.ID, &x.Name, &p); err != nil {
 			writeError(w, 500, "scan_tags_failed")
@@ -53,7 +33,7 @@ func (d Deps) listTags(w http.ResponseWriter, r *http.Request) {
 		x.ParentID = p
 		out = append(out, x)
 	}
-	writeJSON(w, 200, map[string]any{"tags": out})
+	writeJSON(w, 200, apitypes.TagList{Tags: out})
 }
 func (d Deps) createTag(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)
@@ -61,7 +41,7 @@ func (d Deps) createTag(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 401, "unauthorized")
 		return
 	}
-	var req tagRequest
+	var req apitypes.TagRequest
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		writeError(w, 400, "invalid_json")
 		return
@@ -80,7 +60,7 @@ func (d Deps) createTag(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 409, "tag_exists_or_parent_invalid")
 		return
 	}
-	writeJSON(w, 201, tagDTO{ID: id.String(), Name: req.Name, ParentID: req.ParentID})
+	writeJSON(w, 201, apitypes.Tag{ID: id.String(), Name: req.Name, ParentID: req.ParentID})
 }
 func (d Deps) deleteTag(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)
@@ -107,9 +87,9 @@ func (d Deps) assetTags(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	out := make([]tagDTO, 0)
+	out := make([]apitypes.Tag, 0)
 	for rows.Next() {
-		var x tagDTO
+		var x apitypes.Tag
 		var p *string
 		if err := rows.Scan(&x.ID, &x.Name, &p); err != nil {
 			writeError(w, 500, "scan_asset_tags_failed")
@@ -118,7 +98,7 @@ func (d Deps) assetTags(w http.ResponseWriter, r *http.Request) {
 		x.ParentID = p
 		out = append(out, x)
 	}
-	writeJSON(w, 200, map[string]any{"tags": out})
+	writeJSON(w, 200, apitypes.TagList{Tags: out})
 }
 func (d Deps) replaceAssetTags(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)
@@ -126,7 +106,7 @@ func (d Deps) replaceAssetTags(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 401, "unauthorized")
 		return
 	}
-	var req assetTagsRequest
+	var req apitypes.AssetTagsRequest
 	if json.NewDecoder(r.Body).Decode(&req) != nil || len(req.IDs) > 100 {
 		writeError(w, 400, "invalid_tag_ids")
 		return
@@ -173,16 +153,16 @@ func (d Deps) listSavedSearches(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	out := make([]savedSearchDTO, 0)
+	out := make([]apitypes.SavedSearch, 0)
 	for rows.Next() {
-		var x savedSearchDTO
+		var x apitypes.SavedSearch
 		if err := rows.Scan(&x.ID, &x.Name, &x.Query, &x.CreatedAt); err != nil {
 			writeError(w, 500, "scan_saved_searches_failed")
 			return
 		}
 		out = append(out, x)
 	}
-	writeJSON(w, 200, map[string]any{"saved_searches": out})
+	writeJSON(w, 200, apitypes.SavedSearchList{SavedSearches: out})
 }
 func (d Deps) createSavedSearch(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)
@@ -190,7 +170,7 @@ func (d Deps) createSavedSearch(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 401, "unauthorized")
 		return
 	}
-	var req savedSearchRequest
+	var req apitypes.SavedSearchRequest
 	if json.NewDecoder(r.Body).Decode(&req) != nil || !json.Valid(req.Query) {
 		writeError(w, 400, "invalid_saved_search")
 		return
@@ -209,7 +189,7 @@ func (d Deps) createSavedSearch(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 409, "saved_search_exists")
 		return
 	}
-	writeJSON(w, 201, savedSearchDTO{ID: id.String(), Name: req.Name, Query: req.Query})
+	writeJSON(w, 201, apitypes.SavedSearch{ID: id.String(), Name: req.Name, Query: req.Query})
 }
 func (d Deps) deleteSavedSearch(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)

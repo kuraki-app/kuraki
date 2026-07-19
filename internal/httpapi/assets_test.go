@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/kuraki-app/kuraki/internal/db"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 	"github.com/kuraki-app/kuraki/internal/importer"
 	"github.com/kuraki-app/kuraki/internal/media"
 	"github.com/kuraki-app/kuraki/internal/storage"
@@ -32,7 +33,7 @@ func TestAssetAPIListSearchAndServeFiles(t *testing.T) {
 	})
 	cookie := setupTestSession(t, router)
 
-	list := getJSONWithCookie[assetListResponse](t, router, "/api/assets", cookie)
+	list := getJSONWithCookie[apitypes.AssetList](t, router, "/api/assets", cookie)
 	if len(list.Assets) != 1 {
 		t.Fatalf("assets len = %d, want 1", len(list.Assets))
 	}
@@ -41,12 +42,12 @@ func TestAssetAPIListSearchAndServeFiles(t *testing.T) {
 		t.Fatalf("asset = %+v, want filename and thumb URL", asset)
 	}
 
-	detail := getJSONWithCookie[assetDTO](t, router, "/api/assets/"+asset.ID, cookie)
+	detail := getJSONWithCookie[apitypes.Asset](t, router, "/api/assets/"+asset.ID, cookie)
 	if detail.ID != asset.ID {
 		t.Fatalf("detail id = %q, want %q", detail.ID, asset.ID)
 	}
 
-	search := getJSONWithCookie[assetListResponse](t, router, "/api/search?q=IMG_0001", cookie)
+	search := getJSONWithCookie[apitypes.AssetList](t, router, "/api/search?q=IMG_0001", cookie)
 	if len(search.Assets) != 1 || search.Assets[0].ID != asset.ID {
 		t.Fatalf("search = %+v, want imported asset", search)
 	}
@@ -74,7 +75,7 @@ func TestAssetAPIServesDerivedPreview(t *testing.T) {
 	}
 	router := NewRouter(Deps{Version: "test", DB: database, Store: store, Logger: slog.Default()})
 	cookie := setupTestSession(t, router)
-	asset := getJSONWithCookie[assetDTO](t, router, "/api/assets/"+id, cookie)
+	asset := getJSONWithCookie[apitypes.Asset](t, router, "/api/assets/"+id, cookie)
 	if asset.PreviewURL == nil || asset.ViewURL != *asset.PreviewURL {
 		t.Fatalf("asset = %+v, want derived view URL", asset)
 	}
@@ -99,7 +100,7 @@ func TestAssetAPIEmptyListReturnsArray(t *testing.T) {
 	router := NewRouter(Deps{Version: "test", DB: database, Store: store, Logger: slog.Default()})
 	cookie := setupTestSession(t, router)
 
-	list := getJSONWithCookie[assetListResponse](t, router, "/api/assets", cookie)
+	list := getJSONWithCookie[apitypes.AssetList](t, router, "/api/assets", cookie)
 	if list.Assets == nil {
 		t.Fatal("assets should be an empty array, not null")
 	}
@@ -184,7 +185,7 @@ func assertServes(t *testing.T, handler http.Handler, path, contentType string, 
 
 func setupTestSession(t *testing.T, handler http.Handler) *http.Cookie {
 	t.Helper()
-	rec := postJSON(t, handler, "/api/setup", credentialsRequest{
+	rec := postJSON(t, handler, "/api/setup", apitypes.Credentials{
 		Username: "owner",
 		Password: "correct horse",
 	}, nil)

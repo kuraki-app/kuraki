@@ -5,15 +5,8 @@ import (
 	"net/http"
 
 	"github.com/kuraki-app/kuraki/internal/duplicates"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
-
-type dupAsset struct {
-	ID           string  `json:"id"`
-	Filename     string  `json:"filename"`
-	SizeBytes    int64   `json:"size_bytes"`
-	TakenAt      *string `json:"taken_at,omitempty"`
-	ThumbnailURL *string `json:"thumbnail_url,omitempty"`
-}
 
 // dupThreshold is the maximum perceptual-hash hamming distance for two images to
 // be treated as duplicates. 0 is an exact structural match; a small value also
@@ -40,7 +33,7 @@ func (d Deps) duplicates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ok {
-		writeJSON(w, http.StatusOK, map[string]any{"groups": []dupAsset{}, "run": nil})
+		writeJSON(w, http.StatusOK, map[string]any{"groups": []apitypes.DupAsset{}, "run": nil})
 		return
 	}
 	rows, err := d.DB.QueryContext(r.Context(), `
@@ -54,9 +47,9 @@ func (d Deps) duplicates(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	groups := make([][]dupAsset, 0)
+	groups := make([][]apitypes.DupAsset, 0)
 	groupID := -1
-	var group []dupAsset
+	var group []apitypes.DupAsset
 	for rows.Next() {
 		var id, filename string
 		var currentGroup int
@@ -66,7 +59,7 @@ func (d Deps) duplicates(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "scan_duplicates_failed")
 			return
 		}
-		a := dupAsset{ID: id, Filename: filename, SizeBytes: size}
+		a := apitypes.DupAsset{ID: id, Filename: filename, SizeBytes: size}
 		if takenAt.Valid {
 			a.TakenAt = &takenAt.String
 		}

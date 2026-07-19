@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
 
 // onThisDay returns assets captured on today's month/day in previous years
@@ -32,5 +34,5 @@ func (d Deps) onThisDay(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "scan_memories_failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, assetListResponse{Assets: assets, NextCursor: next})
+	writeJSON(w, http.StatusOK, apitypes.AssetList{Assets: assets, NextCursor: next})
 }

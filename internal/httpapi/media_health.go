@@ -7,17 +7,9 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 	"github.com/kuraki-app/kuraki/internal/importer"
 )
-
-type mediaIssueDTO struct {
-	AssetID   string `json:"asset_id"`
-	Filename  string `json:"filename"`
-	MediaType string `json:"media_type"`
-	Kind      string `json:"kind"`
-	Message   string `json:"message"`
-	CreatedAt string `json:"created_at"`
-}
 
 // mediaIssues exposes durable derivative failures. The original is still safe;
 // this endpoint makes the missing preview or playback path visible to users.
@@ -34,9 +26,9 @@ func (d Deps) mediaIssues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	issues := make([]mediaIssueDTO, 0)
+	issues := make([]apitypes.MediaIssue, 0)
 	for rows.Next() {
-		var issue mediaIssueDTO
+		var issue apitypes.MediaIssue
 		if err := rows.Scan(&issue.AssetID, &issue.Filename, &issue.MediaType, &issue.Kind, &issue.Message, &issue.CreatedAt); err != nil {
 			writeError(w, http.StatusInternalServerError, "scan_media_issues_failed")
 			return
@@ -47,7 +39,7 @@ func (d Deps) mediaIssues(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "scan_media_issues_failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"issues": issues})
+	writeJSON(w, http.StatusOK, apitypes.MediaIssueList{Issues: issues})
 }
 
 // rebuildAsset regenerates an asset's derivatives from the stored original,

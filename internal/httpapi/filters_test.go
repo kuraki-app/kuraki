@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
 
 func TestUnifiedFiltersAndDeviceLibrary(t *testing.T) {
@@ -37,7 +39,7 @@ func TestUnifiedFiltersAndDeviceLibrary(t *testing.T) {
 		"/api/search?q=IMG_0001&favorite=1": 1,
 	}
 	for path, want := range cases {
-		got := getJSONWithCookie[assetListResponse](t, router, path, cookie)
+		got := getJSONWithCookie[apitypes.AssetList](t, router, path, cookie)
 		if len(got.Assets) != want {
 			t.Errorf("%s returned %d assets, want %d", path, len(got.Assets), want)
 		}
@@ -53,12 +55,12 @@ func TestUnifiedFiltersAndDeviceLibrary(t *testing.T) {
 	}
 
 	// The same filters are reachable with a device token (mobile parity).
-	deviceRec := postJSON(t, router, "/api/devices", deviceRequest{Name: "Phone"}, cookie)
-	var device deviceResponse
+	deviceRec := postJSON(t, router, "/api/devices", apitypes.DeviceRequest{Name: "Phone"}, cookie)
+	var device apitypes.DeviceResponse
 	if err := json.Unmarshal(deviceRec.Body.Bytes(), &device); err != nil {
 		t.Fatal(err)
 	}
-	lib := getWithBearer[assetListResponse](t, router, "/api/capture/library?favorite=1", device.Token)
+	lib := getWithBearer[apitypes.AssetList](t, router, "/api/capture/library?favorite=1", device.Token)
 	if len(lib.Assets) != 1 || lib.Assets[0].ID != id {
 		t.Fatalf("device library = %+v, want the favorited asset", lib)
 	}

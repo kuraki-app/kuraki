@@ -9,18 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
-
-type albumRequest struct {
-	Name string `json:"name"`
-}
-
-type albumDTO struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	AssetCount int    `json:"asset_count"`
-	CreatedAt  string `json:"created_at"`
-}
 
 // ownsAlbum verifies the album exists, is not deleted, and belongs to the caller.
 func (d Deps) ownsAlbum(r *http.Request, albumID string) (bool, error) {
@@ -56,7 +46,7 @@ func (d Deps) ownsAsset(r *http.Request, assetID string) (bool, error) {
 }
 
 func (d Deps) createAlbum(w http.ResponseWriter, r *http.Request) {
-	var req albumRequest
+	var req apitypes.AlbumRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
@@ -82,7 +72,7 @@ func (d Deps) createAlbum(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "create_album_failed")
 		return
 	}
-	writeJSON(w, http.StatusCreated, albumDTO{ID: id.String(), Name: req.Name})
+	writeJSON(w, http.StatusCreated, apitypes.Album{ID: id.String(), Name: req.Name})
 }
 
 func (d Deps) listAlbums(w http.ResponseWriter, r *http.Request) {
@@ -104,16 +94,16 @@ func (d Deps) listAlbums(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	albums := make([]albumDTO, 0)
+	albums := make([]apitypes.Album, 0)
 	for rows.Next() {
-		var a albumDTO
+		var a apitypes.Album
 		if err := rows.Scan(&a.ID, &a.Name, &a.CreatedAt, &a.AssetCount); err != nil {
 			writeError(w, http.StatusInternalServerError, "scan_albums_failed")
 			return
 		}
 		albums = append(albums, a)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"albums": albums})
+	writeJSON(w, http.StatusOK, apitypes.AlbumList{Albums: albums})
 }
 
 // getAlbum returns the album's assets (in timeline order).
@@ -142,12 +132,12 @@ func (d Deps) getAlbum(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "scan_album_assets_failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, assetListResponse{Assets: assets, NextCursor: next})
+	writeJSON(w, http.StatusOK, apitypes.AssetList{Assets: assets, NextCursor: next})
 }
 
 func (d Deps) renameAlbum(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	var req albumRequest
+	var req apitypes.AlbumRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
@@ -169,7 +159,7 @@ func (d Deps) renameAlbum(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "album_not_found")
 		return
 	}
-	writeJSON(w, http.StatusOK, albumDTO{ID: id, Name: req.Name})
+	writeJSON(w, http.StatusOK, apitypes.Album{ID: id, Name: req.Name})
 }
 
 func (d Deps) deleteAlbum(w http.ResponseWriter, r *http.Request) {
@@ -201,7 +191,7 @@ func (d Deps) addAlbumAssets(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	var req zipRequest // {ids: [...]}
+	var req apitypes.AssetIDs
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
@@ -239,7 +229,7 @@ func (d Deps) removeAlbumAssets(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	var req zipRequest
+	var req apitypes.AssetIDs
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return

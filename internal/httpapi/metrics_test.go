@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/kuraki-app/kuraki/internal/db"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 	"github.com/kuraki-app/kuraki/internal/storage"
 )
 
@@ -56,7 +57,7 @@ func TestMetricsRequiresAuth(t *testing.T) {
 	}
 
 	// An owner session always passes.
-	setupRec := postJSON(t, router, "/api/setup", credentialsRequest{Username: "owner", Password: "correct horse"}, nil)
+	setupRec := postJSON(t, router, "/api/setup", apitypes.Credentials{Username: "owner", Password: "correct horse"}, nil)
 	if setupRec.Code != http.StatusCreated {
 		t.Fatalf("setup status = %d", setupRec.Code)
 	}

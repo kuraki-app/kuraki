@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
 
 // stackAssets returns every member of an asset's stack (or just the asset if it
@@ -35,7 +36,7 @@ func (d Deps) stackAssets(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "query_asset_failed")
 			return
 		}
-		assets = []assetDTO{row.toDTO()}
+		assets = []apitypes.Asset{row.toDTO()}
 	}
-	writeJSON(w, http.StatusOK, assetListResponse{Assets: assets})
+	writeJSON(w, http.StatusOK, apitypes.AssetList{Assets: assets})
 }

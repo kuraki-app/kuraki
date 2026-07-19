@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/kuraki-app/kuraki/internal/db"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 	"github.com/kuraki-app/kuraki/internal/media"
 	"github.com/kuraki-app/kuraki/internal/queue"
 	"github.com/kuraki-app/kuraki/internal/storage"
@@ -46,11 +47,11 @@ func deviceFavoriteRouter(t *testing.T) (http.Handler, *http.Cookie, *sql.DB) {
 // registerTestDevice pairs a device the normal way and returns its bearer token.
 func registerTestDevice(t *testing.T, router http.Handler, cookie *http.Cookie) string {
 	t.Helper()
-	rec := postJSON(t, router, "/api/devices", deviceRequest{Name: "Test phone"}, cookie)
+	rec := postJSON(t, router, "/api/devices", apitypes.DeviceRequest{Name: "Test phone"}, cookie)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("device status = %d body=%s", rec.Code, rec.Body.String())
 	}
-	var device deviceResponse
+	var device apitypes.DeviceResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &device); err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +74,7 @@ func seedOwnedAsset(t *testing.T, database *sql.DB, id string) {
 
 func postFavorite(t *testing.T, router http.Handler, token, id string, fav bool) *httptest.ResponseRecorder {
 	t.Helper()
-	body, _ := json.Marshal(favoriteRequest{Favorite: fav})
+	body, _ := json.Marshal(apitypes.FavoriteRequest{Favorite: fav})
 	req := httptest.NewRequest(http.MethodPost, "/api/capture/assets/"+id+"/favorite", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	if token != "" {

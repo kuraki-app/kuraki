@@ -8,21 +8,14 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
-
-type zipRequest struct {
-	IDs []string `json:"ids"`
-}
-
-type zipItem struct {
-	storagePath string // path within the store, e.g. originals/2026/07/x.jpg
-	zipName     string // entry name inside the archive
-}
 
 // downloadZip streams a zip archive of the selected originals (zero-lock-in).
 // The archive is streamed, so inputs are validated up front.
 func (d Deps) downloadZip(w http.ResponseWriter, r *http.Request) {
-	var req zipRequest
+	var req apitypes.ZipRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
@@ -48,7 +41,7 @@ func (d Deps) downloadZip(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "query_failed")
 		return
 	}
-	items := []zipItem{}
+	items := []apitypes.ZipItem{}
 	for rows.Next() {
 		var path, name string
 		if err := rows.Scan(&path, &name); err != nil {
@@ -56,7 +49,7 @@ func (d Deps) downloadZip(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "scan_failed")
 			return
 		}
-		items = append(items, zipItem{storagePath: "originals/" + path, zipName: name})
+		items = append(items, apitypes.ZipItem{StoragePath: "originals/" + path, ZipName: name})
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
@@ -89,7 +82,7 @@ func (d Deps) exportLibrary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "query_failed")
 		return
 	}
-	items := []zipItem{}
+	items := []apitypes.ZipItem{}
 	for rows.Next() {
 		var path, name string
 		if err := rows.Scan(&path, &name); err != nil {
@@ -98,9 +91,9 @@ func (d Deps) exportLibrary(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Preserve the YYYY/MM structure with the readable filename.
-		items = append(items, zipItem{
-			storagePath: "originals/" + path,
-			zipName:     filepath.ToSlash(filepath.Join(filepath.Dir(path), name)),
+		items = append(items, apitypes.ZipItem{
+			StoragePath: "originals/" + path,
+			ZipName:     filepath.ToSlash(filepath.Join(filepath.Dir(path), name)),
 		})
 	}
 	rows.Close()
@@ -123,9 +116,9 @@ func (d Deps) exportLibrary(w http.ResponseWriter, r *http.Request) {
 // prepareZip verifies every original before response headers commit a download.
 // Originals are write-once, so this prevents a known-bad library from quietly
 // producing a successful-looking ZIP with files omitted.
-func (d Deps) prepareZip(w http.ResponseWriter, r *http.Request, items []zipItem) bool {
+func (d Deps) prepareZip(w http.ResponseWriter, r *http.Request, items []apitypes.ZipItem) bool {
 	for _, item := range items {
-		exists, err := d.Store.Exists(r.Context(), item.storagePath)
+		exists, err := d.Store.Exists(r.Context(), item.StoragePath)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "storage_failed")
 			return false
@@ -138,7 +131,7 @@ func (d Deps) prepareZip(w http.ResponseWriter, r *http.Request, items []zipItem
 	return true
 }
 
-func streamZip(w http.ResponseWriter, r *http.Request, d Deps, filename string, items []zipItem) (err error) {
+func streamZip(w http.ResponseWriter, r *http.Request, d Deps, filename string, items []apitypes.ZipItem) (err error) {
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 	zw := zip.NewWriter(w)
@@ -150,22 +143,22 @@ func streamZip(w http.ResponseWriter, r *http.Request, d Deps, filename string, 
 
 	seen := map[string]int{}
 	for _, it := range items {
-		rc, err := d.Store.Open(r.Context(), it.storagePath)
+		rc, err := d.Store.Open(r.Context(), it.StoragePath)
 		if err != nil {
-			return fmt.Errorf("open original %q: %w", it.zipName, err)
+			return fmt.Errorf("open original %q: %w", it.ZipName, err)
 		}
-		fw, err := zw.Create(uniqueZipName(seen, it.zipName))
+		fw, err := zw.Create(uniqueZipName(seen, it.ZipName))
 		if err != nil {
 			rc.Close()
-			return fmt.Errorf("create zip entry %q: %w", it.zipName, err)
+			return fmt.Errorf("create zip entry %q: %w", it.ZipName, err)
 		}
 		_, copyErr := io.Copy(fw, rc)
 		closeErr := rc.Close()
 		if copyErr != nil {
-			return fmt.Errorf("copy original %q: %w", it.zipName, copyErr)
+			return fmt.Errorf("copy original %q: %w", it.ZipName, copyErr)
 		}
 		if closeErr != nil {
-			return fmt.Errorf("close original %q: %w", it.zipName, closeErr)
+			return fmt.Errorf("close original %q: %w", it.ZipName, closeErr)
 		}
 	}
 	return nil

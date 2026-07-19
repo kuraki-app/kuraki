@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
 
 const captureChunkMaxBytes int64 = 32 << 20
@@ -30,39 +31,6 @@ type captureDevice struct {
 
 type captureDeviceKey struct{}
 
-type deviceRequest struct {
-	Name string `json:"name"`
-}
-
-type deviceResponse struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Token string `json:"token,omitempty"`
-}
-
-type captureStartRequest struct {
-	Filename  string `json:"filename"`
-	SizeBytes int64  `json:"size_bytes"`
-}
-
-type captureSessionResponse struct {
-	ID            string `json:"id"`
-	Filename      string `json:"filename"`
-	SizeBytes     int64  `json:"size_bytes"`
-	ReceivedBytes int64  `json:"received_bytes"`
-	Status        string `json:"status"`
-	JobID         string `json:"job_id,omitempty"`
-	Error         string `json:"error,omitempty"`
-}
-
-type captureStatusResponse struct {
-	DeviceID  string                   `json:"device_id"`
-	Receiving int                      `json:"receiving"`
-	Queued    int                      `json:"queued"`
-	Failed    int                      `json:"failed"`
-	Sessions  []captureSessionResponse `json:"sessions"`
-}
-
 // registerDevice creates a revocable bearer credential. It is returned once;
 // mobile clients store it in platform secure storage rather than retaining the
 // account password or a browser session cookie.
@@ -72,7 +40,7 @@ func (d Deps) registerDevice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	var req deviceRequest
+	var req apitypes.DeviceRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
@@ -98,7 +66,7 @@ func (d Deps) registerDevice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "device_create_failed")
 		return
 	}
-	writeJSON(w, http.StatusCreated, deviceResponse{ID: id.String(), Name: req.Name, Token: token})
+	writeJSON(w, http.StatusCreated, apitypes.DeviceResponse{ID: id.String(), Name: req.Name, Token: token})
 }
 
 func (d Deps) revokeDevice(w http.ResponseWriter, r *http.Request) {
@@ -155,7 +123,7 @@ func (d Deps) captureStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	device := deviceFromRequest(r)
-	var req captureStartRequest
+	var req apitypes.CaptureStartRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
@@ -194,7 +162,7 @@ func (d Deps) captureStart(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "upload_create_failed")
 		return
 	}
-	writeJSON(w, http.StatusCreated, captureSessionResponse{ID: id.String(), Filename: req.Filename, SizeBytes: req.SizeBytes, Status: "receiving"})
+	writeJSON(w, http.StatusCreated, apitypes.CaptureSessionResponse{ID: id.String(), Filename: req.Filename, SizeBytes: req.SizeBytes, Status: "receiving"})
 }
 
 func (d Deps) captureAppend(w http.ResponseWriter, r *http.Request) {
@@ -252,7 +220,7 @@ func (d Deps) captureAppend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Upload-Offset", strconv.FormatInt(newOffset, 10))
-	writeJSON(w, http.StatusOK, captureSessionResponse{ID: session.ID, Filename: session.Filename, SizeBytes: session.SizeBytes, ReceivedBytes: newOffset, Status: "receiving"})
+	writeJSON(w, http.StatusOK, apitypes.CaptureSessionResponse{ID: session.ID, Filename: session.Filename, SizeBytes: session.SizeBytes, ReceivedBytes: newOffset, Status: "receiving"})
 }
 
 func (d Deps) captureComplete(w http.ResponseWriter, r *http.Request) {
@@ -320,7 +288,7 @@ func (d Deps) captureStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	result := captureStatusResponse{DeviceID: device.ID, Sessions: []captureSessionResponse{}}
+	result := apitypes.CaptureStatusResponse{DeviceID: device.ID, Sessions: []apitypes.CaptureSessionResponse{}}
 	for rows.Next() {
 		var session captureSession
 		if err := rows.Scan(&session.ID, &session.Filename, &session.SizeBytes, &session.ReceivedBytes, &session.Status, &session.JobID, &session.Error); err != nil {
@@ -367,8 +335,8 @@ func (d Deps) captureSession(ctx context.Context, id string, device captureDevic
 	return session, nil
 }
 
-func (s captureSession) response() captureSessionResponse {
-	return captureSessionResponse{ID: s.ID, Filename: s.Filename, SizeBytes: s.SizeBytes, ReceivedBytes: s.ReceivedBytes, Status: s.Status, JobID: s.JobID, Error: s.Error}
+func (s captureSession) response() apitypes.CaptureSessionResponse {
+	return apitypes.CaptureSessionResponse{ID: s.ID, Filename: s.Filename, SizeBytes: s.SizeBytes, ReceivedBytes: s.ReceivedBytes, Status: s.Status, JobID: s.JobID, Error: s.Error}
 }
 
 func newDeviceToken() (string, error) {

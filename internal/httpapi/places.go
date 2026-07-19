@@ -1,6 +1,10 @@
 package httpapi
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
+)
 
 // placesAssets returns every non-deleted asset that carries GPS, for plotting on
 // the map. It reuses the standard asset DTO (which includes gps + thumbnail).
@@ -17,15 +21,7 @@ func (d Deps) placesAssets(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "scan_places_failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, assetListResponse{Assets: assets})
-}
-
-type placeGroup struct {
-	City          string `json:"city"`
-	Country       string `json:"country"`
-	Count         int    `json:"count"`
-	CoverAssetID  string `json:"cover_asset_id"`
-	CoverThumbURL string `json:"cover_thumb_url"`
+	writeJSON(w, http.StatusOK, apitypes.AssetList{Assets: assets})
 }
 
 // placesSummary groups assets by resolved place so the UI can show a list of
@@ -43,9 +39,9 @@ func (d Deps) placesSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	groups := make([]placeGroup, 0)
+	groups := make([]apitypes.PlaceGroup, 0)
 	for rows.Next() {
-		var g placeGroup
+		var g apitypes.PlaceGroup
 		if err := rows.Scan(&g.City, &g.Country, &g.Count, &g.CoverAssetID); err != nil {
 			writeError(w, http.StatusInternalServerError, "scan_places_summary_failed")
 			return
@@ -53,5 +49,5 @@ func (d Deps) placesSummary(w http.ResponseWriter, r *http.Request) {
 		g.CoverThumbURL = "/api/assets/" + g.CoverAssetID + "/thumb"
 		groups = append(groups, g)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"places": groups})
+	writeJSON(w, http.StatusOK, apitypes.PlaceSummary{Places: groups})
 }

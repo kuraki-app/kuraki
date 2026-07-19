@@ -11,15 +11,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/kuraki-app/kuraki/internal/geo"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
-
-type assetPatch struct {
-	TakenAt     *string  `json:"taken_at"` // RFC3339; empty string clears
-	GPSLat      *float64 `json:"gps_lat"`  // set with GPSLon
-	GPSLon      *float64 `json:"gps_lon"`
-	ClearGPS    bool     `json:"clear_gps"` // remove location
-	Description *string  `json:"description"`
-}
 
 // patchAsset edits a single asset's capture date, location, or caption. Changing
 // the location re-runs offline reverse geocoding; any change refreshes search.
@@ -30,7 +23,7 @@ func (d Deps) patchAsset(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	var p assetPatch
+	var p apitypes.AssetPatch
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
@@ -118,11 +111,6 @@ func (d Deps) patchAsset(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, row.toDTO())
 }
 
-type shiftRequest struct {
-	IDs     []string `json:"ids"`
-	Minutes int      `json:"minutes"` // may be negative
-}
-
 // shiftTime shifts the capture time of many assets by a fixed offset, for fixing
 // wrong camera timezones on a batch of imports.
 func (d Deps) shiftTime(w http.ResponseWriter, r *http.Request) {
@@ -131,7 +119,7 @@ func (d Deps) shiftTime(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	var req shiftRequest
+	var req apitypes.ShiftRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return

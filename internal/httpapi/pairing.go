@@ -9,19 +9,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
 
 const pairingTTL = 5 * time.Minute
-
-type pairingCodeResponse struct {
-	Code      string `json:"code"`
-	ExpiresAt string `json:"expires_at"`
-}
-
-type pairClaimRequest struct {
-	Code string `json:"code"`
-	Name string `json:"name"`
-}
 
 // createPairingCode mints a short-lived, single-use code for an authenticated
 // owner. The web app renders it as a QR (alongside its own origin) so a phone
@@ -46,14 +37,14 @@ func (d Deps) createPairingCode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "pairing_code_failed")
 		return
 	}
-	writeJSON(w, http.StatusCreated, pairingCodeResponse{Code: code, ExpiresAt: expires})
+	writeJSON(w, http.StatusCreated, apitypes.PairingCodeResponse{Code: code, ExpiresAt: expires})
 }
 
 // claimPairingCode is unauthenticated by necessity — the device has no
 // credentials yet. It redeems a valid, unexpired, unclaimed code exactly once
 // and returns a fresh device token. The claim is rate-limited per IP.
 func (d Deps) claimPairingCode(w http.ResponseWriter, r *http.Request) {
-	var req pairClaimRequest
+	var req apitypes.PairClaimRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
@@ -141,5 +132,5 @@ func (d Deps) claimPairingCode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "pairing_claim_failed")
 		return
 	}
-	writeJSON(w, http.StatusCreated, deviceResponse{ID: deviceID.String(), Name: req.Name, Token: token})
+	writeJSON(w, http.StatusCreated, apitypes.DeviceResponse{ID: deviceID.String(), Name: req.Name, Token: token})
 }
