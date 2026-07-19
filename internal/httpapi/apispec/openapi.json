@@ -1,0 +1,39 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "description": "Self-hosted photo & video backup server API. Session-cookie routes under /api and device-token routes under /api/capture.",
+        "title": "Kuraki API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "paths": {
+        "/api/status": {
+            "get": {
+                "tags": [
+                    "system"
+                ],
+                "summary": "Server status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "servers": [
+        {
+            "url": "/"
+        }
+    ]
+}

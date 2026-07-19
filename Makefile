@@ -75,6 +75,24 @@ cross: ## Cross-compile release binaries into ./dist
 		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o $$out $(CMD); \
 	done
 
+SWAG        := $(shell go env GOPATH)/bin/swag
+OPENAPI_TMP := $(shell mktemp -d)
+
+.PHONY: openapi
+openapi: ## Regenerate the OpenAPI contract from the Go handlers
+	$(SWAG) init --dir ./cmd/kuraki,./internal/httpapi --parseInternal \
+		--output $(OPENAPI_TMP) --outputTypes json
+	npx -y swagger2openapi@7.0.8 $(OPENAPI_TMP)/swagger.json -o internal/httpapi/apispec/openapi.json
+	@rm -rf $(OPENAPI_TMP)
+
+.PHONY: client-types
+client-types: ## Regenerate web + mobile TS types from the contract
+	npx -y openapi-typescript@7.4.4 internal/httpapi/apispec/openapi.json -o web/src/lib/api.gen.ts
+	npx -y openapi-typescript@7.4.4 internal/httpapi/apispec/openapi.json -o mobile/src/lib/api.gen.ts
+
+.PHONY: gen
+gen: openapi client-types ## Regenerate the contract and all client types
+
 .PHONY: clean
 clean: ## Remove build artifacts
 	rm -rf $(BIN_DIR) dist

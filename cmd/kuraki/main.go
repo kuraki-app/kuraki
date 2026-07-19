@@ -33,6 +33,10 @@ import (
 // version is set at build time via -ldflags "-X main.version=...".
 var version = "dev"
 
+// @title       Kuraki API
+// @version     1.0
+// @description Self-hosted photo & video backup server API. Session-cookie routes under /api and device-token routes under /api/capture.
+// @BasePath    /
 func main() {
 	if err := rootCmd().Execute(); err != nil {
 		os.Exit(1)
