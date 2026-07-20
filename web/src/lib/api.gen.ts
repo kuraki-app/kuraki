@@ -4154,54 +4154,55 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         "apitypes.Album": {
-            asset_count?: number;
-            created_at?: string;
-            id?: string;
-            name?: string;
+            asset_count: number;
+            created_at: string;
+            id: string;
+            name: string;
         };
         "apitypes.AlbumList": {
-            albums?: components["schemas"]["apitypes.Album"][];
+            albums: components["schemas"]["apitypes.Album"][];
         };
         "apitypes.AlbumRequest": {
             name?: string;
         };
         "apitypes.Asset": {
-            archived?: boolean;
-            camera_make?: string;
-            camera_model?: string;
-            created_at?: string;
+            archived: boolean;
+            camera_make: string;
+            camera_model: string;
+            created_at: string;
             description?: string;
-            duration_ms?: number;
-            favorite?: boolean;
-            filename?: string;
+            duration_ms: number;
+            favorite: boolean;
+            filename: string;
             gps_lat?: number;
             gps_lon?: number;
-            height?: number;
-            hidden?: boolean;
-            id?: string;
-            media_type?: string;
-            mime_type?: string;
-            original_url?: string;
+            height: number;
+            hidden: boolean;
+            id: string;
+            /** @enum {string} */
+            media_type: "image" | "video";
+            mime_type: string;
+            original_url: string;
             place_city?: string;
             place_country?: string;
             preview_url?: string;
-            rating?: number;
-            size_bytes?: number;
+            rating: number;
+            size_bytes: number;
             stack_id?: string;
-            stack_size?: number;
+            stack_size: number;
             taken_at?: string;
             taken_day?: string;
             taken_month?: string;
             thumbnail_url?: string;
-            view_url?: string;
-            web_viewable?: boolean;
-            width?: number;
+            view_url: string;
+            web_viewable: boolean;
+            width: number;
         };
         "apitypes.AssetIDs": {
             ids?: string[];
         };
         "apitypes.AssetList": {
-            assets?: components["schemas"]["apitypes.Asset"][];
+            assets: components["schemas"]["apitypes.Asset"][];
             next_cursor?: string;
         };
         "apitypes.AssetPatch": {
@@ -4226,42 +4227,42 @@ export interface components {
             failed?: {
                 [key: string]: string;
             };
-            succeeded?: number;
+            succeeded: number;
         };
         "apitypes.CaptureSessionResponse": {
             error?: string;
-            filename?: string;
-            id?: string;
+            filename: string;
+            id: string;
             job_id?: string;
-            received_bytes?: number;
-            size_bytes?: number;
-            status?: string;
+            received_bytes: number;
+            size_bytes: number;
+            status: string;
         };
         "apitypes.CaptureStartRequest": {
             filename?: string;
             size_bytes?: number;
         };
         "apitypes.CaptureStatusResponse": {
-            device_id?: string;
-            failed?: number;
-            queued?: number;
-            receiving?: number;
-            sessions?: components["schemas"]["apitypes.CaptureSessionResponse"][];
+            device_id: string;
+            failed: number;
+            queued: number;
+            receiving: number;
+            sessions: components["schemas"]["apitypes.CaptureSessionResponse"][];
         };
         "apitypes.ChangeEntry": {
-            entity?: string;
-            entity_id?: string;
-            id?: number;
-            op?: string;
+            entity: string;
+            entity_id: string;
+            id: number;
+            op: string;
         };
         "apitypes.ChangePasswordRequest": {
             current_password?: string;
             new_password?: string;
         };
         "apitypes.ChangesResponse": {
-            changes?: components["schemas"]["apitypes.ChangeEntry"][];
-            cursor?: number;
-            has_more?: boolean;
+            changes: components["schemas"]["apitypes.ChangeEntry"][];
+            cursor: number;
+            has_more: boolean;
         };
         "apitypes.Credentials": {
             password?: string;
@@ -4271,22 +4272,22 @@ export interface components {
             name?: string;
         };
         "apitypes.DeviceResponse": {
-            id?: string;
-            name?: string;
+            id: string;
+            name: string;
             token?: string;
         };
         "apitypes.Error": {
-            error?: string;
+            error: string;
         };
         "apitypes.ExternalLibrary": {
-            asset_count?: number;
-            createdAt?: string;
-            id?: string;
-            name?: string;
-            rootPath?: string;
+            asset_count: number;
+            created_at: string;
+            id: string;
+            name: string;
+            root_path: string;
         };
         "apitypes.ExternalLibraryList": {
-            libraries?: components["schemas"]["apitypes.ExternalLibrary"][];
+            libraries: components["schemas"]["apitypes.ExternalLibrary"][];
         };
         "apitypes.ExternalLibraryRequest": {
             name?: string;
@@ -4296,96 +4297,99 @@ export interface components {
             favorite?: boolean;
         };
         "apitypes.Job": {
-            attempts?: number;
-            created_at?: string;
-            duplicates?: number;
+            attempts: number;
+            created_at: string;
+            duplicates: number;
             error?: string;
-            errors?: number;
-            id?: string;
-            imported?: number;
-            kind?: string;
-            skipped?: number;
-            status?: string;
-            total?: number;
-            updated_at?: string;
+            errors: number;
+            id: string;
+            imported: number;
+            kind: string;
+            skipped: number;
+            /** @enum {string} */
+            status: "queued" | "running" | "succeeded" | "failed";
+            total: number;
+            updated_at: string;
         };
         "apitypes.JobDetail": {
-            attempts?: number;
-            created_at?: string;
-            duplicates?: number;
+            attempts: number;
+            created_at: string;
+            duplicates: number;
             error?: string;
-            errors?: number;
-            errors_detail?: components["schemas"]["apitypes.JobError"][];
-            id?: string;
-            imported?: number;
-            kind?: string;
-            skipped?: number;
-            status?: string;
-            total?: number;
-            updated_at?: string;
+            errors: number;
+            errors_detail: components["schemas"]["apitypes.JobError"][];
+            id: string;
+            imported: number;
+            kind: string;
+            skipped: number;
+            /** @enum {string} */
+            status: "queued" | "running" | "succeeded" | "failed";
+            total: number;
+            updated_at: string;
         };
         "apitypes.JobError": {
-            error?: string;
-            filename?: string;
+            error: string;
+            filename: string;
         };
         "apitypes.JobList": {
-            jobs?: components["schemas"]["apitypes.Job"][];
+            jobs: components["schemas"]["apitypes.Job"][];
         };
         "apitypes.LibraryStats": {
-            albums?: number;
-            by_year?: components["schemas"]["apitypes.YearCount"][];
-            favorites?: number;
-            images?: number;
-            places?: number;
-            total?: number;
-            total_bytes?: number;
-            trashed?: number;
-            videos?: number;
+            albums: number;
+            by_year: components["schemas"]["apitypes.YearCount"][];
+            favorites: number;
+            images: number;
+            places: number;
+            total: number;
+            total_bytes: number;
+            trashed: number;
+            videos: number;
         };
         "apitypes.MediaIssue": {
-            asset_id?: string;
-            created_at?: string;
-            filename?: string;
-            kind?: string;
-            media_type?: string;
-            message?: string;
+            asset_id: string;
+            created_at: string;
+            filename: string;
+            kind: string;
+            /** @enum {string} */
+            media_type: "image" | "video";
+            message: string;
         };
         "apitypes.MediaIssueList": {
-            issues?: components["schemas"]["apitypes.MediaIssue"][];
+            issues: components["schemas"]["apitypes.MediaIssue"][];
         };
         "apitypes.PairClaimRequest": {
             code?: string;
             name?: string;
         };
         "apitypes.PairingCodeResponse": {
-            code?: string;
-            expires_at?: string;
+            code: string;
+            expires_at: string;
         };
         "apitypes.PlaceGroup": {
-            city?: string;
-            count?: number;
-            country?: string;
-            cover_asset_id?: string;
-            cover_thumb_url?: string;
+            city: string;
+            count: number;
+            country: string;
+            cover_asset_id: string;
+            cover_thumb_url: string;
         };
         "apitypes.PlaceSummary": {
-            places?: components["schemas"]["apitypes.PlaceGroup"][];
+            places: components["schemas"]["apitypes.PlaceGroup"][];
         };
         "apitypes.SavedSearch": {
-            created_at?: string;
-            id?: string;
-            name?: string;
-            query?: Record<string, never>;
+            created_at: string;
+            id: string;
+            name: string;
+            query: Record<string, never>;
         };
         "apitypes.SavedSearchList": {
-            saved_searches?: components["schemas"]["apitypes.SavedSearch"][];
+            saved_searches: components["schemas"]["apitypes.SavedSearch"][];
         };
         "apitypes.SavedSearchRequest": {
             name?: string;
             query?: Record<string, never>;
         };
         "apitypes.SetupStatus": {
-            setup_required?: boolean;
+            setup_required: boolean;
             user?: components["schemas"]["apitypes.User"];
         };
         "apitypes.ShiftRequest": {
@@ -4394,24 +4398,24 @@ export interface components {
             minutes?: number;
         };
         "apitypes.Tag": {
-            id?: string;
-            name?: string;
+            id: string;
+            name: string;
             parent_id?: string;
         };
         "apitypes.TagList": {
-            tags?: components["schemas"]["apitypes.Tag"][];
+            tags: components["schemas"]["apitypes.Tag"][];
         };
         "apitypes.TagRequest": {
             name?: string;
             parent_id?: string;
         };
         "apitypes.User": {
-            id?: string;
-            username?: string;
+            id: string;
+            username: string;
         };
         "apitypes.YearCount": {
-            count?: number;
-            year?: string;
+            count: number;
+            year: string;
         };
         "apitypes.ZipRequest": {
             ids?: string[];

@@ -3889,6 +3889,12 @@
         "schemas": {
             "apitypes.Album": {
                 "type": "object",
+                "required": [
+                    "asset_count",
+                    "created_at",
+                    "id",
+                    "name"
+                ],
                 "properties": {
                     "asset_count": {
                         "type": "integer"
@@ -3906,6 +3912,9 @@
             },
             "apitypes.AlbumList": {
                 "type": "object",
+                "required": [
+                    "albums"
+                ],
                 "properties": {
                     "albums": {
                         "type": "array",
@@ -3925,6 +3934,27 @@
             },
             "apitypes.Asset": {
                 "type": "object",
+                "required": [
+                    "archived",
+                    "camera_make",
+                    "camera_model",
+                    "created_at",
+                    "duration_ms",
+                    "favorite",
+                    "filename",
+                    "height",
+                    "hidden",
+                    "id",
+                    "media_type",
+                    "mime_type",
+                    "original_url",
+                    "rating",
+                    "size_bytes",
+                    "stack_size",
+                    "view_url",
+                    "web_viewable",
+                    "width"
+                ],
                 "properties": {
                     "archived": {
                         "type": "boolean"
@@ -3966,7 +3996,11 @@
                         "type": "string"
                     },
                     "media_type": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "image",
+                            "video"
+                        ]
                     },
                     "mime_type": {
                         "type": "string"
@@ -4031,6 +4065,9 @@
             },
             "apitypes.AssetList": {
                 "type": "object",
+                "required": [
+                    "assets"
+                ],
                 "properties": {
                     "assets": {
                         "type": "array",
@@ -4094,6 +4131,9 @@
             },
             "apitypes.BatchResponse": {
                 "type": "object",
+                "required": [
+                    "succeeded"
+                ],
                 "properties": {
                     "failed": {
                         "type": "object",
@@ -4108,6 +4148,13 @@
             },
             "apitypes.CaptureSessionResponse": {
                 "type": "object",
+                "required": [
+                    "filename",
+                    "id",
+                    "received_bytes",
+                    "size_bytes",
+                    "status"
+                ],
                 "properties": {
                     "error": {
                         "type": "string"
@@ -4145,6 +4192,13 @@
             },
             "apitypes.CaptureStatusResponse": {
                 "type": "object",
+                "required": [
+                    "device_id",
+                    "failed",
+                    "queued",
+                    "receiving",
+                    "sessions"
+                ],
                 "properties": {
                     "device_id": {
                         "type": "string"
@@ -4168,6 +4222,12 @@
             },
             "apitypes.ChangeEntry": {
                 "type": "object",
+                "required": [
+                    "entity",
+                    "entity_id",
+                    "id",
+                    "op"
+                ],
                 "properties": {
                     "entity": {
                         "type": "string"
@@ -4196,6 +4256,11 @@
             },
             "apitypes.ChangesResponse": {
                 "type": "object",
+                "required": [
+                    "changes",
+                    "cursor",
+                    "has_more"
+                ],
                 "properties": {
                     "changes": {
                         "type": "array",
@@ -4232,6 +4297,10 @@
             },
             "apitypes.DeviceResponse": {
                 "type": "object",
+                "required": [
+                    "id",
+                    "name"
+                ],
                 "properties": {
                     "id": {
                         "type": "string"
@@ -4246,6 +4315,9 @@
             },
             "apitypes.Error": {
                 "type": "object",
+                "required": [
+                    "error"
+                ],
                 "properties": {
                     "error": {
                         "type": "string"
@@ -4254,11 +4326,18 @@
             },
             "apitypes.ExternalLibrary": {
                 "type": "object",
+                "required": [
+                    "asset_count",
+                    "created_at",
+                    "id",
+                    "name",
+                    "root_path"
+                ],
                 "properties": {
                     "asset_count": {
                         "type": "integer"
                     },
-                    "createdAt": {
+                    "created_at": {
                         "type": "string"
                     },
                     "id": {
@@ -4267,13 +4346,16 @@
                     "name": {
                         "type": "string"
                     },
-                    "rootPath": {
+                    "root_path": {
                         "type": "string"
                     }
                 }
             },
             "apitypes.ExternalLibraryList": {
                 "type": "object",
+                "required": [
+                    "libraries"
+                ],
                 "properties": {
                     "libraries": {
                         "type": "array",
@@ -4304,6 +4386,19 @@
             },
             "apitypes.Job": {
                 "type": "object",
+                "required": [
+                    "attempts",
+                    "created_at",
+                    "duplicates",
+                    "errors",
+                    "id",
+                    "imported",
+                    "kind",
+                    "skipped",
+                    "status",
+                    "total",
+                    "updated_at"
+                ],
                 "properties": {
                     "attempts": {
                         "type": "integer"
@@ -4333,7 +4428,13 @@
                         "type": "integer"
                     },
                     "status": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "queued",
+                            "running",
+                            "succeeded",
+                            "failed"
+                        ]
                     },
                     "total": {
                         "type": "integer"
@@ -4345,6 +4446,20 @@
             },
             "apitypes.JobDetail": {
                 "type": "object",
+                "required": [
+                    "attempts",
+                    "created_at",
+                    "duplicates",
+                    "errors",
+                    "errors_detail",
+                    "id",
+                    "imported",
+                    "kind",
+                    "skipped",
+                    "status",
+                    "total",
+                    "updated_at"
+                ],
                 "properties": {
                     "attempts": {
                         "type": "integer"
@@ -4380,7 +4495,13 @@
                         "type": "integer"
                     },
                     "status": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "queued",
+                            "running",
+                            "succeeded",
+                            "failed"
+                        ]
                     },
                     "total": {
                         "type": "integer"
@@ -4392,6 +4513,10 @@
             },
             "apitypes.JobError": {
                 "type": "object",
+                "required": [
+                    "error",
+                    "filename"
+                ],
                 "properties": {
                     "error": {
                         "type": "string"
@@ -4403,6 +4528,9 @@
             },
             "apitypes.JobList": {
                 "type": "object",
+                "required": [
+                    "jobs"
+                ],
                 "properties": {
                     "jobs": {
                         "type": "array",
@@ -4414,6 +4542,17 @@
             },
             "apitypes.LibraryStats": {
                 "type": "object",
+                "required": [
+                    "albums",
+                    "by_year",
+                    "favorites",
+                    "images",
+                    "places",
+                    "total",
+                    "total_bytes",
+                    "trashed",
+                    "videos"
+                ],
                 "properties": {
                     "albums": {
                         "type": "integer"
@@ -4449,6 +4588,14 @@
             },
             "apitypes.MediaIssue": {
                 "type": "object",
+                "required": [
+                    "asset_id",
+                    "created_at",
+                    "filename",
+                    "kind",
+                    "media_type",
+                    "message"
+                ],
                 "properties": {
                     "asset_id": {
                         "type": "string"
@@ -4463,7 +4610,11 @@
                         "type": "string"
                     },
                     "media_type": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "image",
+                            "video"
+                        ]
                     },
                     "message": {
                         "type": "string"
@@ -4472,6 +4623,9 @@
             },
             "apitypes.MediaIssueList": {
                 "type": "object",
+                "required": [
+                    "issues"
+                ],
                 "properties": {
                     "issues": {
                         "type": "array",
@@ -4494,6 +4648,10 @@
             },
             "apitypes.PairingCodeResponse": {
                 "type": "object",
+                "required": [
+                    "code",
+                    "expires_at"
+                ],
                 "properties": {
                     "code": {
                         "type": "string"
@@ -4505,6 +4663,13 @@
             },
             "apitypes.PlaceGroup": {
                 "type": "object",
+                "required": [
+                    "city",
+                    "count",
+                    "country",
+                    "cover_asset_id",
+                    "cover_thumb_url"
+                ],
                 "properties": {
                     "city": {
                         "type": "string"
@@ -4525,6 +4690,9 @@
             },
             "apitypes.PlaceSummary": {
                 "type": "object",
+                "required": [
+                    "places"
+                ],
                 "properties": {
                     "places": {
                         "type": "array",
@@ -4536,6 +4704,12 @@
             },
             "apitypes.SavedSearch": {
                 "type": "object",
+                "required": [
+                    "created_at",
+                    "id",
+                    "name",
+                    "query"
+                ],
                 "properties": {
                     "created_at": {
                         "type": "string"
@@ -4553,6 +4727,9 @@
             },
             "apitypes.SavedSearchList": {
                 "type": "object",
+                "required": [
+                    "saved_searches"
+                ],
                 "properties": {
                     "saved_searches": {
                         "type": "array",
@@ -4575,6 +4752,9 @@
             },
             "apitypes.SetupStatus": {
                 "type": "object",
+                "required": [
+                    "setup_required"
+                ],
                 "properties": {
                     "setup_required": {
                         "type": "boolean"
@@ -4601,6 +4781,10 @@
             },
             "apitypes.Tag": {
                 "type": "object",
+                "required": [
+                    "id",
+                    "name"
+                ],
                 "properties": {
                     "id": {
                         "type": "string"
@@ -4615,6 +4799,9 @@
             },
             "apitypes.TagList": {
                 "type": "object",
+                "required": [
+                    "tags"
+                ],
                 "properties": {
                     "tags": {
                         "type": "array",
@@ -4637,6 +4824,10 @@
             },
             "apitypes.User": {
                 "type": "object",
+                "required": [
+                    "id",
+                    "username"
+                ],
                 "properties": {
                     "id": {
                         "type": "string"
@@ -4648,6 +4839,10 @@
             },
             "apitypes.YearCount": {
                 "type": "object",
+                "required": [
+                    "count",
+                    "year"
+                ],
                 "properties": {
                     "count": {
                         "type": "integer"
