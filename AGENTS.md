@@ -207,6 +207,10 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Mobile foundation: generated design tokens, Kura/Vault registers, onboarding gate, connection state machine, SQLite offline cache + favorite mutation queue, owner-scoped device favorite route | ✅ done (Spec 1) |
 | Mobile parity: albums/memories/trash device routes, `ownerID` bridge, owner-scoped `setFavorite` + trash writes, `trash.Purge`, Library segments + selection mode + Trash screen, extended offline mirror/queue (album_add/remove, trash, restore, purge) | ✅ done (Spec 2) |
 | Server delta sync (Improvement B): change_log completed (all asset mutations logged) + owner_id (00020) + owner-scoped cursor-paginated /api/changes + /api/capture/changes feed | ✅ done |
+| API contract (Improvement A): swag→OpenAPI pipeline, served `/api/openapi.json`, wire DTOs consolidated into `apitypes`, all endpoints annotated, generated TS for web+mobile, `validate:"required"`/`enums` so generated types keep the server's real guarantees | 🟡 web consumes the contract; **mobile does not** |
+| Improvement A remainder: `mobile/src/lib/api.gen.ts` is generated and committed but **nothing imports it** — `library-api.ts` still hand-defines `LibraryAsset`, so the 3rd copy A set out to kill is still live (and already drifted: `thumbnail_url?: string \| null` vs the contract's `string`) | ⬜ **finishes A** |
+| Improvement A remainder: **no CI gate on contract drift.** `make gen` is manual and nothing verifies it was run, so editing `apitypes` without regenerating leaves `api.gen.ts` silently stale — the exact drift A exists to prevent. Mirror `mobile`'s `check-tokens` pattern (regenerate + `git diff --exit-code`) | ⬜ **finishes A** |
+| Web type safety: `npm run build` (the web CI gate) does not typecheck — Vite strips types, plain `tsc` skips `.svelte`. `svelte-check` is not a devDependency and not in CI | ⬜ follow-up |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 
