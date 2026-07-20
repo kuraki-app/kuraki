@@ -29,14 +29,19 @@ export function rowToAsset(r: Record<string, unknown>): LibraryAsset {
   return {
     id: r.id as string,
     filename: r.filename as string,
-    media_type: r.media_type as string,
-    taken_at: (r.taken_at as string) ?? undefined,
+    media_type: r.media_type as 'image' | 'video',
+    // These columns are genuinely NULL-able in SQLite, so they are cast as
+    // nullable before the ?? collapses them. Casting straight to `string` would
+    // make the ?? dead code and let a real null through under a non-null type.
+    // undefined (not null) is the target: the server omits absent pointers
+    // rather than sending null, and the contract types these as optional.
+    taken_at: (r.taken_at as string | null) ?? undefined,
     favorite: !!r.favorite,
-    thumbnail_url: (r.thumbnail_url as string) ?? null,
-    preview_url: (r.preview_url as string) ?? null,
+    thumbnail_url: (r.thumbnail_url as string | null) ?? undefined,
+    preview_url: (r.preview_url as string | null) ?? undefined,
     web_viewable: !!r.web_viewable,
-    place_city: (r.place_city as string) ?? undefined,
-    place_country: (r.place_country as string) ?? undefined,
+    place_city: (r.place_city as string | null) ?? undefined,
+    place_country: (r.place_country as string | null) ?? undefined,
   };
 }
 

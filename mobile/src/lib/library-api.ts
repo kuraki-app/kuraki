@@ -3,23 +3,32 @@ import { upsertAssets } from '@/lib/cache/assets';
 import { upsertAlbums, readAlbums, setAlbumAssets, readAlbumAssets, setTrashed, readTrashed, type CachedAlbum } from '@/lib/cache/albums';
 import { reportAuthLost } from '@/lib/session';
 import type { CaptureSettings } from '@/lib/settings';
+import type { components } from '@/lib/api.gen';
 
 // The mobile Find loop reads the library through the device-authenticated
 // endpoints, which speak the same filter language as the web UI.
 
-export type LibraryAsset = {
-  id: string;
-  filename: string;
-  media_type: string;
-  taken_at?: string;
-  taken_day?: string;
-  favorite: boolean;
-  web_viewable?: boolean;
-  thumbnail_url?: string | null;
-  preview_url?: string | null;
-  place_city?: string;
-  place_country?: string;
-};
+// Derived from the generated contract rather than hand-declared, so a server-side
+// rename or type change breaks the build here instead of drifting silently.
+// `/api/capture/library` returns the full apitypes.Asset; mobile only reads this
+// subset, and the offline SQLite mirror only persists these columns, so the view
+// stays narrow via Pick instead of adopting all ~30 fields.
+type ContractAsset = components['schemas']['apitypes.Asset'];
+
+export type LibraryAsset = Pick<
+  ContractAsset,
+  | 'id'
+  | 'filename'
+  | 'media_type'
+  | 'taken_at'
+  | 'taken_day'
+  | 'favorite'
+  | 'web_viewable'
+  | 'thumbnail_url'
+  | 'preview_url'
+  | 'place_city'
+  | 'place_country'
+>;
 
 type AuthedSource = { uri: string; headers: Record<string, string> };
 
