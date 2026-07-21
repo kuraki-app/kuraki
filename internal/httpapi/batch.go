@@ -53,22 +53,30 @@ func (d Deps) batchAssets(w http.ResponseWriter, r *http.Request) {
 	case "restore":
 		apply = func(ctx context.Context, id string) error { return trash.Restore(ctx, d.DB, d.Store, id) }
 	case "favorite":
-		apply = func(ctx context.Context, id string) error { return d.updateFavorite(ctx, id, true) }
+		apply = func(ctx context.Context, id string) error { return d.updateFavorite(ctx, id, true, owner) }
 		logsHere = true
 	case "unfavorite":
-		apply = func(ctx context.Context, id string) error { return d.updateFavorite(ctx, id, false) }
+		apply = func(ctx context.Context, id string) error { return d.updateFavorite(ctx, id, false, owner) }
 		logsHere = true
 	case "archive":
-		apply = func(ctx context.Context, id string) error { return d.updateLibraryState(ctx, id, "archived", true) }
+		apply = func(ctx context.Context, id string) error {
+			return d.updateLibraryState(ctx, id, "archived", true, owner)
+		}
 		logsHere = true
 	case "unarchive":
-		apply = func(ctx context.Context, id string) error { return d.updateLibraryState(ctx, id, "archived", false) }
+		apply = func(ctx context.Context, id string) error {
+			return d.updateLibraryState(ctx, id, "archived", false, owner)
+		}
 		logsHere = true
 	case "hide":
-		apply = func(ctx context.Context, id string) error { return d.updateLibraryState(ctx, id, "hidden", true) }
+		apply = func(ctx context.Context, id string) error {
+			return d.updateLibraryState(ctx, id, "hidden", true, owner)
+		}
 		logsHere = true
 	case "unhide":
-		apply = func(ctx context.Context, id string) error { return d.updateLibraryState(ctx, id, "hidden", false) }
+		apply = func(ctx context.Context, id string) error {
+			return d.updateLibraryState(ctx, id, "hidden", false, owner)
+		}
 		logsHere = true
 	default:
 		writeError(w, http.StatusBadRequest, "invalid_op")
@@ -92,7 +100,7 @@ func (d Deps) batchAssets(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-func (d Deps) updateLibraryState(ctx context.Context, id, column string, value bool) error {
+func (d Deps) updateLibraryState(ctx context.Context, id, column string, value bool, owner string) error {
 	if column != "archived" && column != "hidden" {
 		return fmt.Errorf("invalid library state")
 	}
@@ -100,7 +108,7 @@ func (d Deps) updateLibraryState(ctx context.Context, id, column string, value b
 	if value {
 		v = 1
 	}
-	res, err := d.DB.ExecContext(ctx, `UPDATE assets SET `+column+` = ? WHERE id = ? AND deleted_at IS NULL`, v, id)
+	res, err := d.DB.ExecContext(ctx, `UPDATE assets SET `+column+` = ? WHERE id = ? AND owner_id = ? AND deleted_at IS NULL`, v, id, owner)
 	if err != nil {
 		return err
 	}
@@ -110,14 +118,15 @@ func (d Deps) updateLibraryState(ctx context.Context, id, column string, value b
 	return nil
 }
 
-// updateFavorite sets an asset's favorite flag, erroring if it does not exist.
-func (d Deps) updateFavorite(ctx context.Context, id string, fav bool) error {
+// updateFavorite sets an asset's favorite flag, erroring if it does not exist
+// or is not owned by the caller.
+func (d Deps) updateFavorite(ctx context.Context, id string, fav bool, owner string) error {
 	v := 0
 	if fav {
 		v = 1
 	}
 	res, err := d.DB.ExecContext(ctx,
-		`UPDATE assets SET favorite = ? WHERE id = ? AND deleted_at IS NULL`, v, id)
+		`UPDATE assets SET favorite = ? WHERE id = ? AND owner_id = ? AND deleted_at IS NULL`, v, id, owner)
 	if err != nil {
 		return err
 	}

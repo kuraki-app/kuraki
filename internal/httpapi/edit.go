@@ -89,16 +89,21 @@ func (d Deps) patchAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.ExecContext(r.Context(),
-		`UPDATE assets SET taken_at = ?, description = ? WHERE id = ?`,
-		nsAny(takenAt), nsAny(description), id); err != nil {
+	res, err := tx.ExecContext(r.Context(),
+		`UPDATE assets SET taken_at = ?, description = ? WHERE id = ? AND owner_id = ?`,
+		nsAny(takenAt), nsAny(description), id, owner)
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "update_failed")
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		writeError(w, http.StatusNotFound, "asset_not_found")
 		return
 	}
 	if gpsChanged {
 		if _, err := tx.ExecContext(r.Context(),
-			`UPDATE assets SET gps_lat = ?, gps_lon = ?, place_city = ?, place_country = ? WHERE id = ?`,
-			nfAny(lat), nfAny(lon), emptyToNil(placeCity), emptyToNil(placeCountry), id); err != nil {
+			`UPDATE assets SET gps_lat = ?, gps_lon = ?, place_city = ?, place_country = ? WHERE id = ? AND owner_id = ?`,
+			nfAny(lat), nfAny(lon), emptyToNil(placeCity), emptyToNil(placeCountry), id, owner); err != nil {
 			writeError(w, http.StatusInternalServerError, "update_failed")
 			return
 		}
@@ -167,7 +172,7 @@ func (d Deps) shiftTime(w http.ResponseWriter, r *http.Request) {
 		res, err := tx.ExecContext(r.Context(), `
 			UPDATE assets
 			SET taken_at = strftime('%Y-%m-%dT%H:%M:%fZ', taken_at, ?)
-			WHERE id = ? AND deleted_at IS NULL AND taken_at IS NOT NULL`, modifier, id)
+			WHERE id = ? AND owner_id = ? AND deleted_at IS NULL AND taken_at IS NOT NULL`, modifier, id, owner)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "shift_failed")
 			return

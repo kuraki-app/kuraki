@@ -157,6 +157,13 @@ func (d Deps) replaceAssetTags(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := chi.URLParam(r, "id")
+	if ok, err := d.ownsAsset(r, id); err != nil {
+		writeError(w, 500, "asset_lookup_failed")
+		return
+	} else if !ok {
+		writeError(w, 404, "asset_not_found")
+		return
+	}
 	tx, err := d.DB.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeError(w, 500, "update_tags_failed")

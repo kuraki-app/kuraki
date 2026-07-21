@@ -118,9 +118,14 @@ func (d Deps) purgeAsset(w http.ResponseWriter, r *http.Request) {
 // @Router  /api/trash [get]
 // @Router  /api/capture/trash [get]
 func (d Deps) listTrash(w http.ResponseWriter, r *http.Request) {
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	limit := parseLimit(r.URL.Query().Get("limit"))
 	rows, err := d.DB.QueryContext(r.Context(),
-		assetSelectSQL("WHERE a.deleted_at IS NOT NULL")+" LIMIT ?", limit+1)
+		assetSelectSQL("WHERE a.deleted_at IS NOT NULL AND a.owner_id = ?")+" LIMIT ?", owner, limit+1)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_trash_failed")
 		return
