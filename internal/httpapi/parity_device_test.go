@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/kuraki-app/kuraki/internal/db"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 	"github.com/kuraki-app/kuraki/internal/media"
 	"github.com/kuraki-app/kuraki/internal/queue"
 	"github.com/kuraki-app/kuraki/internal/storage"
@@ -159,6 +160,35 @@ func TestDeviceTrashLifecycle(t *testing.T) {
 	purge := deviceJSON(t, router, http.MethodDelete, "/api/capture/trash/t1", token, nil)
 	if purge.Code != http.StatusConflict {
 		t.Fatalf("purge live = %d, want 409", purge.Code)
+	}
+}
+
+// TestDeviceGetAsset covers the single-asset refetch the delta feed depends on:
+// the feed is thin, so a device seeing a change re-reads the asset here.
+func TestDeviceGetAsset(t *testing.T) {
+	router, cookie, db := deviceFavoriteRouter(t)
+	token := registerTestDevice(t, router, cookie)
+	seedOwnedAsset(t, db, "a1")
+
+	rec := deviceGet(t, router, token, "/api/capture/assets/a1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get asset = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got apitypes.Asset
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != "a1" {
+		t.Fatalf("asset id = %q, want a1", got.ID)
+	}
+
+	// missing asset -> 404
+	if miss := deviceGet(t, router, token, "/api/capture/assets/nope"); miss.Code != http.StatusNotFound {
+		t.Fatalf("missing asset = %d, want 404", miss.Code)
+	}
+	// no token -> 401
+	if un := deviceGet(t, router, "", "/api/capture/assets/a1"); un.Code != http.StatusUnauthorized {
+		t.Fatalf("no token = %d, want 401", un.Code)
 	}
 }
 

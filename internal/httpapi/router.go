@@ -159,6 +159,7 @@ func NewRouter(d Deps) http.Handler {
 			// media endpoints as the web UI, authenticated by the device token.
 			r.Get("/capture/library", d.respondFiltered)
 			r.Get("/capture/places", d.placesSummary)
+			r.Get("/capture/assets/{id}", d.getAsset)
 			r.Get("/capture/assets/{id}/thumb", d.serveThumb)
 			r.Get("/capture/assets/{id}/preview", d.servePreview)
 			r.Get("/capture/assets/{id}/original", d.serveOriginal)

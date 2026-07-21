@@ -16,6 +16,8 @@ export type JobDetail = S['apitypes.JobDetail'];
 export type JobError = S['apitypes.JobError'];
 export type MediaIssue = S['apitypes.MediaIssue'];
 export type LibraryStats = S['apitypes.LibraryStats'];
+export type ChangesResponse = S['apitypes.ChangesResponse'];
+export type ChangeEntry = S['apitypes.ChangeEntry'];
 
 // not in contract: /api/duplicates returns an untyped map (domain-package struct, kept out of swag scope)
 export type DupAsset = {

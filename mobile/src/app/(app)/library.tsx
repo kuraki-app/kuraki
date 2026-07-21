@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import AlbumList from '@/components/album-list';
@@ -20,6 +20,7 @@ import {
   fetchMemories,
   flushFavorites,
   setFavorite,
+  syncChanges,
   trashAsset,
   type LibraryAsset,
   type LibraryFilters,
@@ -101,15 +102,6 @@ export default function LibraryScreen() {
     [settings],
   );
 
-  // Re-probe whenever the app returns to the foreground — the server may have
-  // moved (DHCP) or the network may have come back while we were backgrounded.
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'active') void probe(settings);
-    });
-    return () => sub.remove();
-  }, [probe, settings]);
-
   const filters = useMemo<LibraryFilters>(() => {
     const q = query.trim();
     return { ...chips[chip].filter, ...(q ? { q } : {}) };
@@ -145,6 +137,28 @@ export default function LibraryScreen() {
     }
   }, []);
 
+  // Drain the delta feed into the SQLite mirror, then repaint the current filter
+  // from the reconciled mirror if anything actually changed. Silent on failure —
+  // a 401 is already surfaced by the auth-lost machine, and an offline tick just
+  // leaves the cursor for the next run. Guarded against concurrent runs so an
+  // AppState wake mid-sync doesn't double-apply.
+  const syncing = useRef(false);
+  const syncAndRefresh = useCallback(
+    async (active: CaptureSettings | null, f: LibraryFilters) => {
+      if (!active || syncing.current) return;
+      syncing.current = true;
+      try {
+        const applied = await syncChanges(active);
+        if (applied > 0) await load(active, f);
+      } catch {
+        // best-effort; cursor is preserved for the next attempt
+      } finally {
+        syncing.current = false;
+      }
+    },
+    [load],
+  );
+
   useEffect(() => {
     void (async () => {
       const cached = await readAssets({});
@@ -156,10 +170,23 @@ export default function LibraryScreen() {
       setSettings(active);
       await load(active, { ...chips[0].filter });
       void probe(active);
+      void syncAndRefresh(active, { ...chips[0].filter });
     })();
     // Filter changes are driven imperatively from the chip and search handlers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // On foreground: re-probe reachability (server may have moved on DHCP, or the
+  // network came back) and drain the delta feed so edits made elsewhere land.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') {
+        void probe(settings);
+        void syncAndRefresh(settings, filters);
+      }
+    });
+    return () => sub.remove();
+  }, [probe, settings, syncAndRefresh, filters]);
 
   // Optimistic favorite: write the cache and UI immediately so the toggle never
   // waits on the network. Only enqueue for later when we're offline or the

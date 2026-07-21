@@ -56,6 +56,21 @@ export function getDB(): Promise<SQLite.SQLiteDatabase> {
           COMMIT;
         `);
       }
+      if (v < 3) {
+        // v3: a tiny kv table for the delta-sync cursor. Same all-or-nothing
+        // transaction discipline as v2. If the cache file is ever dropped the
+        // cursor resets to 0, which replays the feed from the start — harmless
+        // because create/update apply as idempotent upserts and the mirror is
+        // empty anyway, so it just rebuilds.
+        await db.execAsync(`
+          BEGIN;
+          CREATE TABLE IF NOT EXISTS sync_meta (
+            key TEXT PRIMARY KEY, value TEXT NOT NULL
+          );
+          PRAGMA user_version = 3;
+          COMMIT;
+        `);
+      }
       return db;
     })();
   }

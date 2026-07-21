@@ -9,6 +9,7 @@
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
   import { api, uploadFiles } from '$lib/api';
   import { session, bumpLibrary, showToast } from '$lib/stores';
+  import { startSync } from '$lib/sync';
   import { NAV_GROUPS, isActive, registerFor } from '$lib/nav';
   import MobileNav from '$lib/components/MobileNav.svelte';
   import '../app.css';
@@ -35,6 +36,17 @@
   const themeIcon = { system: Monitor, light: Sun, dark: Moon } as const;
 
   onMount(init);
+
+  // Delta-sync poller: runs only while signed in. Reacts to login/logout by
+  // starting on the first authenticated user and stopping when it clears.
+  let stopSync: (() => void) | null = null;
+  $: {
+    if ($session.user && !stopSync) stopSync = startSync();
+    else if (!$session.user && stopSync) {
+      stopSync();
+      stopSync = null;
+    }
+  }
 
   async function init() {
     try {
