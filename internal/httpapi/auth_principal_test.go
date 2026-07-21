@@ -91,6 +91,9 @@ func TestRequirePrincipalDevice(t *testing.T) {
 	if got.DeviceID == "" {
 		t.Fatal("device principal has empty device id")
 	}
+	if got.OwnerID == "" {
+		t.Fatal("device principal has empty owner")
+	}
 }
 
 // TestRequirePrincipalNone proves no credential is 401.

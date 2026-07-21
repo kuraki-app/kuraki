@@ -130,6 +130,9 @@ func (d Deps) resolveDevice(r *http.Request) (captureDevice, bool) {
 		SELECT id, owner_id FROM devices WHERE token_hash = ? AND revoked_at IS NULL`, hashDeviceToken(token)).
 		Scan(&device.ID, &device.OwnerID)
 	if err != nil {
+		if err != sql.ErrNoRows && d.Logger != nil {
+			d.Logger.Warn("device auth: lookup failed", "err", err)
+		}
 		return captureDevice{}, false
 	}
 	_, _ = d.DB.ExecContext(r.Context(), `UPDATE devices SET last_seen_at = ? WHERE id = ?`, nowCaptureText(), device.ID)
