@@ -191,10 +191,14 @@ func (d Deps) renameAlbum(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "name_required")
 		return
 	}
-	user := d.currentUser(r)
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	res, err := d.DB.ExecContext(r.Context(),
 		`UPDATE albums SET name = ? WHERE id = ? AND owner_id = ? AND deleted_at IS NULL`,
-		req.Name, id, user.ID)
+		req.Name, id, owner)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "rename_failed")
 		return
@@ -216,10 +220,14 @@ func (d Deps) renameAlbum(w http.ResponseWriter, r *http.Request) {
 // @Router  /api/albums/{id} [delete]
 func (d Deps) deleteAlbum(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	user := d.currentUser(r)
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	res, err := d.DB.ExecContext(r.Context(),
 		`UPDATE albums SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-		 WHERE id = ? AND owner_id = ? AND deleted_at IS NULL`, id, user.ID)
+		 WHERE id = ? AND owner_id = ? AND deleted_at IS NULL`, id, owner)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "delete_album_failed")
 		return

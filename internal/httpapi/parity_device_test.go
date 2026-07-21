@@ -301,6 +301,69 @@ func TestDeviceAlbumAddRejectsOtherOwnerAsset(t *testing.T) {
 	}
 }
 
+// TestDeviceRenameAlbum proves a device token can rename its own album via
+// PATCH /api/albums/{id}. Before the fix, renameAlbum resolved the owner via
+// d.currentUser(r), which returns nil for a device/Bearer request; deref'ing
+// user.ID with no nil check panicked (HTTP 500) instead of succeeding.
+func TestDeviceRenameAlbum(t *testing.T) {
+	router, cookie, _ := deviceFavoriteRouter(t)
+	token := registerTestDevice(t, router, cookie)
+
+	create := deviceJSON(t, router, http.MethodPost, "/api/albums", token, map[string]string{"name": "Trip"})
+	if create.Code != http.StatusCreated {
+		t.Fatalf("create album = %d body=%s", create.Code, create.Body.String())
+	}
+	var made struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(create.Body.Bytes(), &made); err != nil {
+		t.Fatal(err)
+	}
+
+	rename := deviceJSON(t, router, http.MethodPatch, "/api/albums/"+made.ID, token, map[string]string{"name": "Renamed"})
+	if rename.Code != http.StatusOK {
+		t.Fatalf("rename album = %d body=%s, want 200 (not a panic)", rename.Code, rename.Body.String())
+	}
+}
+
+// TestDeviceDeleteAlbum proves a device token can delete its own album via
+// DELETE /api/albums/{id}. Before the fix, deleteAlbum resolved the owner via
+// d.currentUser(r) with no nil check, panicking on a device request.
+func TestDeviceDeleteAlbum(t *testing.T) {
+	router, cookie, _ := deviceFavoriteRouter(t)
+	token := registerTestDevice(t, router, cookie)
+
+	create := deviceJSON(t, router, http.MethodPost, "/api/albums", token, map[string]string{"name": "Trip"})
+	if create.Code != http.StatusCreated {
+		t.Fatalf("create album = %d body=%s", create.Code, create.Body.String())
+	}
+	var made struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(create.Body.Bytes(), &made); err != nil {
+		t.Fatal(err)
+	}
+
+	del := deviceJSON(t, router, http.MethodDelete, "/api/albums/"+made.ID, token, nil)
+	if del.Code != http.StatusOK {
+		t.Fatalf("delete album = %d body=%s, want 200 (not a panic)", del.Code, del.Body.String())
+	}
+}
+
+// TestDeviceCreateTag proves a device token can create a tag via POST
+// /api/tags. Before the fix, createTag resolved the owner via
+// d.currentUser(r), which is nil for a device request, so it 401'd every
+// device caller even though the route sits in the both-principals group.
+func TestDeviceCreateTag(t *testing.T) {
+	router, cookie, _ := deviceFavoriteRouter(t)
+	token := registerTestDevice(t, router, cookie)
+
+	rec := deviceJSON(t, router, http.MethodPost, "/api/tags", token, apitypes.TagRequest{Name: "beach"})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create tag = %d body=%s, want 201", rec.Code, rec.Body.String())
+	}
+}
+
 func TestDeviceCannotReachOtherOwnerAlbum(t *testing.T) {
 	router, cookie, db := deviceFavoriteRouter(t)
 	token := registerTestDevice(t, router, cookie)
