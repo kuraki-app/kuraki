@@ -103,3 +103,73 @@ func TestRequirePrincipalNone(t *testing.T) {
 		t.Fatalf("no creds = %d, want 401", code)
 	}
 }
+
+// probeSessionOnlyRouter mounts requirePrincipal->requireSessionPrincipal->
+// echo-200, sharing the DB created by deviceFavoriteRouter so cookies/tokens
+// minted against that DB resolve here too.
+func probeSessionOnlyRouter(db *sql.DB) http.Handler {
+	d := Deps{Version: "test", DB: db}
+	mux := http.NewServeMux()
+	mux.Handle("/probe", d.requirePrincipal(d.requireSessionPrincipal(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))))
+	return mux
+}
+
+// probeDeviceOnlyRouter mounts requirePrincipal->requireDevicePrincipal->
+// echo-200.
+func probeDeviceOnlyRouter(db *sql.DB) http.Handler {
+	d := Deps{Version: "test", DB: db}
+	mux := http.NewServeMux()
+	mux.Handle("/probe", d.requirePrincipal(d.requireDevicePrincipal(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))))
+	return mux
+}
+
+func probeSessionOnlyCode(t *testing.T, db *sql.DB, mutate func(*http.Request)) int {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
+	if mutate != nil {
+		mutate(req)
+	}
+	rec := httptest.NewRecorder()
+	probeSessionOnlyRouter(db).ServeHTTP(rec, req)
+	return rec.Code
+}
+
+func probeDeviceOnlyCode(t *testing.T, db *sql.DB, mutate func(*http.Request)) int {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
+	if mutate != nil {
+		mutate(req)
+	}
+	rec := httptest.NewRecorder()
+	probeDeviceOnlyRouter(db).ServeHTTP(rec, req)
+	return rec.Code
+}
+
+// TestRequireSessionPrincipalRejectsDevice proves the session-only guard
+// rejects a device principal (403 session_required) and accepts a session
+// principal (200).
+func TestRequireSessionPrincipalRejectsDevice(t *testing.T) {
+	router, cookie, db := deviceFavoriteRouter(t)
+	token := registerTestDevice(t, router, cookie)
+	seedOwnedAsset(t, db, "a1")
+	if code := probeSessionOnlyCode(t, db, withBearer(token)); code != http.StatusForbidden {
+		t.Fatalf("device on session-only route = %d, want 403", code)
+	}
+	if code := probeSessionOnlyCode(t, db, withCookie(cookie)); code != http.StatusOK {
+		t.Fatalf("session on session-only route = %d, want 200", code)
+	}
+}
+
+// TestRequireDevicePrincipalRejectsSession proves the device-only guard
+// rejects a session principal (403 device_required).
+func TestRequireDevicePrincipalRejectsSession(t *testing.T) {
+	router, cookie, db := deviceFavoriteRouter(t)
+	_ = router
+	if code := probeDeviceOnlyCode(t, db, withCookie(cookie)); code != http.StatusForbidden {
+		t.Fatalf("session on device-only route = %d, want 403", code)
+	}
+}

@@ -243,6 +243,42 @@ func principalFrom(r *http.Request) (principal, bool) {
 	return p, ok
 }
 
+// requireSessionPrincipal narrows a route to session (cookie) principals
+// only. It assumes it is nested inside requirePrincipal, so the principal is
+// already in context; a missing principal is still handled defensively (401)
+// rather than assumed impossible.
+func (d Deps) requireSessionPrincipal(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p, ok := principalFrom(r)
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		if p.Kind != principalSession {
+			writeError(w, http.StatusForbidden, "session_required")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// requireDevicePrincipal narrows a route to device (Bearer token) principals
+// only. Same nesting assumption as requireSessionPrincipal.
+func (d Deps) requireDevicePrincipal(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p, ok := principalFrom(r)
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		if p.Kind != principalDevice {
+			writeError(w, http.StatusForbidden, "device_required")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (d Deps) setupRequired(ctx context.Context) (bool, error) {
 	var count int
 	if err := d.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE password_hash <> ''`).Scan(&count); err != nil {
