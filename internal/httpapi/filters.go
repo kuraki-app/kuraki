@@ -112,10 +112,17 @@ func (d Deps) respondFiltered(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_cursor")
 		return
 	}
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 
 	where := append([]string{}, filters.where...)
 	args := append([]any{}, filters.joinArgs...)
 	args = append(args, filters.whereArgs...)
+	where = append(where, "a.owner_id = ?")
+	args = append(args, owner)
 	if cursorTime != "" {
 		where = append(where, "(COALESCE(a.taken_at, a.created_at) < ? OR (COALESCE(a.taken_at, a.created_at) = ? AND a.id < ?))")
 		args = append(args, cursorTime, cursorTime, cursorID)

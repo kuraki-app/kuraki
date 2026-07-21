@@ -209,3 +209,60 @@ func TestOnThisDayOwnerScoped(t *testing.T) {
 		t.Fatalf("onThisDay missing caller's own asset a1: %+v", list.Assets)
 	}
 }
+
+// TestSearchOwnerScoped proves respondFiltered (backing both /api/search and
+// the device-authenticated /api/capture/library) never surfaces another
+// owner's assets. It exercises the device route since that is the currently
+// reachable path for a cross-tenant leak via a paired device token.
+func TestSearchOwnerScoped(t *testing.T) {
+	router, cookie, db := deviceFavoriteRouter(t)
+	other := secondOwner(t, db)
+	seedOwnedAssetFor(t, db, "b1", other)
+	seedOwnedAsset(t, db, "a1")
+
+	// The device is registered by the default session owner, not secondOwner.
+	token := registerTestDevice(t, router, cookie)
+	lib := getWithBearer[apitypes.AssetList](t, router, "/api/capture/library", token)
+	for _, a := range lib.Assets {
+		if a.ID == "b1" {
+			t.Fatalf("respondFiltered leaked other owner's asset b1: %+v", lib.Assets)
+		}
+	}
+	found := false
+	for _, a := range lib.Assets {
+		if a.ID == "a1" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("respondFiltered missing caller's own asset a1: %+v", lib.Assets)
+	}
+}
+
+// TestFavoritesOwnerScoped proves listFavorites never surfaces another
+// owner's favorited assets.
+func TestFavoritesOwnerScoped(t *testing.T) {
+	router, cookie, db := deviceFavoriteRouter(t)
+	other := secondOwner(t, db)
+	seedOwnedAssetFor(t, db, "b1", other)
+	seedOwnedAsset(t, db, "a1")
+	if _, err := db.Exec(`UPDATE assets SET favorite = 1 WHERE id IN ('a1','b1')`); err != nil {
+		t.Fatal(err)
+	}
+
+	list := getJSONWithCookie[apitypes.AssetList](t, router, "/api/favorites", cookie)
+	for _, a := range list.Assets {
+		if a.ID == "b1" {
+			t.Fatalf("listFavorites leaked other owner's favorited asset b1: %+v", list.Assets)
+		}
+	}
+	found := false
+	for _, a := range list.Assets {
+		if a.ID == "a1" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("listFavorites missing caller's own favorited asset a1: %+v", list.Assets)
+	}
+}
