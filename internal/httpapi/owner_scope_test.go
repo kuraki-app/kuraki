@@ -2,10 +2,12 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -126,6 +128,48 @@ func TestBatchFavoriteOwnerScoped(t *testing.T) {
 	}
 	if fav != 0 {
 		t.Fatalf("b1 favorite = %d, want 0 (untouched)", fav)
+	}
+}
+
+// TestBatchDeleteOwnerScoped proves a batch delete op cannot trash another
+// owner's asset via the multi-select endpoint (unlike the single-asset
+// deleteAsset handler, batchAssets did not check ownership before routing
+// straight into trash.Delete). Uses deviceTrashTestRouter/seedOwnedAssetFile
+// (parity_device_test.go) rather than deviceFavoriteRouter/seedOwnedAssetFor
+// because trash.Delete moves a real file on disk — without a physical
+// original, the delete would fail on the file-move step regardless of the
+// ownership check, making the test a false negative either way.
+func TestBatchDeleteOwnerScoped(t *testing.T) {
+	ctx := context.Background()
+	router, cookie, db, store := deviceTrashTestRouter(t)
+	other := secondOwner(t, db)
+	seedOwnedAssetFor(t, db, "b1", other)
+	if _, err := store.Write(ctx, "originals/2026/07/b1.jpg", strings.NewReader("bytes-b1")); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := postJSON(t, router, "/api/assets/batch", apitypes.BatchRequest{Op: "delete", IDs: []string{"b1"}}, cookie)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("batch delete = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp apitypes.BatchResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Succeeded != 0 {
+		t.Fatalf("succeeded = %d, want 0", resp.Succeeded)
+	}
+	if _, failed := resp.Failed["b1"]; !failed {
+		t.Fatalf("expected b1 (other owner's asset) in failed map, got %+v", resp.Failed)
+	}
+
+	// The other owner's asset must remain un-deleted.
+	var deletedAt sql.NullString
+	if err := db.QueryRow(`SELECT deleted_at FROM assets WHERE id = 'b1'`).Scan(&deletedAt); err != nil {
+		t.Fatal(err)
+	}
+	if deletedAt.Valid {
+		t.Fatalf("b1 deleted_at = %q, want NULL (untouched)", deletedAt.String)
 	}
 }
 

@@ -49,9 +49,23 @@ func (d Deps) batchAssets(w http.ResponseWriter, r *http.Request) {
 	var logsHere bool
 	switch req.Op {
 	case "delete":
-		apply = func(ctx context.Context, id string) error { return trash.Delete(ctx, d.DB, d.Store, id) }
+		apply = func(ctx context.Context, id string) error {
+			if ok, err := d.ownsAssetCtx(ctx, owner, id); err != nil {
+				return err
+			} else if !ok {
+				return trash.ErrNotFound
+			}
+			return trash.Delete(ctx, d.DB, d.Store, id)
+		}
 	case "restore":
-		apply = func(ctx context.Context, id string) error { return trash.Restore(ctx, d.DB, d.Store, id) }
+		apply = func(ctx context.Context, id string) error {
+			if ok, err := d.ownsAssetCtx(ctx, owner, id); err != nil {
+				return err
+			} else if !ok {
+				return trash.ErrNotFound
+			}
+			return trash.Restore(ctx, d.DB, d.Store, id)
+		}
 	case "favorite":
 		apply = func(ctx context.Context, id string) error { return d.updateFavorite(ctx, id, true, owner) }
 		logsHere = true

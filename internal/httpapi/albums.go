@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -36,8 +37,15 @@ func (d Deps) ownsAsset(r *http.Request, assetID string) (bool, error) {
 	if !ok {
 		return false, nil
 	}
+	return d.ownsAssetCtx(r.Context(), owner, assetID)
+}
+
+// ownsAssetCtx is the context-only variant of ownsAsset, for call sites (like
+// the batch endpoint) that already have the owner resolved and don't have an
+// *http.Request to hand in.
+func (d Deps) ownsAssetCtx(ctx context.Context, owner, assetID string) (bool, error) {
 	var one int
-	err := d.DB.QueryRowContext(r.Context(),
+	err := d.DB.QueryRowContext(ctx,
 		`SELECT 1 FROM assets WHERE id = ? AND owner_id = ?`, assetID, owner).Scan(&one)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
