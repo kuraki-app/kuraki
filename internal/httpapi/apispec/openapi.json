@@ -2701,6 +2701,36 @@
                 }
             }
         },
+        "/api/events": {
+            "get": {
+                "tags": [
+                    "sync"
+                ],
+                "summary": "Change event stream (SSE)",
+                "responses": {
+                    "200": {
+                        "description": "event stream",
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/export": {
             "get": {
                 "tags": [

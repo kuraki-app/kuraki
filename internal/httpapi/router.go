@@ -43,7 +43,11 @@ type Deps struct {
 	// AndroidAPKPath is the filesystem path served at /download/android. Empty
 	// disables the endpoint (404); a missing file also 404s until one is placed.
 	AndroidAPKPath string
-	Logger         *slog.Logger
+	// Events pushes change-log wakeups to SSE subscribers (GET /api/events).
+	// Optional: nil disables the stream (the endpoint 500s and clients fall back
+	// to polling), so tests and non-serve callers need not wire it.
+	Events *ChangeBroker
+	Logger *slog.Logger
 }
 
 // NewRouter builds the top-level HTTP handler.
@@ -97,6 +101,7 @@ func NewRouter(d Deps) http.Handler {
 			r.Post("/devices/pair", d.createPairingCode)
 			r.Delete("/devices/{id}", d.revokeDevice)
 			r.Get("/changes", d.changes)
+			r.Get("/events", d.events)
 			r.Post("/assets", d.uploadAsset)
 			r.Post("/assets/batch", d.batchAssets)
 			r.Post("/assets/zip", d.downloadZip)
