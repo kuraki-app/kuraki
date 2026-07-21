@@ -1,5 +1,5 @@
 import { session } from './stores';
-import type { Album, Asset, AssetList, BackupStatus, DupAsset, IntegrityRun, Job, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SetupStatus, Tag } from './types';
+import type { Album, Asset, AssetList, BackupStatus, DupAsset, IntegrityRun, Job, JobDetail, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SetupStatus, Tag } from './types';
 
 export type AssetPatch = {
   taken_at?: string;
@@ -95,7 +95,7 @@ export const api = {
   placesSummary: () => req<{ places: PlaceGroup[] }>('/api/places/summary'),
   stats: () => req<LibraryStats>('/api/stats'),
   jobs: () => req<{ jobs: Job[] }>('/api/jobs'),
-  job: (id: string) => req<Job>(`/api/jobs/${id}`),
+  job: (id: string) => req<JobDetail>(`/api/jobs/${id}`),
   mediaIssues: () => req<{ issues: MediaIssue[] }>('/api/media/issues'),
   rebuildAsset: (id: string) => req<{ status: string }>(`/api/assets/${id}/rebuild`, { method: 'POST' }),
   duplicates: () => req<{ groups: DupAsset[][] }>('/api/duplicates'),

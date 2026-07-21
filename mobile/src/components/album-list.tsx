@@ -21,7 +21,7 @@ const gap = 12;
 // go through the exact same authenticated-thumb path as the grid instead of
 // duplicating the URL/header construction here.
 function coverAsset(id: string): LibraryAsset {
-  return { id, filename: '', media_type: 'image', favorite: false, thumbnail_url: id };
+  return { id, filename: '', media_type: 'image', favorite: false, web_viewable: false, thumbnail_url: id };
 }
 
 // AlbumList is the Albums segment of the Library tab: a grid of album cards

@@ -4,7 +4,7 @@
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
   import { relativeTime } from '$lib/format';
-  import type { Job, MediaIssue } from '$lib/types';
+  import type { Job, JobError, MediaIssue } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
 
@@ -13,7 +13,7 @@
   let loading = true;
   let timer: ReturnType<typeof setInterval>;
   let open: Record<string, boolean> = {};
-  let details: Record<string, { filename: string; error: string }[]> = {};
+  let details: Record<string, JobError[]> = {};
   let rebuilding: Record<string, boolean> = {};
 
   async function rebuild(id: string) {

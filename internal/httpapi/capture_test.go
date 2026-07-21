@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/kuraki-app/kuraki/internal/db"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 	"github.com/kuraki-app/kuraki/internal/media"
 	"github.com/kuraki-app/kuraki/internal/queue"
 	"github.com/kuraki-app/kuraki/internal/storage"
@@ -41,11 +42,11 @@ func TestCaptureUploadResumesAndQueuesImport(t *testing.T) {
 	router := NewRouter(Deps{Version: "test", DB: database, Store: store, Queue: q, Logger: slog.Default()})
 	cookie := setupTestSession(t, router)
 
-	deviceRec := postJSON(t, router, "/api/devices", deviceRequest{Name: "Test phone"}, cookie)
+	deviceRec := postJSON(t, router, "/api/devices", apitypes.DeviceRequest{Name: "Test phone"}, cookie)
 	if deviceRec.Code != http.StatusCreated {
 		t.Fatalf("device status = %d body=%s", deviceRec.Code, deviceRec.Body.String())
 	}
-	var device deviceResponse
+	var device apitypes.DeviceResponse
 	if err := json.Unmarshal(deviceRec.Body.Bytes(), &device); err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +60,7 @@ func TestCaptureUploadResumesAndQueuesImport(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	startBody, _ := json.Marshal(captureStartRequest{Filename: "camera.jpg", SizeBytes: int64(len(data))})
+	startBody, _ := json.Marshal(apitypes.CaptureStartRequest{Filename: "camera.jpg", SizeBytes: int64(len(data))})
 	startReq := httptest.NewRequest(http.MethodPost, "/api/capture/uploads", bytes.NewReader(startBody))
 	startReq.Header.Set("Content-Type", "application/json")
 	startReq.Header.Set("Authorization", "Bearer "+device.Token)
@@ -68,7 +69,7 @@ func TestCaptureUploadResumesAndQueuesImport(t *testing.T) {
 	if startRec.Code != http.StatusCreated {
 		t.Fatalf("start status = %d body=%s", startRec.Code, startRec.Body.String())
 	}
-	var session captureSessionResponse
+	var session apitypes.CaptureSessionResponse
 	if err := json.Unmarshal(startRec.Body.Bytes(), &session); err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +85,7 @@ func TestCaptureUploadResumesAndQueuesImport(t *testing.T) {
 	if completeRec.Code != http.StatusAccepted {
 		t.Fatalf("complete status = %d body=%s", completeRec.Code, completeRec.Body.String())
 	}
-	var completed captureSessionResponse
+	var completed apitypes.CaptureSessionResponse
 	if err := json.Unmarshal(completeRec.Body.Bytes(), &completed); err != nil {
 		t.Fatal(err)
 	}

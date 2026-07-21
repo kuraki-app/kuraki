@@ -9,17 +9,15 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/kuraki-app/kuraki/internal/external"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
 
-type externalLibraryDTO struct {
-	ID, Name, RootPath, CreatedAt string
-	AssetCount                    int `json:"asset_count"`
-}
-type externalLibraryRequest struct {
-	Name     string `json:"name"`
-	RootPath string `json:"root_path"`
-}
-
+// @Summary List external libraries
+// @Tags    external
+// @Produce json
+// @Success 200 {object} apitypes.ExternalLibraryList
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/external-libraries [get]
 func (d Deps) listExternalLibraries(w http.ResponseWriter, r *http.Request) {
 	u := d.currentUser(r)
 	if u == nil {
@@ -32,24 +30,35 @@ func (d Deps) listExternalLibraries(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	out := make([]externalLibraryDTO, 0)
+	out := make([]apitypes.ExternalLibrary, 0)
 	for rows.Next() {
-		var x externalLibraryDTO
+		var x apitypes.ExternalLibrary
 		if err := rows.Scan(&x.ID, &x.Name, &x.RootPath, &x.CreatedAt, &x.AssetCount); err != nil {
 			writeError(w, 500, "scan_external_libraries_failed")
 			return
 		}
 		out = append(out, x)
 	}
-	writeJSON(w, 200, map[string]any{"libraries": out})
+	writeJSON(w, 200, apitypes.ExternalLibraryList{Libraries: out})
 }
+
+// @Summary Link external library
+// @Tags    external
+// @Accept  json
+// @Produce json
+// @Param   body body apitypes.ExternalLibraryRequest true "name + root path"
+// @Success 201 {object} map[string]interface{}
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Failure 409 {object} apitypes.Error
+// @Router  /api/external-libraries [post]
 func (d Deps) createExternalLibrary(w http.ResponseWriter, r *http.Request) {
 	u := d.currentUser(r)
 	if u == nil {
 		writeError(w, 401, "unauthorized")
 		return
 	}
-	var req externalLibraryRequest
+	var req apitypes.ExternalLibraryRequest
 	if json.NewDecoder(r.Body).Decode(&req) != nil {
 		writeError(w, 400, "invalid_json")
 		return
@@ -77,6 +86,16 @@ func (d Deps) createExternalLibrary(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, 201, map[string]any{"id": id.String(), "name": req.Name, "root_path": root, "scanned": result.Scanned, "indexed": result.Indexed})
 }
+
+// @Summary Rescan external library
+// @Tags    external
+// @Produce json
+// @Param   id path string true "external library id"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Router  /api/external-libraries/{id}/scan [post]
 func (d Deps) scanExternalLibrary(w http.ResponseWriter, r *http.Request) {
 	u := d.currentUser(r)
 	if u == nil {

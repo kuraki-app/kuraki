@@ -1,9 +1,19 @@
 package httpapi
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
+)
 
 // placesAssets returns every non-deleted asset that carries GPS, for plotting on
 // the map. It reuses the standard asset DTO (which includes gps + thumbnail).
+// @Summary List assets with GPS
+// @Tags    places
+// @Produce json
+// @Success 200 {object} apitypes.AssetList
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/places [get]
 func (d Deps) placesAssets(w http.ResponseWriter, r *http.Request) {
 	rows, err := d.DB.QueryContext(r.Context(),
 		assetSelectSQL("WHERE a.deleted_at IS NULL AND a.gps_lat IS NOT NULL AND a.gps_lon IS NOT NULL")+" LIMIT 5000")
@@ -17,19 +27,18 @@ func (d Deps) placesAssets(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "scan_places_failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, assetListResponse{Assets: assets})
-}
-
-type placeGroup struct {
-	City          string `json:"city"`
-	Country       string `json:"country"`
-	Count         int    `json:"count"`
-	CoverAssetID  string `json:"cover_asset_id"`
-	CoverThumbURL string `json:"cover_thumb_url"`
+	writeJSON(w, http.StatusOK, apitypes.AssetList{Assets: assets})
 }
 
 // placesSummary groups assets by resolved place so the UI can show a list of
 // places with counts and a cover thumbnail (e.g. "Paris, France · 128").
+// @Summary Places summary
+// @Tags    places
+// @Produce json
+// @Success 200 {object} apitypes.PlaceSummary
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/places/summary [get]
+// @Router  /api/capture/places [get]
 func (d Deps) placesSummary(w http.ResponseWriter, r *http.Request) {
 	rows, err := d.DB.QueryContext(r.Context(), `
 		SELECT place_city, COALESCE(place_country,''), COUNT(*), MAX(id)
@@ -43,9 +52,9 @@ func (d Deps) placesSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	groups := make([]placeGroup, 0)
+	groups := make([]apitypes.PlaceGroup, 0)
 	for rows.Next() {
-		var g placeGroup
+		var g apitypes.PlaceGroup
 		if err := rows.Scan(&g.City, &g.Country, &g.Count, &g.CoverAssetID); err != nil {
 			writeError(w, http.StatusInternalServerError, "scan_places_summary_failed")
 			return
@@ -53,5 +62,5 @@ func (d Deps) placesSummary(w http.ResponseWriter, r *http.Request) {
 		g.CoverThumbURL = "/api/assets/" + g.CoverAssetID + "/thumb"
 		groups = append(groups, g)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"places": groups})
+	writeJSON(w, http.StatusOK, apitypes.PlaceSummary{Places: groups})
 }

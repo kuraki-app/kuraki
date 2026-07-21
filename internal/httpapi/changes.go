@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
 
 // logAssetChange records an asset mutation in change_log for the delta feed.
@@ -22,23 +24,19 @@ const (
 	changesMaxLimit     = 1000
 )
 
-type changeEntry struct {
-	ID       int64  `json:"id"`
-	Entity   string `json:"entity"`
-	EntityID string `json:"entity_id"`
-	Op       string `json:"op"`
-}
-
-type changesResponse struct {
-	Cursor  int64         `json:"cursor"`
-	Changes []changeEntry `json:"changes"`
-	HasMore bool          `json:"has_more"`
-}
-
 // changes serves the owner-scoped delta feed. The client passes its last cursor
 // as ?since=; the response's cursor is fed straight back next time. Thin by
 // design — entries carry only the id/op, and the client refetches changed assets
 // via the existing asset endpoints.
+// @Summary Delta feed
+// @Tags    sync
+// @Produce json
+// @Param   since query int false "cursor"
+// @Param   limit query int false "page size"
+// @Success 200 {object} apitypes.ChangesResponse
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/changes [get]
+// @Router  /api/capture/changes [get]
 func (d Deps) changes(w http.ResponseWriter, r *http.Request) {
 	owner, ok := d.ownerID(r)
 	if !ok {
@@ -68,9 +66,9 @@ func (d Deps) changes(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	out := changesResponse{Cursor: since, Changes: make([]changeEntry, 0)}
+	out := apitypes.ChangesResponse{Cursor: since, Changes: make([]apitypes.ChangeEntry, 0)}
 	for rows.Next() {
-		var c changeEntry
+		var c apitypes.ChangeEntry
 		if err := rows.Scan(&c.ID, &c.Entity, &c.EntityID, &c.Op); err != nil {
 			writeError(w, http.StatusInternalServerError, "changes_scan_failed")
 			return

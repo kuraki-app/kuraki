@@ -9,25 +9,22 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
 
 const pairingTTL = 5 * time.Minute
-
-type pairingCodeResponse struct {
-	Code      string `json:"code"`
-	ExpiresAt string `json:"expires_at"`
-}
-
-type pairClaimRequest struct {
-	Code string `json:"code"`
-	Name string `json:"name"`
-}
 
 // createPairingCode mints a short-lived, single-use code for an authenticated
 // owner. The web app renders it as a QR (alongside its own origin) so a phone
 // can pair without the owner copying a token by hand. Only the SHA-256 of the
 // code is persisted (like devices.token_hash); the plaintext is returned once,
 // embedded in the QR, and never stored.
+// @Summary Create device pairing code
+// @Tags    devices
+// @Produce json
+// @Success 201 {object} apitypes.PairingCodeResponse
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/devices/pair [post]
 func (d Deps) createPairingCode(w http.ResponseWriter, r *http.Request) {
 	user := d.currentUser(r)
 	if user == nil {
@@ -46,14 +43,25 @@ func (d Deps) createPairingCode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "pairing_code_failed")
 		return
 	}
-	writeJSON(w, http.StatusCreated, pairingCodeResponse{Code: code, ExpiresAt: expires})
+	writeJSON(w, http.StatusCreated, apitypes.PairingCodeResponse{Code: code, ExpiresAt: expires})
 }
 
 // claimPairingCode is unauthenticated by necessity — the device has no
 // credentials yet. It redeems a valid, unexpired, unclaimed code exactly once
 // and returns a fresh device token. The claim is rate-limited per IP.
+// @Summary Claim device pairing code
+// @Tags    devices
+// @Accept  json
+// @Produce json
+// @Param   body body apitypes.PairClaimRequest true "pairing code + device name"
+// @Success 201 {object} apitypes.DeviceResponse
+// @Failure 400 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Failure 409 {object} apitypes.Error
+// @Failure 410 {object} apitypes.Error
+// @Router  /api/devices/pair/claim [post]
 func (d Deps) claimPairingCode(w http.ResponseWriter, r *http.Request) {
-	var req pairClaimRequest
+	var req apitypes.PairClaimRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
@@ -141,5 +149,5 @@ func (d Deps) claimPairingCode(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "pairing_claim_failed")
 		return
 	}
-	writeJSON(w, http.StatusCreated, deviceResponse{ID: deviceID.String(), Name: req.Name, Token: token})
+	writeJSON(w, http.StatusCreated, apitypes.DeviceResponse{ID: deviceID.String(), Name: req.Name, Token: token})
 }

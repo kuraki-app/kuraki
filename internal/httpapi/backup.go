@@ -10,6 +10,12 @@ import (
 // Library dashboard can show whether the unattended safety net is running and
 // current. When no automatic backup has ever run — including when the feature
 // is not configured — it returns {"last": null, "enabled": <bool>}.
+// @Summary Backup status
+// @Tags    admin
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/backup [get]
 func (d Deps) backupStatus(w http.ResponseWriter, r *http.Request) {
 	last, ok, err := backup.LastRun(r.Context(), d.DB)
 	if err != nil {

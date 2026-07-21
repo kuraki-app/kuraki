@@ -75,6 +75,41 @@ cross: ## Cross-compile release binaries into ./dist
 		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "$(LDFLAGS)" -o $$out $(CMD); \
 	done
 
+# Generator versions are pinned: `make check-gen` diffs regenerated output against
+# what is committed, so an unpinned generator would fail the gate spuriously.
+SWAG_VERSION := v1.16.4
+SWAG         := go run github.com/swaggo/swag/cmd/swag@$(SWAG_VERSION)
+S2O_VERSION  := 7.0.8
+OAPI_TS_VER  := 7.4.4
+
+.PHONY: openapi
+openapi: ## Regenerate the OpenAPI contract from the Go handlers
+	@tmp=$$(mktemp -d); \
+	trap 'rm -rf "$$tmp"' EXIT; \
+	$(SWAG) init --dir ./cmd/kuraki,./internal/httpapi --parseInternal \
+		--output "$$tmp" --outputTypes json; \
+	npx -y swagger2openapi@$(S2O_VERSION) "$$tmp/swagger.json" -o internal/httpapi/apispec/openapi.json
+
+.PHONY: client-types
+client-types: ## Regenerate web + mobile TS types from the contract
+	npx -y openapi-typescript@$(OAPI_TS_VER) internal/httpapi/apispec/openapi.json -o web/src/lib/api.gen.ts
+	npx -y openapi-typescript@$(OAPI_TS_VER) internal/httpapi/apispec/openapi.json -o mobile/src/lib/api.gen.ts
+
+.PHONY: gen
+gen: openapi client-types ## Regenerate the contract and all client types
+
+GEN_ARTIFACTS := internal/httpapi/apispec/openapi.json web/src/lib/api.gen.ts mobile/src/lib/api.gen.ts
+
+.PHONY: check-gen
+check-gen: gen ## Fail if the committed contract/client types are stale (CI gate)
+	@git diff --exit-code -- $(GEN_ARTIFACTS) || { \
+		echo; \
+		echo "ERROR: generated API contract is out of date."; \
+		echo "You changed the Go handlers or apitypes without regenerating."; \
+		echo "Run 'make gen' and commit the result."; \
+		exit 1; \
+	}
+
 .PHONY: clean
 clean: ## Remove build artifacts
 	rm -rf $(BIN_DIR) dist

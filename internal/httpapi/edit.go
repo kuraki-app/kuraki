@@ -11,18 +11,22 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/kuraki-app/kuraki/internal/geo"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
-
-type assetPatch struct {
-	TakenAt     *string  `json:"taken_at"` // RFC3339; empty string clears
-	GPSLat      *float64 `json:"gps_lat"`  // set with GPSLon
-	GPSLon      *float64 `json:"gps_lon"`
-	ClearGPS    bool     `json:"clear_gps"` // remove location
-	Description *string  `json:"description"`
-}
 
 // patchAsset edits a single asset's capture date, location, or caption. Changing
 // the location re-runs offline reverse geocoding; any change refreshes search.
+// @Summary Edit asset
+// @Tags    assets
+// @Accept  json
+// @Produce json
+// @Param   id   path string             true "asset id"
+// @Param   body body apitypes.AssetPatch true "fields to change"
+// @Success 200 {object} apitypes.Asset
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Router  /api/assets/{id} [patch]
 func (d Deps) patchAsset(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	owner, ok := d.ownerID(r)
@@ -30,7 +34,7 @@ func (d Deps) patchAsset(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	var p assetPatch
+	var p apitypes.AssetPatch
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
@@ -118,20 +122,24 @@ func (d Deps) patchAsset(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, row.toDTO())
 }
 
-type shiftRequest struct {
-	IDs     []string `json:"ids"`
-	Minutes int      `json:"minutes"` // may be negative
-}
-
 // shiftTime shifts the capture time of many assets by a fixed offset, for fixing
 // wrong camera timezones on a batch of imports.
+// @Summary Shift capture time
+// @Tags    assets
+// @Accept  json
+// @Produce json
+// @Param   body body apitypes.ShiftRequest true "ids + minute offset"
+// @Success 200 {object} map[string]int
+// @Failure 400 {object} apitypes.Error
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/assets/shift-time [post]
 func (d Deps) shiftTime(w http.ResponseWriter, r *http.Request) {
 	owner, ok := d.ownerID(r)
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	var req shiftRequest
+	var req apitypes.ShiftRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return

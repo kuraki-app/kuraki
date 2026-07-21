@@ -11,6 +11,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
 
 func TestExportLibraryStreamsOriginalBytes(t *testing.T) {
@@ -50,7 +52,7 @@ func TestZipExportRejectsUnavailableOriginal(t *testing.T) {
 	}
 	router := NewRouter(Deps{Version: "test", DB: database, Store: store, Logger: slog.Default()})
 	cookie := setupTestSession(t, router)
-	body, err := json.Marshal(zipRequest{IDs: []string{id}})
+	body, err := json.Marshal(apitypes.ZipRequest{IDs: []string{id}})
 	if err != nil {
 		t.Fatal(err)
 	}

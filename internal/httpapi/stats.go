@@ -1,27 +1,20 @@
 package httpapi
 
-import "net/http"
+import (
+	"net/http"
 
-type yearCount struct {
-	Year  string `json:"year"`
-	Count int    `json:"count"`
-}
-
-type libraryStats struct {
-	Total      int         `json:"total"`
-	Images     int         `json:"images"`
-	Videos     int         `json:"videos"`
-	Favorites  int         `json:"favorites"`
-	Trashed    int         `json:"trashed"`
-	Albums     int         `json:"albums"`
-	Places     int         `json:"places"`
-	TotalBytes int64       `json:"total_bytes"`
-	ByYear     []yearCount `json:"by_year"`
-}
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
+)
 
 // stats reports library totals for the dashboard.
+// @Summary Library stats
+// @Tags    stats
+// @Produce json
+// @Success 200 {object} apitypes.LibraryStats
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/stats [get]
 func (d Deps) stats(w http.ResponseWriter, r *http.Request) {
-	var s libraryStats
+	var s apitypes.LibraryStats
 	ctx := r.Context()
 
 	err := d.DB.QueryRowContext(ctx, `
@@ -54,9 +47,9 @@ func (d Deps) stats(w http.ResponseWriter, r *http.Request) {
 		GROUP BY yr ORDER BY yr DESC`)
 	if err == nil {
 		defer rows.Close()
-		s.ByYear = make([]yearCount, 0)
+		s.ByYear = make([]apitypes.YearCount, 0)
 		for rows.Next() {
-			var y yearCount
+			var y apitypes.YearCount
 			if err := rows.Scan(&y.Year, &y.Count); err == nil {
 				s.ByYear = append(s.ByYear, y)
 			}

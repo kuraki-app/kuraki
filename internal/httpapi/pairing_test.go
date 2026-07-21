@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/kuraki-app/kuraki/internal/db"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 	"github.com/kuraki-app/kuraki/internal/storage"
 )
 
@@ -36,7 +37,7 @@ func TestPairingCodeClaimCreatesDevice(t *testing.T) {
 	if codeRec.Code != http.StatusCreated {
 		t.Fatalf("pair status = %d body=%s", codeRec.Code, codeRec.Body.String())
 	}
-	var minted pairingCodeResponse
+	var minted apitypes.PairingCodeResponse
 	if err := json.Unmarshal(codeRec.Body.Bytes(), &minted); err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +63,7 @@ func TestPairingCodeClaimCreatesDevice(t *testing.T) {
 	if claim.Code != http.StatusCreated {
 		t.Fatalf("claim status = %d body=%s", claim.Code, claim.Body.String())
 	}
-	var device deviceResponse
+	var device apitypes.DeviceResponse
 	if err := json.Unmarshal(claim.Body.Bytes(), &device); err != nil {
 		t.Fatal(err)
 	}

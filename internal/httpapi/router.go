@@ -81,6 +81,7 @@ func NewRouter(d Deps) http.Handler {
 
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/status", d.status)
+		r.Get("/openapi.json", d.serveOpenAPI)
 		r.Get("/setup", d.setupStatus)
 		r.Post("/setup", d.setup)
 		r.With(loginLimiter.middleware).Post("/login", d.login)
@@ -213,6 +214,12 @@ func (d Deps) healthz(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+// status reports the server name and version.
+// @Summary  Server status
+// @Tags     system
+// @Produce  json
+// @Success  200 {object} map[string]string
+// @Router   /api/status [get]
 func (d Deps) status(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"name":    "kuraki",

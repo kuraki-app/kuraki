@@ -6,33 +6,25 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
-
-type jobDTO struct {
-	ID         string `json:"id"`
-	Kind       string `json:"kind"`
-	Status     string `json:"status"`
-	Total      int    `json:"total"`
-	Imported   int    `json:"imported"`
-	Duplicates int    `json:"duplicates"`
-	Skipped    int    `json:"skipped"`
-	Errors     int    `json:"errors"`
-	Attempts   int    `json:"attempts"`
-	Error      string `json:"error,omitempty"`
-	CreatedAt  string `json:"created_at"`
-	UpdatedAt  string `json:"updated_at"`
-}
 
 const jobColumns = `id, kind, status, total, imported, duplicates, skipped, errors, attempts, error, created_at, updated_at`
 
-func scanJob(s interface{ Scan(...any) error }) (jobDTO, error) {
-	var j jobDTO
+func scanJob(s interface{ Scan(...any) error }) (apitypes.Job, error) {
+	var j apitypes.Job
 	err := s.Scan(&j.ID, &j.Kind, &j.Status, &j.Total, &j.Imported, &j.Duplicates,
 		&j.Skipped, &j.Errors, &j.Attempts, &j.Error, &j.CreatedAt, &j.UpdatedAt)
 	return j, err
 }
 
 // listJobs returns recent import jobs (most recent first).
+// @Summary List jobs
+// @Tags    jobs
+// @Produce json
+// @Success 200 {object} apitypes.JobList
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/jobs [get]
 func (d Deps) listJobs(w http.ResponseWriter, r *http.Request) {
 	rows, err := d.DB.QueryContext(r.Context(),
 		`SELECT `+jobColumns+` FROM jobs ORDER BY created_at DESC LIMIT 50`)
@@ -41,7 +33,7 @@ func (d Deps) listJobs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
-	jobs := make([]jobDTO, 0)
+	jobs := make([]apitypes.Job, 0)
 	for rows.Next() {
 		j, err := scanJob(rows)
 		if err != nil {
@@ -50,20 +42,18 @@ func (d Deps) listJobs(w http.ResponseWriter, r *http.Request) {
 		}
 		jobs = append(jobs, j)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"jobs": jobs})
-}
-
-type jobError struct {
-	Filename string `json:"filename"`
-	Error    string `json:"error"`
-}
-
-type jobDetail struct {
-	jobDTO
-	ErrorsDetail []jobError `json:"errors_detail"`
+	writeJSON(w, http.StatusOK, apitypes.JobList{Jobs: jobs})
 }
 
 // getJob returns one job's current status, including any per-file errors.
+// @Summary Get job
+// @Tags    jobs
+// @Produce json
+// @Param   id path string true "job id"
+// @Success 200 {object} apitypes.JobDetail
+// @Failure 401 {object} apitypes.Error
+// @Failure 404 {object} apitypes.Error
+// @Router  /api/jobs/{id} [get]
 func (d Deps) getJob(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	j, err := scanJob(d.DB.QueryRowContext(r.Context(),
@@ -77,13 +67,13 @@ func (d Deps) getJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	detail := jobDetail{jobDTO: j, ErrorsDetail: []jobError{}}
+	detail := apitypes.JobDetail{Job: j, ErrorsDetail: []apitypes.JobError{}}
 	rows, err := d.DB.QueryContext(r.Context(),
 		`SELECT filename, error FROM job_errors WHERE job_id = ? ORDER BY id`, id)
 	if err == nil {
 		defer rows.Close()
 		for rows.Next() {
-			var e jobError
+			var e apitypes.JobError
 			if err := rows.Scan(&e.Filename, &e.Error); err == nil {
 				detail.ErrorsDetail = append(detail.ErrorsDetail, e)
 			}

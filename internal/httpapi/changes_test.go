@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strconv"
 	"testing"
+
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
 
 // countChanges returns the number of change_log rows for an asset+op.
@@ -50,12 +52,12 @@ func TestChangesFeedSessionAuth(t *testing.T) {
 	router, cookie, db := deviceFavoriteRouter(t)
 	seedOwnedAsset(t, db, "a1")
 
-	rec := postJSON(t, router, "/api/assets/a1/favorite", favoriteRequest{Favorite: true}, cookie)
+	rec := postJSON(t, router, "/api/assets/a1/favorite", apitypes.FavoriteRequest{Favorite: true}, cookie)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("favorite via session = %d body=%s", rec.Code, rec.Body.String())
 	}
 
-	page := getJSONWithCookie[changesResponse](t, router, "/api/changes?since=0", cookie)
+	page := getJSONWithCookie[apitypes.ChangesResponse](t, router, "/api/changes?since=0", cookie)
 	if len(page.Changes) != 1 {
 		t.Fatalf("expected 1 change via session mount, got %+v", page)
 	}
@@ -72,7 +74,7 @@ func TestBatchFavoriteEmitsChange(t *testing.T) {
 	seedOwnedAsset(t, db, "a1")
 	seedOwnedAsset(t, db, "a2")
 
-	rec := postJSON(t, router, "/api/assets/batch", batchRequest{Op: "favorite", IDs: []string{"a1", "a2"}}, cookie)
+	rec := postJSON(t, router, "/api/assets/batch", apitypes.BatchRequest{Op: "favorite", IDs: []string{"a1", "a2"}}, cookie)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("batch favorite = %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -96,7 +98,7 @@ func TestBatchDeleteNotDoubleLogged(t *testing.T) {
 	router, cookie, db, store := deviceTrashTestRouter(t)
 	seedOwnedAssetFile(t, context.Background(), db, store, "a1")
 
-	rec := postJSON(t, router, "/api/assets/batch", batchRequest{Op: "delete", IDs: []string{"a1"}}, cookie)
+	rec := postJSON(t, router, "/api/assets/batch", apitypes.BatchRequest{Op: "delete", IDs: []string{"a1"}}, cookie)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("batch delete = %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -114,7 +116,7 @@ func TestShiftTimeEmitsChange(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rec := postJSON(t, router, "/api/assets/shift-time", shiftRequest{IDs: []string{"a1"}, Minutes: 60}, cookie)
+	rec := postJSON(t, router, "/api/assets/shift-time", apitypes.ShiftRequest{IDs: []string{"a1"}, Minutes: 60}, cookie)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("shift-time = %d body=%s", rec.Code, rec.Body.String())
 	}

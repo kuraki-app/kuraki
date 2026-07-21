@@ -40,3 +40,6 @@ __pycache__/
 .idea/
 .vscode/
 *.log
+
+# swag intermediate (only apispec/openapi.json is committed)
+internal/httpapi/apispec/swagger.json

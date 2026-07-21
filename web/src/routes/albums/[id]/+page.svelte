@@ -7,7 +7,8 @@
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
 
-  $: id = $page.params.id;
+  // Guaranteed by the [id] route segment; SvelteKit types params as optional.
+  $: id = $page.params.id!;
   let name = 'Album';
 
   $: if (id) loadName();

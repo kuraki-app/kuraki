@@ -5,15 +5,8 @@ import (
 	"net/http"
 
 	"github.com/kuraki-app/kuraki/internal/duplicates"
+	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
-
-type dupAsset struct {
-	ID           string  `json:"id"`
-	Filename     string  `json:"filename"`
-	SizeBytes    int64   `json:"size_bytes"`
-	TakenAt      *string `json:"taken_at,omitempty"`
-	ThumbnailURL *string `json:"thumbnail_url,omitempty"`
-}
 
 // dupThreshold is the maximum perceptual-hash hamming distance for two images to
 // be treated as duplicates. 0 is an exact structural match; a small value also
@@ -23,6 +16,12 @@ const dupThreshold = 8
 // duplicates groups images whose perceptual hashes are within dupThreshold —
 // visually identical or near-identical copies that byte-level dedup does not
 // catch. The default is "keep both": nothing is removed automatically.
+// @Summary List duplicate groups
+// @Tags    duplicates
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/duplicates [get]
 func (d Deps) duplicates(w http.ResponseWriter, r *http.Request) {
 	u := d.currentUser(r)
 	if u == nil {
@@ -40,7 +39,7 @@ func (d Deps) duplicates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !ok {
-		writeJSON(w, http.StatusOK, map[string]any{"groups": []dupAsset{}, "run": nil})
+		writeJSON(w, http.StatusOK, map[string]any{"groups": []apitypes.DupAsset{}, "run": nil})
 		return
 	}
 	rows, err := d.DB.QueryContext(r.Context(), `
@@ -54,9 +53,9 @@ func (d Deps) duplicates(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	groups := make([][]dupAsset, 0)
+	groups := make([][]apitypes.DupAsset, 0)
 	groupID := -1
-	var group []dupAsset
+	var group []apitypes.DupAsset
 	for rows.Next() {
 		var id, filename string
 		var currentGroup int
@@ -66,7 +65,7 @@ func (d Deps) duplicates(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "scan_duplicates_failed")
 			return
 		}
-		a := dupAsset{ID: id, Filename: filename, SizeBytes: size}
+		a := apitypes.DupAsset{ID: id, Filename: filename, SizeBytes: size}
 		if takenAt.Valid {
 			a.TakenAt = &takenAt.String
 		}
@@ -89,6 +88,12 @@ func (d Deps) duplicates(w http.ResponseWriter, r *http.Request) {
 
 // runDuplicates starts a durable complete-library scan. A successful run is
 // retained in duplicate_runs/group_members for operational inspection.
+// @Summary Run duplicate scan
+// @Tags    duplicates
+// @Produce json
+// @Success 202 {object} map[string]interface{}
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/duplicates/run [post]
 func (d Deps) runDuplicates(w http.ResponseWriter, r *http.Request) {
 	u := d.currentUser(r)
 	if u == nil {
