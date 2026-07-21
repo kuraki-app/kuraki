@@ -20,7 +20,10 @@ import { api } from './api';
 import { bumpLibrary } from './stores';
 
 const CURSOR_KEY = 'kuraki:sync-cursor';
-const POLL_MS = 15_000;
+// Poll cadence. Short when SSE is unavailable/disconnected (the sole freshness
+// mechanism), long when SSE is connected (a mere safety net behind push).
+const POLL_ACTIVE_MS = 15_000;
+const POLL_BACKUP_MS = 60_000;
 
 function readCursor(): number {
   if (typeof localStorage === 'undefined') return 0;
@@ -61,28 +64,60 @@ async function pollOnce(): Promise<void> {
   }
 }
 
-/**
- * startSync begins polling the delta feed. Idempotent — a second call while
- * already running returns a no-op stop. Returns a stop function that clears the
- * timer and its listener. Skips a poll while the tab is hidden to avoid
- * pointless background traffic, and fires one immediately on regaining
- * visibility so a returning user sees fresh data.
- */
-export function startSync(): () => void {
-  if (timer) return () => {};
-  const tick = () => {
+let source: EventSource | null = null;
+
+// startInterval starts (or restarts) the fallback poll timer at the given
+// cadence, replacing any existing one.
+function startInterval(ms: number) {
+  if (timer) clearInterval(timer);
+  timer = setInterval(() => {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     void pollOnce();
-  };
+  }, ms);
+}
+
+/**
+ * startSync begins syncing the delta feed. Primary path is Server-Sent Events
+ * (`/api/events`): the server pushes a wakeup the instant change_log advances,
+ * and each wakeup drains the owner-scoped cursor feed — so SSE replaces the poll
+ * timer rather than the feed. A slow fallback poll runs behind it (long while
+ * SSE is connected, short when it drops) so freshness never depends on the
+ * stream staying up. Idempotent; returns a stop function.
+ *
+ * Skips work while the tab is hidden and fires one drain on regaining
+ * visibility so a returning user sees fresh data immediately.
+ */
+export function startSync(): () => void {
+  if (timer || source) return () => {};
   const onVisible = () => {
     if (document.visibilityState === 'visible') void pollOnce();
   };
+
+  // Always drain once on start (covers changes made while away, and primes the
+  // cursor); then let SSE drive, with the fallback poll behind it.
   void pollOnce();
-  timer = setInterval(tick, POLL_MS);
+
+  if (typeof EventSource !== 'undefined') {
+    source = new EventSource('/api/events', { withCredentials: true });
+    // A `change` push means change_log advanced — drain from our cursor.
+    source.addEventListener('change', () => void pollOnce());
+    // On open, relax the fallback poll to a slow safety net.
+    source.addEventListener('open', () => startInterval(POLL_BACKUP_MS));
+    // On error the browser auto-reconnects; meanwhile tighten the poll so the
+    // gap is covered by the fallback at the active cadence.
+    source.addEventListener('error', () => startInterval(POLL_ACTIVE_MS));
+    startInterval(POLL_BACKUP_MS);
+  } else {
+    // No EventSource (very old browser): polling is the only mechanism.
+    startInterval(POLL_ACTIVE_MS);
+  }
+
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisible);
   return () => {
     if (timer) clearInterval(timer);
     timer = null;
+    if (source) source.close();
+    source = null;
     if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisible);
   };
 }

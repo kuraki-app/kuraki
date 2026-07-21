@@ -587,6 +587,13 @@ func (a *App) Serve(ctx context.Context) error {
 	}()
 	go a.Queue.Start(ctx)
 
+	// Change broker: one poller fans change_log advances out to SSE subscribers
+	// (GET /api/events), so connected web clients get near-real-time updates
+	// instead of waiting on their poll interval. 1s cadence trades a cheap
+	// indexed MAX query for sub-second push latency.
+	events := httpapi.NewChangeBroker(a.DB, a.Log)
+	go events.Poll(ctx, time.Second)
+
 	handler := httpapi.NewRouter(httpapi.Deps{
 		Version:        a.Version,
 		DB:             a.DB,
@@ -599,6 +606,7 @@ func (a *App) Serve(ctx context.Context) error {
 		MetricsToken:   a.Cfg.MetricsToken,
 		BackupEnabled:  a.Cfg.BackupDir != "",
 		AndroidAPKPath: a.Cfg.AndroidAPKPath(),
+		Events:         events,
 		Logger:         a.Log,
 	})
 	srv := &http.Server{
