@@ -165,11 +165,16 @@ func TestRequireSessionPrincipalRejectsDevice(t *testing.T) {
 }
 
 // TestRequireDevicePrincipalRejectsSession proves the device-only guard
-// rejects a session principal (403 device_required).
+// rejects a session principal (403 device_required) and accepts a device
+// principal (200).
 func TestRequireDevicePrincipalRejectsSession(t *testing.T) {
 	router, cookie, db := deviceFavoriteRouter(t)
-	_ = router
+	token := registerTestDevice(t, router, cookie)
+	seedOwnedAsset(t, db, "a1")
 	if code := probeDeviceOnlyCode(t, db, withCookie(cookie)); code != http.StatusForbidden {
 		t.Fatalf("session on device-only route = %d, want 403", code)
+	}
+	if code := probeDeviceOnlyCode(t, db, withBearer(token)); code != http.StatusOK {
+		t.Fatalf("device on device-only route = %d, want 200", code)
 	}
 }
