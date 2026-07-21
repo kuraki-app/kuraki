@@ -9,9 +9,9 @@ standalone app**: it is built into the Go server and talks to it over `/api`.
 `npm run build` compiles this app with `@sveltejs/adapter-static` (SPA mode) into
 `internal/httpapi/assets/`, which the Go binary embeds with `go:embed`. So the
 production server ships the UI inside a single binary — there is no separate web
-server to deploy. (In Docker, Caddy additionally serves this same built UI on
-`:8080` and proxies `/api` back to the Go server on `:3000`; see the root
-[README](../README.md) and [DEPLOYMENT.md](../DEPLOYMENT.md).)
+server to deploy: `kuraki serve` serves the UI and the API from one origin (in
+Docker and standalone alike). The embedded UI boots under the server's strict CSP
+via a per-request script nonce injected into `index.html`.
 
 **Do not hand-edit `internal/httpapi/assets/` — it is generated. Edit source
 here and rebuild.**

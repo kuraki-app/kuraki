@@ -91,9 +91,8 @@ docker compose up -d
 Open <http://localhost:3000> and create your admin account on first visit. Your library lives in
 `./kuraki-data` — back up that directory and you have everything.
 
-The container runs both surfaces on two origins: the Go API + media on `:3000` (which also
-serves the embedded UI) and the SvelteKit UI on <http://localhost:8080>, served by Caddy and
-proxying `/api` back to `:3000`. Either URL gives you the working app.
+The container runs a single process — `kuraki serve` on `:3000` — which serves the API, media, and
+the web UI (including first-run setup) from one origin.
 
 > **Exposing it to the internet?** Put Kuraki behind a reverse proxy that terminates HTTPS and
 > turn on `KURAKI_SECURE_COOKIES` and `KURAKI_TRUST_PROXY`. See
@@ -104,8 +103,8 @@ proxying `/api` back to `:3000`. Either URL gives you the working app.
 ### Docker
 
 ```sh
-docker run -d -p 3000:3000 -p 8080:8080 -v "$PWD/kuraki-data:/data" ghcr.io/kuraki-app/kuraki:latest
-# :3000 = API + media (and embedded UI) · :8080 = SvelteKit UI (proxies /api -> :3000)
+docker run -d -p 3000:3000 -v "$PWD/kuraki-data:/data" ghcr.io/kuraki-app/kuraki:latest
+# :3000 = Go server: API + media + web UI (single origin)
 ```
 
 ### Bulk import from the command line
