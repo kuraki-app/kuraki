@@ -105,9 +105,13 @@ jobs:
         with:
           context: .
           push: ${{ startsWith(github.ref, 'refs/tags/v') }}
-          tags: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          # On PRs github.ref_name is "<n>/merge" — the slash is an invalid
+          # Docker tag and fails the build even though PR builds never push. Use
+          # the version tag only on releases (the sole case that pushes) and a
+          # static, always-valid tag for PR/branch validation builds.
+          tags: ghcr.io/${{ github.repository }}:${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'ci' }}
           build-args: |
-            VERSION=${{ github.ref_name }}
+            VERSION=${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('ci-{0}', github.sha) }}
 
   media-vips:
     name: Media contract (libvips build)
