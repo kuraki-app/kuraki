@@ -1,5 +1,5 @@
 import { session } from './stores';
-import type { Album, Asset, AssetList, BackupStatus, DupAsset, IntegrityRun, Job, JobDetail, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SetupStatus, Tag } from './types';
+import type { Album, Asset, AssetList, BackupStatus, ChangesResponse, DupAsset, IntegrityRun, Job, JobDetail, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SetupStatus, Tag } from './types';
 
 export type AssetPatch = {
   taken_at?: string;
@@ -109,6 +109,8 @@ export const api = {
   deleteTag: (id: string) => req<void>(`/api/tags/${id}`, { method: 'DELETE' }),
   assetTags: (id: string) => req<{ tags: Tag[] }>(`/api/assets/${id}/tags`),
   setAssetTags: (id: string, ids: string[]) => req<{ tags: Tag[] }>(`/api/assets/${id}/tags`, jsonBody({ ids }, 'PUT')),
+  changes: (since: number, limit?: number) =>
+    req<ChangesResponse>(`/api/changes?since=${since}${limit ? `&limit=${limit}` : ''}`),
   savedSearches: () => req<{ saved_searches: SavedSearch[] }>('/api/saved-searches'),
   createSavedSearch: (name: string, query: Record<string, string>) => req<SavedSearch>('/api/saved-searches', jsonBody({ name, query })),
   deleteSavedSearch: (id: string) => req<void>(`/api/saved-searches/${id}`, { method: 'DELETE' })

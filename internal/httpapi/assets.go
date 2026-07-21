@@ -103,6 +103,10 @@ func (d Deps) listAssets(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apitypes.AssetList{Assets: assets, NextCursor: next})
 }
 
+// getAsset returns one asset's metadata. It backs the delta-feed refetch on
+// both clients: the feed is thin (id/op only), so a client seeing a changed
+// asset re-reads it here. Mounted on the device route unscoped, matching the
+// other capture reads (onThisDay, listTrash) — single-owner-era behavior.
 // @Summary Get asset
 // @Tags    assets
 // @Produce json
@@ -111,6 +115,7 @@ func (d Deps) listAssets(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} apitypes.Error
 // @Failure 404 {object} apitypes.Error
 // @Router  /api/assets/{id} [get]
+// @Router  /api/capture/assets/{id} [get]
 func (d Deps) getAsset(w http.ResponseWriter, r *http.Request) {
 	row, err := d.lookupAsset(r, chi.URLParam(r, "id"))
 	if errors.Is(err, sql.ErrNoRows) {

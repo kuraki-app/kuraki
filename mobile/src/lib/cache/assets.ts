@@ -68,3 +68,21 @@ export async function setCachedFavorite(id: string, favorite: boolean): Promise<
   const db = await getDB();
   await db.runAsync(`UPDATE assets SET favorite = ? WHERE id = ?`, [favorite ? 1 : 0, id]);
 }
+
+// Delta-sync cursor persistence. The cursor is the last change_log id the mirror
+// has applied; the server echoes it back so we resume instead of replaying.
+export async function getSyncCursor(): Promise<number> {
+  const db = await getDB();
+  const row = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM sync_meta WHERE key = 'cursor'`);
+  const n = row ? Number(row.value) : 0;
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+export async function setSyncCursor(cursor: number): Promise<void> {
+  const db = await getDB();
+  await db.runAsync(
+    `INSERT INTO sync_meta (key, value) VALUES ('cursor', ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    [String(cursor)]);
+}

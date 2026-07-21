@@ -1,6 +1,6 @@
 import { flushMutations, type PendingMutation } from '@/lib/cache/mutations';
-import { upsertAssets } from '@/lib/cache/assets';
-import { upsertAlbums, readAlbums, setAlbumAssets, readAlbumAssets, setTrashed, readTrashed, type CachedAlbum } from '@/lib/cache/albums';
+import { upsertAssets, getSyncCursor, setSyncCursor } from '@/lib/cache/assets';
+import { upsertAlbums, readAlbums, setAlbumAssets, readAlbumAssets, setTrashed, readTrashed, deleteCachedAsset, type CachedAlbum } from '@/lib/cache/albums';
 import { reportAuthLost } from '@/lib/session';
 import type { CaptureSettings } from '@/lib/settings';
 import type { components } from '@/lib/api.gen';
@@ -232,6 +232,89 @@ export async function fetchTrash(settings: CaptureSettings, cursor?: string): Pr
     },
     async () => ({ assets: await readTrashed() }),
   );
+}
+
+// ---- Delta sync ----------------------------------------------------------
+//
+// The server keeps an owner-scoped change_log and serves it as a thin,
+// cursor-paginated feed at GET /api/capture/changes (id/entity/op only). This
+// reconciles the SQLite mirror against that feed so the phone picks up edits
+// made elsewhere (e.g. from the web UI) without a blind full-library refetch.
+
+type ChangeEntry = components['schemas']['apitypes.ChangeEntry'];
+type ChangesResponse = components['schemas']['apitypes.ChangesResponse'];
+
+/** fetchAsset re-reads one asset's metadata; null if it is gone (404). */
+async function fetchAsset(settings: CaptureSettings, id: string): Promise<LibraryAsset | null> {
+  const response = await fetch(`${settings.baseURL}/api/capture/assets/${id}`, {
+    headers: { Authorization: `Bearer ${settings.deviceToken}` },
+  });
+  if (response.status === 401) {
+    reportAuthLost();
+    throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
+  }
+  if (response.status === 404) return null;
+  if (!response.ok) throw new LibraryError(`Request failed (${response.status})`, response.status);
+  return (await response.json()) as LibraryAsset;
+}
+
+// changeAction is the pure decision for one feed entry, split out so it can be
+// unit-tested without the SQLite mirror (same seam pattern as routeForMutation):
+//   'ignore'  — not an asset change (no other entity is emitted today)
+//   'remove'  — delete/purge; drop from the active timeline mirror
+//   'refetch' — create/update; re-read metadata and upsert
+export function changeAction(c: ChangeEntry): 'ignore' | 'remove' | 'refetch' {
+  if (c.entity !== 'asset') return 'ignore';
+  return c.op === 'delete' ? 'remove' : 'refetch';
+}
+
+async function applyChange(settings: CaptureSettings, c: ChangeEntry): Promise<void> {
+  switch (changeAction(c)) {
+    case 'ignore':
+      return;
+    case 'remove':
+      // Trashed or purged — either way it leaves the active timeline mirror. The
+      // Trash screen refetches /api/capture/trash live, so we don't try to
+      // reconstruct trashed state here (getAsset can't return a deleted asset).
+      await deleteCachedAsset(c.entity_id);
+      return;
+    case 'refetch': {
+      // Re-read and upsert. A 404 means it was deleted between the feed page and
+      // this refetch — treat it the same as a delete.
+      const asset = await fetchAsset(settings, c.entity_id);
+      if (asset) await upsertAssets([asset]);
+      else await deleteCachedAsset(c.entity_id);
+      return;
+    }
+  }
+}
+
+/**
+ * syncChanges drains the delta feed and applies each change to the mirror,
+ * advancing the persisted cursor as it goes. Returns the number of changes
+ * applied so the caller can skip a UI refresh when nothing moved. Best-effort:
+ * a network failure leaves the cursor where it was so the next run resumes.
+ * A 401 propagates (device disconnected) rather than being swallowed.
+ */
+export async function syncChanges(settings: CaptureSettings): Promise<number> {
+  if (!settings.baseURL || !settings.deviceToken) return 0;
+  let applied = 0;
+  // Bound the catch-up so a huge backlog can't block one call indefinitely;
+  // the next run picks up where the cursor left off.
+  for (let page = 0; page < 20; page++) {
+    const since = await getSyncCursor();
+    const res = await authedGet<ChangesResponse>(
+      settings, `/api/capture/changes?since=${since}`);
+    for (const c of res.changes) {
+      await applyChange(settings, c);
+      applied++;
+    }
+    // Advance only after the page's changes are applied, so a crash mid-page
+    // re-fetches that page rather than skipping unapplied changes.
+    await setSyncCursor(res.cursor);
+    if (!res.has_more) break;
+  }
+  return applied;
 }
 
 export async function restoreAsset(settings: CaptureSettings, id: string): Promise<void> {

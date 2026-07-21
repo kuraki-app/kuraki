@@ -1595,6 +1595,55 @@
             }
         },
         "/api/capture/assets/{id}": {
+            "get": {
+                "tags": [
+                    "assets"
+                ],
+                "summary": "Get asset",
+                "parameters": [
+                    {
+                        "description": "asset id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Asset"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             "delete": {
                 "tags": [
                     "assets"
