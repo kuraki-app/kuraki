@@ -75,7 +75,7 @@ func seedOwnedAsset(t *testing.T, database *sql.DB, id string) {
 func postFavorite(t *testing.T, router http.Handler, token, id string, fav bool) *httptest.ResponseRecorder {
 	t.Helper()
 	body, _ := json.Marshal(apitypes.FavoriteRequest{Favorite: fav})
-	req := httptest.NewRequest(http.MethodPost, "/api/capture/assets/"+id+"/favorite", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "/api/assets/"+id+"/favorite", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	if token != "" {
 		req.Header.Set("Authorization", "Bearer "+token)

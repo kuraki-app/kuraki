@@ -18,7 +18,6 @@ import (
 // @Success 200 {object} apitypes.AssetList
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/memories [get]
-// @Router  /api/capture/memories [get]
 func (d Deps) onThisDay(w http.ResponseWriter, r *http.Request) {
 	owner, ok := d.ownerID(r)
 	if !ok {

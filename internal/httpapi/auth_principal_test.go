@@ -178,3 +178,47 @@ func TestRequireDevicePrincipalRejectsSession(t *testing.T) {
 		t.Fatalf("device on device-only route = %d, want 200", code)
 	}
 }
+
+// TestSessionOnlyRouteRejectsDeviceToken proves a real session-only route
+// (POST /api/devices) rejects a device (Bearer) principal with 403
+// session_required, exercising the actual router wiring rather than a probe
+// mux.
+func TestSessionOnlyRouteRejectsDeviceToken(t *testing.T) {
+	router, cookie, _ := deviceFavoriteRouter(t)
+	token := registerTestDevice(t, router, cookie)
+
+	rec := deviceJSON(t, router, http.MethodPost, "/api/devices", token, map[string]string{"name": "Second phone"})
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("device token on session-only route = %d, want 403", rec.Code)
+	}
+	var got map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["error"] != "session_required" {
+		t.Fatalf("error = %q, want session_required", got["error"])
+	}
+}
+
+// TestDeviceOnlyRouteRejectsSessionCookie proves a real device-only route
+// (GET /api/capture/status) rejects a session (cookie) principal with 403
+// device_required, exercising the actual router wiring rather than a probe
+// mux.
+func TestDeviceOnlyRouteRejectsSessionCookie(t *testing.T) {
+	router, cookie, _ := deviceFavoriteRouter(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/capture/status", nil)
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("session cookie on device-only route = %d, want 403", rec.Code)
+	}
+	var got map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got["error"] != "device_required" {
+		t.Fatalf("error = %q, want device_required", got["error"])
+	}
+}

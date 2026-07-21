@@ -254,10 +254,10 @@ func TestOnThisDayOwnerScoped(t *testing.T) {
 	}
 }
 
-// TestSearchOwnerScoped proves respondFiltered (backing both /api/search and
-// the device-authenticated /api/capture/library) never surfaces another
-// owner's assets. It exercises the device route since that is the currently
-// reachable path for a cross-tenant leak via a paired device token.
+// TestSearchOwnerScoped proves respondFiltered (backing /api/search, reachable
+// by both principals) never surfaces another owner's assets. It exercises the
+// route via a device token since that is the currently reachable path for a
+// cross-tenant leak via a paired device token.
 func TestSearchOwnerScoped(t *testing.T) {
 	router, cookie, db := deviceFavoriteRouter(t)
 	other := secondOwner(t, db)
@@ -266,7 +266,7 @@ func TestSearchOwnerScoped(t *testing.T) {
 
 	// The device is registered by the default session owner, not secondOwner.
 	token := registerTestDevice(t, router, cookie)
-	lib := getWithBearer[apitypes.AssetList](t, router, "/api/capture/library", token)
+	lib := getWithBearer[apitypes.AssetList](t, router, "/api/search", token)
 	for _, a := range lib.Assets {
 		if a.ID == "b1" {
 			t.Fatalf("respondFiltered leaked other owner's asset b1: %+v", lib.Assets)

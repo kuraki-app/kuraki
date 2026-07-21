@@ -169,25 +169,6 @@ func (d Deps) me(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apitypes.SetupStatus{SetupRequired: required, User: user})
 }
 
-func (d Deps) requireAuth(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		required, err := d.setupRequired(r.Context())
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "setup_status_failed")
-			return
-		}
-		if required {
-			writeError(w, http.StatusForbidden, "setup_required")
-			return
-		}
-		if d.currentUser(r) != nil {
-			next.ServeHTTP(w, r)
-			return
-		}
-		writeError(w, http.StatusUnauthorized, "unauthorized")
-	})
-}
-
 type principalKind int
 
 const (
@@ -360,10 +341,9 @@ func (d Deps) currentUser(r *http.Request) *apitypes.User {
 	return &user
 }
 
-// ownerID returns the authenticated owner under either auth mode. It prefers
-// the principal resolved by requirePrincipal; routes still mounted under the
-// older requireAuth/requireDeviceAuth middlewares (pending later migration
-// tasks) fall back to direct resolution so they keep working unchanged.
+// ownerID returns the authenticated owner from the resolved principal. The
+// direct-resolution fallbacks exist for handlers exercised without going
+// through requirePrincipal (e.g. some tests construct requests directly).
 func (d Deps) ownerID(r *http.Request) (string, bool) {
 	if p, ok := principalFrom(r); ok {
 		return p.OwnerID, true

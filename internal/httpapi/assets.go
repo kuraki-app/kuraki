@@ -120,7 +120,6 @@ func (d Deps) listAssets(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} apitypes.Error
 // @Failure 404 {object} apitypes.Error
 // @Router  /api/assets/{id} [get]
-// @Router  /api/capture/assets/{id} [get]
 func (d Deps) getAsset(w http.ResponseWriter, r *http.Request) {
 	row, err := d.lookupAsset(r, chi.URLParam(r, "id"))
 	if errors.Is(err, sql.ErrNoRows) {

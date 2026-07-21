@@ -62,7 +62,6 @@ func (d Deps) ownsAssetCtx(ctx context.Context, owner, assetID string) (bool, er
 // @Failure 400 {object} apitypes.Error
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/albums [post]
-// @Router  /api/capture/albums [post]
 func (d Deps) createAlbum(w http.ResponseWriter, r *http.Request) {
 	var req apitypes.AlbumRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -99,7 +98,6 @@ func (d Deps) createAlbum(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} apitypes.AlbumList
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/albums [get]
-// @Router  /api/capture/albums [get]
 func (d Deps) listAlbums(w http.ResponseWriter, r *http.Request) {
 	owner, ok := d.ownerID(r)
 	if !ok {
@@ -142,7 +140,6 @@ func (d Deps) listAlbums(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} apitypes.Error
 // @Failure 404 {object} apitypes.Error
 // @Router  /api/albums/{id} [get]
-// @Router  /api/capture/albums/{id} [get]
 func (d Deps) getAlbum(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	ok, err := d.ownsAlbum(r, id)
@@ -245,7 +242,6 @@ func (d Deps) deleteAlbum(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} apitypes.Error
 // @Failure 404 {object} apitypes.Error
 // @Router  /api/albums/{id}/assets [post]
-// @Router  /api/capture/albums/{id}/assets [post]
 func (d Deps) addAlbumAssets(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	ok, err := d.ownsAlbum(r, id)
@@ -295,7 +291,6 @@ func (d Deps) addAlbumAssets(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} apitypes.Error
 // @Failure 404 {object} apitypes.Error
 // @Router  /api/albums/{id}/assets [delete]
-// @Router  /api/capture/albums/{id}/assets [delete]
 func (d Deps) removeAlbumAssets(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	ok, err := d.ownsAlbum(r, id)

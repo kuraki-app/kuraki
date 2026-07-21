@@ -44,10 +44,10 @@ func TestFavoriteEmitsChange(t *testing.T) {
 	}
 }
 
-// TestChangesFeedSessionAuth proves the session/cookie mount (/api/changes)
-// returns owner-scoped data, mirroring TestChangesFeedCursorAndScope which
-// only exercises the device/bearer mount (/api/capture/changes) even though
-// both routes share the same d.changes handler.
+// TestChangesFeedSessionAuth proves /api/changes returns owner-scoped data
+// via the session (cookie) principal, mirroring TestChangesFeedCursorAndScope
+// which exercises the same route via the device (Bearer) principal — /changes
+// is reachable by both.
 func TestChangesFeedSessionAuth(t *testing.T) {
 	router, cookie, db := deviceFavoriteRouter(t)
 	seedOwnedAsset(t, db, "a1")
@@ -144,7 +144,7 @@ func TestChangesFeedCursorAndScope(t *testing.T) {
 	}
 
 	// Page 1: since=0, limit=1 -> first change, has_more true.
-	rec := deviceGet(t, router, token, "/api/capture/changes?since=0&limit=1")
+	rec := deviceGet(t, router, token, "/api/changes?since=0&limit=1")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("changes = %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -168,7 +168,7 @@ func TestChangesFeedCursorAndScope(t *testing.T) {
 	}
 
 	// Page 2 from the cursor: the rest, no foreign 'z'.
-	rec2 := deviceGet(t, router, token, "/api/capture/changes?since="+strconv.FormatInt(page.Cursor, 10)+"&limit=100")
+	rec2 := deviceGet(t, router, token, "/api/changes?since="+strconv.FormatInt(page.Cursor, 10)+"&limit=100")
 	var page2 struct {
 		Changes []struct {
 			EntityID string `json:"entity_id"`

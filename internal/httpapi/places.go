@@ -38,7 +38,6 @@ func (d Deps) placesAssets(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} apitypes.PlaceSummary
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/places/summary [get]
-// @Router  /api/capture/places [get]
 func (d Deps) placesSummary(w http.ResponseWriter, r *http.Request) {
 	rows, err := d.DB.QueryContext(r.Context(), `
 		SELECT place_city, COALESCE(place_country,''), COUNT(*), MAX(id)

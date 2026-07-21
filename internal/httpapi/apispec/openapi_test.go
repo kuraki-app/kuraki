@@ -41,7 +41,7 @@ func TestOpenAPICoreSchemasAndPaths(t *testing.T) {
 			t.Errorf("spec missing schema %s", s)
 		}
 	}
-	for _, p := range []string{"/api/assets", "/api/capture/library", "/api/albums"} {
+	for _, p := range []string{"/api/assets", "/api/search", "/api/albums"} {
 		if _, ok := doc.Paths[p]; !ok {
 			t.Errorf("spec missing path %s", p)
 		}

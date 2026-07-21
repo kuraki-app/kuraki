@@ -23,7 +23,6 @@ import (
 // @Failure 401 {object} apitypes.Error
 // @Failure 404 {object} apitypes.Error
 // @Router  /api/assets/{id}/favorite [post]
-// @Router  /api/capture/assets/{id}/favorite [post]
 func (d Deps) setFavorite(w http.ResponseWriter, r *http.Request) {
 	owner, ok := d.ownerID(r)
 	if !ok {

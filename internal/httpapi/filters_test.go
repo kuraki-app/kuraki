@@ -11,7 +11,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
 
-func TestUnifiedFiltersAndDeviceLibrary(t *testing.T) {
+func TestUnifiedFiltersAndDeviceSearch(t *testing.T) {
 	ctx := context.Background()
 	database, store, _ := seedHTTPAsset(t, ctx)
 	router := NewRouter(Deps{Version: "test", DB: database, Store: store, Logger: slog.Default()})
@@ -54,19 +54,20 @@ func TestUnifiedFiltersAndDeviceLibrary(t *testing.T) {
 		t.Fatalf("rating=9 status = %d, want 400", badRec.Code)
 	}
 
-	// The same filters are reachable with a device token (mobile parity).
+	// The same filters are reachable with a device token (mobile parity):
+	// /api/search is a both-principals route.
 	deviceRec := postJSON(t, router, "/api/devices", apitypes.DeviceRequest{Name: "Phone"}, cookie)
 	var device apitypes.DeviceResponse
 	if err := json.Unmarshal(deviceRec.Body.Bytes(), &device); err != nil {
 		t.Fatal(err)
 	}
-	lib := getWithBearer[apitypes.AssetList](t, router, "/api/capture/library?favorite=1", device.Token)
+	lib := getWithBearer[apitypes.AssetList](t, router, "/api/search?favorite=1", device.Token)
 	if len(lib.Assets) != 1 || lib.Assets[0].ID != id {
-		t.Fatalf("device library = %+v, want the favorited asset", lib)
+		t.Fatalf("device search = %+v, want the favorited asset", lib)
 	}
 
 	// The device can fetch a thumbnail with its token.
-	thumbReq := httptest.NewRequest(http.MethodGet, "/api/capture/assets/"+id+"/thumb", nil)
+	thumbReq := httptest.NewRequest(http.MethodGet, "/api/assets/"+id+"/thumb", nil)
 	thumbReq.Header.Set("Authorization", "Bearer "+device.Token)
 	thumbRec := httptest.NewRecorder()
 	router.ServeHTTP(thumbRec, thumbReq)
@@ -75,11 +76,11 @@ func TestUnifiedFiltersAndDeviceLibrary(t *testing.T) {
 	}
 
 	// Without a token it is rejected.
-	noAuth := httptest.NewRequest(http.MethodGet, "/api/capture/library", nil)
+	noAuth := httptest.NewRequest(http.MethodGet, "/api/search", nil)
 	noAuthRec := httptest.NewRecorder()
 	router.ServeHTTP(noAuthRec, noAuth)
 	if noAuthRec.Code != http.StatusUnauthorized {
-		t.Fatalf("unauth library status = %d, want 401", noAuthRec.Code)
+		t.Fatalf("unauth search status = %d, want 401", noAuthRec.Code)
 	}
 }
 

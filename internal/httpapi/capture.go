@@ -105,21 +105,9 @@ func (d Deps) revokeDevice(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "revoked"})
 }
 
-func (d Deps) requireDeviceAuth(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		device, ok := d.resolveDevice(r)
-		if !ok {
-			writeError(w, http.StatusUnauthorized, "device_unauthorized")
-			return
-		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), captureDeviceKey{}, device)))
-	})
-}
-
 // resolveDevice validates the request's Bearer device token and, on success,
 // touches last_seen_at and returns the owning device. It writes no HTTP
-// response, so callers (requireDeviceAuth, requirePrincipal) decide how to
-// react to a miss.
+// response, so the caller (requirePrincipal) decides how to react to a miss.
 func (d Deps) resolveDevice(r *http.Request) (captureDevice, bool) {
 	token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
 	if token == "" || !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
