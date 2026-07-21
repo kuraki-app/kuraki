@@ -283,6 +283,20 @@ func TestSearchOwnerScoped(t *testing.T) {
 	}
 }
 
+// TestDownloadZipOwnerScoped proves a zip download request cannot include
+// another owner's assets, even if their ids are known.
+func TestDownloadZipOwnerScoped(t *testing.T) {
+	router, cookie, db := deviceFavoriteRouter(t)
+	other := secondOwner(t, db)
+	seedOwnedAssetFor(t, db, "b1", other)
+
+	// Attempt to zip-download the other owner's asset by id.
+	rec := postJSON(t, router, "/api/assets/zip", apitypes.ZipRequest{IDs: []string{"b1"}}, cookie)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("zip download of other-owner asset = %d, want 404", rec.Code)
+	}
+}
+
 // TestFavoritesOwnerScoped proves listFavorites never surfaces another
 // owner's favorited assets.
 func TestFavoritesOwnerScoped(t *testing.T) {
