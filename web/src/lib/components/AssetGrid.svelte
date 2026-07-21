@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onDestroy } from 'svelte';
   import { Star, Play, Check, Layers } from '@lucide/svelte';
   import type { Asset } from '$lib/types';
   import { groupByDay, labelDate } from '$lib/format';
@@ -20,6 +20,103 @@
 
   const dispatch = createEventDispatcher<{ open: Asset; toggle: string }>();
   $: groups = grouped ? groupByDay(assets) : [{ day: '', items: assets }];
+
+  // ---- Virtualization (day-group windowing) --------------------------------
+  //
+  // A large library is thousands of tiles; rendering one DOM node each locks up
+  // the browser. Instead each day-group section is materialized only while it is
+  // near the viewport (an IntersectionObserver with a tall rootMargin buffer),
+  // and replaced by a fixed-height spacer otherwise — so on-screen DOM stays
+  // bounded to a few sections regardless of library size.
+  //
+  // Section granularity (not per-tile) is deliberate: the grid is a responsive
+  // `auto-fill` grid whose column count depends on width, so there is no fixed
+  // row height to virtualize against. Measuring whole sections sidesteps the
+  // column math and keeps the gapless CSS grid, the day grouping, and the morph
+  // all working untouched. A materialized section's height is measured and
+  // cached so its spacer reserves the exact same space when it later unmounts,
+  // keeping scroll position and the scrollbar stable.
+  const BUFFER_PX = 1200; // materialize this far outside the viewport, each side
+  let containerWidth = 0;
+  let visible = new Set<string>(); // day keys currently materialized
+  let heights = new Map<string, number>(); // measured section heights, by day
+
+  // Clear cached heights when density changes — the tile size (and thus every
+  // section's height) changes, so old measurements would misreserve space.
+  let lastDensity = density;
+  $: if (density !== lastDensity) {
+    lastDensity = density;
+    heights = new Map();
+  }
+
+  // The section holding the morph target must stay materialized through the
+  // transition even if the observer would drop it; a morph into a spacer has no
+  // tile. Only computed while a morph is active (rare), so the scan is cheap.
+  $: morphDay =
+    morphId != null ? (groups.find((g) => g.items.some((a) => a.id === morphId))?.day ?? null) : null;
+  $: isLive = (day: string) => visible.has(day) || day === morphDay;
+
+  function estimateHeight(group: { day: string; items: Asset[] }): number {
+    const min = density === 'compact' ? 96 : density === 'large' ? 188 : 132;
+    const w = containerWidth || 1200;
+    const cols = Math.max(1, Math.floor(w / min));
+    const tile = w / cols; // tiles are square (aspect-ratio: 1)
+    const rows = Math.ceil(group.items.length / cols);
+    const header = grouped && group.day ? 35 : 0; // h2 line + its gap
+    return rows * tile + header;
+  }
+  $: heightFor = (group: { day: string; items: Asset[] }): number =>
+    heights.get(group.day) ?? estimateHeight(group);
+
+  let observer: IntersectionObserver | null = null;
+  if (typeof IntersectionObserver !== 'undefined') {
+    observer = new IntersectionObserver(
+      (entries) => {
+        let changed = false;
+        for (const e of entries) {
+          const day = (e.target as HTMLElement).dataset.day ?? '';
+          if (e.isIntersecting) {
+            if (!visible.has(day)) {
+              visible.add(day);
+              changed = true;
+            }
+          } else if (visible.has(day)) {
+            visible.delete(day);
+            changed = true;
+          }
+        }
+        if (changed) visible = visible; // reassign to trigger Svelte reactivity
+      },
+      { rootMargin: `${BUFFER_PX}px 0px` },
+    );
+  }
+  onDestroy(() => observer?.disconnect());
+
+  // observe: registers a section wrapper with the observer. Because sections
+  // render top-to-bottom and the observer reports the initial viewport on the
+  // next frame, the first screen materializes immediately with no manual seeding.
+  function observe(el: HTMLElement) {
+    observer?.observe(el);
+    return { destroy: () => observer?.unobserve(el) };
+  }
+
+  // measure: records a materialized section's real height so its spacer reserves
+  // the same space later. Reassigns the map so a re-measure (e.g. after images
+  // change intrinsic layout) is picked up by heightFor.
+  function measure(el: HTMLElement, day: string) {
+    const record = () => {
+      const h = el.offsetHeight;
+      if (h > 0 && heights.get(day) !== h) {
+        heights.set(day, h);
+        heights = heights;
+      }
+    };
+    record();
+    const ro = new ResizeObserver(record);
+    ro.observe(el);
+    return { destroy: () => ro.disconnect() };
+  }
+
   let loaded = new Set<string>();
 
   function activate(asset: Asset) {
@@ -28,54 +125,65 @@
   }
 </script>
 
-<div class="timeline">
+<div class="timeline" bind:clientWidth={containerWidth}>
   {#each groups as group (group.day)}
-    <section class="day">
-      {#if grouped && group.day}
-        <h2>{labelDate(group.day)}</h2>
+    <!-- Each section is always in the DOM (so the observer can watch it and the
+         spacer holds scroll height); its contents materialize only when live. -->
+    <section
+      class="day"
+      data-day={group.day}
+      use:observe
+      style:min-height={isLive(group.day) ? undefined : `${heightFor(group)}px`}
+    >
+      {#if isLive(group.day)}
+        <div class="day-inner" use:measure={group.day}>
+          {#if grouped && group.day}
+            <h2>{labelDate(group.day)}</h2>
+          {/if}
+          <div class="grid {density}">
+            {#each group.items as asset (asset.id)}
+              <!-- data-asset-id lets LibraryView locate a tile before morphing the
+                   viewer back into it: the morph target must be rendered and on
+                   screen, and only the DOM can answer that. -->
+              <button
+                class="tile"
+                class:selected={selected.has(asset.id)}
+                type="button"
+                data-asset-id={asset.id}
+                on:click={() => activate(asset)}
+                aria-label={asset.filename}
+              >
+                {#if asset.thumbnail_url}
+                  <span class="shimmer" class:done={loaded.has(asset.id)}></span>
+                  <img
+                    class:loaded={loaded.has(asset.id)}
+                    style:view-transition-name={morphId === asset.id ? MORPH_NAME : undefined}
+                    src={asset.thumbnail_url}
+                    alt={asset.filename}
+                    loading="lazy"
+                    decoding="async"
+                    on:load={() => (loaded = new Set(loaded).add(asset.id))}
+                  />
+                {:else}
+                  <span class="ph">{asset.media_type}</span>
+                {/if}
+                {#if asset.media_type === 'video'}
+                  <span class="badge play"><Play size={13} fill="currentColor" /></span>
+                {/if}
+                {#if asset.favorite}
+                  <span class="badge fav"><Star size={13} fill="currentColor" /></span>
+                {/if}
+                {#if asset.stack_size > 1}
+                  <span class="badge stack"><Layers size={12} /> {asset.stack_size}</span>
+                {/if}
+                {#if selectMode}
+                  <span class="check" class:on={selected.has(asset.id)}><Check size={13} /></span>
+                {/if}
+              </button>
+            {/each}
+          </div>
+        </div>
       {/if}
-      <div class="grid {density}">
-        {#each group.items as asset (asset.id)}
-          <!-- data-asset-id lets LibraryView locate a tile before morphing the
-               viewer back into it: the morph target must be rendered and on
-               screen, and only the DOM can answer that. -->
-          <button
-            class="tile"
-            class:selected={selected.has(asset.id)}
-            type="button"
-            data-asset-id={asset.id}
-            on:click={() => activate(asset)}
-            aria-label={asset.filename}
-          >
-            {#if asset.thumbnail_url}
-              <span class="shimmer" class:done={loaded.has(asset.id)}></span>
-              <img
-                class:loaded={loaded.has(asset.id)}
-                style:view-transition-name={morphId === asset.id ? MORPH_NAME : undefined}
-                src={asset.thumbnail_url}
-                alt={asset.filename}
-                loading="lazy"
-                decoding="async"
-                on:load={() => (loaded = new Set(loaded).add(asset.id))}
-              />
-            {:else}
-              <span class="ph">{asset.media_type}</span>
-            {/if}
-            {#if asset.media_type === 'video'}
-              <span class="badge play"><Play size={13} fill="currentColor" /></span>
-            {/if}
-            {#if asset.favorite}
-              <span class="badge fav"><Star size={13} fill="currentColor" /></span>
-            {/if}
-            {#if asset.stack_size > 1}
-              <span class="badge stack"><Layers size={12} /> {asset.stack_size}</span>
-            {/if}
-            {#if selectMode}
-              <span class="check" class:on={selected.has(asset.id)}><Check size={13} /></span>
-            {/if}
-          </button>
-        {/each}
-      </div>
     </section>
   {/each}
 </div>
@@ -85,7 +193,9 @@
     display: grid;
     gap: 28px;
   }
-  .day {
+  /* A plain block so its min-height spacer (set when the section is not live)
+   * reserves the measured height. The grid + header gap live on .day-inner. */
+  .day-inner {
     display: grid;
     gap: 10px;
   }
