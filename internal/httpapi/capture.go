@@ -105,28 +105,26 @@ func (d Deps) revokeDevice(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "revoked"})
 }
 
-func (d Deps) requireDeviceAuth(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
-		if token == "" || !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
-			writeError(w, http.StatusUnauthorized, "device_unauthorized")
-			return
+// resolveDevice validates the request's Bearer device token and, on success,
+// touches last_seen_at and returns the owning device. It writes no HTTP
+// response, so the caller (requirePrincipal) decides how to react to a miss.
+func (d Deps) resolveDevice(r *http.Request) (captureDevice, bool) {
+	token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+	if token == "" || !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+		return captureDevice{}, false
+	}
+	var device captureDevice
+	err := d.DB.QueryRowContext(r.Context(), `
+		SELECT id, owner_id FROM devices WHERE token_hash = ? AND revoked_at IS NULL`, hashDeviceToken(token)).
+		Scan(&device.ID, &device.OwnerID)
+	if err != nil {
+		if err != sql.ErrNoRows && d.Logger != nil {
+			d.Logger.Warn("device auth: lookup failed", "err", err)
 		}
-		var device captureDevice
-		err := d.DB.QueryRowContext(r.Context(), `
-			SELECT id, owner_id FROM devices WHERE token_hash = ? AND revoked_at IS NULL`, hashDeviceToken(token)).
-			Scan(&device.ID, &device.OwnerID)
-		if errors.Is(err, sql.ErrNoRows) {
-			writeError(w, http.StatusUnauthorized, "device_unauthorized")
-			return
-		}
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "device_auth_failed")
-			return
-		}
-		_, _ = d.DB.ExecContext(r.Context(), `UPDATE devices SET last_seen_at = ? WHERE id = ?`, nowCaptureText(), device.ID)
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), captureDeviceKey{}, device)))
-	})
+		return captureDevice{}, false
+	}
+	_, _ = d.DB.ExecContext(r.Context(), `UPDATE devices SET last_seen_at = ? WHERE id = ?`, nowCaptureText(), device.ID)
+	return device, true
 }
 
 func deviceFromRequest(r *http.Request) captureDevice {

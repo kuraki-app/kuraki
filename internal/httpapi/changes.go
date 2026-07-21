@@ -36,7 +36,6 @@ const (
 // @Success 200 {object} apitypes.ChangesResponse
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/changes [get]
-// @Router  /api/capture/changes [get]
 func (d Deps) changes(w http.ResponseWriter, r *http.Request) {
 	owner, ok := d.ownerID(r)
 	if !ok {

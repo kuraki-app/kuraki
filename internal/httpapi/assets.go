@@ -65,6 +65,11 @@ type assetRow struct {
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/assets [get]
 func (d Deps) listAssets(w http.ResponseWriter, r *http.Request) {
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	limit := parseLimit(r.URL.Query().Get("limit"))
 	cursorTime, cursorID, err := decodeCursor(r.URL.Query().Get("cursor"))
 	if err != nil {
@@ -72,13 +77,13 @@ func (d Deps) listAssets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	args := []any{}
-	where := "deleted_at IS NULL AND archived = 0 AND hidden = 0"
+	args := []any{owner}
+	where := "owner_id = ? AND deleted_at IS NULL AND archived = 0 AND hidden = 0"
 	if r.URL.Query().Get("archived") == "1" {
-		where = "deleted_at IS NULL AND archived = 1 AND hidden = 0"
+		where = "owner_id = ? AND deleted_at IS NULL AND archived = 1 AND hidden = 0"
 	}
 	if r.URL.Query().Get("hidden") == "1" {
-		where = "deleted_at IS NULL AND hidden = 1"
+		where = "owner_id = ? AND deleted_at IS NULL AND hidden = 1"
 	}
 	// Collapse stacks: show only the primary of each stack in the timeline.
 	where += " AND (stack_id IS NULL OR stack_primary = 1)"
@@ -105,8 +110,8 @@ func (d Deps) listAssets(w http.ResponseWriter, r *http.Request) {
 
 // getAsset returns one asset's metadata. It backs the delta-feed refetch on
 // both clients: the feed is thin (id/op only), so a client seeing a changed
-// asset re-reads it here. Mounted on the device route unscoped, matching the
-// other capture reads (onThisDay, listTrash) — single-owner-era behavior.
+// asset re-reads it here. Owner-scoped via lookupAsset regardless of which
+// mount (session or device) served the request.
 // @Summary Get asset
 // @Tags    assets
 // @Produce json
@@ -115,7 +120,6 @@ func (d Deps) listAssets(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} apitypes.Error
 // @Failure 404 {object} apitypes.Error
 // @Router  /api/assets/{id} [get]
-// @Router  /api/capture/assets/{id} [get]
 func (d Deps) getAsset(w http.ResponseWriter, r *http.Request) {
 	row, err := d.lookupAsset(r, chi.URLParam(r, "id"))
 	if errors.Is(err, sql.ErrNoRows) {
@@ -238,7 +242,11 @@ func derivativeContentType(format string) string {
 
 func (d Deps) lookupAsset(r *http.Request, id string) (assetRow, error) {
 	var row assetRow
-	err := d.DB.QueryRowContext(r.Context(), assetSelectSQL("WHERE a.id = ? AND a.deleted_at IS NULL")+" LIMIT 1", id).
+	owner, ok := d.ownerID(r)
+	if !ok {
+		return row, sql.ErrNoRows
+	}
+	err := d.DB.QueryRowContext(r.Context(), assetSelectSQL("WHERE a.id = ? AND a.owner_id = ? AND a.deleted_at IS NULL")+" LIMIT 1", id, owner).
 		Scan(assetScanDest(&row)...)
 	return row, err
 }

@@ -62,7 +62,7 @@ func TestDeviceAlbumsCreateListGet(t *testing.T) {
 	seedOwnedAsset(t, db, "a1")
 
 	// create
-	create := deviceJSON(t, router, http.MethodPost, "/api/capture/albums", token, map[string]string{"name": "Trip"})
+	create := deviceJSON(t, router, http.MethodPost, "/api/albums", token, map[string]string{"name": "Trip"})
 	if create.Code != http.StatusCreated {
 		t.Fatalf("create album = %d body=%s", create.Code, create.Body.String())
 	}
@@ -74,17 +74,17 @@ func TestDeviceAlbumsCreateListGet(t *testing.T) {
 		t.Fatal("no album id")
 	}
 	// add asset
-	add := deviceJSON(t, router, http.MethodPost, "/api/capture/albums/"+made.ID+"/assets", token, map[string][]string{"ids": {"a1"}})
+	add := deviceJSON(t, router, http.MethodPost, "/api/albums/"+made.ID+"/assets", token, map[string][]string{"ids": {"a1"}})
 	if add.Code != http.StatusOK {
 		t.Fatalf("add = %d body=%s", add.Code, add.Body.String())
 	}
 	// list shows it
-	list := deviceGet(t, router, token, "/api/capture/albums")
+	list := deviceGet(t, router, token, "/api/albums")
 	if list.Code != http.StatusOK || !bytes.Contains(list.Body.Bytes(), []byte("Trip")) {
 		t.Fatalf("list = %d body=%s", list.Code, list.Body.String())
 	}
 	// get returns its asset
-	get := deviceGet(t, router, token, "/api/capture/albums/"+made.ID)
+	get := deviceGet(t, router, token, "/api/albums/"+made.ID)
 	if get.Code != http.StatusOK || !bytes.Contains(get.Body.Bytes(), []byte("a1")) {
 		t.Fatalf("get = %d body=%s", get.Code, get.Body.String())
 	}
@@ -92,7 +92,7 @@ func TestDeviceAlbumsCreateListGet(t *testing.T) {
 
 func TestDeviceAlbumsRejectNoToken(t *testing.T) {
 	router, _, _ := deviceFavoriteRouter(t)
-	if rec := deviceGet(t, router, "", "/api/capture/albums"); rec.Code != http.StatusUnauthorized {
+	if rec := deviceGet(t, router, "", "/api/albums"); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("no-token albums = %d, want 401", rec.Code)
 	}
 }
@@ -142,22 +142,22 @@ func TestDeviceTrashLifecycle(t *testing.T) {
 	seedOwnedAssetFile(t, ctx, db, store, "t1")
 
 	// trash it
-	del := deviceJSON(t, router, http.MethodDelete, "/api/capture/assets/t1", token, nil)
+	del := deviceJSON(t, router, http.MethodDelete, "/api/assets/t1", token, nil)
 	if del.Code != http.StatusOK {
 		t.Fatalf("trash = %d body=%s", del.Code, del.Body.String())
 	}
 	// appears in trash list
-	list := deviceGet(t, router, token, "/api/capture/trash")
+	list := deviceGet(t, router, token, "/api/trash")
 	if list.Code != http.StatusOK || !bytes.Contains(list.Body.Bytes(), []byte("t1")) {
 		t.Fatalf("trash list = %d body=%s", list.Code, list.Body.String())
 	}
 	// restore
-	res := deviceJSON(t, router, http.MethodPost, "/api/capture/assets/t1/restore", token, nil)
+	res := deviceJSON(t, router, http.MethodPost, "/api/assets/t1/restore", token, nil)
 	if res.Code != http.StatusOK {
 		t.Fatalf("restore = %d body=%s", res.Code, res.Body.String())
 	}
 	// purge on a now-live asset conflicts
-	purge := deviceJSON(t, router, http.MethodDelete, "/api/capture/trash/t1", token, nil)
+	purge := deviceJSON(t, router, http.MethodDelete, "/api/trash/t1", token, nil)
 	if purge.Code != http.StatusConflict {
 		t.Fatalf("purge live = %d, want 409", purge.Code)
 	}
@@ -170,7 +170,7 @@ func TestDeviceGetAsset(t *testing.T) {
 	token := registerTestDevice(t, router, cookie)
 	seedOwnedAsset(t, db, "a1")
 
-	rec := deviceGet(t, router, token, "/api/capture/assets/a1")
+	rec := deviceGet(t, router, token, "/api/assets/a1")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("get asset = %d body=%s", rec.Code, rec.Body.String())
 	}
@@ -183,18 +183,18 @@ func TestDeviceGetAsset(t *testing.T) {
 	}
 
 	// missing asset -> 404
-	if miss := deviceGet(t, router, token, "/api/capture/assets/nope"); miss.Code != http.StatusNotFound {
+	if miss := deviceGet(t, router, token, "/api/assets/nope"); miss.Code != http.StatusNotFound {
 		t.Fatalf("missing asset = %d, want 404", miss.Code)
 	}
 	// no token -> 401
-	if un := deviceGet(t, router, "", "/api/capture/assets/a1"); un.Code != http.StatusUnauthorized {
+	if un := deviceGet(t, router, "", "/api/assets/a1"); un.Code != http.StatusUnauthorized {
 		t.Fatalf("no token = %d, want 401", un.Code)
 	}
 }
 
 func TestDeviceMemoriesRequiresToken(t *testing.T) {
 	router, _, _ := deviceFavoriteRouter(t)
-	if rec := deviceGet(t, router, "", "/api/capture/memories"); rec.Code != http.StatusUnauthorized {
+	if rec := deviceGet(t, router, "", "/api/memories"); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("memories no-token = %d, want 401", rec.Code)
 	}
 }
@@ -219,13 +219,13 @@ func TestDeviceCannotTouchOtherOwnerTrash(t *testing.T) {
 	token := registerTestDevice(t, router, cookie)
 	other := seedSecondOwnerTrashedAsset(t, db, "o1")
 
-	if rec := deviceJSON(t, router, http.MethodDelete, "/api/capture/assets/"+other, token, nil); rec.Code != http.StatusNotFound {
+	if rec := deviceJSON(t, router, http.MethodDelete, "/api/assets/"+other, token, nil); rec.Code != http.StatusNotFound {
 		t.Fatalf("other-owner delete = %d, want 404", rec.Code)
 	}
-	if rec := deviceJSON(t, router, http.MethodPost, "/api/capture/assets/"+other+"/restore", token, nil); rec.Code != http.StatusNotFound {
+	if rec := deviceJSON(t, router, http.MethodPost, "/api/assets/"+other+"/restore", token, nil); rec.Code != http.StatusNotFound {
 		t.Fatalf("other-owner restore = %d, want 404", rec.Code)
 	}
-	if rec := deviceJSON(t, router, http.MethodDelete, "/api/capture/trash/"+other, token, nil); rec.Code != http.StatusNotFound {
+	if rec := deviceJSON(t, router, http.MethodDelete, "/api/trash/"+other, token, nil); rec.Code != http.StatusNotFound {
 		t.Fatalf("other-owner purge = %d, want 404", rec.Code)
 	}
 }
@@ -267,7 +267,7 @@ func TestDeviceAlbumAddRejectsOtherOwnerAsset(t *testing.T) {
 	token := registerTestDevice(t, router, cookie)
 	foreign := seedSecondOwnerAsset(t, db, "foreign-asset")
 
-	create := deviceJSON(t, router, http.MethodPost, "/api/capture/albums", token, map[string]string{"name": "Mine"})
+	create := deviceJSON(t, router, http.MethodPost, "/api/albums", token, map[string]string{"name": "Mine"})
 	if create.Code != http.StatusCreated {
 		t.Fatalf("create album = %d body=%s", create.Code, create.Body.String())
 	}
@@ -278,7 +278,7 @@ func TestDeviceAlbumAddRejectsOtherOwnerAsset(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	add := deviceJSON(t, router, http.MethodPost, "/api/capture/albums/"+made.ID+"/assets", token, map[string][]string{"ids": {foreign}})
+	add := deviceJSON(t, router, http.MethodPost, "/api/albums/"+made.ID+"/assets", token, map[string][]string{"ids": {foreign}})
 	if add.Code != http.StatusOK {
 		t.Fatalf("add = %d body=%s", add.Code, add.Body.String())
 	}
@@ -292,7 +292,7 @@ func TestDeviceAlbumAddRejectsOtherOwnerAsset(t *testing.T) {
 		t.Fatalf("added = %d, want 0 (foreign asset must not link)", addedResp.Added)
 	}
 
-	get := deviceGet(t, router, token, "/api/capture/albums/"+made.ID)
+	get := deviceGet(t, router, token, "/api/albums/"+made.ID)
 	if get.Code != http.StatusOK {
 		t.Fatalf("get = %d body=%s", get.Code, get.Body.String())
 	}
@@ -301,14 +301,77 @@ func TestDeviceAlbumAddRejectsOtherOwnerAsset(t *testing.T) {
 	}
 }
 
+// TestDeviceRenameAlbum proves a device token can rename its own album via
+// PATCH /api/albums/{id}. Before the fix, renameAlbum resolved the owner via
+// d.currentUser(r), which returns nil for a device/Bearer request; deref'ing
+// user.ID with no nil check panicked (HTTP 500) instead of succeeding.
+func TestDeviceRenameAlbum(t *testing.T) {
+	router, cookie, _ := deviceFavoriteRouter(t)
+	token := registerTestDevice(t, router, cookie)
+
+	create := deviceJSON(t, router, http.MethodPost, "/api/albums", token, map[string]string{"name": "Trip"})
+	if create.Code != http.StatusCreated {
+		t.Fatalf("create album = %d body=%s", create.Code, create.Body.String())
+	}
+	var made struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(create.Body.Bytes(), &made); err != nil {
+		t.Fatal(err)
+	}
+
+	rename := deviceJSON(t, router, http.MethodPatch, "/api/albums/"+made.ID, token, map[string]string{"name": "Renamed"})
+	if rename.Code != http.StatusOK {
+		t.Fatalf("rename album = %d body=%s, want 200 (not a panic)", rename.Code, rename.Body.String())
+	}
+}
+
+// TestDeviceDeleteAlbum proves a device token can delete its own album via
+// DELETE /api/albums/{id}. Before the fix, deleteAlbum resolved the owner via
+// d.currentUser(r) with no nil check, panicking on a device request.
+func TestDeviceDeleteAlbum(t *testing.T) {
+	router, cookie, _ := deviceFavoriteRouter(t)
+	token := registerTestDevice(t, router, cookie)
+
+	create := deviceJSON(t, router, http.MethodPost, "/api/albums", token, map[string]string{"name": "Trip"})
+	if create.Code != http.StatusCreated {
+		t.Fatalf("create album = %d body=%s", create.Code, create.Body.String())
+	}
+	var made struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(create.Body.Bytes(), &made); err != nil {
+		t.Fatal(err)
+	}
+
+	del := deviceJSON(t, router, http.MethodDelete, "/api/albums/"+made.ID, token, nil)
+	if del.Code != http.StatusOK {
+		t.Fatalf("delete album = %d body=%s, want 200 (not a panic)", del.Code, del.Body.String())
+	}
+}
+
+// TestDeviceCreateTag proves a device token can create a tag via POST
+// /api/tags. Before the fix, createTag resolved the owner via
+// d.currentUser(r), which is nil for a device request, so it 401'd every
+// device caller even though the route sits in the both-principals group.
+func TestDeviceCreateTag(t *testing.T) {
+	router, cookie, _ := deviceFavoriteRouter(t)
+	token := registerTestDevice(t, router, cookie)
+
+	rec := deviceJSON(t, router, http.MethodPost, "/api/tags", token, apitypes.TagRequest{Name: "beach"})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create tag = %d body=%s, want 201", rec.Code, rec.Body.String())
+	}
+}
+
 func TestDeviceCannotReachOtherOwnerAlbum(t *testing.T) {
 	router, cookie, db := deviceFavoriteRouter(t)
 	token := registerTestDevice(t, router, cookie)
 	other := seedSecondOwnerAlbum(t, db)
-	if rec := deviceGet(t, router, token, "/api/capture/albums/"+other); rec.Code != http.StatusNotFound {
+	if rec := deviceGet(t, router, token, "/api/albums/"+other); rec.Code != http.StatusNotFound {
 		t.Fatalf("other-owner album get = %d, want 404", rec.Code)
 	}
-	add := deviceJSON(t, router, http.MethodPost, "/api/capture/albums/"+other+"/assets", token, map[string][]string{"ids": {"a1"}})
+	add := deviceJSON(t, router, http.MethodPost, "/api/albums/"+other+"/assets", token, map[string][]string{"ids": {"a1"}})
 	if add.Code != http.StatusNotFound {
 		t.Fatalf("other-owner album add = %d, want 404", add.Code)
 	}

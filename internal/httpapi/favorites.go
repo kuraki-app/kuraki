@@ -23,7 +23,6 @@ import (
 // @Failure 401 {object} apitypes.Error
 // @Failure 404 {object} apitypes.Error
 // @Router  /api/assets/{id}/favorite [post]
-// @Router  /api/capture/assets/{id}/favorite [post]
 func (d Deps) setFavorite(w http.ResponseWriter, r *http.Request) {
 	owner, ok := d.ownerID(r)
 	if !ok {
@@ -63,9 +62,14 @@ func (d Deps) setFavorite(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/favorites [get]
 func (d Deps) listFavorites(w http.ResponseWriter, r *http.Request) {
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	limit := parseLimit(r.URL.Query().Get("limit"))
 	rows, err := d.DB.QueryContext(r.Context(),
-		assetSelectSQL("WHERE a.favorite = 1 AND a.deleted_at IS NULL")+" LIMIT ?", limit+1)
+		assetSelectSQL("WHERE a.favorite = 1 AND a.owner_id = ? AND a.deleted_at IS NULL")+" LIMIT ?", owner, limit+1)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_favorites_failed")
 		return

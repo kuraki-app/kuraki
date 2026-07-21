@@ -23,14 +23,9 @@ const dupThreshold = 8
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/duplicates [get]
 func (d Deps) duplicates(w http.ResponseWriter, r *http.Request) {
-	u := d.currentUser(r)
-	if u == nil {
+	ownerID, ok := d.ownerID(r)
+	if !ok {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
-		return
-	}
-	var ownerID string
-	if err := d.DB.QueryRowContext(r.Context(), `SELECT id FROM users WHERE username=?`, u.Username).Scan(&ownerID); err != nil {
-		writeError(w, 500, "duplicate_owner_failed")
 		return
 	}
 	run, ok, err := duplicates.Latest(r.Context(), d.DB, ownerID)
@@ -95,14 +90,9 @@ func (d Deps) duplicates(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/duplicates/run [post]
 func (d Deps) runDuplicates(w http.ResponseWriter, r *http.Request) {
-	u := d.currentUser(r)
-	if u == nil {
+	ownerID, ok := d.ownerID(r)
+	if !ok {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
-		return
-	}
-	var ownerID string
-	if err := d.DB.QueryRowContext(r.Context(), `SELECT id FROM users WHERE username=?`, u.Username).Scan(&ownerID); err != nil {
-		writeError(w, http.StatusInternalServerError, "duplicate_owner_failed")
 		return
 	}
 	run, err := duplicates.Enqueue(r.Context(), d.DB, ownerID)

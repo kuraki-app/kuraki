@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -36,8 +37,15 @@ func (d Deps) ownsAsset(r *http.Request, assetID string) (bool, error) {
 	if !ok {
 		return false, nil
 	}
+	return d.ownsAssetCtx(r.Context(), owner, assetID)
+}
+
+// ownsAssetCtx is the context-only variant of ownsAsset, for call sites (like
+// the batch endpoint) that already have the owner resolved and don't have an
+// *http.Request to hand in.
+func (d Deps) ownsAssetCtx(ctx context.Context, owner, assetID string) (bool, error) {
 	var one int
-	err := d.DB.QueryRowContext(r.Context(),
+	err := d.DB.QueryRowContext(ctx,
 		`SELECT 1 FROM assets WHERE id = ? AND owner_id = ?`, assetID, owner).Scan(&one)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
@@ -54,7 +62,6 @@ func (d Deps) ownsAsset(r *http.Request, assetID string) (bool, error) {
 // @Failure 400 {object} apitypes.Error
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/albums [post]
-// @Router  /api/capture/albums [post]
 func (d Deps) createAlbum(w http.ResponseWriter, r *http.Request) {
 	var req apitypes.AlbumRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -91,7 +98,6 @@ func (d Deps) createAlbum(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} apitypes.AlbumList
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/albums [get]
-// @Router  /api/capture/albums [get]
 func (d Deps) listAlbums(w http.ResponseWriter, r *http.Request) {
 	owner, ok := d.ownerID(r)
 	if !ok {
@@ -134,7 +140,6 @@ func (d Deps) listAlbums(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} apitypes.Error
 // @Failure 404 {object} apitypes.Error
 // @Router  /api/albums/{id} [get]
-// @Router  /api/capture/albums/{id} [get]
 func (d Deps) getAlbum(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	ok, err := d.ownsAlbum(r, id)
@@ -186,10 +191,14 @@ func (d Deps) renameAlbum(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "name_required")
 		return
 	}
-	user := d.currentUser(r)
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	res, err := d.DB.ExecContext(r.Context(),
 		`UPDATE albums SET name = ? WHERE id = ? AND owner_id = ? AND deleted_at IS NULL`,
-		req.Name, id, user.ID)
+		req.Name, id, owner)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "rename_failed")
 		return
@@ -211,10 +220,14 @@ func (d Deps) renameAlbum(w http.ResponseWriter, r *http.Request) {
 // @Router  /api/albums/{id} [delete]
 func (d Deps) deleteAlbum(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	user := d.currentUser(r)
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	res, err := d.DB.ExecContext(r.Context(),
 		`UPDATE albums SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-		 WHERE id = ? AND owner_id = ? AND deleted_at IS NULL`, id, user.ID)
+		 WHERE id = ? AND owner_id = ? AND deleted_at IS NULL`, id, owner)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "delete_album_failed")
 		return
@@ -237,7 +250,6 @@ func (d Deps) deleteAlbum(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} apitypes.Error
 // @Failure 404 {object} apitypes.Error
 // @Router  /api/albums/{id}/assets [post]
-// @Router  /api/capture/albums/{id}/assets [post]
 func (d Deps) addAlbumAssets(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	ok, err := d.ownsAlbum(r, id)
@@ -287,7 +299,6 @@ func (d Deps) addAlbumAssets(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} apitypes.Error
 // @Failure 404 {object} apitypes.Error
 // @Router  /api/albums/{id}/assets [delete]
-// @Router  /api/capture/albums/{id}/assets [delete]
 func (d Deps) removeAlbumAssets(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	ok, err := d.ownsAlbum(r, id)

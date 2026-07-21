@@ -19,7 +19,6 @@ import (
 // @Failure 404 {object} apitypes.Error
 // @Failure 409 {object} apitypes.Error
 // @Router  /api/assets/{id} [delete]
-// @Router  /api/capture/assets/{id} [delete]
 func (d Deps) deleteAsset(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if ok, err := d.ownsAsset(r, id); err != nil {
@@ -52,7 +51,6 @@ func (d Deps) deleteAsset(w http.ResponseWriter, r *http.Request) {
 // @Failure 404 {object} apitypes.Error
 // @Failure 409 {object} apitypes.Error
 // @Router  /api/assets/{id}/restore [post]
-// @Router  /api/capture/assets/{id}/restore [post]
 func (d Deps) restoreAsset(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if ok, err := d.ownsAsset(r, id); err != nil {
@@ -84,7 +82,7 @@ func (d Deps) restoreAsset(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} apitypes.Error
 // @Failure 404 {object} apitypes.Error
 // @Failure 409 {object} apitypes.Error
-// @Router  /api/capture/trash/{id} [delete]
+// @Router  /api/trash/{id} [delete]
 func (d Deps) purgeAsset(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if ok, err := d.ownsAsset(r, id); err != nil {
@@ -116,11 +114,15 @@ func (d Deps) purgeAsset(w http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} apitypes.AssetList
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/trash [get]
-// @Router  /api/capture/trash [get]
 func (d Deps) listTrash(w http.ResponseWriter, r *http.Request) {
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	limit := parseLimit(r.URL.Query().Get("limit"))
 	rows, err := d.DB.QueryContext(r.Context(),
-		assetSelectSQL("WHERE a.deleted_at IS NOT NULL")+" LIMIT ?", limit+1)
+		assetSelectSQL("WHERE a.deleted_at IS NOT NULL AND a.owner_id = ?")+" LIMIT ?", owner, limit+1)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_trash_failed")
 		return

@@ -88,18 +88,10 @@ func parseAssetFilters(r *http.Request) (assetFilters, string) {
 }
 
 // respondFiltered runs the shared filter query with cursor pagination and writes
-// the asset page. Both the authenticated web search and the device-authenticated
-// mobile library use it, so the two surfaces stay byte-for-byte identical.
-// @Summary List captured library (device)
-// @Tags    capture
-// @Produce json
-// @Param   cursor query string false "pagination cursor"
-// @Param   limit  query int    false "page size"
-// @Param   q      query string false "full-text query"
-// @Success 200 {object} apitypes.AssetList
-// @Failure 400 {object} apitypes.Error
-// @Failure 401 {object} apitypes.Error
-// @Router  /api/capture/library [get]
+// the asset page. It backs searchAssets (/api/search), reachable by both
+// session and device principals, so the web and mobile clients stay
+// byte-for-byte identical. No swag annotations here: searchAssets carries the
+// documented route.
 func (d Deps) respondFiltered(w http.ResponseWriter, r *http.Request) {
 	limit := parseLimit(r.URL.Query().Get("limit"))
 	filters, ferr := parseAssetFilters(r)
@@ -112,10 +104,17 @@ func (d Deps) respondFiltered(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_cursor")
 		return
 	}
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 
 	where := append([]string{}, filters.where...)
 	args := append([]any{}, filters.joinArgs...)
 	args = append(args, filters.whereArgs...)
+	where = append(where, "a.owner_id = ?")
+	args = append(args, owner)
 	if cursorTime != "" {
 		where = append(where, "(COALESCE(a.taken_at, a.created_at) < ? OR (COALESCE(a.taken_at, a.created_at) = ? AND a.id < ?))")
 		args = append(args, cursorTime, cursorTime, cursorID)

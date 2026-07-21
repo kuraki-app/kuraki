@@ -18,8 +18,12 @@ import (
 // @Success 200 {object} apitypes.AssetList
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/memories [get]
-// @Router  /api/capture/memories [get]
 func (d Deps) onThisDay(w http.ResponseWriter, r *http.Request) {
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	md := time.Now().Format("01-02")
 	if raw := strings.TrimSpace(r.URL.Query().Get("date")); raw != "" {
 		if t, err := time.Parse("2006-01-02", raw); err == nil {
@@ -30,9 +34,9 @@ func (d Deps) onThisDay(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := d.DB.QueryContext(r.Context(),
 		assetSelectSQL(
-			"WHERE a.deleted_at IS NULL AND a.taken_at IS NOT NULL "+
+			"WHERE a.deleted_at IS NULL AND a.owner_id = ? AND a.taken_at IS NOT NULL "+
 				"AND strftime('%m-%d', a.taken_at) = ?")+" LIMIT ?",
-		md, limit+1)
+		owner, md, limit+1)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_memories_failed")
 		return

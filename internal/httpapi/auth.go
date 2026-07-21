@@ -169,7 +169,26 @@ func (d Deps) me(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, apitypes.SetupStatus{SetupRequired: required, User: user})
 }
 
-func (d Deps) requireAuth(next http.Handler) http.Handler {
+type principalKind int
+
+const (
+	principalSession principalKind = iota
+	principalDevice
+)
+
+type principal struct {
+	OwnerID  string
+	Kind     principalKind
+	DeviceID string
+}
+
+type principalCtxKey struct{}
+
+// requirePrincipal accepts EITHER a Bearer device token OR a session cookie and
+// stores the resolved principal in the request context. It is the single authed
+// gate for routes reachable by both clients; per-route policy (requireSession/
+// requireDevicePrincipal) narrows the few that must not be.
+func (d Deps) requirePrincipal(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		required, err := d.setupRequired(r.Context())
 		if err != nil {
@@ -180,11 +199,64 @@ func (d Deps) requireAuth(next http.Handler) http.Handler {
 			writeError(w, http.StatusForbidden, "setup_required")
 			return
 		}
-		if d.currentUser(r) != nil {
-			next.ServeHTTP(w, r)
+		// Device (Bearer) first. Set BOTH the principal AND the existing
+		// captureDeviceKey — the capture-ingest handlers (captureStart/Append/
+		// Complete/Status) read deviceFromRequest(r) directly, so the device must
+		// remain in context under its original key for them to keep working.
+		if dev, ok := d.resolveDevice(r); ok {
+			p := principal{OwnerID: dev.OwnerID, Kind: principalDevice, DeviceID: dev.ID}
+			ctx := context.WithValue(r.Context(), captureDeviceKey{}, dev)
+			ctx = context.WithValue(ctx, principalCtxKey{}, p)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+		if u := d.currentUser(r); u != nil {
+			p := principal{OwnerID: u.ID, Kind: principalSession}
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalCtxKey{}, p)))
 			return
 		}
 		writeError(w, http.StatusUnauthorized, "unauthorized")
+	})
+}
+
+func principalFrom(r *http.Request) (principal, bool) {
+	p, ok := r.Context().Value(principalCtxKey{}).(principal)
+	return p, ok
+}
+
+// requireSessionPrincipal narrows a route to session (cookie) principals
+// only. It assumes it is nested inside requirePrincipal, so the principal is
+// already in context; a missing principal is still handled defensively (401)
+// rather than assumed impossible.
+func (d Deps) requireSessionPrincipal(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p, ok := principalFrom(r)
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		if p.Kind != principalSession {
+			writeError(w, http.StatusForbidden, "session_required")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// requireDevicePrincipal narrows a route to device (Bearer token) principals
+// only. Same nesting assumption as requireSessionPrincipal.
+func (d Deps) requireDevicePrincipal(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p, ok := principalFrom(r)
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		if p.Kind != principalDevice {
+			writeError(w, http.StatusForbidden, "device_required")
+			return
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -269,11 +341,13 @@ func (d Deps) currentUser(r *http.Request) *apitypes.User {
 	return &user
 }
 
-// ownerID returns the authenticated owner under either auth mode. Device auth
-// (Bearer) carries device.OwnerID; session auth carries the cookie user. Inside
-// an authed route group exactly one is present; if neither is, the caller must
-// treat it as unauthorized rather than dereferencing a nil user.
+// ownerID returns the authenticated owner from the resolved principal. The
+// direct-resolution fallbacks exist for handlers exercised without going
+// through requirePrincipal (e.g. some tests construct requests directly).
 func (d Deps) ownerID(r *http.Request) (string, bool) {
+	if p, ok := principalFrom(r); ok {
+		return p.OwnerID, true
+	}
 	if dev := deviceFromRequest(r); dev.OwnerID != "" {
 		return dev.OwnerID, true
 	}

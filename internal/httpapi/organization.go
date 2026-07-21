@@ -17,12 +17,12 @@ import (
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/tags [get]
 func (d Deps) listTags(w http.ResponseWriter, r *http.Request) {
-	user := d.currentUser(r)
-	if user == nil {
+	owner, ok := d.ownerID(r)
+	if !ok {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
-	rows, err := d.DB.QueryContext(r.Context(), `SELECT id,name,parent_id FROM tags WHERE owner_id=? ORDER BY name`, user.ID)
+	rows, err := d.DB.QueryContext(r.Context(), `SELECT id,name,parent_id FROM tags WHERE owner_id=? ORDER BY name`, owner)
 	if err != nil {
 		writeError(w, 500, "query_tags_failed")
 		return
@@ -53,8 +53,8 @@ func (d Deps) listTags(w http.ResponseWriter, r *http.Request) {
 // @Failure 409 {object} apitypes.Error
 // @Router  /api/tags [post]
 func (d Deps) createTag(w http.ResponseWriter, r *http.Request) {
-	user := d.currentUser(r)
-	if user == nil {
+	owner, ok := d.ownerID(r)
+	if !ok {
 		writeError(w, 401, "unauthorized")
 		return
 	}
@@ -73,7 +73,7 @@ func (d Deps) createTag(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "tag_id_failed")
 		return
 	}
-	if _, err = d.DB.ExecContext(r.Context(), `INSERT INTO tags(id,owner_id,name,parent_id) VALUES(?,?,?,?)`, id.String(), user.ID, req.Name, req.ParentID); err != nil {
+	if _, err = d.DB.ExecContext(r.Context(), `INSERT INTO tags(id,owner_id,name,parent_id) VALUES(?,?,?,?)`, id.String(), owner, req.Name, req.ParentID); err != nil {
 		writeError(w, 409, "tag_exists_or_parent_invalid")
 		return
 	}
@@ -89,12 +89,12 @@ func (d Deps) createTag(w http.ResponseWriter, r *http.Request) {
 // @Failure 404 {object} apitypes.Error
 // @Router  /api/tags/{id} [delete]
 func (d Deps) deleteTag(w http.ResponseWriter, r *http.Request) {
-	user := d.currentUser(r)
-	if user == nil {
+	owner, ok := d.ownerID(r)
+	if !ok {
 		writeError(w, 401, "unauthorized")
 		return
 	}
-	res, err := d.DB.ExecContext(r.Context(), `DELETE FROM tags WHERE id=? AND owner_id=?`, chi.URLParam(r, "id"), user.ID)
+	res, err := d.DB.ExecContext(r.Context(), `DELETE FROM tags WHERE id=? AND owner_id=?`, chi.URLParam(r, "id"), owner)
 	if err != nil {
 		writeError(w, 500, "delete_tag_failed")
 		return
@@ -146,8 +146,8 @@ func (d Deps) assetTags(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/assets/{id}/tags [put]
 func (d Deps) replaceAssetTags(w http.ResponseWriter, r *http.Request) {
-	user := d.currentUser(r)
-	if user == nil {
+	owner, ok := d.ownerID(r)
+	if !ok {
 		writeError(w, 401, "unauthorized")
 		return
 	}
@@ -157,6 +157,13 @@ func (d Deps) replaceAssetTags(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := chi.URLParam(r, "id")
+	if ok, err := d.ownsAsset(r, id); err != nil {
+		writeError(w, 500, "asset_lookup_failed")
+		return
+	} else if !ok {
+		writeError(w, 404, "asset_not_found")
+		return
+	}
 	tx, err := d.DB.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeError(w, 500, "update_tags_failed")
@@ -168,7 +175,7 @@ func (d Deps) replaceAssetTags(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, tagID := range req.IDs {
-		res, err := tx.ExecContext(r.Context(), `INSERT INTO asset_tags(asset_id,tag_id) SELECT ?,id FROM tags WHERE id=? AND owner_id=?`, id, tagID, user.ID)
+		res, err := tx.ExecContext(r.Context(), `INSERT INTO asset_tags(asset_id,tag_id) SELECT ?,id FROM tags WHERE id=? AND owner_id=?`, id, tagID, owner)
 		if err != nil {
 			writeError(w, 500, "update_tags_failed")
 			return
@@ -182,7 +189,7 @@ func (d Deps) replaceAssetTags(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "update_tags_failed")
 		return
 	}
-	d.logAssetChange(r.Context(), id, user.ID, "update")
+	d.logAssetChange(r.Context(), id, owner, "update")
 	d.assetTags(w, r)
 }
 
@@ -193,12 +200,12 @@ func (d Deps) replaceAssetTags(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/saved-searches [get]
 func (d Deps) listSavedSearches(w http.ResponseWriter, r *http.Request) {
-	user := d.currentUser(r)
-	if user == nil {
+	owner, ok := d.ownerID(r)
+	if !ok {
 		writeError(w, 401, "unauthorized")
 		return
 	}
-	rows, err := d.DB.QueryContext(r.Context(), `SELECT id,name,query_json,created_at FROM saved_searches WHERE owner_id=? ORDER BY name`, user.ID)
+	rows, err := d.DB.QueryContext(r.Context(), `SELECT id,name,query_json,created_at FROM saved_searches WHERE owner_id=? ORDER BY name`, owner)
 	if err != nil {
 		writeError(w, 500, "query_saved_searches_failed")
 		return
@@ -227,8 +234,8 @@ func (d Deps) listSavedSearches(w http.ResponseWriter, r *http.Request) {
 // @Failure 409 {object} apitypes.Error
 // @Router  /api/saved-searches [post]
 func (d Deps) createSavedSearch(w http.ResponseWriter, r *http.Request) {
-	user := d.currentUser(r)
-	if user == nil {
+	owner, ok := d.ownerID(r)
+	if !ok {
 		writeError(w, 401, "unauthorized")
 		return
 	}
@@ -247,7 +254,7 @@ func (d Deps) createSavedSearch(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "saved_search_id_failed")
 		return
 	}
-	if _, err = d.DB.ExecContext(r.Context(), `INSERT INTO saved_searches(id,owner_id,name,query_json) VALUES(?,?,?,?)`, id.String(), user.ID, req.Name, string(req.Query)); err != nil {
+	if _, err = d.DB.ExecContext(r.Context(), `INSERT INTO saved_searches(id,owner_id,name,query_json) VALUES(?,?,?,?)`, id.String(), owner, req.Name, string(req.Query)); err != nil {
 		writeError(w, 409, "saved_search_exists")
 		return
 	}
@@ -263,12 +270,12 @@ func (d Deps) createSavedSearch(w http.ResponseWriter, r *http.Request) {
 // @Failure 404 {object} apitypes.Error
 // @Router  /api/saved-searches/{id} [delete]
 func (d Deps) deleteSavedSearch(w http.ResponseWriter, r *http.Request) {
-	user := d.currentUser(r)
-	if user == nil {
+	owner, ok := d.ownerID(r)
+	if !ok {
 		writeError(w, 401, "unauthorized")
 		return
 	}
-	res, err := d.DB.ExecContext(r.Context(), `DELETE FROM saved_searches WHERE id=? AND owner_id=?`, chi.URLParam(r, "id"), user.ID)
+	res, err := d.DB.ExecContext(r.Context(), `DELETE FROM saved_searches WHERE id=? AND owner_id=?`, chi.URLParam(r, "id"), owner)
 	if err != nil {
 		writeError(w, 500, "delete_saved_search_failed")
 		return

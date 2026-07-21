@@ -40,14 +40,21 @@ func (d Deps) downloadZip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
 	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(req.IDs)), ",")
 	args := make([]any, len(req.IDs))
 	for i, id := range req.IDs {
 		args[i] = id
 	}
+	args = append(args, owner)
 	rows, err := d.DB.QueryContext(r.Context(),
 		`SELECT original_path, filename FROM assets
-		 WHERE deleted_at IS NULL AND id IN (`+placeholders+`)`, args...)
+		 WHERE deleted_at IS NULL AND id IN (`+placeholders+`) AND owner_id = ?`, args...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_failed")
 		return
