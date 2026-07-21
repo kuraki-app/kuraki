@@ -221,31 +221,57 @@ func (d Deps) status(w http.ResponseWriter, r *http.Request) {
 }
 
 // spaHandler serves static files from the embedded UI, falling back to
-// index.html for unknown paths so client-side routing works (F-06).
+// index.html for unknown paths so client-side routing works (F-06). The
+// index.html document is served specially: SvelteKit boots via inline <script>
+// blocks, which the strict CSP (script-src 'self') would block, so each document
+// response injects a fresh nonce into those scripts and emits a matching
+// script-src 'nonce-…'. Static assets (JS/CSS) are same-origin files admitted by
+// 'self' and served verbatim.
 func spaHandler(files fs.FS) http.HandlerFunc {
 	fileServer := http.FileServer(http.FS(files))
+	index, indexErr := fs.ReadFile(files, "index.html")
 	return func(w http.ResponseWriter, r *http.Request) {
 		p := path.Clean(r.URL.Path)
-		if p == "/" {
-			p = "/index.html"
-		}
-		if f, err := files.Open(p[1:]); err == nil {
-			f.Close()
-			// Hashed build assets never change under their URL — cache forever.
-			if strings.HasPrefix(p, "/_app/immutable/") {
-				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		// A concrete, existing asset (not the root, not "/index.html") is served
+		// as a plain file under the strict default CSP.
+		if p != "/" && p != "/index.html" {
+			if f, err := files.Open(p[1:]); err == nil {
+				f.Close()
+				// Hashed build assets never change under their URL — cache forever.
+				if strings.HasPrefix(p, "/_app/immutable/") {
+					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+				}
+				fileServer.ServeHTTP(w, r)
+				return
+			} else if !os.IsNotExist(err) {
+				// Unexpected error opening embedded asset.
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
 			}
-			fileServer.ServeHTTP(w, r)
-			return
-		} else if !os.IsNotExist(err) {
-			// Unexpected error opening embedded asset.
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
 		}
-		// SPA fallback.
-		r.URL.Path = "/"
-		fileServer.ServeHTTP(w, r)
+		// The SPA document: root, "/index.html", or a client-side route fallback.
+		serveSPADocument(w, index, indexErr)
 	}
+}
+
+// serveSPADocument writes index.html with a per-request nonce on its inline
+// scripts and a matching nonce CSP, so SvelteKit's bootstrap runs under the
+// strict policy. The response is uncacheable — a cached body would pin a stale
+// nonce that a later response's CSP header would reject.
+func serveSPADocument(w http.ResponseWriter, index []byte, indexErr error) {
+	if indexErr != nil {
+		http.Error(w, "ui unavailable", http.StatusInternalServerError)
+		return
+	}
+	nonce := newCSPNonce()
+	// SvelteKit emits its inline bootstrap (and the theme script) as bare
+	// `<script>` tags; tag each with the nonce so script-src 'nonce-…' admits it.
+	body := strings.ReplaceAll(string(index), "<script>", `<script nonce="`+nonce+`">`)
+	w.Header().Set("Content-Security-Policy", contentSecurityPolicy(nonce))
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(body))
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {
