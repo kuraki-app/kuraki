@@ -188,6 +188,61 @@ func (d Deps) requireAuth(next http.Handler) http.Handler {
 	})
 }
 
+type principalKind int
+
+const (
+	principalSession principalKind = iota
+	principalDevice
+)
+
+type principal struct {
+	OwnerID  string
+	Kind     principalKind
+	DeviceID string
+}
+
+type principalCtxKey struct{}
+
+// requirePrincipal accepts EITHER a Bearer device token OR a session cookie and
+// stores the resolved principal in the request context. It is the single authed
+// gate for routes reachable by both clients; per-route policy (requireSession/
+// requireDevicePrincipal) narrows the few that must not be.
+func (d Deps) requirePrincipal(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		required, err := d.setupRequired(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "setup_status_failed")
+			return
+		}
+		if required {
+			writeError(w, http.StatusForbidden, "setup_required")
+			return
+		}
+		// Device (Bearer) first. Set BOTH the principal AND the existing
+		// captureDeviceKey — the capture-ingest handlers (captureStart/Append/
+		// Complete/Status) read deviceFromRequest(r) directly, so the device must
+		// remain in context under its original key for them to keep working.
+		if dev, ok := d.resolveDevice(r); ok {
+			p := principal{OwnerID: dev.OwnerID, Kind: principalDevice, DeviceID: dev.ID}
+			ctx := context.WithValue(r.Context(), captureDeviceKey{}, dev)
+			ctx = context.WithValue(ctx, principalCtxKey{}, p)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+		if u := d.currentUser(r); u != nil {
+			p := principal{OwnerID: u.ID, Kind: principalSession}
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalCtxKey{}, p)))
+			return
+		}
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+	})
+}
+
+func principalFrom(r *http.Request) (principal, bool) {
+	p, ok := r.Context().Value(principalCtxKey{}).(principal)
+	return p, ok
+}
+
 func (d Deps) setupRequired(ctx context.Context) (bool, error) {
 	var count int
 	if err := d.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE password_hash <> ''`).Scan(&count); err != nil {
@@ -269,11 +324,14 @@ func (d Deps) currentUser(r *http.Request) *apitypes.User {
 	return &user
 }
 
-// ownerID returns the authenticated owner under either auth mode. Device auth
-// (Bearer) carries device.OwnerID; session auth carries the cookie user. Inside
-// an authed route group exactly one is present; if neither is, the caller must
-// treat it as unauthorized rather than dereferencing a nil user.
+// ownerID returns the authenticated owner under either auth mode. It prefers
+// the principal resolved by requirePrincipal; routes still mounted under the
+// older requireAuth/requireDeviceAuth middlewares (pending later migration
+// tasks) fall back to direct resolution so they keep working unchanged.
 func (d Deps) ownerID(r *http.Request) (string, bool) {
+	if p, ok := principalFrom(r); ok {
+		return p.OwnerID, true
+	}
 	if dev := deviceFromRequest(r); dev.OwnerID != "" {
 		return dev.OwnerID, true
 	}
