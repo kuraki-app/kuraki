@@ -10,7 +10,7 @@ import type { components } from '@/lib/api.gen';
 
 // Derived from the generated contract rather than hand-declared, so a server-side
 // rename or type change breaks the build here instead of drifting silently.
-// `/api/capture/library` returns the full apitypes.Asset; mobile only reads this
+// `/api/search` returns the full apitypes.Asset; mobile only reads this
 // subset, and the offline SQLite mirror only persists these columns, so the view
 // stays narrow via Pick instead of adopting all ~30 fields.
 type ContractAsset = components['schemas']['apitypes.Asset'];
@@ -74,7 +74,7 @@ export async function fetchLibrary(
   if (filters.place_city) params.set('place_city', filters.place_city);
   if (cursor) params.set('cursor', cursor);
 
-  const response = await fetch(`${settings.baseURL}/api/capture/library?${params.toString()}`, {
+  const response = await fetch(`${settings.baseURL}/api/search?${params.toString()}`, {
     headers: { Authorization: `Bearer ${settings.deviceToken}` },
   });
   if (response.status === 401) {
@@ -97,7 +97,7 @@ export async function fetchLibrary(
 
 /** setFavorite pushes a favorite toggle to the server for one asset. */
 export async function setFavorite(settings: CaptureSettings, id: string, favorite: boolean): Promise<void> {
-  const response = await fetch(`${settings.baseURL}/api/capture/assets/${id}/favorite`, {
+  const response = await fetch(`${settings.baseURL}/api/assets/${id}/favorite`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${settings.deviceToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ favorite }),
@@ -170,7 +170,7 @@ async function withMirrorFallback<T>(load: () => Promise<T>, fallback: () => Pro
 
 export async function fetchAlbums(settings: CaptureSettings): Promise<CachedAlbum[]> {
   return withMirrorFallback(async () => {
-    const body = await authedGet<{ albums: ServerAlbum[] }>(settings, '/api/capture/albums');
+    const body = await authedGet<{ albums: ServerAlbum[] }>(settings, '/api/albums');
     const albums = body.albums.map(toCachedAlbum);
     await upsertAlbums(albums);
     return albums;
@@ -180,7 +180,7 @@ export async function fetchAlbums(settings: CaptureSettings): Promise<CachedAlbu
 export async function fetchAlbum(settings: CaptureSettings, id: string): Promise<LibraryAsset[]> {
   return withMirrorFallback(
     async () => {
-      const page = await authedGet<LibraryPage>(settings, `/api/capture/albums/${id}`);
+      const page = await authedGet<LibraryPage>(settings, `/api/albums/${id}`);
       await setAlbumAssets(id, page.assets);
       return page.assets;
     },
@@ -191,7 +191,7 @@ export async function fetchAlbum(settings: CaptureSettings, id: string): Promise
 /** createAlbum is online-only: a network failure throws so the UI can show
  * "Connect to create an album" rather than silently queuing it. */
 export async function createAlbum(settings: CaptureSettings, name: string): Promise<{ id: string; name: string }> {
-  const response = await fetch(`${settings.baseURL}/api/capture/albums`, {
+  const response = await fetch(`${settings.baseURL}/api/albums`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${settings.deviceToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
@@ -207,16 +207,16 @@ export async function createAlbum(settings: CaptureSettings, name: string): Prom
 }
 
 export async function addToAlbum(settings: CaptureSettings, albumId: string, ids: string[]): Promise<void> {
-  return authedMutate(settings, `/api/capture/albums/${albumId}/assets`, 'POST', { ids });
+  return authedMutate(settings, `/api/albums/${albumId}/assets`, 'POST', { ids });
 }
 
 export async function removeFromAlbum(settings: CaptureSettings, albumId: string, ids: string[]): Promise<void> {
-  return authedMutate(settings, `/api/capture/albums/${albumId}/assets`, 'DELETE', { ids });
+  return authedMutate(settings, `/api/albums/${albumId}/assets`, 'DELETE', { ids });
 }
 
 export async function fetchMemories(settings: CaptureSettings, cursor?: string): Promise<LibraryPage> {
   const params = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
-  const page = await authedGet<LibraryPage>(settings, `/api/capture/memories${params}`);
+  const page = await authedGet<LibraryPage>(settings, `/api/memories${params}`);
   void upsertAssets(page.assets);
   return page;
 }
@@ -225,7 +225,7 @@ export async function fetchTrash(settings: CaptureSettings, cursor?: string): Pr
   return withMirrorFallback(
     async () => {
       const params = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
-      const page = await authedGet<LibraryPage>(settings, `/api/capture/trash${params}`);
+      const page = await authedGet<LibraryPage>(settings, `/api/trash${params}`);
       await upsertAssets(page.assets);
       for (const a of page.assets) await setTrashed(a.id, true);
       return page;
@@ -237,7 +237,7 @@ export async function fetchTrash(settings: CaptureSettings, cursor?: string): Pr
 // ---- Delta sync ----------------------------------------------------------
 //
 // The server keeps an owner-scoped change_log and serves it as a thin,
-// cursor-paginated feed at GET /api/capture/changes (id/entity/op only). This
+// cursor-paginated feed at GET /api/changes (id/entity/op only). This
 // reconciles the SQLite mirror against that feed so the phone picks up edits
 // made elsewhere (e.g. from the web UI) without a blind full-library refetch.
 
@@ -246,7 +246,7 @@ type ChangesResponse = components['schemas']['apitypes.ChangesResponse'];
 
 /** fetchAsset re-reads one asset's metadata; null if it is gone (404). */
 async function fetchAsset(settings: CaptureSettings, id: string): Promise<LibraryAsset | null> {
-  const response = await fetch(`${settings.baseURL}/api/capture/assets/${id}`, {
+  const response = await fetch(`${settings.baseURL}/api/assets/${id}`, {
     headers: { Authorization: `Bearer ${settings.deviceToken}` },
   });
   if (response.status === 401) {
@@ -274,7 +274,7 @@ async function applyChange(settings: CaptureSettings, c: ChangeEntry): Promise<v
       return;
     case 'remove':
       // Trashed or purged — either way it leaves the active timeline mirror. The
-      // Trash screen refetches /api/capture/trash live, so we don't try to
+      // Trash screen refetches /api/trash live, so we don't try to
       // reconstruct trashed state here (getAsset can't return a deleted asset).
       await deleteCachedAsset(c.entity_id);
       return;
@@ -304,7 +304,7 @@ export async function syncChanges(settings: CaptureSettings): Promise<number> {
   for (let page = 0; page < 20; page++) {
     const since = await getSyncCursor();
     const res = await authedGet<ChangesResponse>(
-      settings, `/api/capture/changes?since=${since}`);
+      settings, `/api/changes?since=${since}`);
     for (const c of res.changes) {
       await applyChange(settings, c);
       applied++;
@@ -318,15 +318,15 @@ export async function syncChanges(settings: CaptureSettings): Promise<number> {
 }
 
 export async function restoreAsset(settings: CaptureSettings, id: string): Promise<void> {
-  return authedMutate(settings, `/api/capture/assets/${id}/restore`, 'POST');
+  return authedMutate(settings, `/api/assets/${id}/restore`, 'POST');
 }
 
 export async function trashAsset(settings: CaptureSettings, id: string): Promise<void> {
-  return authedMutate(settings, `/api/capture/assets/${id}`, 'DELETE');
+  return authedMutate(settings, `/api/assets/${id}`, 'DELETE');
 }
 
 export async function purgeAsset(settings: CaptureSettings, id: string): Promise<void> {
-  return authedMutate(settings, `/api/capture/trash/${id}`, 'DELETE');
+  return authedMutate(settings, `/api/trash/${id}`, 'DELETE');
 }
 
 export type MutationKind = 'favorite' | 'album_add' | 'album_remove' | 'trash' | 'restore' | 'purge';
@@ -341,17 +341,17 @@ export function routeForMutation(
   const p = JSON.parse(payload || '{}') as { favorite?: boolean; album_id?: string };
   switch (kind) {
     case 'favorite':
-      return { method: 'POST', path: `/api/capture/assets/${assetId}/favorite`, body: { favorite: !!p.favorite } };
+      return { method: 'POST', path: `/api/assets/${assetId}/favorite`, body: { favorite: !!p.favorite } };
     case 'album_add':
-      return { method: 'POST', path: `/api/capture/albums/${p.album_id}/assets`, body: { ids: [assetId] } };
+      return { method: 'POST', path: `/api/albums/${p.album_id}/assets`, body: { ids: [assetId] } };
     case 'album_remove':
-      return { method: 'DELETE', path: `/api/capture/albums/${p.album_id}/assets`, body: { ids: [assetId] } };
+      return { method: 'DELETE', path: `/api/albums/${p.album_id}/assets`, body: { ids: [assetId] } };
     case 'trash':
-      return { method: 'DELETE', path: `/api/capture/assets/${assetId}`, body: undefined };
+      return { method: 'DELETE', path: `/api/assets/${assetId}`, body: undefined };
     case 'restore':
-      return { method: 'POST', path: `/api/capture/assets/${assetId}/restore`, body: undefined };
+      return { method: 'POST', path: `/api/assets/${assetId}/restore`, body: undefined };
     case 'purge':
-      return { method: 'DELETE', path: `/api/capture/trash/${assetId}`, body: undefined };
+      return { method: 'DELETE', path: `/api/trash/${assetId}`, body: undefined };
     default:
       throw new LibraryError(`unknown mutation kind: ${kind}`);
   }
@@ -404,7 +404,7 @@ export const flushFavorites = flushMutationsQueue;
 
 function authed(settings: CaptureSettings, id: string, kind: 'thumb' | 'preview' | 'original'): AuthedSource {
   return {
-    uri: `${settings.baseURL}/api/capture/assets/${id}/${kind}`,
+    uri: `${settings.baseURL}/api/assets/${id}/${kind}`,
     headers: { Authorization: `Bearer ${settings.deviceToken}` },
   };
 }
