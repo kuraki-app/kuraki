@@ -75,6 +75,16 @@ Phase 1 = single-owner personal backup.
   row) still resolves an owner. The feed is thin — id/entity/entity_id/op only, the client
   refetches via existing asset endpoints — and cursor-paginated on `change_log.id`
   (`?since=&limit=`, response echoes the next `cursor` + `has_more`).
+- **Mobile Tags (2026-07-23, `feat/mobile-tags`):** the Expo client gained tagging —
+  a per-asset **tag editor** in the viewer (checkbox sheet, offline-queued via a new
+  `set_tags` pending-mutation kind; tag *create* is online-only) and **browse-by-tag**
+  (a Library header sheet → a filtered-grid route reusing `PhotoGrid` + `fetchLibrary`).
+  Cached tag list (cache schema **v4**) so browse renders offline. **One server change**:
+  a `tag=<id>` param added to the shared filter language (`parseAssetFilters`, a JOIN on
+  `asset_tags`, mirroring the `album` filter) — no migration, no DTO change; web benefits too.
+  Go filter test + Vitest (tag param, `set_tags` classifier) green; native sheets
+  dev-client-verified only. Second of three parity slices (Places ✓ → Tags → Duplicates+stacks).
+  Spec: `docs/superpowers/specs/2026-07-22-mobile-tags-design.md`.
 - **Production-readiness audit (2026-07-12):** `PRODUCTION_READINESS_AUDIT.md`
   reconciles the code, documentation, and peer practices. It makes the current
   Docker/libvips claim, 20k quadratic duplicate limit, untested migration
@@ -214,6 +224,8 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Contract drift gate: `make check-gen` regenerates spec + both client type files and fails on any diff (CI job `contract`). Generators pinned (swag `v1.16.4` via `go run`, swagger2openapi `7.0.8`, openapi-typescript `7.4.4`) — an unpinned generator would fail the gate spuriously | ✅ done |
 | Web type gate: `svelte-check` is now a devDependency + `npm run check` + a CI step. **`npm run build` never typechecked** (Vite strips types; plain `tsc` skips `.svelte`), so web had no type gate at all | ✅ done |
 
+| Mobile Tags (`feat/mobile-tags`): per-asset tag editor (viewer, offline-queued `set_tags`, online-only create) + browse-by-tag (Library sheet → filtered-grid route). Cached tag list (cache v4). One server change: `tag` filter in `parseAssetFilters`. Go filter test + Vitest green; native sheets dev-client-verified. Second of 3 parity slices | 🟡 code-complete (go test + tsc + lint + vitest green), **native sheets need a device pass** |
+
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 
 ## 9. Next up
@@ -239,6 +251,13 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `feat/mobile-tags` (2026-07-23) — **Mobile tagging: per-asset editor + browse-by-tag. One small server filter addition; the rest is mobile-only. Second of three parity slices (Places ✓ → Tags → Duplicates+stacks).**
+  - **Server (the only Go change).** `parseAssetFilters` (`internal/httpapi/filters.go`) gained an optional `tag=<id>` param — a `JOIN asset_tags atf ON atf.asset_id = a.id AND atf.tag_id = ?`, mirroring the existing `album` filter. No migration (tables exist), no DTO/annotation change (so `make check-gen` stays clean — the search endpoint already leaves `album`/`place_country`/`camera`/`rating` unannotated, and `tag` follows that precedent). Owner-safety rides on `respondFiltered`'s existing owner scoping. Tested by extending `TestUnifiedFiltersAndDeviceSearch` (`?tag=<id>` → the tagged asset; `?tag=missing` → none).
+  - **Mobile.** `library-api.ts`: `fetchTags` (cached), `fetchAssetTags`, `setAssetTags` (full-set PUT), `createTag` (online-only), a `tag?` filter, and an `authedPost` helper. New `set_tags` pending-mutation kind (`cache/mutations.ts` + `routeForMutation` → `PUT /api/assets/{id}/tags` with `{ ids }`). Cache schema **v4** adds a `tags` table (`cache/tags.ts`) so browse renders offline. UI: `tag-editor.tsx` (viewer bottom sheet — checkbox list seeded from the asset's tags, inline create, Done → PUT online / `enqueueSetTags` offline), `tag-list.tsx` (browse sheet), `(app)/tag.tsx` (filtered grid — the `place.tsx` pattern). Wired: a `⊕ Tags` button in `photo-viewer.tsx`; a `Tags ▾` chip in the Library timeline header.
+  - **Why tag-create is online-only.** A queued create has no server id yet, so a later offline `set_tags` couldn't reference it — same reasoning as album-create. Assigning *existing* tags queues fine.
+  - **VERIFICATION.** `go test ./internal/httpapi` (incl. the new filter case), mobile `tsc --noEmit`, `expo lint`, `vitest` (35, incl. the `set_tags` classifier + `tag`-param forwarding) — all green. **The native sheets (`@gorhom/bottom-sheet`) are NOT device-verified** (no simulator here); no new native module, so no dev-client rebuild is needed — but the editor/browse flows need a human pass: tag toggle+Done persists, offline queue drains on reconnect, offline create shows the connect message, tap-tag → grid.
+  - Built inline (spec: `docs/superpowers/specs/2026-07-22-mobile-tags-design.md`, plan: `docs/superpowers/plans/2026-07-22-mobile-tags.md`; both gitignored). Commits are per-task on this branch.
 
 - `fix/embedded-ui-csp-nonce` (2026-07-21) — **The embedded SvelteKit UI now boots when the Go binary serves it; Docker simplified to one process.**
   - **Root cause of the blank embedded UI (a real bug, browser-confirmed).** `securityHeaders` set `script-src 'self'` with no `'unsafe-inline'` and no nonce. SvelteKit boots via *inline* `<script>` blocks (the `__sveltekit` bootstrap + the theme script); CSP blocked both, so `kit.start()` never ran — `kuraki serve` on :3000 rendered an empty shell (no nav, no login, **no first-run setup**). Vite dev and the old in-container Caddy didn't set that header, which is why only the embedded path broke and it went unnoticed. This is almost certainly *why* the dual-origin Caddy was added — to serve the SPA from an origin without the strict CSP.
