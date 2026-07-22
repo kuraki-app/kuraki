@@ -3,6 +3,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useState } from 'react';
 import { Dimensions, FlatList, Modal, Pressable, StyleSheet, View, type ViewToken } from 'react-native';
 
+import TagEditor from '@/components/tag-editor';
 import { ThemedText } from '@/components/themed-text';
 import { fullImageSource, videoSource, type LibraryAsset } from '@/lib/library-api';
 import type { CaptureSettings } from '@/lib/settings';
@@ -21,6 +22,7 @@ type Props = {
 export default function PhotoViewer({ assets, initialIndex, settings, onClose, onToggleFavorite }: Props) {
   const width = Dimensions.get('window').width;
   const [active, setActive] = useState(initialIndex);
+  const [editingTags, setEditingTags] = useState(false);
   const onViewable = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const first = viewableItems[0];
     if (first?.index != null) setActive(first.index);
@@ -67,7 +69,15 @@ export default function PhotoViewer({ assets, initialIndex, settings, onClose, o
               </ThemedText>
             </Pressable>
           )}
+          {current && (
+            <Pressable style={styles.favorite} onPress={() => setEditingTags(true)} hitSlop={12}>
+              <ThemedText type="smallBold" style={styles.closeText}>⊕ Tags</ThemedText>
+            </Pressable>
+          )}
         </View>
+        {editingTags && current && (
+          <TagEditor asset={current} settings={settings} onClose={() => setEditingTags(false)} />
+        )}
       </View>
     </Modal>
   );
