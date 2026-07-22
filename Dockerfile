@@ -53,10 +53,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=build /out/kuraki /usr/local/bin/kuraki
 COPY --chmod=0755 scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-# Ship the prebuilt Android app served at /download/android. It lives outside
-# /data (a runtime volume that would shadow it) and is not embedded in the Go
-# binary. KURAKI_ANDROID_APK below points the download endpoint at it.
-COPY web/assets/download/kuraki-android.apk /opt/kuraki/kuraki-android.apk
+# Ship the prebuilt Android app served at /download/android. The APK is a 51MB
+# out-of-band artifact (gitignored, not source), so copy the whole directory:
+# the .apk rides along in release builds where an operator has placed it here,
+# and is simply absent in CI / from-source builds (the endpoint then 404s).
+# KURAKI_ANDROID_APK below points the download endpoint at it.
+COPY web/assets/download/ /opt/kuraki/
 
 # Run as an unprivileged user; /data is owned by it so the volume is writable.
 RUN useradd --system --uid 10001 --home /data kuraki \

@@ -1,0 +1,5 @@
+# Keeps web/assets/download/ present in git even though web/assets/ is
+# gitignored (the Android APK is a 51MB out-of-band artifact, not source).
+# The Dockerfile copies this directory; the .apk rides along in release builds
+# where an operator has placed it here, and is absent in CI / from-source builds
+# (the /download/android endpoint then returns a friendly 404).
