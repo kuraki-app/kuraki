@@ -71,6 +71,19 @@ export function getDB(): Promise<SQLite.SQLiteDatabase> {
           COMMIT;
         `);
       }
+      if (v < 4) {
+        // v4: a cached tag list so browse-by-tag renders offline (the grid
+        // itself still needs the network, like Places). Same all-or-nothing
+        // discipline as v2/v3.
+        await db.execAsync(`
+          BEGIN;
+          CREATE TABLE IF NOT EXISTS tags (
+            id TEXT PRIMARY KEY, name TEXT NOT NULL, parent_id TEXT, cached_at TEXT NOT NULL
+          );
+          PRAGMA user_version = 4;
+          COMMIT;
+        `);
+      }
       return db;
     })();
   }
