@@ -7,10 +7,10 @@
 # M1 compiles the SvelteKit UI into internal/httpapi/assets before the Go build
 # embeds it. The default binary stays pure-Go.
 #
-# The runtime image runs BOTH surfaces in one container: the Go server on :3000
-# (API + media, and the embedded UI as a fallback) and a Caddy static server on
-# :8080 that serves the SvelteKit UI as its own origin, proxying /api, /healthz,
-# and /metrics back to :3000. See scripts/docker-entrypoint.sh + deploy/ui.Caddyfile.
+# The runtime image runs ONE process — `kuraki serve` on :3000 — which serves
+# the API, media, AND the embedded SvelteKit UI (including first-run setup) from
+# a single origin. See scripts/docker-entrypoint.sh. For internet exposure with
+# automatic HTTPS, front this with the reverse proxy in deploy/ (DEPLOYMENT.md).
 
 # --- web build stage ---
 FROM node:24-bookworm-slim AS web
@@ -51,19 +51,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libvips42 ffmpeg tesseract-ocr tesseract-ocr-eng ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /out/kuraki /usr/local/bin/kuraki
-
-# Caddy serves the SvelteKit UI on :8080 as its own origin. Pull the static
-# binary from the official image (no apt), the built SPA from the web stage, and
-# the in-container UI config. See deploy/ui.Caddyfile + scripts/docker-entrypoint.sh.
-COPY --from=caddy:2 /usr/bin/caddy /usr/local/bin/caddy
-COPY --from=web /src/internal/httpapi/assets /srv/web
-COPY deploy/ui.Caddyfile /etc/caddy/Caddyfile
 COPY --chmod=0755 scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
-# Ship the prebuilt Android app served at /download/android. It lives outside
-# /data (a runtime volume that would shadow it) and is not embedded in the Go
-# binary. KURAKI_ANDROID_APK below points the download endpoint at it.
-COPY web/assets/download/kuraki-android.apk /opt/kuraki/kuraki-android.apk
+# Ship the prebuilt Android app served at /download/android. The APK is a 51MB
+# out-of-band artifact (gitignored, not source), so copy the whole directory:
+# the .apk rides along in release builds where an operator has placed it here,
+# and is simply absent in CI / from-source builds (the endpoint then 404s).
+# KURAKI_ANDROID_APK below points the download endpoint at it.
+COPY web/assets/download/ /opt/kuraki/
 
 # Run as an unprivileged user; /data is owned by it so the volume is writable.
 RUN useradd --system --uid 10001 --home /data kuraki \
@@ -71,15 +66,11 @@ RUN useradd --system --uid 10001 --home /data kuraki \
 USER kuraki
 
 VOLUME ["/data"]
-# Keep Caddy's scratch state off the /data volume (admin/persist are disabled,
-# so this stays tiny) and out of the read-only home.
 ENV KURAKI_DATA_DIR=/data \
     KURAKI_ADDR=:3000 \
-    XDG_CONFIG_HOME=/tmp \
-    XDG_DATA_HOME=/tmp \
     KURAKI_ANDROID_APK=/opt/kuraki/kuraki-android.apk
-# 3000 = Go API + media (canonical origin) · 8080 = SvelteKit UI (proxies /api).
-EXPOSE 3000 8080
+# 3000 = Go server: API + media + embedded UI (single origin).
+EXPOSE 3000
 
 # Self-probe the API via the kuraki binary — no curl/wget needed in the image.
 # If the API is down the UI is useless too, so probing :3000 covers both.

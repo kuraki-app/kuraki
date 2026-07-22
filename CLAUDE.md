@@ -48,7 +48,7 @@ Mobile (`cd mobile`): `npm run ios` / `npm run android` · `npm run lint` (`expo
 
 **CLI: `cmd/kuraki`** (cobra, all in `main.go`) — `serve` / `import` / `verify` / `backup` / `restore` / `passwd` / `healthcheck` / `version`. `passwd` resets a password offline and is the recovery path when locked out of the web UI; `healthcheck` is the container's HEALTHCHECK probe.
 
-**Runtime shape in Docker:** one container, two origins. `scripts/docker-entrypoint.sh` runs `kuraki serve` on `:3000` (API, media, embedded UI fallback, `/healthz`, `/metrics`) *and* Caddy on `:8080` (the SvelteKit UI, proxying `/api` and `/download/*` back to `:3000`); if either dies the container exits so the restart policy fires. Any non-`serve` argument passes straight through to the CLI, which is why `docker compose exec kuraki kuraki import …` still works.
+**Runtime shape in Docker:** one container, one process, one origin. `scripts/docker-entrypoint.sh` `exec`s `kuraki serve` on `:3000`, which serves the API, media, `/healthz`, `/metrics`, `/download/*`, and the embedded SvelteKit UI (including first-run setup) — all from a single origin. The UI boots under the strict CSP via a per-request script nonce (`spaHandler`/`serveSPADocument` in `internal/httpapi`); there is no in-container Caddy. Any non-`serve` argument passes straight through to the CLI, which is why `docker compose exec kuraki kuraki import …` still works. For internet exposure, front the container with the HTTPS reverse proxy in `deploy/` (which proxies to `:3000`).
 
 ## Invariants (violating these is a bug)
 

@@ -2,10 +2,9 @@
 #
 # Kuraki container entrypoint.
 #
-# Default (no args, or `serve`): run BOTH surfaces in one container —
-#   • Go API server (kuraki serve) on :3000  — /api, media, /healthz, /metrics
-#   • Caddy static server          on :8080  — the SvelteKit UI, proxying the
-#                                              API paths back to :3000
+# Default (no args, or `serve`): run `kuraki serve` on :3000 — one process that
+# serves the API, media, and the embedded SvelteKit UI (including first-run
+# setup) from a single origin.
 #
 # Any other argument (version, import, verify, healthcheck, backup, …) is
 # forwarded straight to the kuraki CLI, so `docker run … version`,
@@ -20,23 +19,6 @@ fi
 # Drop a leading `serve`; any remaining args are forwarded to `kuraki serve`.
 [ "${1:-}" = "serve" ] && shift
 
-term() {
-	trap - TERM INT
-	kill -TERM "${KURAKI_PID:-}" "${CADDY_PID:-}" 2>/dev/null || true
-}
-trap term TERM INT
-
-kuraki serve "$@" &
-KURAKI_PID=$!
-
-caddy run --config /etc/caddy/Caddyfile --adapter caddyfile &
-CADDY_PID=$!
-
-# If either server exits, tear the whole container down so the orchestrator's
-# restart policy can react — a half-up container (API without UI, or the
-# reverse) is worse than a clean restart.
-wait -n
-status=$?
-term
-wait 2>/dev/null || true
-exit "$status"
+# exec so kuraki is PID 1: it receives SIGTERM directly for a clean shutdown,
+# and the orchestrator's restart policy reacts to its exit.
+exec kuraki serve "$@"
