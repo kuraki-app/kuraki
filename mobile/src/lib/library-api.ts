@@ -221,6 +221,25 @@ export async function fetchMemories(settings: CaptureSettings, cursor?: string):
   return page;
 }
 
+// DupAsset is one member of a duplicate group. /api/duplicates returns an
+// untyped map on the server (no generated contract type), so this is
+// hand-declared to match the DupAsset wire struct.
+export type DupAsset = {
+  id: string;
+  filename: string;
+  size_bytes: number;
+  taken_at?: string;
+  thumbnail_url?: string;
+};
+
+// fetchDuplicates returns the latest scan's near-duplicate groups. Read-only on
+// mobile: triggering a scan is a session-only owner-console action, so an empty
+// result means "no scan yet / no duplicates", not a mobile capability gap.
+export async function fetchDuplicates(settings: CaptureSettings): Promise<DupAsset[][]> {
+  const body = await authedGet<{ groups: DupAsset[][] }>(settings, '/api/duplicates');
+  return body.groups ?? [];
+}
+
 export async function fetchTrash(settings: CaptureSettings, cursor?: string): Promise<LibraryPage> {
   return withMirrorFallback(
     async () => {
