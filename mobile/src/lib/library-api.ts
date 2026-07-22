@@ -44,6 +44,7 @@ export type LibraryFilters = {
   from?: string;
   to?: string;
   place_city?: string;
+  place_country?: string;
 };
 
 export class LibraryError extends Error {
@@ -57,7 +58,15 @@ export class LibraryError extends Error {
 // favorite, date range, or place filter) — that's the only view worth caching
 // for instant paint on the next open / offline fallback.
 function isUnfiltered(filters: LibraryFilters): boolean {
-  return !filters.q && !filters.type && !filters.favorite && !filters.from && !filters.to && !filters.place_city;
+  return (
+    !filters.q &&
+    !filters.type &&
+    !filters.favorite &&
+    !filters.from &&
+    !filters.to &&
+    !filters.place_city &&
+    !filters.place_country
+  );
 }
 
 export async function fetchLibrary(
@@ -75,6 +84,7 @@ export async function fetchLibrary(
   if (filters.from) params.set('from', filters.from);
   if (filters.to) params.set('to', filters.to);
   if (filters.place_city) params.set('place_city', filters.place_city);
+  if (filters.place_country) params.set('place_country', filters.place_country);
   if (cursor) params.set('cursor', cursor);
 
   const response = await fetch(`${settings.baseURL}/api/search?${params.toString()}`, {
