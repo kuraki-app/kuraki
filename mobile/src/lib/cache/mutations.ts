@@ -57,6 +57,18 @@ export async function enqueueAlbumRemove(assetId: string, albumId: string): Prom
   );
 }
 
+export async function enqueueSetTags(assetId: string, tagIDs: string[]): Promise<void> {
+  // Dynamic import keeps expo-sqlite (a native module) out of the Vitest node
+  // environment when only the pure classifyMutationResult above is imported.
+  // Do not change to a static top-level import — it breaks `npm run test`.
+  const { getDB } = await import('@/lib/cache/db');
+  const db = await getDB();
+  await db.runAsync(
+    `INSERT INTO pending_mutations (asset_id, kind, payload, created_at) VALUES (?, 'set_tags', ?, ?)`,
+    [assetId, JSON.stringify({ tag_ids: tagIDs }), new Date().toISOString()],
+  );
+}
+
 export async function enqueueTrash(assetId: string): Promise<void> {
   // Dynamic import keeps expo-sqlite (a native module) out of the Vitest node
   // environment when only the pure classifyMutationResult above is imported.

@@ -385,7 +385,7 @@ export async function purgeAsset(settings: CaptureSettings, id: string): Promise
   return authedMutate(settings, `/api/trash/${id}`, 'DELETE');
 }
 
-export type MutationKind = 'favorite' | 'album_add' | 'album_remove' | 'trash' | 'restore' | 'purge';
+export type MutationKind = 'favorite' | 'album_add' | 'album_remove' | 'trash' | 'restore' | 'purge' | 'set_tags';
 
 // routeForMutation maps a queued mutation to its server call. Pure so the
 // dispatch table is unit-tested without a network or SecureStore.
@@ -394,10 +394,12 @@ export function routeForMutation(
   assetId: string,
   payload: string,
 ): { method: string; path: string; body?: unknown } {
-  const p = JSON.parse(payload || '{}') as { favorite?: boolean; album_id?: string };
+  const p = JSON.parse(payload || '{}') as { favorite?: boolean; album_id?: string; tag_ids?: string[] };
   switch (kind) {
     case 'favorite':
       return { method: 'POST', path: `/api/assets/${assetId}/favorite`, body: { favorite: !!p.favorite } };
+    case 'set_tags':
+      return { method: 'PUT', path: `/api/assets/${assetId}/tags`, body: { ids: p.tag_ids ?? [] } };
     case 'album_add':
       return { method: 'POST', path: `/api/albums/${p.album_id}/assets`, body: { ids: [assetId] } };
     case 'album_remove':
