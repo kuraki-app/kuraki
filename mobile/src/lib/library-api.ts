@@ -30,6 +30,9 @@ export type LibraryAsset = Pick<
   | 'place_country'
 >;
 
+// Tag from /api/tags, derived from the contract.
+export type Tag = components['schemas']['apitypes.Tag'];
+
 type AuthedSource = { uri: string; headers: Record<string, string> };
 
 export type LibraryPage = { assets: LibraryAsset[]; next_cursor?: string };
@@ -41,6 +44,7 @@ export type LibraryFilters = {
   from?: string;
   to?: string;
   place_city?: string;
+  tag?: string;
 };
 
 export class LibraryError extends Error {
@@ -54,7 +58,15 @@ export class LibraryError extends Error {
 // favorite, date range, or place filter) — that's the only view worth caching
 // for instant paint on the next open / offline fallback.
 function isUnfiltered(filters: LibraryFilters): boolean {
-  return !filters.q && !filters.type && !filters.favorite && !filters.from && !filters.to && !filters.place_city;
+  return (
+    !filters.q &&
+    !filters.type &&
+    !filters.favorite &&
+    !filters.from &&
+    !filters.to &&
+    !filters.place_city &&
+    !filters.tag
+  );
 }
 
 export async function fetchLibrary(
@@ -72,6 +84,7 @@ export async function fetchLibrary(
   if (filters.from) params.set('from', filters.from);
   if (filters.to) params.set('to', filters.to);
   if (filters.place_city) params.set('place_city', filters.place_city);
+  if (filters.tag) params.set('tag', filters.tag);
   if (cursor) params.set('cursor', cursor);
 
   const response = await fetch(`${settings.baseURL}/api/search?${params.toString()}`, {
@@ -212,6 +225,49 @@ export async function addToAlbum(settings: CaptureSettings, albumId: string, ids
 
 export async function removeFromAlbum(settings: CaptureSettings, albumId: string, ids: string[]): Promise<void> {
   return authedMutate(settings, `/api/albums/${albumId}/assets`, 'DELETE', { ids });
+}
+
+// ---- Tags ----------------------------------------------------------------
+
+async function authedPost<T>(settings: CaptureSettings, path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${settings.baseURL}${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${settings.deviceToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (response.status === 401) {
+    reportAuthLost();
+    throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
+  }
+  if (!response.ok) throw new LibraryError(`Request failed (${response.status})`, response.status);
+  return (await response.json()) as T;
+}
+
+// fetchTags returns the owner's tag list, cached so browse-by-tag renders
+// offline (the grid itself still needs the network, like Places).
+export async function fetchTags(settings: CaptureSettings): Promise<Tag[]> {
+  const { upsertTags, readTags } = await import('@/lib/cache/tags');
+  return withMirrorFallback(async () => {
+    const body = await authedGet<{ tags: Tag[] }>(settings, '/api/tags');
+    await upsertTags(body.tags);
+    return body.tags;
+  }, readTags);
+}
+
+export async function fetchAssetTags(settings: CaptureSettings, assetId: string): Promise<Tag[]> {
+  const body = await authedGet<{ tags: Tag[] }>(settings, `/api/assets/${assetId}/tags`);
+  return body.tags;
+}
+
+/** setAssetTags replaces an asset's full tag set (the server has no add/remove). */
+export async function setAssetTags(settings: CaptureSettings, assetId: string, tagIDs: string[]): Promise<void> {
+  await authedMutate(settings, `/api/assets/${assetId}/tags`, 'PUT', { ids: tagIDs });
+}
+
+// createTag is online-only: a queued create can't be referenced by a later
+// offline set_tags (no stable id yet), so it throws rather than queuing.
+export async function createTag(settings: CaptureSettings, name: string): Promise<Tag> {
+  return authedPost<Tag>(settings, '/api/tags', { name });
 }
 
 export async function fetchMemories(settings: CaptureSettings, cursor?: string): Promise<LibraryPage> {
