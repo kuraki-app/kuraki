@@ -10,7 +10,7 @@ const pt = (id: string, lat: number, lon: number): PlacePoint => ({
   favorite: false,
   web_viewable: true,
   thumbnail_url: `/api/assets/${id}/thumb`,
-  preview_url: null,
+  preview_url: undefined,
   place_city: 'Paris',
   place_country: 'France',
   gps_lat: lat,
