@@ -1,6 +1,7 @@
 import { DarkTheme, DefaultTheme, Redirect, Slot, ThemeProvider, useSegments } from 'expo-router';
 import { Image } from 'expo-image';
 import { useColorScheme, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useEffect, useState } from 'react';
 
 import { useAppFonts } from '@/design/fonts';
@@ -34,8 +35,10 @@ export default function RootLayout() {
   const redirect = !ready && !inSetup ? '/(setup)/welcome' : ready && inSetup ? '/(app)' : null;
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      {redirect ? <Redirect href={redirect} /> : <Slot />}
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        {redirect ? <Redirect href={redirect} /> : <Slot />}
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }

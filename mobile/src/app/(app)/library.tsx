@@ -5,6 +5,7 @@ import { AppState, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import AlbumList from '@/components/album-list';
 import AlbumTargetPicker from '@/components/album-target-picker';
 import PhotoGrid from '@/components/photo-grid';
+import PlacesScreen from '@/components/places-screen';
 import SelectionBar from '@/components/selection-bar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -37,12 +38,13 @@ const chips: Chip[] = [
   { label: 'Favorites', filter: { favorite: true } },
 ];
 
-type Segment = 'timeline' | 'albums' | 'memories';
+type Segment = 'timeline' | 'albums' | 'memories' | 'places';
 
 const segments: { key: Segment; label: string }[] = [
   { key: 'timeline', label: 'Timeline' },
   { key: 'albums', label: 'Albums' },
   { key: 'memories', label: 'On this day' },
+  { key: 'places', label: 'Places' },
 ];
 
 const reg = registerStyle('kura');
@@ -475,6 +477,8 @@ export default function LibraryScreen() {
           />
         )
       )}
+
+      {segment === 'places' && settings && <PlacesScreen settings={settings} />}
 
       {segment === 'timeline' && selected.size > 0 && (
         <SelectionBar

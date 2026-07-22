@@ -1,5 +1,5 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import PhotoGrid from '@/components/photo-grid';
@@ -31,16 +31,26 @@ export default function PlaceScreen() {
     void loadCaptureSettings().then(setSettings);
   }, []);
 
-  useEffect(() => {
+  // Fetch lives in a callback so the effect never calls setState synchronously
+  // in its body (react-hooks/set-state-in-effect).
+  const load = useCallback(async () => {
     if (!settings || !place_city) return;
     setLoading(true);
-    fetchLibrary(settings, { place_city, place_country })
-      .then((page) => {
-        setAssets(page.assets);
-        setCursor(page.next_cursor);
-      })
-      .finally(() => setLoading(false));
+    try {
+      const page = await fetchLibrary(settings, { place_city, place_country });
+      setAssets(page.assets);
+      setCursor(page.next_cursor);
+    } finally {
+      setLoading(false);
+    }
   }, [settings, place_city, place_country]);
+
+  // Deferred a tick so the first setState inside load doesn't fire
+  // synchronously within the effect (react-hooks/set-state-in-effect).
+  useEffect(() => {
+    const timer = setTimeout(() => void load(), 0);
+    return () => clearTimeout(timer);
+  }, [load]);
 
   async function loadMore() {
     if (!settings || !cursor || !place_city) return;
