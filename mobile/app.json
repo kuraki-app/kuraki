@@ -60,7 +60,8 @@
       "expo-secure-store",
       "expo-background-task",
       "expo-video",
-      "expo-sqlite"
+      "expo-sqlite",
+      "@maplibre/maplibre-react-native"
     ],
     "experiments": {
       "typedRoutes": true,
