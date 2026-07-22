@@ -75,6 +75,21 @@ Phase 1 = single-owner personal backup.
   row) still resolves an owner. The feed is thin — id/entity/entity_id/op only, the client
   refetches via existing asset endpoints — and cursor-paginated on `change_log.id`
   (`?since=&limit=`, response echoes the next `cursor` + `has_more`).
+- **Mobile Places (2026-07-22, `feat/mobile-places`):** the Library tab gained a
+  **Places** segment — a **MapLibre v11** (OpenFreeMap vector tiles, no key, no Google)
+  map of GPS-bearing assets with built-in GeoJSON clustering (oxblood count bubbles,
+  **no thumbnails on the map** — dodges 5000 authed native markers), a `@gorhom/bottom-sheet`
+  place list (authed cover thumbs), tap-point→viewer and tap-place→filtered grid (reuses
+  `fetchLibrary({place_city, place_country})` + `PhotoGrid`; added `place_country` to the
+  mobile filter). **Server unchanged** — `/api/places` + `/api/places/summary` were already
+  device-auth-reachable under `requirePrincipal`, and the filter language already had
+  `place_city`/`place_country`. Online-first (no offline map cache); connection/empty states
+  via a pure `placesViewState` gate. Pure logic (geojson builder + gate) Vitest-covered; the
+  native map is **dev-client-verified only** (like `-tags vips`). Adds native deps
+  (`@maplibre/maplibre-react-native`, `@gorhom/bottom-sheet`) + a MapLibre config plugin →
+  the dev client must be rebuilt (`eas build --profile development`). First of three sequenced
+  parity slices (Places → Tags+saved-searches → Duplicates+stacks). Spec:
+  `docs/superpowers/specs/2026-07-22-mobile-places-design.md`.
 - **Production-readiness audit (2026-07-12):** `PRODUCTION_READINESS_AUDIT.md`
   reconciles the code, documentation, and peer practices. It makes the current
   Docker/libvips claim, 20k quadratic duplicate limit, untested migration
@@ -213,6 +228,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | API contract (Improvement A): swag→OpenAPI pipeline, served `/api/openapi.json`, wire DTOs consolidated into `apitypes`, all endpoints annotated, generated TS for web+mobile, `validate:"required"`/`enums` so generated types keep the server's real guarantees, both clients consuming the contract, drift gated in CI | ✅ done |
 | Contract drift gate: `make check-gen` regenerates spec + both client type files and fails on any diff (CI job `contract`). Generators pinned (swag `v1.16.4` via `go run`, swagger2openapi `7.0.8`, openapi-typescript `7.4.4`) — an unpinned generator would fail the gate spuriously | ✅ done |
 | Web type gate: `svelte-check` is now a devDependency + `npm run check` + a CI step. **`npm run build` never typechecked** (Vite strips types; plain `tsc` skips `.svelte`), so web had no type gate at all | ✅ done |
+| Mobile Places (`feat/mobile-places`): Library **Places** segment — MapLibre v11 (OpenFreeMap vector tiles, no key) clustered map (count bubbles, no thumbnails on map) + `@gorhom/bottom-sheet` place list (authed covers), tap-point→viewer / tap-place→filtered grid (`place_city`+`place_country`). Server unchanged. Pure geojson-builder + view-state gate Vitest-covered; native map **dev-client-verified only**. First of 3 parity slices | 🟡 code-complete (tsc+lint+vitest green), **native map needs a device dev-client pass** |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 
@@ -239,6 +255,14 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `feat/mobile-places` (2026-07-22) — **Mobile Places map: a Library segment with a clustered MapLibre map + place list. Mobile-only — no server change. First of three sequenced parity slices (Places → Tags+saved-searches → Duplicates+stacks).**
+  - **Why no server work (verified before building).** `/api/places` (≤5000 GPS assets, full DTO) and `/api/places/summary` (city/country/count/cover groups) were already under `requirePrincipal` post-Improvement-D, so the device Bearer token already reaches them. The filter language already had `place_city`/`place_country` (`filters.go`) and mobile's `fetchLibrary` already forwarded `place_city` — so "tap a place → that place's grid" needed no route. Multi-user owner-scoping of the places queries stays parked (harmless single-owner), consistent with §8/the D handoff's deferred list.
+  - **Map stack decisions.** MapLibre v11 (`@maplibre/maplibre-react-native`) over Google/Apple — open-source, no API key, matches the self-hosted ethos + Immich precedent. OpenFreeMap vector tiles (free, keyless, self-hostable later; light=`liberty`, dark≈`positron`). `@gorhom/bottom-sheet` (reanimated 4 + gesture-handler already present; added `GestureHandlerRootView` at the root layout, which was missing). **The map draws count bubbles only — no thumbnails on native markers** (5000 authed images would be a perf + Bearer-header nightmare); thumbnails live in the sheet via the existing `thumbSource` pattern.
+  - **v11 API differs from v10** (the widely-documented one): `Map` (`mapStyle` required, not `MapView`/`styleURL`), `GeoJSONSource` (`data`/`clusterMaxZoom`, ref `getClusterExpansionZoom(clusterId: number)` — takes the numeric `cluster_id`, not the feature), a single `Layer` with `type`+`paint`/`layout` (kebab style-spec keys, not `CircleLayer`+camelCase `style`), Camera `center`/`zoom`/`duration` via `setStop`. **`tsc` typechecks all of this against the installed `.d.ts`, so the native component compiles-verified even without a device.**
+  - **Files.** New: `src/lib/places.ts` (pure `buildPlacesGeoJSON` + `placesViewState` gate, Vitest), `src/lib/library-api.places.test.ts`, `src/design/map-style.ts`, `src/components/places-map.tsx`, `place-list.tsx`, `places-screen.tsx`, `src/app/(app)/place.tsx` (filtered-grid route). Modified: `library-api.ts` (+`fetchPlaces`/`fetchPlacesSummary`/`PlaceGroup`, +`place_country` filter), `library.tsx` (+`places` segment), `_layout.tsx` (+GestureHandlerRootView), `app.json`/`package.json` (deps + plugin).
+  - **VERIFICATION GAP — the native map is NOT verified here.** This machine has no iOS/Android simulator, and MapLibre is native. Verified: `tsc --noEmit`, `expo lint`, `vitest` (40 pass incl. 8 new) all green. **Pending a human dev-client pass** (rebuild required — `eas build --profile development`): map renders OpenFreeMap tiles, cluster bubbles + expansion tap, point→viewer, sheet cover thumbs, place→filtered grid, airplane-mode→"needs a connection", dark-mode style swap. The effects defer the first load a tick (`setTimeout(…,0)`) to satisfy `react-hooks/set-state-in-effect`, matching the Library tab pattern.
+  - Built inline (spec: `docs/superpowers/specs/2026-07-22-mobile-places-design.md`, plan: `docs/superpowers/plans/2026-07-22-mobile-places.md`; both gitignored under `docs/`). Commits are per-task on this branch.
 
 - `fix/embedded-ui-csp-nonce` (2026-07-21) — **The embedded SvelteKit UI now boots when the Go binary serves it; Docker simplified to one process.**
   - **Root cause of the blank embedded UI (a real bug, browser-confirmed).** `securityHeaders` set `script-src 'self'` with no `'unsafe-inline'` and no nonce. SvelteKit boots via *inline* `<script>` blocks (the `__sveltekit` bootstrap + the theme script); CSP blocked both, so `kit.start()` never ran — `kuraki serve` on :3000 rendered an empty shell (no nav, no login, **no first-run setup**). Vite dev and the old in-container Caddy didn't set that header, which is why only the embedded path broke and it went unnoticed. This is almost certainly *why* the dual-origin Caddy was added — to serve the SPA from an origin without the strict CSP.
