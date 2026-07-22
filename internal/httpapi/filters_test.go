@@ -26,7 +26,20 @@ func TestUnifiedFiltersAndDeviceSearch(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	var owner string
+	if err := database.QueryRowContext(ctx, `SELECT owner_id FROM assets WHERE id = ?`, id).Scan(&owner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.ExecContext(ctx, `INSERT INTO tags(id, owner_id, name) VALUES('tag-beach', ?, 'Beach')`, owner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.ExecContext(ctx, `INSERT INTO asset_tags(asset_id, tag_id) VALUES(?, 'tag-beach')`, id); err != nil {
+		t.Fatal(err)
+	}
+
 	cases := map[string]int{
+		"/api/search?tag=tag-beach":         1,
+		"/api/search?tag=tag-missing":       0,
 		"/api/search":                       1,
 		"/api/search?favorite=1":            1,
 		"/api/search?type=image":            1,
