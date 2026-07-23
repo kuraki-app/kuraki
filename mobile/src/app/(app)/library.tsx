@@ -152,8 +152,8 @@ export default function LibraryScreen() {
       if (!active || syncing.current) return;
       syncing.current = true;
       try {
-        const applied = await syncChanges(active);
-        if (applied > 0) await load(active, f);
+        const { applied, reset } = await syncChanges(active);
+        if (applied > 0 || reset) await load(active, f);
       } catch {
         // best-effort; cursor is preserved for the next attempt
       } finally {
