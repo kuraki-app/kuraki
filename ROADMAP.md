@@ -63,14 +63,16 @@ existing promise works.
   `localStorage` under `kuraki:grid-density`. Progressive image loading also
   shipped: shimmer placeholder plus an opacity fade on decode in `AssetGrid`.)
 
-- **[production blocker] Timeline virtualization — all users — M.** README
-  advertises a "virtualized, day/month-grouped timeline that stays smooth at
-  large libraries". **There is no virtualization in `web/`.** `LibraryView`
-  cursor-paginates and appends into one array; `AssetGrid` renders one DOM
-  button per asset, unbounded. Either build it or correct the README — the
-  claim cannot stand alongside the 10k/50k/500k capacity evidence this roadmap
-  gates releases on. Found during the 2026-07-17 web design pass and
-  deliberately scoped out of it.
+- **[done] Timeline virtualization — all users — M.** README advertises a
+  "virtualized, day/month-grouped timeline that stays smooth at large
+  libraries". **Now implemented** (`AssetGrid.svelte`): day-group sections
+  materialize only when near the viewport (an `IntersectionObserver` with a tall
+  `rootMargin` buffer) and are replaced by a measured, fixed-height spacer
+  otherwise, so on-screen DOM stays bounded regardless of library size.
+  Browser-verified at 579 assets / 40 days (held at ~81 tiles / 6 live
+  sections across all scroll positions). The *capacity budgets* at 10k/50k/500k
+  remain owed under "Capacity and regression evidence" below — the mechanism
+  exists; the large-library evidence does not yet.
 
 - **[new feature] Smart albums — Organizers — M.** Build on saved searches with
   explicit ownership, preview, and reversible membership semantics.
