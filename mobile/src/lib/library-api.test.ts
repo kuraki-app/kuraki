@@ -26,4 +26,8 @@ describe('routeForMutation', () => {
     expect(routeForMutation('purge', 'a1', '{}'))
       .toEqual({ method: 'DELETE', path: '/api/trash/a1', body: undefined });
   });
+  it('set_tags maps to a full-set PUT', () => {
+    expect(routeForMutation('set_tags', 'a1', JSON.stringify({ tag_ids: ['t1', 't2'] })))
+      .toEqual({ method: 'PUT', path: '/api/assets/a1/tags', body: { ids: ['t1', 't2'] } });
+  });
 });

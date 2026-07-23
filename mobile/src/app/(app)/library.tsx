@@ -6,6 +6,7 @@ import AlbumList from '@/components/album-list';
 import AlbumTargetPicker from '@/components/album-target-picker';
 import PhotoGrid from '@/components/photo-grid';
 import PlacesScreen from '@/components/places-screen';
+import TagList from '@/components/tag-list';
 import SelectionBar from '@/components/selection-bar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -54,6 +55,7 @@ export default function LibraryScreen() {
   const tokens = useTokens();
   const [segment, setSegment] = useState<Segment>('timeline');
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
+  const [tagSheet, setTagSheet] = useState(false);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [chip, setChip] = useState(0);
@@ -434,6 +436,11 @@ export default function LibraryScreen() {
                   </ThemedText>
                 </Pressable>
               ))}
+              <Pressable
+                onPress={() => setTagSheet(true)}
+                style={[styles.chip, { borderColor: tokens.input }]}>
+                <ThemedText type="small" style={heading}>Tags ▾</ThemedText>
+              </Pressable>
             </View>
           </View>
 
@@ -494,6 +501,17 @@ export default function LibraryScreen() {
         onPick={(albumId) => void addSelectedToAlbum(albumId)}
         onClose={() => setPickerOpen(false)}
       />
+
+      {tagSheet && settings && (
+        <TagList
+          settings={settings}
+          onClose={() => setTagSheet(false)}
+          onPressTag={(t) => {
+            setTagSheet(false);
+            router.push({ pathname: '/(app)/tag', params: { tag: t.id, title: t.name } });
+          }}
+        />
+      )}
     </ThemedView>
   );
 }

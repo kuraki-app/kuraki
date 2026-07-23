@@ -33,6 +33,9 @@ export type LibraryAsset = Pick<
 // Place grouping from /api/places/summary, derived from the contract.
 export type PlaceGroup = components['schemas']['apitypes.PlaceGroup'];
 
+// Tag from /api/tags, derived from the contract.
+export type Tag = components['schemas']['apitypes.Tag'];
+
 type AuthedSource = { uri: string; headers: Record<string, string> };
 
 export type LibraryPage = { assets: LibraryAsset[]; next_cursor?: string };
@@ -45,6 +48,7 @@ export type LibraryFilters = {
   to?: string;
   place_city?: string;
   place_country?: string;
+  tag?: string;
 };
 
 export class LibraryError extends Error {
@@ -65,7 +69,8 @@ function isUnfiltered(filters: LibraryFilters): boolean {
     !filters.from &&
     !filters.to &&
     !filters.place_city &&
-    !filters.place_country
+    !filters.place_country &&
+    !filters.tag
   );
 }
 
@@ -85,6 +90,7 @@ export async function fetchLibrary(
   if (filters.to) params.set('to', filters.to);
   if (filters.place_city) params.set('place_city', filters.place_city);
   if (filters.place_country) params.set('place_country', filters.place_country);
+  if (filters.tag) params.set('tag', filters.tag);
   if (cursor) params.set('cursor', cursor);
 
   const response = await fetch(`${settings.baseURL}/api/search?${params.toString()}`, {
@@ -225,6 +231,49 @@ export async function addToAlbum(settings: CaptureSettings, albumId: string, ids
 
 export async function removeFromAlbum(settings: CaptureSettings, albumId: string, ids: string[]): Promise<void> {
   return authedMutate(settings, `/api/albums/${albumId}/assets`, 'DELETE', { ids });
+}
+
+// ---- Tags ----------------------------------------------------------------
+
+async function authedPost<T>(settings: CaptureSettings, path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${settings.baseURL}${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${settings.deviceToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (response.status === 401) {
+    reportAuthLost();
+    throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
+  }
+  if (!response.ok) throw new LibraryError(`Request failed (${response.status})`, response.status);
+  return (await response.json()) as T;
+}
+
+// fetchTags returns the owner's tag list, cached so browse-by-tag renders
+// offline (the grid itself still needs the network, like Places).
+export async function fetchTags(settings: CaptureSettings): Promise<Tag[]> {
+  const { upsertTags, readTags } = await import('@/lib/cache/tags');
+  return withMirrorFallback(async () => {
+    const body = await authedGet<{ tags: Tag[] }>(settings, '/api/tags');
+    await upsertTags(body.tags);
+    return body.tags;
+  }, readTags);
+}
+
+export async function fetchAssetTags(settings: CaptureSettings, assetId: string): Promise<Tag[]> {
+  const body = await authedGet<{ tags: Tag[] }>(settings, `/api/assets/${assetId}/tags`);
+  return body.tags;
+}
+
+/** setAssetTags replaces an asset's full tag set (the server has no add/remove). */
+export async function setAssetTags(settings: CaptureSettings, assetId: string, tagIDs: string[]): Promise<void> {
+  await authedMutate(settings, `/api/assets/${assetId}/tags`, 'PUT', { ids: tagIDs });
+}
+
+// createTag is online-only: a queued create can't be referenced by a later
+// offline set_tags (no stable id yet), so it throws rather than queuing.
+export async function createTag(settings: CaptureSettings, name: string): Promise<Tag> {
+  return authedPost<Tag>(settings, '/api/tags', { name });
 }
 
 export async function fetchMemories(settings: CaptureSettings, cursor?: string): Promise<LibraryPage> {
@@ -376,7 +425,7 @@ export async function purgeAsset(settings: CaptureSettings, id: string): Promise
   return authedMutate(settings, `/api/trash/${id}`, 'DELETE');
 }
 
-export type MutationKind = 'favorite' | 'album_add' | 'album_remove' | 'trash' | 'restore' | 'purge';
+export type MutationKind = 'favorite' | 'album_add' | 'album_remove' | 'trash' | 'restore' | 'purge' | 'set_tags';
 
 // routeForMutation maps a queued mutation to its server call. Pure so the
 // dispatch table is unit-tested without a network or SecureStore.
@@ -385,10 +434,12 @@ export function routeForMutation(
   assetId: string,
   payload: string,
 ): { method: string; path: string; body?: unknown } {
-  const p = JSON.parse(payload || '{}') as { favorite?: boolean; album_id?: string };
+  const p = JSON.parse(payload || '{}') as { favorite?: boolean; album_id?: string; tag_ids?: string[] };
   switch (kind) {
     case 'favorite':
       return { method: 'POST', path: `/api/assets/${assetId}/favorite`, body: { favorite: !!p.favorite } };
+    case 'set_tags':
+      return { method: 'PUT', path: `/api/assets/${assetId}/tags`, body: { ids: p.tag_ids ?? [] } };
     case 'album_add':
       return { method: 'POST', path: `/api/albums/${p.album_id}/assets`, body: { ids: [assetId] } };
     case 'album_remove':

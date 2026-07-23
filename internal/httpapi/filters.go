@@ -22,8 +22,8 @@ type assetFilters struct {
 // parseAssetFilters reads the single filter language used identically by the web
 // UI, the web search page, and the mobile client: q (full-text), from, to
 // (date range), type (media type), camera, favorite, rating, place_city,
-// place_country, album, archived, hidden. It returns a non-empty error code on
-// invalid input.
+// place_country, tag, album, archived, hidden. It returns a non-empty error code
+// on invalid input.
 func parseAssetFilters(r *http.Request) (assetFilters, string) {
 	qv := r.URL.Query()
 	f := assetFilters{where: []string{"a.deleted_at IS NULL"}}
@@ -71,6 +71,10 @@ func parseAssetFilters(r *http.Request) (assetFilters, string) {
 	if album := strings.TrimSpace(qv.Get("album")); album != "" {
 		f.joins = append(f.joins, "JOIN album_assets aa ON aa.asset_id = a.id AND aa.album_id = ?")
 		f.joinArgs = append(f.joinArgs, album)
+	}
+	if tag := strings.TrimSpace(qv.Get("tag")); tag != "" {
+		f.joins = append(f.joins, "JOIN asset_tags atf ON atf.asset_id = a.id AND atf.tag_id = ?")
+		f.joinArgs = append(f.joinArgs, tag)
 	}
 	// Archive and Hidden are excluded by default and shown only when asked for
 	// explicitly, matching the timeline's sections.
