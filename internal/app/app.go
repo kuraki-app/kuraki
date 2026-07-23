@@ -368,6 +368,53 @@ func (a *App) startTrashJanitor(ctx context.Context) {
 	}()
 }
 
+// PruneChangeLog keeps only the newest ChangeLogKeep rows of change_log so the
+// delta feed's backing table stays bounded. A client whose sync cursor falls
+// below the retained window is told to resync by the changes handler (which
+// derives the floor from MIN(id)), so pruning can never silently drop a delta a
+// client still needed — it converts "missed rows" into an explicit full reload.
+func (a *App) PruneChangeLog(ctx context.Context) (int64, error) {
+	keep := a.Cfg.ChangeLogKeep
+	if keep <= 0 {
+		keep = 100000
+	}
+	res, err := a.DB.ExecContext(ctx, `
+		DELETE FROM change_log
+		WHERE id < (SELECT MIN(id) FROM (SELECT id FROM change_log ORDER BY id DESC LIMIT ?))`, keep)
+	if err != nil {
+		return 0, fmt.Errorf("app: prune change_log: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
+// startChangeLogJanitor prunes the change_log once at startup and daily after.
+func (a *App) startChangeLogJanitor(ctx context.Context) {
+	run := func() {
+		n, err := a.PruneChangeLog(ctx)
+		if err != nil {
+			a.Log.Warn("change_log prune failed", "err", err)
+			return
+		}
+		if n > 0 {
+			a.Log.Info("pruned change_log", "count", n)
+		}
+	}
+	run()
+	go func() {
+		t := time.NewTicker(24 * time.Hour)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				run()
+			}
+		}
+	}()
+}
+
 // purgeExpiredCaptures removes capture upload sessions that were never
 // completed before their expiry, along with their staging directories, so an
 // abandoned mobile upload does not leak disk or database rows. Sessions that
@@ -574,6 +621,7 @@ func (a *App) storeOCR(ctx context.Context, id, text string) error {
 // down gracefully.
 func (a *App) Serve(ctx context.Context) error {
 	a.startTrashJanitor(ctx)
+	a.startChangeLogJanitor(ctx)
 	a.startCaptureJanitor(ctx)
 	a.startIntegrityScheduler(ctx)
 	a.startBackupScheduler(ctx)

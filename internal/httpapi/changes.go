@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"strconv"
 
@@ -52,6 +53,33 @@ func (d Deps) changes(w http.ResponseWriter, r *http.Request) {
 	}
 	if limit > changesMaxLimit {
 		limit = changesMaxLimit
+	}
+
+	// If the client's cursor is below the pruned floor (the oldest retained id),
+	// the rows it hasn't seen were pruned — it can never catch up incrementally,
+	// so tell it to resync: discard its mirror and reload, then resume from the
+	// current head. `since == 0` is a fresh/initial client (already a full load),
+	// so it never triggers a reset.
+	var oldestKept sql.NullInt64
+	if err := d.DB.QueryRowContext(r.Context(),
+		`SELECT MIN(id) FROM change_log WHERE owner_id = ? OR owner_id IS NULL`, owner).Scan(&oldestKept); err != nil {
+		writeError(w, http.StatusInternalServerError, "changes_floor_failed")
+		return
+	}
+	if since > 0 && oldestKept.Valid && since < oldestKept.Int64-1 {
+		var maxID sql.NullInt64
+		if err := d.DB.QueryRowContext(r.Context(),
+			`SELECT MAX(id) FROM change_log WHERE owner_id = ? OR owner_id IS NULL`, owner).Scan(&maxID); err != nil {
+			writeError(w, http.StatusInternalServerError, "changes_head_failed")
+			return
+		}
+		writeJSON(w, http.StatusOK, apitypes.ChangesResponse{
+			Reset:   true,
+			Cursor:  maxID.Int64,
+			Changes: make([]apitypes.ChangeEntry, 0),
+			HasMore: false,
+		})
+		return
 	}
 
 	rows, err := d.DB.QueryContext(r.Context(),

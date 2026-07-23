@@ -25,6 +25,11 @@ type Config struct {
 	// TrashRetentionDays is how long soft-deleted items stay before purge.
 	TrashRetentionDays int
 
+	// ChangeLogKeep is how many of the newest change_log rows the delta feed
+	// retains; older rows are pruned. A client whose cursor falls below the
+	// retained window is told to resync (GET /api/changes -> reset).
+	ChangeLogKeep int
+
 	// ThumbnailSize is the longest-edge pixel size for generated thumbnails.
 	ThumbnailSize int
 
@@ -75,6 +80,7 @@ func Default() Config {
 		DataDir:             "./kuraki-data",
 		Addr:                ":3000",
 		TrashRetentionDays:  30,
+		ChangeLogKeep:       100000,
 		ThumbnailSize:       512,
 		BackupIntervalHours: 24,
 		BackupKeep:          7,
@@ -93,6 +99,9 @@ func Load(getenv func(string) string) Config {
 	}
 	if n, ok := positiveInt(getenv("KURAKI_TRASH_RETENTION_DAYS")); ok {
 		c.TrashRetentionDays = n
+	}
+	if n, ok := positiveInt(getenv("KURAKI_CHANGELOG_KEEP")); ok {
+		c.ChangeLogKeep = n
 	}
 	if n, ok := positiveInt(getenv("KURAKI_THUMBNAIL_SIZE")); ok {
 		c.ThumbnailSize = n

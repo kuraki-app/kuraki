@@ -3593,6 +3593,10 @@ export interface components {
             changes: components["schemas"]["apitypes.ChangeEntry"][];
             cursor: number;
             has_more: boolean;
+            /** @description Reset is true when the client's cursor has fallen below the pruned
+             *     change_log floor: the client must discard its cursor/mirror and reload
+             *     from the asset endpoints, then resume from Cursor. Absent/false normally. */
+            reset?: boolean;
         };
         "apitypes.Credentials": {
             password?: string;

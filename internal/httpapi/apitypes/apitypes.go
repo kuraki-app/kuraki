@@ -162,6 +162,10 @@ type ChangesResponse struct {
 	Cursor  int64         `json:"cursor" validate:"required"`
 	Changes []ChangeEntry `json:"changes" validate:"required"`
 	HasMore bool          `json:"has_more" validate:"required"`
+	// Reset is true when the client's cursor has fallen below the pruned
+	// change_log floor: the client must discard its cursor/mirror and reload
+	// from the asset endpoints, then resume from Cursor. Absent/false normally.
+	Reset bool `json:"reset,omitempty"`
 }
 
 // ZipRequest is the request body for the zip-download endpoints.

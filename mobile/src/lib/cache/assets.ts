@@ -86,3 +86,12 @@ export async function setSyncCursor(cursor: number): Promise<void> {
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
     [String(cursor)]);
 }
+
+// clearCachedAssets wipes the asset mirror. Used on a delta-feed reset: when the
+// sync cursor has fallen below the pruned change_log floor, the mirror may hold
+// assets that were deleted while we were behind, so it's discarded and rebuilt
+// from a fresh fetchLibrary rather than incrementally reconciled.
+export async function clearCachedAssets(): Promise<void> {
+  const db = await getDB();
+  await db.runAsync('DELETE FROM assets');
+}
