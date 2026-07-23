@@ -420,6 +420,15 @@ export async function syncChanges(settings: CaptureSettings): Promise<number> {
     const since = await getSyncCursor();
     const res = await authedGet<ChangesResponse>(
       settings, `/api/changes?since=${since}`);
+    // reset: our cursor fell below the pruned change_log floor. We can't catch
+    // up incrementally, so wipe the mirror and jump to the head; returning >0
+    // makes the caller reload, which rebuilds the mirror from fetchLibrary.
+    if (res.reset) {
+      const { clearCachedAssets } = await import('@/lib/cache/assets');
+      await clearCachedAssets();
+      await setSyncCursor(res.cursor);
+      return applied + 1;
+    }
     for (const c of res.changes) {
       await applyChange(settings, c);
       applied++;

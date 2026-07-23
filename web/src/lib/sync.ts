@@ -51,6 +51,14 @@ async function pollOnce(): Promise<void> {
     // Bound the catch-up loop so a runaway feed can't spin forever in one tick.
     for (let page = 0; page < 20; page++) {
       const res = await api.changes(readCursor());
+      // reset: our cursor fell below the pruned change_log floor, so we can't
+      // catch up incrementally. Jump to the head and force a full library
+      // reload (bumpLibrary re-runs the load) — the safe fallback.
+      if (res.reset) {
+        writeCursor(res.cursor);
+        changed = true;
+        break;
+      }
       if (res.changes.length > 0) changed = true;
       writeCursor(res.cursor);
       if (!res.has_more) break;
