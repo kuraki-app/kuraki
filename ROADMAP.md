@@ -19,10 +19,15 @@ existing promise works.
   and Chromium/Firefox/WebKit behavior for each advertised format. Do not claim
   HEIC/RAW/JXL or exotic-video preview without that proof.
 
-- **[bug fix] Complete, scalable duplicate review — Large-library users — M.**
-  Replace the newest-20k request-time quadratic comparison with a resumable,
-  all-library dHash candidate-bucket job. Persist coverage/version and show
-  completion; never delete automatically.
+- **[done] Complete, scalable duplicate review — Large-library users — M.**
+  **Already implemented** (migration `00018_production_proofs`, `internal/duplicates`):
+  a durable, resumable, all-library background job — `duplicate_runs`
+  (status/`algorithm_version`/`total`/`processed`/`group_count`, re-queued on
+  restart) with **LSH candidate buckets** (`bands()` splits the 64-bit phash into
+  9 bands) + union-find grouping, not a pairwise quadratic. `/api/duplicates`
+  reads the persisted run (`duplicate_group_members`), never computing at request
+  time. No 20k cap; coverage/version/completion tracked; never auto-deletes. The
+  old "newest-20k request-time quadratic" this line described is gone.
 
 - **[production blocker] Portable metadata and demonstrated recovery —
   Self-hosters — L.** Add an idempotent XMP core subset for caption, date, GPS,
