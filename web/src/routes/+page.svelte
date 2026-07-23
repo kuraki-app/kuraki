@@ -1,9 +1,12 @@
 <script lang="ts">
-  import { Search, X, SlidersHorizontal, CalendarDays } from '@lucide/svelte';
+  import { onMount } from 'svelte';
+  import { Search, X, SlidersHorizontal, CalendarDays, Bookmark, Trash2 } from '@lucide/svelte';
   import LibraryView from '$lib/components/LibraryView.svelte';
   import FilterChip from '$lib/components/FilterChip.svelte';
   import IconButton from '$lib/components/IconButton.svelte';
   import { api, type SearchParams } from '$lib/api';
+  import { showToast } from '$lib/stores';
+  import type { SavedSearch } from '$lib/types';
 
   let query = '';
   let type: '' | 'image' | 'video' = '';
@@ -12,6 +15,67 @@
   let to = '';
   let showFilters = false;
   let jumpDate = '';
+
+  // Saved searches: the API (list/create/delete) already exists; this is its UI.
+  let saved: SavedSearch[] = [];
+  let showSaved = false;
+  let saveName = '';
+
+  onMount(loadSaved);
+
+  async function loadSaved() {
+    try {
+      saved = (await api.savedSearches()).saved_searches;
+    } catch {
+      /* non-fatal: the timeline still works without the saved list */
+    }
+  }
+
+  // The applied filter set as a plain string record — the shape the server
+  // stores as a saved search's query and hands back on apply.
+  function appliedRecord(): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(applied)) if (v != null && v !== '') out[k] = String(v);
+    return out;
+  }
+
+  async function saveCurrent() {
+    const name = saveName.trim();
+    if (!name) return;
+    try {
+      await api.createSavedSearch(name, appliedRecord());
+      saveName = '';
+      await loadSaved();
+      showToast('Search saved');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Could not save search');
+    }
+  }
+
+  function applySaved(s: SavedSearch) {
+    // The generated type is Record<string, never> (json.RawMessage); the real
+    // value is the stored filter record.
+    const p = s.query as unknown as SearchParams;
+    // Sync the visible form fields for display…
+    query = p.q ?? '';
+    type = (p.type as '' | 'image' | 'video') ?? '';
+    favorite = p.favorite === '1';
+    from = p.from ?? '';
+    to = p.to ?? '';
+    // …but apply the FULL saved query, including filters the form doesn't expose
+    // (place_city, camera, rating, tag), so nothing is silently dropped.
+    applied = { ...p };
+    showSaved = false;
+  }
+
+  async function removeSaved(id: string) {
+    try {
+      await api.deleteSavedSearch(id);
+      await loadSaved();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Could not delete');
+    }
+  }
 
   // The applied filter set. A new object identity re-keys LibraryView so it
   // reloads from the first page whenever the filter changes.
@@ -82,6 +146,13 @@
         <CalendarDays size={16} aria-hidden="true" />
         <input bind:value={jumpDate} type="date" aria-label="Jump to date" on:change={jumpToDate} />
       </label>
+      <IconButton
+        label="Saved searches"
+        variant={showSaved ? 'secondary' : 'outline'}
+        onclick={() => (showSaved = !showSaved)}
+      >
+        <Bookmark size={16} aria-hidden="true" />
+      </IconButton>
       {#if filtered}
         <IconButton label="Clear filters" onclick={clearAll}>
           <X size={16} aria-hidden="true" />
@@ -90,6 +161,35 @@
     </div>
   </LibraryView>
 {/key}
+
+{#if showSaved}
+  <div class="panel saved">
+    {#if filtered}
+      <form class="save-current" on:submit|preventDefault={saveCurrent}>
+        <input bind:value={saveName} type="text" placeholder="Name this search…" aria-label="Saved search name" />
+        <IconButton label="Save current search" variant="secondary" onclick={saveCurrent}>
+          <Bookmark size={15} aria-hidden="true" />
+        </IconButton>
+      </form>
+    {:else}
+      <p class="hint">Apply a filter or search, then save it here as a smart filter.</p>
+    {/if}
+    {#if saved.length}
+      <ul class="saved-list">
+        {#each saved as s (s.id)}
+          <li>
+            <button type="button" class="apply" on:click={() => applySaved(s)}>{s.name}</button>
+            <button type="button" class="del" aria-label={`Delete ${s.name}`} on:click={() => removeSaved(s.id)}>
+              <Trash2 size={14} aria-hidden="true" />
+            </button>
+          </li>
+        {/each}
+      </ul>
+    {:else}
+      <p class="hint">No saved searches yet.</p>
+    {/if}
+  </div>
+{/if}
 
 {#if showFilters}
   <div class="panel">
@@ -170,5 +270,69 @@
     border-radius: 8px;
     background: var(--card);
     color: var(--foreground);
+  }
+  .saved {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .save-current {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .save-current input {
+    flex: 1;
+    height: 34px;
+    padding: 0 10px;
+    border: 1px solid var(--input);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--foreground);
+  }
+  .saved .hint {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted-foreground);
+  }
+  .saved-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .saved-list li {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--input);
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--card);
+  }
+  .saved-list .apply {
+    padding: 6px 12px;
+    border: 0;
+    background: transparent;
+    color: var(--foreground);
+    cursor: pointer;
+    font: inherit;
+  }
+  .saved-list .apply:hover {
+    background: var(--muted);
+  }
+  .saved-list .del {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 10px 6px 6px;
+    border: 0;
+    border-left: 1px solid var(--input);
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+  }
+  .saved-list .del:hover {
+    color: var(--stamp, var(--destructive));
   }
 </style>

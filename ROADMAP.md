@@ -57,8 +57,12 @@ existing promise works.
   checklist only after a current backup, successful restore rehearsal, and
   integrity pass. Never automate deletion of a source.
 
-- **[improvement] Practical web-library navigation — Regular users — M.** Add
-  jump-to-date. Defer slideshow until usage research shows a repeated viewing job.
+- **[improvement] Practical web-library navigation — Regular users — M.**
+  **Jump-to-date shipped** (`routes/+page.svelte` — a `CalendarDays` date input
+  anchors the timeline via the date filter). **Saved-search UI shipped** too
+  (`feat/web-saved-searches`): a Bookmark control saves the current filter set
+  and applies/deletes saved searches over the pre-existing `/api/saved-searches`
+  API. Defer slideshow until usage research shows a repeated viewing job.
   (Configurable grid density already shipped — `LibraryView.svelte`, persisted to
   `localStorage` under `kuraki:grid-density`. Progressive image loading also
   shipped: shimmer placeholder plus an opacity fade on decode in `AssetGrid`.)
