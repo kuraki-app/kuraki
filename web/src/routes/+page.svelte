@@ -81,8 +81,11 @@
   // reloads from the first page whenever the filter changes.
   let applied: SearchParams = {};
 
-  $: filtered =
-    !!applied.q || !!applied.type || applied.favorite === '1' || !!applied.from || !!applied.to;
+  // Any non-empty value means a filter is active. Derived from all of applied's
+  // values (not a hand-listed subset) so a saved search carrying a filter the
+  // form doesn't expose — place, tag, camera, rating — still routes through
+  // api.search rather than silently loading the unfiltered timeline.
+  $: filtered = Object.values(applied).some((v) => v !== undefined && v !== null && v !== '');
 
   function apply() {
     applied = {
