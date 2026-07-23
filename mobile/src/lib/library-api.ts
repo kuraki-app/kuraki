@@ -30,6 +30,9 @@ export type LibraryAsset = Pick<
   | 'place_country'
 >;
 
+// Place grouping from /api/places/summary, derived from the contract.
+export type PlaceGroup = components['schemas']['apitypes.PlaceGroup'];
+
 type AuthedSource = { uri: string; headers: Record<string, string> };
 
 export type LibraryPage = { assets: LibraryAsset[]; next_cursor?: string };
@@ -41,6 +44,7 @@ export type LibraryFilters = {
   from?: string;
   to?: string;
   place_city?: string;
+  place_country?: string;
 };
 
 export class LibraryError extends Error {
@@ -54,7 +58,15 @@ export class LibraryError extends Error {
 // favorite, date range, or place filter) — that's the only view worth caching
 // for instant paint on the next open / offline fallback.
 function isUnfiltered(filters: LibraryFilters): boolean {
-  return !filters.q && !filters.type && !filters.favorite && !filters.from && !filters.to && !filters.place_city;
+  return (
+    !filters.q &&
+    !filters.type &&
+    !filters.favorite &&
+    !filters.from &&
+    !filters.to &&
+    !filters.place_city &&
+    !filters.place_country
+  );
 }
 
 export async function fetchLibrary(
@@ -72,6 +84,7 @@ export async function fetchLibrary(
   if (filters.from) params.set('from', filters.from);
   if (filters.to) params.set('to', filters.to);
   if (filters.place_city) params.set('place_city', filters.place_city);
+  if (filters.place_country) params.set('place_country', filters.place_country);
   if (cursor) params.set('cursor', cursor);
 
   const response = await fetch(`${settings.baseURL}/api/search?${params.toString()}`, {
@@ -219,6 +232,40 @@ export async function fetchMemories(settings: CaptureSettings, cursor?: string):
   const page = await authedGet<LibraryPage>(settings, `/api/memories${params}`);
   void upsertAssets(page.assets);
   return page;
+}
+
+// fetchPlaces returns every located asset (has GPS) for plotting on the map.
+// The server DTO carries gps_lat/gps_lon; the narrow LibraryAsset view omits
+// them, so read them off the raw row and attach to the PlacePoint.
+export async function fetchPlaces(settings: CaptureSettings): Promise<import('@/lib/places').PlacePoint[]> {
+  const body = await authedGet<{ assets: (LibraryAsset & { gps_lat: number | null; gps_lon: number | null })[] }>(
+    settings,
+    '/api/places',
+  );
+  return body.assets
+    .filter((a): a is LibraryAsset & { gps_lat: number; gps_lon: number } => a.gps_lat != null && a.gps_lon != null)
+    .map((a) => ({
+      id: a.id,
+      filename: a.filename,
+      media_type: a.media_type,
+      taken_at: a.taken_at,
+      taken_day: a.taken_day,
+      favorite: a.favorite,
+      web_viewable: a.web_viewable,
+      thumbnail_url: a.thumbnail_url,
+      preview_url: a.preview_url,
+      place_city: a.place_city,
+      place_country: a.place_country,
+      gps_lat: a.gps_lat,
+      gps_lon: a.gps_lon,
+    }));
+}
+
+// fetchPlacesSummary returns place groups (city/country/count/cover) for the
+// bottom-sheet list.
+export async function fetchPlacesSummary(settings: CaptureSettings): Promise<PlaceGroup[]> {
+  const body = await authedGet<{ places: PlaceGroup[] }>(settings, '/api/places/summary');
+  return body.places;
 }
 
 export async function fetchTrash(settings: CaptureSettings, cursor?: string): Promise<LibraryPage> {
