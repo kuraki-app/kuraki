@@ -108,6 +108,12 @@ export default function SettingsScreen() {
           <ThemedText type="smallBold">Trash</ThemedText>
           <ThemedText themeColor="mutedForeground">Restore or permanently delete items ›</ThemedText>
         </Pressable>
+        <Pressable
+          style={[styles.button, styles.row, { borderColor: tokens.input }]}
+          onPress={() => router.push('/duplicates')}>
+          <ThemedText type="smallBold">Duplicates</ThemedText>
+          <ThemedText themeColor="mutedForeground">Review near-identical copies ›</ThemedText>
+        </Pressable>
 
         <ThemedText type="smallBold" style={styles.disconnectHeading}>Danger zone</ThemedText>
         <ThemedText type="small" themeColor="mutedForeground" selectable>
