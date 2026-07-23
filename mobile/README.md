@@ -48,19 +48,32 @@ or select specific device albums. An item in several selected albums uploads onc
 
 ## Library tab
 
-The **Library** tab browses the server's photos on the phone: a search box and
-All / Photos / Videos / Favorites chips over an infinite grid, with a full-screen
-swipeable viewer (images and in-app video playback). It reads the
-device-authenticated `/api/capture/library` — the same filter language as the web
-app.
+The **Library** tab browses the server's photos on the phone. It reads the
+device-authenticated `/api/*` routes (Bearer token) — the same one filter
+language the web app uses. A segment control switches between:
+
+- **Timeline** — a search box + All / Photos / Videos / Favorites chips and a
+  **Tags** browser, over an infinite grid with a full-screen swipeable viewer
+  (images and in-app video playback).
+- **Albums** — view, create, and add/remove.
+- **On this day** — the memories view.
+- **Places** — a native **MapLibre** map (OpenFreeMap vector tiles, no API key)
+  that clusters your geotagged photos; tap a cluster to zoom, a pin to open the
+  viewer, or a place in the sheet to see its grid.
+
+**Tag** a photo from the viewer (pick existing tags or create one) and browse by
+tag. **Trash** and **Duplicate review** (resolve near-identical copies with native
+controls) live under Settings.
 
 - **Offline cache.** Metadata is mirrored into a local **expo-sqlite** database, so
   the grid paints instantly on open and stays browsable with no connection; search
   and filters run against the local mirror when the server is unreachable.
   Thumbnails use expo-image's disk cache, capped so it can't grow unbounded.
-- **Favorites from the phone.** Tapping favorite updates the UI immediately, writes
-  through to the server (`POST /api/capture/assets/{id}/favorite`), and — if
-  offline — queues the change and flushes it on reconnect.
+- **Server-authoritative, offline-safe edits.** Favorites, album add/remove,
+  tagging, and trash update the UI immediately, write through to the server, and —
+  if offline — queue in a mutation log that flushes on reconnect. A delta feed
+  (`/api/changes`) reconciles changes made elsewhere; if the phone falls too far
+  behind, the server signals a resync and the mirror rebuilds.
 
 ## Connection state
 

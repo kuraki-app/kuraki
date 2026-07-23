@@ -44,9 +44,14 @@ downloadable.
 **Browse & find**
 - Virtualized, day/month-grouped **timeline** that stays smooth at large libraries
 - Full-screen **viewer** with EXIF panel, keyboard navigation, and original download
-- **Search** by filename, date range, media type, and camera model (SQLite FTS5, prefix matching)
+- **Search** by filename, date range, media type, camera, place, and **tag** (SQLite FTS5, prefix matching)
+- **Saved searches** — store a filter set as a named smart filter and re-apply it in one click
+- **Jump-to-date** to leap the timeline to any day
 - **Favorites** feed, **albums**, and an **"on this day"** memories view
 - **Places** map of geotagged photos with **offline** reverse geocoding (city/country, no external calls)
+- **Duplicate review** — a durable, resumable, all-library perceptual-hash scan groups near-identical
+  copies for you to resolve (nothing is ever deleted automatically)
+- **Archive** and **Hidden** shelves keep clutter out of the main timeline
 - Multi-select **batch** operations and **zip export** of selected originals
 - **Library dashboard** with totals and a per-year breakdown
 
@@ -54,6 +59,7 @@ downloadable.
 - Edit an asset's **capture date, location, and caption** (re-geocoding on a location change)
 - **Batch timezone shift** to correct camera clocks across many photos
 - Manual **albums** (create, rename, delete, add/remove)
+- **Tags** (hierarchical), star **ratings**, and **archive/hide** to shape what shows in the timeline
 
 **Media**
 - Docker/libvips thumbnails for supported still-image formats; the native
@@ -67,8 +73,14 @@ downloadable.
   background scheduling and an honest per-item "Needs attention" state
 - **Browse your library on the phone** — search and filter over an infinite grid, with an
   **offline SQLite cache** so the timeline opens instantly and stays usable with no connection
+- **Albums**, an **"on this day"** memories view, and a **Trash** with restore / permanent delete
+- **Places** — a native **MapLibre** map (OpenFreeMap vector tiles, no API key) that clusters your
+  geotagged photos; tap a place to see its grid
+- **Tags** — tag a photo from the viewer and browse by tag (offline-queued, like every other edit)
+- **Duplicate review** — resolve near-identical copies on the phone with native controls
 - **Favorite from the phone**, connection-aware banners (an unreachable server keeps the cached
-  library browsable; a revoked device prompts a re-pair), and a look ported from the web design
+  library browsable; a revoked device prompts a re-pair), a **server-authoritative** sync model
+  (all edits queue offline and reconcile on reconnect), and a look ported from the web design
 
 **Trust, performance & operations**
 - **Trash** with configurable retention, restore, and automatic purge
@@ -125,6 +137,7 @@ Sensible defaults, no config file required. Override via flags or environment
 | `--data-dir` | `KURAKI_DATA_DIR` | `./kuraki-data` | Library root (DB, originals, derivatives, trash, snapshots) |
 | `--addr` | `KURAKI_ADDR` | `:3000` | HTTP listen address |
 | — | `KURAKI_TRASH_RETENTION_DAYS` | `30` | Days a trashed item is restorable before purge |
+| — | `KURAKI_CHANGELOG_KEEP` | `100000` | Newest change-log rows kept for the delta-sync feed; older rows are pruned and lagging clients are told to resync |
 | — | `KURAKI_THUMBNAIL_SIZE` | `512` | Thumbnail longest-edge size in pixels |
 | — | `KURAKI_OCR` | off | Enable the opt-in local OCR worker (needs `tesseract` on PATH) |
 | — | `KURAKI_SECURE_COOKIES` | off | Mark the session cookie `Secure` — enable behind HTTPS |
