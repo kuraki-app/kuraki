@@ -3592,6 +3592,10 @@
                     },
                     "has_more": {
                         "type": "boolean"
+                    },
+                    "reset": {
+                        "description": "Reset is true when the client's cursor has fallen below the pruned\nchange_log floor: the client must discard its cursor/mirror and reload\nfrom the asset endpoints, then resume from Cursor. Absent/false normally.",
+                        "type": "boolean"
                     }
                 }
             },

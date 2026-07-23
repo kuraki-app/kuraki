@@ -184,3 +184,46 @@ func TestChangesFeedCursorAndScope(t *testing.T) {
 		t.Fatalf("page2 leaked or wrong: %+v", page2)
 	}
 }
+
+// TestChangesFeedResetBelowPrunedFloor proves that a client whose cursor has
+// fallen below the pruned change_log floor is told to resync (reset=true) with
+// the head cursor, while a caught-up client is not.
+func TestChangesFeedResetBelowPrunedFloor(t *testing.T) {
+	router, cookie, db := deviceFavoriteRouter(t)
+	seedOwnedAsset(t, db, "a1")
+	// Emit several change_log rows.
+	for i := 0; i < 5; i++ {
+		postJSON(t, router, "/api/assets/a1/favorite", apitypes.FavoriteRequest{Favorite: i%2 == 0}, cookie)
+	}
+	var minID, maxID int64
+	if err := db.QueryRow(`SELECT MIN(id), MAX(id) FROM change_log`).Scan(&minID, &maxID); err != nil {
+		t.Fatal(err)
+	}
+	if maxID-minID < 2 {
+		t.Fatalf("need a spread of ids to test the floor; got min=%d max=%d", minID, maxID)
+	}
+	// Prune everything below the newest row: the retained floor becomes maxID.
+	if _, err := db.Exec(`DELETE FROM change_log WHERE id < ?`, maxID); err != nil {
+		t.Fatal(err)
+	}
+
+	// A cursor below the floor must reset, with the head as the resume cursor.
+	stale := getJSONWithCookie[apitypes.ChangesResponse](t, router,
+		"/api/changes?since="+strconv.FormatInt(minID, 10), cookie)
+	if !stale.Reset {
+		t.Fatalf("expected reset for a cursor below the pruned floor, got %+v", stale)
+	}
+	if stale.Cursor != maxID {
+		t.Fatalf("reset cursor = %d, want head %d", stale.Cursor, maxID)
+	}
+	if len(stale.Changes) != 0 {
+		t.Fatalf("reset response should carry no changes, got %d", len(stale.Changes))
+	}
+
+	// A caught-up client (cursor at the head) does not reset.
+	fresh := getJSONWithCookie[apitypes.ChangesResponse](t, router,
+		"/api/changes?since="+strconv.FormatInt(maxID, 10), cookie)
+	if fresh.Reset {
+		t.Fatalf("caught-up client should not reset: %+v", fresh)
+	}
+}
