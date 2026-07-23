@@ -156,7 +156,7 @@ export default function DuplicatesScreen() {
       ) : (
         <FlatList
           data={groups}
-          keyExtractor={(g) => g[0]?.id ?? Math.random().toString()}
+          keyExtractor={(g, i) => g[0]?.id ?? `group-${i}`}
           renderItem={renderGroup}
           contentContainerStyle={styles.list}
         />

@@ -406,13 +406,14 @@ async function applyChange(settings: CaptureSettings, c: ChangeEntry): Promise<v
 
 /**
  * syncChanges drains the delta feed and applies each change to the mirror,
- * advancing the persisted cursor as it goes. Returns the number of changes
- * applied so the caller can skip a UI refresh when nothing moved. Best-effort:
- * a network failure leaves the cursor where it was so the next run resumes.
- * A 401 propagates (device disconnected) rather than being swallowed.
+ * advancing the persisted cursor as it goes. Returns `applied` (how many changes
+ * were applied) and `reset` (whether the server forced a full resync); the
+ * caller reloads when either indicates the view may have moved. Best-effort: a
+ * network failure leaves the cursor where it was so the next run resumes. A 401
+ * propagates (device disconnected) rather than being swallowed.
  */
-export async function syncChanges(settings: CaptureSettings): Promise<number> {
-  if (!settings.baseURL || !settings.deviceToken) return 0;
+export async function syncChanges(settings: CaptureSettings): Promise<{ applied: number; reset: boolean }> {
+  if (!settings.baseURL || !settings.deviceToken) return { applied: 0, reset: false };
   let applied = 0;
   // Bound the catch-up so a huge backlog can't block one call indefinitely;
   // the next run picks up where the cursor left off.
@@ -421,13 +422,13 @@ export async function syncChanges(settings: CaptureSettings): Promise<number> {
     const res = await authedGet<ChangesResponse>(
       settings, `/api/changes?since=${since}`);
     // reset: our cursor fell below the pruned change_log floor. We can't catch
-    // up incrementally, so wipe the mirror and jump to the head; returning >0
-    // makes the caller reload, which rebuilds the mirror from fetchLibrary.
+    // up incrementally, so wipe the mirror and jump to the head, then signal a
+    // reset so the caller reloads and rebuilds the mirror from fetchLibrary.
     if (res.reset) {
       const { clearCachedAssets } = await import('@/lib/cache/assets');
       await clearCachedAssets();
       await setSyncCursor(res.cursor);
-      return applied + 1;
+      return { applied, reset: true };
     }
     for (const c of res.changes) {
       await applyChange(settings, c);
@@ -438,7 +439,7 @@ export async function syncChanges(settings: CaptureSettings): Promise<number> {
     await setSyncCursor(res.cursor);
     if (!res.has_more) break;
   }
-  return applied;
+  return { applied, reset: false };
 }
 
 export async function restoreAsset(settings: CaptureSettings, id: string): Promise<void> {

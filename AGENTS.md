@@ -268,6 +268,12 @@ audited baseline and release checklist.
 
 ## 11. Handoff log (append newest at top)
 
+- `fix/review-findings` (2026-07-23) — **Whole-repo review fixes (root-cause, not patches).**
+  - **Duplicate review showed trashed assets** (`internal/httpapi/duplicates.go`): the group query joined `assets` without `deleted_at IS NULL`, and trash never removed `duplicate_group_members`, so a resolved duplicate resurfaced on refetch (and a group could render as one live asset + trashed ghosts). Now filters `deleted_at` and drops groups with <2 live members. Test: `TestDuplicatesExcludesTrashed`.
+  - **Web `filtered` missed non-form filters** (`web/src/routes/+page.svelte`): it only tested q/type/favorite/from/to, so applying a saved search carrying place/tag/camera/rating set `applied` but left `filtered=false` → unfiltered timeline. Now `Object.values(applied).some(non-empty)`.
+  - **`syncChanges` sentinel** (`mobile`): replaced the `applied+1` reset hack with an explicit `{ applied, reset }`; caller reloads on `applied>0 || reset`. Also swapped the Duplicates `keyExtractor`'s `Math.random()` fallback for a stable group index.
+  - Verified: `make check` (incl. new test), mobile `tsc`/`lint`/`vitest` (48), web `svelte-check`/build all green.
+
 - `feat/changelog-pruning` (2026-07-23) — **`change_log` is now bounded, with a safe resync fallback. Closes the "change_log pruning" multi-user follow-up for the single-owner case (all 3 surfaces).**
   - **The hazard this avoids.** Naive pruning silently corrupts sync: a client whose cursor is below the deleted rows gets only `id > since` rows that still exist and misses the pruned ones forever, with no error. So pruning is paired with a reset signal.
   - **Server.** A daily janitor (`App.PruneChangeLog` + `startChangeLogJanitor`, mirroring the trash janitor) keeps the newest `KURAKI_CHANGELOG_KEEP` rows (default **100k**; new `config.ChangeLogKeep`). The changes handler derives the pruned floor from `MIN(id)` (no new migration/state) and returns **`reset=true`** with the head cursor when `since > 0 && since < floor-1`. New `ChangesResponse.Reset` field (contract regenerated; `make check-gen` green). Test: `TestChangesFeedResetBelowPrunedFloor` (stale cursor → reset+head; caught-up → no reset).

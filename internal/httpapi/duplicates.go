@@ -37,11 +37,14 @@ func (d Deps) duplicates(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"groups": []apitypes.DupAsset{}, "run": nil})
 		return
 	}
+	// Exclude trashed assets: a resolved duplicate (the extra copies moved to
+	// Trash) must not resurface here. Groups that fall below two live members
+	// after this filter are dropped below.
 	rows, err := d.DB.QueryContext(r.Context(), `
 		SELECT gm.group_id,a.id,a.filename,a.size_bytes,a.taken_at,
 		       (SELECT dv.path FROM derivatives dv WHERE dv.asset_id=a.id AND dv.kind IN ('thumb','poster') ORDER BY CASE dv.kind WHEN 'thumb' THEN 0 ELSE 1 END LIMIT 1)
 		FROM duplicate_group_members gm JOIN assets a ON a.id=gm.asset_id
-		WHERE gm.run_id=? ORDER BY gm.group_id,a.id`, run.ID)
+		WHERE gm.run_id=? AND a.deleted_at IS NULL ORDER BY gm.group_id,a.id`, run.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_duplicates_failed")
 		return
@@ -69,13 +72,17 @@ func (d Deps) duplicates(w http.ResponseWriter, r *http.Request) {
 			a.ThumbnailURL = &u
 		}
 		if groupID != -1 && currentGroup != groupID {
-			groups = append(groups, group)
+			// A group with only one surviving (non-trashed) member is no longer
+			// a duplicate set, so it's dropped rather than shown as a group of 1.
+			if len(group) >= 2 {
+				groups = append(groups, group)
+			}
 			group = nil
 		}
 		groupID = currentGroup
 		group = append(group, a)
 	}
-	if len(group) > 0 {
+	if len(group) >= 2 {
 		groups = append(groups, group)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"groups": groups, "run": run})
