@@ -243,6 +243,27 @@
     background: var(--card);
   }
   .jump input { width: 122px; border: 0; outline: 0; background: transparent; color: var(--foreground); }
+  /* On a phone the search field earns its own full-width row and the icon
+   * controls sit under it, rather than four controls fighting over 390px.
+   * Fixed widths become flexible ones so nothing here can set a min-content
+   * floor wider than the screen. */
+  @media (max-width: 820px) {
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      /* Own row, below the title/Select line (order 1 puts it after the
+       * default-order Select button that shares row one with the title). */
+      flex: 1 1 100%;
+      order: 1;
+    }
+    .search {
+      flex: 1 1 100%;
+      order: -1;
+    }
+    .search input { width: 100%; min-width: 0; }
+    .jump { flex: 1 1 auto; min-width: 0; }
+    .jump input { width: 100%; min-width: 0; }
+  }
   .panel {
     display: flex;
     flex-wrap: wrap;

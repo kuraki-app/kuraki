@@ -21,6 +21,12 @@
   .page-header {
     display: flex;
     align-items: center;
+    /* Wrapping is unconditional, not a mobile-only rule. A nowrap header is as
+     * wide as its controls at *every* width, so a narrow-but-not-phone viewport
+     * — a landscape phone at 844px, a half-screen window — sits above the
+     * mobile breakpoint and still overflows sideways. Wrap costs nothing when
+     * the row fits, which is the desktop case. */
+    flex-wrap: wrap;
     gap: calc(var(--space-step) * 1.5);
     margin-bottom: calc(var(--space-step) * 3);
     animation: kuraki-frame-enter var(--frame-duration) var(--frame-ease) both;
@@ -40,5 +46,20 @@
     font-size: var(--frame-label-size);
     letter-spacing: var(--frame-label-tracking);
     text-transform: var(--frame-label-transform);
+  }
+  /* Below the sidebar breakpoint the title and its actions cannot share one
+   * line. Wrapping is what keeps the header's min-content width off the page:
+   * a nowrap header is as wide as its controls, and the layout grid then has no
+   * choice but to be at least that wide, pushing the whole page sideways.
+   *
+   * Only wrapping is imposed here. Which control claims a full row and which
+   * ones share is the consuming page's call — this component has no idea what
+   * was slotted into it, and stretching everything to 100% turns compact icon
+   * groups into full-width slabs. */
+  @media (max-width: 820px) {
+    .page-header {
+      gap: var(--space-step);
+      margin-bottom: calc(var(--space-step) * 2);
+    }
   }
 </style>

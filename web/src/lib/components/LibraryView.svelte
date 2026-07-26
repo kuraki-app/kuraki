@@ -338,7 +338,7 @@
 <PageHeader {title} subtitle={subtitle || `${assets.length} ${assets.length === 1 ? 'item' : 'items'}`}>
   <slot name="actions" />
   {#if assets.length > 0}
-    <div class="inline-flex rounded-md border border-border" aria-label="Grid density">
+    <div class="density inline-flex rounded-md border border-border" aria-label="Grid density">
       <Button size="icon" variant={density === 'compact' ? 'secondary' : 'ghost'} onclick={() => setDensity('compact')} aria-label="Compact grid"><Grid2X2 size={16} /></Button>
       <Button size="icon" variant={density === 'comfortable' ? 'secondary' : 'ghost'} onclick={() => setDensity('comfortable')} aria-label="Comfortable grid"><Grid3X3 size={16} /></Button>
       <Button size="icon" variant={density === 'large' ? 'secondary' : 'ghost'} onclick={() => setDensity('large')} aria-label="Large grid"><Grid size={16} /></Button>
@@ -423,3 +423,16 @@
     on:close={() => (pickerOpen = false)}
   />
 {/if}
+
+<style>
+  /* Mobile header order: the title and Select share row one (both keep the
+   * default order 0), the page's own filter block takes row two via order 1,
+   * and the density toggle follows on row three. Without an explicit order the
+   * density group would land between the title and the filters and strand
+   * Select on a row of its own. */
+  @media (max-width: 820px) {
+    .density {
+      order: 2;
+    }
+  }
+</style>
