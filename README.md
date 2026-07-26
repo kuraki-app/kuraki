@@ -175,6 +175,8 @@ path — and it becomes downloadable; until then the endpoint returns 404. Build
 |---|---|
 | `kuraki serve` | Start the web server |
 | `kuraki import <dir>` | Bulk-import a directory (`--dry-run`, `--watch`, `--watch-interval`, `--thumb-workers`) |
+| `kuraki migrate immich` | Migrate a library from an Immich server, metadata intact (`--url`, `--api-key`, `--dry-run`, `--resume`, `--include-trashed`, `--since`) — see [MIGRATING.md](MIGRATING.md) |
+| `kuraki migrate status [run-id]` | List migration runs and their progress |
 | `kuraki verify` | Re-checksum the library and report mismatches |
 | `kuraki backup <archive.tar.gz>` | Create a portable, SQLite-consistent library backup |
 | `kuraki restore <archive.tar.gz>` | Restore a backup into an empty library |
@@ -208,7 +210,7 @@ kuraki-data/
 
 ```
 kuraki/
-├── cmd/kuraki/              # CLI entrypoint (cobra): serve / import / verify / backup / restore / passwd / version
+├── cmd/kuraki/              # CLI entrypoint (cobra): serve / import / migrate / verify / backup / restore / passwd / version
 ├── internal/
 │   ├── app/                # composition root — wires config→db→storage→media→http
 │   ├── config/             # zero-config defaults + env/flag resolution
@@ -219,6 +221,7 @@ kuraki/
 │   ├── media/              # Processor interface + libvips/pure-Go backends, ffmpeg, EXIF
 │   ├── importer/           # bulk import: walk, BLAKE3 dedup, resume, thumbnails
 │   ├── takeout/            # Google Takeout sidecar parsing
+│   ├── migrate/            # library migration engine (source-agnostic) + immich/ REST source
 │   ├── geo/                # offline reverse geocoding (embedded cities dataset)
 │   ├── queue/              # background import queue (worker, retries, jobs)
 │   ├── trash/              # soft-delete, restore, retention purge
@@ -233,6 +236,7 @@ kuraki/
 ├── Dockerfile              # runtime bundles libvips + ffmpeg
 ├── docker-compose.yml      # simple one-command local host
 ├── DEPLOYMENT.md           # production deployment & security guide
+├── MIGRATING.md            # moving a library in from Immich or Google Photos
 └── ROADMAP.md              # milestone & progress tracker
 ```
 
