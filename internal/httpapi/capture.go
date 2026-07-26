@@ -105,6 +105,46 @@ func (d Deps) revokeDevice(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "revoked"})
 }
 
+// listDevices reports the caller's own paired, unrevoked devices. Never
+// returns token_hash — a device's bearer token is shown once, at pairing
+// time, and cannot be recovered afterwards; revoke-and-repair is the only way
+// to replace a lost one.
+// @Summary List paired devices
+// @Tags    devices
+// @Produce json
+// @Success 200 {object} apitypes.DeviceList
+// @Failure 401 {object} apitypes.Error
+// @Router  /api/devices [get]
+func (d Deps) listDevices(w http.ResponseWriter, r *http.Request) {
+	user := d.currentUser(r)
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	rows, err := d.DB.QueryContext(r.Context(), `
+		SELECT id, name, created_at, last_seen_at FROM devices
+		WHERE owner_id = ? AND revoked_at IS NULL ORDER BY created_at DESC`, user.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "devices_query_failed")
+		return
+	}
+	defer rows.Close()
+	devices := make([]apitypes.DeviceInfo, 0)
+	for rows.Next() {
+		var info apitypes.DeviceInfo
+		var lastSeen sql.NullString
+		if err := rows.Scan(&info.ID, &info.Name, &info.CreatedAt, &lastSeen); err != nil {
+			writeError(w, http.StatusInternalServerError, "devices_scan_failed")
+			return
+		}
+		if lastSeen.Valid {
+			info.LastSeenAt = &lastSeen.String
+		}
+		devices = append(devices, info)
+	}
+	writeJSON(w, http.StatusOK, apitypes.DeviceList{Devices: devices})
+}
+
 // resolveDevice validates the request's Bearer device token and, on success,
 // touches last_seen_at and returns the owning device. It writes no HTTP
 // response, so the caller (requirePrincipal) decides how to react to a miss.

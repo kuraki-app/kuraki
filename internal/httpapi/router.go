@@ -156,12 +156,7 @@ func NewRouter(d Deps) http.Handler {
 				r.Delete("/devices/{id}", d.revokeDevice)
 				r.With(d.requireOwner).Get("/settings", d.getSettings)
 				r.With(d.requireOwner).Patch("/settings", d.patchSettings)
-				// GET /devices (d.listDevices) is Task 9's route — deliberately not
-				// wired here. Task 8's brief asked for it to land alongside
-				// /settings since they share this test-router setup, but
-				// listDevices does not exist yet; wiring a route to an undefined
-				// handler would leave the package unbuildable until Task 9 lands.
-				// Task 9 adds: r.With(d.requireOwner).Get("/devices", d.listDevices)
+				r.With(d.requireOwner).Get("/devices", d.listDevices)
 				r.Get("/events", d.events)
 				r.Post("/duplicates/run", d.runDuplicates)
 				r.Get("/export", d.exportLibrary)
