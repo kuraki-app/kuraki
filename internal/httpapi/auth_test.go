@@ -42,7 +42,7 @@ func TestSetupDefaultsUsernameToAdmin(t *testing.T) {
 func TestSetupLoginAndProtectedAPI(t *testing.T) {
 	router, _ := newAuthTestRouter(t)
 
-	initial := getJSON[apitypes.SetupStatus](t, router, "/api/setup")
+	initial := getJSONWithCookie[apitypes.SetupStatus](t, router, "/api/setup", nil)
 	if !initial.SetupRequired {
 		t.Fatal("setup should be required for a fresh database")
 	}
@@ -155,6 +155,17 @@ func postJSON(t *testing.T, handler http.Handler, path string, body any, cookie 
 	}
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
+	if cookie != nil {
+		req.AddCookie(cookie)
+	}
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	return rec
+}
+
+func getJSON(t *testing.T, handler http.Handler, path string, cookie *http.Cookie) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, path, nil)
 	if cookie != nil {
 		req.AddCookie(cookie)
 	}
