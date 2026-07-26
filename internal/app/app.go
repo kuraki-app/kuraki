@@ -24,6 +24,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/media"
 	"github.com/kuraki-app/kuraki/internal/ocr"
 	"github.com/kuraki-app/kuraki/internal/queue"
+	"github.com/kuraki-app/kuraki/internal/serversettings"
 	"github.com/kuraki-app/kuraki/internal/stacks"
 	"github.com/kuraki-app/kuraki/internal/storage"
 	"github.com/kuraki-app/kuraki/internal/trash"
@@ -34,20 +35,25 @@ import (
 
 // App is the assembled application.
 type App struct {
-	Cfg     config.Config
-	Log     *slog.Logger
-	DB      *sql.DB
-	Store   storage.Storage
-	Media   media.Processor
-	Queue   *queue.Queue
-	Version string
+	// Settings holds the live, resolved configuration. TrashRetentionDays and
+	// ChangeLogKeep are read fresh from it on every worker pass (Settings.
+	// Current()); everything else is read once from Settings.Booted() because
+	// it is baked into a constructor (queue.New, httpapi.Deps) at Serve()
+	// time and never re-read — see internal/config.Store's doc comment.
+	Settings *config.Store
+	Log      *slog.Logger
+	DB       *sql.DB
+	Store    storage.Storage
+	Media    media.Processor
+	Queue    *queue.Queue
+	Version  string
 }
 
 // New assembles the application: it creates the data directories, opens the
 // database in WAL mode, runs migrations (with an automatic pre-migration
 // snapshot), and selects the media backend. The pure-Go processor is used by
 // default; builds tagged "vips" swap in the libvips backend.
-func New(ctx context.Context, cfg config.Config, version string, log *slog.Logger) (*App, error) {
+func New(ctx context.Context, cfg config.Config, getenv func(string) string, version string, log *slog.Logger) (*App, error) {
 	for _, dir := range []string{cfg.DataDir, cfg.OriginalsDir(), cfg.DerivativesDir(), cfg.TrashDir(), cfg.SnapshotsDir(), cfg.StagingDir(), cfg.DownloadsDir()} {
 		if err := os.MkdirAll(dir, 0o750); err != nil {
 			return nil, fmt.Errorf("app: create %s: %w", dir, err)
@@ -81,7 +87,15 @@ func New(ctx context.Context, cfg config.Config, version string, log *slog.Logge
 	}
 
 	proc := newProcessor() // build-tag selected (purego by default)
-	q, err := queue.New(database, store, proc, cfg.ThumbnailSize, cfg.StagingDir(), log)
+	settingRows, err := serversettings.LoadAll(ctx, database)
+	if err != nil {
+		database.Close()
+		return nil, err
+	}
+	settings := config.NewStore(cfg, config.EnvPresent(getenv), settingRows)
+	booted := settings.Booted()
+
+	q, err := queue.New(database, store, proc, booted.ThumbnailSize, booted.StagingDir(), log)
 	if err != nil {
 		database.Close()
 		return nil, err
@@ -89,13 +103,13 @@ func New(ctx context.Context, cfg config.Config, version string, log *slog.Logge
 
 	duplicates.Start(ctx, database, log)
 	return &App{
-		Cfg:     cfg,
-		Log:     log,
-		DB:      database,
-		Store:   store,
-		Media:   proc,
-		Queue:   q,
-		Version: version,
+		Settings: settings,
+		Log:      log,
+		DB:       database,
+		Store:    store,
+		Media:    proc,
+		Queue:    q,
+		Version:  version,
 	}, nil
 }
 
@@ -105,7 +119,7 @@ func (a *App) Import(ctx context.Context, opts importer.Options) (importer.Resul
 		DB:           a.DB,
 		Store:        a.Store,
 		Media:        a.Media,
-		ThumbMaxEdge: a.Cfg.ThumbnailSize,
+		ThumbMaxEdge: a.Settings.Booted().ThumbnailSize,
 	}
 	result, err := runner.Run(ctx, opts)
 	if err == nil && result.Imported > 0 {
@@ -277,10 +291,11 @@ func (a *App) startIntegrityScheduler(ctx context.Context) {
 // BackupDir set it does nothing, leaving backups fully manual. This is the
 // safety net for a passive user who never runs `kuraki backup` by hand.
 func (a *App) startBackupScheduler(ctx context.Context) {
-	if a.Cfg.BackupDir == "" {
+	booted := a.Settings.Booted()
+	if booted.BackupDir == "" {
 		return
 	}
-	hours := a.Cfg.BackupIntervalHours
+	hours := booted.BackupIntervalHours
 	if hours <= 0 {
 		hours = 24
 	}
@@ -298,13 +313,13 @@ func (a *App) startBackupScheduler(ctx context.Context) {
 		return time.Since(t) >= interval
 	}
 	run := func() {
-		summary, err := backup.RunAndRecord(ctx, a.DB, a.Cfg.DataDir, a.Cfg.BackupDir)
+		summary, err := backup.RunAndRecord(ctx, a.DB, booted.DataDir, booted.BackupDir)
 		if err != nil {
 			a.Log.Warn("automatic backup failed", "err", err)
 			return
 		}
 		a.Log.Info("automatic backup complete", "dest", summary.Destination, "bytes", summary.Bytes)
-		if err := backup.Prune(a.Cfg.BackupDir, a.Cfg.BackupKeep); err != nil {
+		if err := backup.Prune(booted.BackupDir, booted.BackupKeep); err != nil {
 			a.Log.Warn("backup prune failed", "err", err)
 		}
 	}
@@ -334,7 +349,7 @@ func (a *App) startBackupScheduler(ctx context.Context) {
 
 // PurgeTrash permanently removes assets whose retention window has elapsed (F-10).
 func (a *App) PurgeTrash(ctx context.Context) (int, error) {
-	days := a.Cfg.TrashRetentionDays
+	days := a.Settings.Current().TrashRetentionDays
 	if days <= 0 {
 		days = 30
 	}
@@ -374,7 +389,7 @@ func (a *App) startTrashJanitor(ctx context.Context) {
 // derives the floor from MIN(id)), so pruning can never silently drop a delta a
 // client still needed — it converts "missed rows" into an explicit full reload.
 func (a *App) PruneChangeLog(ctx context.Context) (int64, error) {
-	keep := a.Cfg.ChangeLogKeep
+	keep := a.Settings.Current().ChangeLogKeep
 	if keep <= 0 {
 		keep = 100000
 	}
@@ -493,7 +508,7 @@ func (a *App) startCaptureJanitor(ctx context.Context) {
 // words inside screenshots and documents. It processes small batches with a
 // pause between them to stay light, and stops when the library is caught up.
 func (a *App) startOCRWorker(ctx context.Context) {
-	if !a.Cfg.OCREnabled {
+	if !a.Settings.Booted().OCREnabled {
 		return
 	}
 	if !ocr.Available() {
@@ -642,30 +657,31 @@ func (a *App) Serve(ctx context.Context) error {
 	events := httpapi.NewChangeBroker(a.DB, a.Log)
 	go events.Poll(ctx, time.Second)
 
+	booted := a.Settings.Booted()
 	handler := httpapi.NewRouter(httpapi.Deps{
 		Version:        a.Version,
 		DB:             a.DB,
 		Store:          a.Store,
 		Media:          a.Media,
 		Queue:          a.Queue,
-		ThumbSize:      a.Cfg.ThumbnailSize,
-		SecureCookies:  a.Cfg.SecureCookies,
-		TrustProxy:     a.Cfg.TrustProxy,
-		MetricsToken:   a.Cfg.MetricsToken,
-		BackupEnabled:  a.Cfg.BackupDir != "",
-		AndroidAPKPath: a.Cfg.AndroidAPKPath(),
+		ThumbSize:      booted.ThumbnailSize,
+		SecureCookies:  booted.SecureCookies,
+		TrustProxy:     booted.TrustProxy,
+		MetricsToken:   booted.MetricsToken,
+		BackupEnabled:  booted.BackupDir != "",
+		AndroidAPKPath: booted.AndroidAPKPath(),
 		Events:         events,
 		Logger:         a.Log,
 	})
 	srv := &http.Server{
-		Addr:              a.Cfg.Addr,
+		Addr:              booted.Addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	errCh := make(chan error, 1)
 	go func() {
-		a.Log.Info("kuraki serving", "addr", a.Cfg.Addr, "data_dir", a.Cfg.DataDir, "version", a.Version)
+		a.Log.Info("kuraki serving", "addr", booted.Addr, "data_dir", booted.DataDir, "version", a.Version)
 		errCh <- srv.ListenAndServe()
 	}()
 
