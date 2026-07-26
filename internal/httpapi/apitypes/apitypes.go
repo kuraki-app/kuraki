@@ -365,3 +365,68 @@ type LibraryStats struct {
 	TotalBytes int64       `json:"total_bytes" validate:"required"`
 	ByYear     []YearCount `json:"by_year" validate:"required"`
 }
+
+// SettingInfo describes one server setting for GET /api/settings: its
+// current value, default, type/bounds metadata, and whether the environment
+// pins it read-only. Secret settings (metrics_token) never carry their real
+// value here — Value is always "" for them; IsSet says whether one exists.
+type SettingInfo struct {
+	Key         string `json:"key" validate:"required"`
+	Value       string `json:"value"`
+	Default     string `json:"default"`
+	Type        string `json:"type" validate:"required" enums:"int,bool,string,path"`
+	Unit        string `json:"unit,omitempty"`
+	Apply       string `json:"apply" validate:"required" enums:"live,restart"`
+	PinnedByEnv bool   `json:"pinned_by_env,omitempty"`
+	EnvVar      string `json:"env_var" validate:"required"`
+	Min         int    `json:"min,omitempty"`
+	Max         int    `json:"max,omitempty"`
+	Secret      bool   `json:"secret,omitempty"`
+	IsSet       bool   `json:"is_set,omitempty"`
+}
+
+// SettingsResponse is the envelope for GET /api/settings.
+type SettingsResponse struct {
+	Version        string        `json:"version" validate:"required"`
+	RestartPending []string      `json:"restart_pending"`
+	Settings       []SettingInfo `json:"settings" validate:"required"`
+}
+
+// SettingsPatchRequest is a partial key/value map for PATCH /api/settings;
+// keys are SettingInfo.Key values, values are the raw (pre-validation) string.
+type SettingsPatchRequest map[string]string
+
+// SettingRejection reports why one PATCH key was not applied.
+type SettingRejection struct {
+	Key   string `json:"key" validate:"required"`
+	Error string `json:"error" validate:"required"`
+}
+
+// SettingWarning reports a non-fatal issue with an applied PATCH key (e.g.
+// OCR enabled without tesseract on PATH).
+type SettingWarning struct {
+	Key     string `json:"key" validate:"required"`
+	Warning string `json:"warning" validate:"required"`
+}
+
+// SettingsPatchResponse reports the per-key outcome of a settings save.
+type SettingsPatchResponse struct {
+	Applied        []string           `json:"applied"`
+	PendingRestart []string           `json:"pending_restart"`
+	Rejected       []SettingRejection `json:"rejected,omitempty"`
+	Warnings       []SettingWarning   `json:"warnings,omitempty"`
+}
+
+// DeviceInfo is the wire representation of a paired device for the list
+// endpoint — unlike DeviceResponse, it never carries a token.
+type DeviceInfo struct {
+	ID         string  `json:"id" validate:"required"`
+	Name       string  `json:"name" validate:"required"`
+	CreatedAt  string  `json:"created_at" validate:"required"`
+	LastSeenAt *string `json:"last_seen_at,omitempty"`
+}
+
+// DeviceList is the envelope for GET /api/devices.
+type DeviceList struct {
+	Devices []DeviceInfo `json:"devices" validate:"required"`
+}
