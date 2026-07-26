@@ -26,6 +26,26 @@ const (
 	DerivativePoster  DerivativeKind = "poster"  // video poster frame
 )
 
+// ExternalMetadata is what a foreign system knows about a media file that the
+// file itself does not carry. Google Takeout supplies it from JSON sidecars;
+// a library migration supplies it from the source server's API.
+//
+// The importer merges this over what it probes from the bytes. Pointer fields
+// mean "unknown" when nil, so a provider can stay silent about a field instead
+// of overwriting a good EXIF value with a zero.
+type ExternalMetadata struct {
+	TakenAt     *time.Time
+	Lat         *float64
+	Lon         *float64
+	Description string
+	Favorite    bool
+	Rating      int // 0-5; 0 means unrated
+	Archived    bool
+	Hidden      bool
+	CameraMake  string
+	CameraModel string
+}
+
 // User is the single owner in Phase 1. owner_id is carried on every asset from
 // day one so multi-user (F-30) is a data migration, not a rewrite.
 type User struct {

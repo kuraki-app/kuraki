@@ -144,6 +144,8 @@ internal/
   media/               Processor interface + purego.go fallback + vips.go tagged backend, ffmpeg, EXIF
   importer/            recursive import, BLAKE3 dedup, import_state resume, derivatives; Takeout + geocode
   takeout/             Google Takeout sidecar parsing (title-index fallback)
+  migrate/             source-agnostic library migration engine (batching, resume, relations)
+  migrate/immich/      read-only Immich REST client + migrate.Source implementation
   geo/                 offline reverse geocoding (embedded GeoNames cities/countries)
   queue/               background import queue: worker, retries/backoff, crash recovery, jobs
   trash/               soft-delete, restore, retention purge
@@ -242,7 +244,10 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 
 | Mobile Tags (`feat/mobile-tags`): per-asset tag editor (viewer, offline-queued `set_tags`, online-only create) + browse-by-tag (Library sheet → filtered-grid route). Cached tag list (cache v4). One server change: `tag` filter in `parseAssetFilters`. Go filter test + Vitest green; native sheets dev-client-verified. Second of 3 parity slices | 🟡 code-complete (go test + tsc + lint + vitest green), **native sheets need a device pass** |
 
+| **Immich migration** (`feat/immich-migration`): source-agnostic `internal/migrate` engine + `internal/migrate/immich` REST client; `kuraki migrate immich` / `migrate status`; migration 00021 (`migration_runs`, `migration_map`, `albums.description`, `assets.stack_locked`); `importer.MetadataProvider` seam. Verified end-to-end against a real Immich v3.0.3 in Docker | ✅ done |
+
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
+Migration guide: [MIGRATING.md](./MIGRATING.md).
 
 ## 9. Next up
 
@@ -267,6 +272,41 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `feat/immich-migration` (2026-07-26) — **Migrate a whole library in from Immich, metadata intact.**
+  - **New packages.** `internal/migrate` is a source-agnostic engine: a `Source` only enumerates
+    items, describes them, and streams bytes; batching, resume, album/tag/stack wiring and trash
+    handling live in the engine. `internal/migrate/immich` implements it over Immich's REST API
+    (`x-api-key`, read-only). A Google Takeout `Source` slots in here later with no engine change.
+  - **Importer seam.** `takeout.NewResolver()` was hard-wired inside `importer.Run`; it is now
+    `Options.Metadata importer.MetadataProvider`, defaulting to that same resolver when nil, so every
+    existing caller is byte-for-byte unchanged. `insertAsset` learned `rating`/`archived`/`hidden`
+    (previously left at DB defaults), and `Result.Assets` now reports the asset each source file
+    became — **including duplicates**, whose id `assetExists` already computed and threw away. Without
+    that, a re-run could not file an already-present photo into its album.
+  - **Schema 00021.** `migration_runs` + `migration_map`, the source-id↔local-id mapping the repo had
+    nowhere. Keyed `(owner, source, kind, source_id)` — not by run — which is what makes re-runs
+    idempotent and resume cheap. Plus `albums.description` (Immich has one, Kuraki didn't) and
+    `assets.stack_locked`.
+  - **`stack_locked` is not incidental.** `stacks.Detect` wipes and recomputes *every* stack from
+    filename heuristics after each import, so the first upload after a migration would have silently
+    dissolved every stack Immich had stated explicitly. Detection now skips locked rows.
+    Test: `TestMigratedStacksSurviveStackDetection`.
+  - **Three defects only a live server exposed** (fake-source unit tests passed throughout):
+    1. `withStacked:false` makes Immich omit **every member of a stack, primary included** — not just
+       children. Any search without it silently drops those assets from the migration. It is now
+       unconditional in every search body, independent of `--stacks`. Regression test:
+       `TestEverySearchRequestsStackedAssets`.
+    2. `POST /search/metadata` does **not** hydrate `tags` or `stack` (only `GET /assets/{id}` does).
+       Both are now inverted from list endpoints — `GET /stacks`, and one filtered search per tag —
+       which is O(tags+1) requests instead of O(assets).
+    3. Album membership is likewise per-album, not on the asset payload.
+  - **Credentials are deliberately not persisted.** Migration jobs appear in the Activity view and
+    report live progress, but the worker never runs them; on restart, crash recovery fails an
+    orphaned migration with the exact `--resume` command instead of requeueing it into the importer.
+  - Verified against a real **Immich v3.0.3** in Docker seeded with albums, nested tags, a stack,
+    favorites, ratings, archived/hidden/trashed assets and GPS: 7/7 imported, 0 errors; re-run
+    imported 0 and duplicated nothing; `kuraki verify` clean. `make check` green.
 
 - `fix/review-findings` (2026-07-23) — **Whole-repo review fixes (root-cause, not patches).**
   - **Duplicate review showed trashed assets** (`internal/httpapi/duplicates.go`): the group query joined `assets` without `deleted_at IS NULL`, and trash never removed `duplicate_group_members`, so a resolved duplicate resurfaced on refetch (and a group could render as one live asset + trashed ghosts). Now filters `deleted_at` and drops groups with <2 live members. Test: `TestDuplicatesExcludesTrashed`.

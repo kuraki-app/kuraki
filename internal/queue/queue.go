@@ -129,6 +129,38 @@ func (q *Queue) enqueueStagedDirectory(ctx context.Context, jobID, owner, dir st
 	return nil
 }
 
+// TrackMigration opens a jobs row for a migration run so the Activity view can
+// show live progress. source holds the migration run id, which is also what the
+// resume hint in crash recovery needs. The row starts 'running' rather than
+// 'queued': the caller is already doing the work, and the worker must not claim
+// it. Returns the job id.
+func (q *Queue) TrackMigration(ctx context.Context, owner, runID string, total int) (string, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return "", err
+	}
+	if _, err := q.DB.ExecContext(ctx, `
+		INSERT INTO jobs (id, kind, owner, source, status, total, next_attempt_at)
+		VALUES (?, ?, ?, ?, 'running', ?, ?)`,
+		id.String(), KindMigration, owner, runID, total, nowText()); err != nil {
+		return "", fmt.Errorf("queue: track migration: %w", err)
+	}
+	return id.String(), nil
+}
+
+// FinishMigration closes out a tracked migration job.
+func (q *Queue) FinishMigration(ctx context.Context, jobID, status, message string) error {
+	if jobID == "" {
+		return nil
+	}
+	if _, err := q.DB.ExecContext(ctx,
+		`UPDATE jobs SET status = ?, error = ?, updated_at = ? WHERE id = ?`,
+		status, message, nowText(), jobID); err != nil {
+		return fmt.Errorf("queue: finish migration: %w", err)
+	}
+	return nil
+}
+
 func stage(dir string, fh *multipart.FileHeader) error {
 	src, err := fh.Open()
 	if err != nil {
@@ -155,11 +187,25 @@ func (q *Queue) signal() {
 	}
 }
 
+// KindMigration marks a library migration from another photo server. These jobs
+// exist for progress reporting only: the worker never runs them, because the
+// source server's credentials are deliberately not persisted.
+const KindMigration = "migration"
+
 // Start recovers interrupted jobs and runs the worker until ctx is cancelled.
 func (q *Queue) Start(ctx context.Context) {
-	// Crash recovery: anything left 'running' is requeued.
+	// Crash recovery: anything left 'running' is requeued — except migrations,
+	// which cannot be resumed unattended because the API key was never stored.
+	// Requeuing one would hand a nonexistent staging directory to the importer,
+	// so it is failed with the command needed to pick it back up by hand.
+	if _, err := q.DB.ExecContext(ctx, `
+		UPDATE jobs SET status = 'failed', error = 'migration interrupted; resume with: kuraki migrate immich --resume ' || source || ' --url <url> --api-key <key>', updated_at = ?
+		WHERE status = 'running' AND kind = ?`, nowText(), KindMigration); err != nil {
+		q.Log.Warn("queue: recover migration jobs failed", "err", err)
+	}
 	if _, err := q.DB.ExecContext(ctx,
-		`UPDATE jobs SET status = 'queued', updated_at = ? WHERE status = 'running'`, nowText()); err != nil {
+		`UPDATE jobs SET status = 'queued', updated_at = ? WHERE status = 'running' AND kind != ?`,
+		nowText(), KindMigration); err != nil {
 		q.Log.Warn("queue: recover running jobs failed", "err", err)
 	}
 
@@ -212,6 +258,16 @@ func (q *Queue) claim(ctx context.Context) (Job, bool) {
 }
 
 func (q *Queue) process(ctx context.Context, j Job) {
+	// Migration jobs are driven by the CLI process that holds the credentials;
+	// the worker only ever reports on them. Claiming one here would mean
+	// treating a run id as a staging directory.
+	if j.Kind == KindMigration {
+		_, _ = q.DB.ExecContext(ctx, `
+			UPDATE jobs SET status = 'failed', error = 'migrations run from the kuraki migrate command, not the background worker', updated_at = ?
+			WHERE id = ?`, nowText(), j.ID)
+		return
+	}
+
 	source := j.source
 	runner := importer.Importer{DB: q.DB, Store: q.Store, Media: q.Media, ThumbMaxEdge: q.ThumbSize}
 

@@ -91,6 +91,17 @@ Docker-first deployment and a full browser experience over an embedded web UI.
   immediately, a worker imports each job with retries and crash recovery, and the
   UI polls progress. A self-refreshing Activity page lists recent import jobs with
   status, progress, and per-file error detail (which files failed and why).
+- Immich migration: `kuraki migrate immich` pulls an entire library across over
+  Immich's REST API, preserving capture times, locations, camera details,
+  captions, favorites, ratings, archive and hidden state, albums (with their
+  descriptions), nested tags, stacks, live-photo pairs, and — with
+  `--include-trashed` — the trash. Runs in batches so disk use stays bounded on
+  a library of any size, reports progress in the Activity view, and records
+  every transferred item so a re-run imports nothing twice and an interrupted
+  run resumes without re-downloading. Unsupported items (audio, PIN-locked, or
+  offline assets) are skipped with a stated reason rather than dropped silently.
+  The API key is used for the run only and is never written to the database.
+  See MIGRATING.md for what does and does not come across.
 - Google Takeout import: reads the JSON sidecars (tolerant of Google's naming
   variants) so capture dates, locations, captions, and favorites survive a
   migration from Google Photos.

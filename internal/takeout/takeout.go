@@ -11,16 +11,16 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kuraki-app/kuraki/internal/domain"
 )
 
-// Metadata is the subset of a Takeout sidecar Kuraki uses.
-type Metadata struct {
-	TakenAt     *time.Time
-	Lat         *float64
-	Lon         *float64
-	Description string
-	Favorite    bool
-}
+// Metadata is the subset of a Takeout sidecar Kuraki uses. It is an alias for
+// the shared carrier every external-metadata source speaks, so a Resolver
+// satisfies importer.MetadataProvider without an adapter. Takeout populates
+// only the capture time, location, caption, and favorite flag; the remaining
+// fields stay zero because Takeout does not export them.
+type Metadata = domain.ExternalMetadata
 
 type geo struct {
 	Latitude  float64 `json:"latitude"`

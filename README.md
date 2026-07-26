@@ -38,6 +38,8 @@ downloadable.
 - **Watch-folder** mode (`import --watch`) that auto-imports new files — pairs with Syncthing/rsync
 - Browser drag-and-drop upload, processed by a background **import queue** (retries + crash recovery),
   with an **Activity** view showing progress and per-file errors
+- **Immich migration** — `kuraki migrate immich` pulls a whole library over Immich's API,
+  keeping albums, tags, favorites, ratings, archive state, captions, locations, and stacks
 - **Google Takeout import** — reads the JSON sidecars so capture dates, locations, captions, and
   favorites survive a migration from Google Photos
 
@@ -126,6 +128,18 @@ docker compose exec kuraki kuraki import /data/incoming
 # or watch a folder and auto-import new files:
 docker compose exec kuraki kuraki import /data/incoming --watch
 ```
+
+### Coming from Immich or Google Photos
+
+```sh
+docker compose exec kuraki kuraki migrate immich \
+  --url https://immich.example --api-key "$IMMICH_KEY"
+```
+
+Albums, tags, favorites, ratings, archive state, captions, locations and stacks
+come across; the migration is resumable and safe to re-run. See
+**[MIGRATING.md](MIGRATING.md)** for what does and does not transfer, and for
+Google Photos via Takeout.
 
 ## Configuration
 

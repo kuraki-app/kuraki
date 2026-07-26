@@ -29,6 +29,13 @@ import (
 const defaultOwnerUsername = "owner"
 const defaultThumbMaxEdge = 512
 
+// MetadataProvider supplies metadata a foreign system knows about a file that
+// the file's own bytes do not carry. The Google Takeout resolver is the default
+// implementation; a library migration substitutes its own.
+type MetadataProvider interface {
+	Lookup(path string) (domain.ExternalMetadata, bool)
+}
+
 // Options controls a single import run.
 type Options struct {
 	SourceDir        string
@@ -36,6 +43,11 @@ type Options struct {
 	OwnerUsername    string
 	Progress         io.Writer
 	ThumbnailWorkers int
+
+	// Metadata supplies external metadata per source file. When nil, the run
+	// falls back to Google Takeout sidecar resolution — the historical
+	// behaviour every existing caller relies on.
+	Metadata MetadataProvider
 }
 
 // Result summarizes a completed import run.
@@ -46,6 +58,20 @@ type Result struct {
 	Duplicates int
 	Errors     []FileError
 	Bytes      int64
+
+	// Assets records the asset each source file resolved to, including files
+	// that turned out to be duplicates of an already-stored asset. A migration
+	// needs this to attach albums and tags to the right rows — and needs it for
+	// duplicates too, so that re-running a migration still files an
+	// already-present photo into its album.
+	Assets []ImportedAsset
+}
+
+// ImportedAsset ties a source file to the asset it became.
+type ImportedAsset struct {
+	SourcePath string
+	AssetID    string
+	Duplicate  bool
 }
 
 // FileError captures a per-file failure while allowing the import to continue.
@@ -63,7 +89,7 @@ type Importer struct {
 	// Zero falls back to the default.
 	ThumbMaxEdge int
 
-	resolver *takeout.Resolver
+	metadata MetadataProvider
 }
 
 func (i *Importer) thumbEdge() int {
@@ -96,7 +122,13 @@ func (i *Importer) Run(ctx context.Context, opts Options) (Result, error) {
 	if i.Media == nil {
 		return Result{}, fmt.Errorf("importer: media processor is nil")
 	}
-	i.resolver = takeout.NewResolver()
+	// A fresh Takeout resolver per run unless the caller supplies its own
+	// provider; the resolver caches per-directory sidecar indexes and must not
+	// outlive the directory it indexed.
+	i.metadata = opts.Metadata
+	if i.metadata == nil {
+		i.metadata = takeout.NewResolver()
+	}
 	if opts.SourceDir == "" {
 		return Result{}, fmt.Errorf("importer: source dir is required")
 	}
@@ -214,13 +246,19 @@ func (i *Importer) importFile(ctx context.Context, ownerID, path string, kind do
 		return nil, err
 	}
 	if ownerID != "" {
-		duplicate, err := i.assetExists(ctx, ownerID, hash)
+		existingID, err := i.assetExists(ctx, ownerID, hash)
 		if err != nil {
 			return nil, err
 		}
-		if duplicate {
+		if existingID != "" {
 			result.Duplicates++
 			result.Skipped++
+			// Report which asset this file already is. A migration reruns over
+			// the same library routinely and still needs to file the existing
+			// asset into its albums and tags.
+			result.Assets = append(result.Assets, ImportedAsset{
+				SourcePath: path, AssetID: existingID, Duplicate: true,
+			})
 			if !dryRun {
 				return nil, i.setImportState(ctx, path, info.Size(), mtime, hash, "skipped", "")
 			}
@@ -231,20 +269,33 @@ func (i *Importer) importFile(ctx context.Context, ownerID, path string, kind do
 	meta := i.probe(ctx, path, kind, fallbackMime)
 	takenAt := meta.TakenAt
 	gpsLat, gpsLon := meta.GPSLat, meta.GPSLon
+	cameraMake, cameraModel := meta.CameraMake, meta.CameraModel
 	var description string
-	var favorite bool
+	var favorite, archived, hidden bool
+	var rating int
 
-	// Google Takeout sidecar (if present) is authoritative for capture time and
-	// fills in GPS/caption/favorite that the exported files often lack.
-	if sc, ok := i.resolver.Lookup(path); ok {
+	// External metadata (Takeout sidecar, or a source server during a library
+	// migration) is authoritative for capture time and fills in the
+	// GPS/caption/favorite and organization state that exported files lack.
+	// EXIF still wins for GPS, which is measured rather than asserted.
+	if sc, ok := i.metadata.Lookup(path); ok {
 		if sc.TakenAt != nil {
 			takenAt = sc.TakenAt
 		}
 		if gpsLat == nil && sc.Lat != nil {
 			gpsLat, gpsLon = sc.Lat, sc.Lon
 		}
+		if cameraMake == "" {
+			cameraMake = sc.CameraMake
+		}
+		if cameraModel == "" {
+			cameraModel = sc.CameraModel
+		}
 		description = sc.Description
 		favorite = sc.Favorite
+		archived = sc.Archived
+		hidden = sc.Hidden
+		rating = clampRating(sc.Rating)
 	}
 
 	storageDate := mtime
@@ -298,8 +349,8 @@ func (i *Importer) importFile(ctx context.Context, ownerID, path string, kind do
 		Height:       meta.Height,
 		SizeBytes:    info.Size(),
 		TakenAt:      takenAt,
-		CameraMake:   meta.CameraMake,
-		CameraModel:  meta.CameraModel,
+		CameraMake:   cameraMake,
+		CameraModel:  cameraModel,
 		GPSLat:       gpsLat,
 		GPSLon:       gpsLon,
 		DurationMS:   meta.DurationMS,
@@ -308,6 +359,9 @@ func (i *Importer) importFile(ctx context.Context, ownerID, path string, kind do
 		Favorite:     favorite,
 		Description:  description,
 		WebViewable:  meta.WebViewable,
+		Rating:       rating,
+		Archived:     archived,
+		Hidden:       hidden,
 	}); err != nil {
 		return nil, err
 	}
@@ -317,6 +371,7 @@ func (i *Importer) importFile(ctx context.Context, ownerID, path string, kind do
 
 	result.Imported++
 	result.Bytes += info.Size()
+	result.Assets = append(result.Assets, ImportedAsset{SourcePath: path, AssetID: assetID.String()})
 	return &derivativeJob{AssetID: assetID.String(), Path: path, Meta: meta}, nil
 }
 
@@ -693,18 +748,32 @@ func (i *Importer) setImportState(ctx context.Context, path string, size int64, 
 	return nil
 }
 
-func (i *Importer) assetExists(ctx context.Context, ownerID, hash string) (bool, error) {
+// assetExists returns the id of an already-stored asset with this content hash,
+// or "" when the content is new.
+func (i *Importer) assetExists(ctx context.Context, ownerID, hash string) (string, error) {
 	var id string
 	err := i.DB.QueryRowContext(ctx,
 		`SELECT id FROM assets WHERE owner_id = ? AND content_hash = ?`,
 		ownerID, hash).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
+		return "", nil
 	}
 	if err != nil {
-		return false, fmt.Errorf("importer: check duplicate: %w", err)
+		return "", fmt.Errorf("importer: check duplicate: %w", err)
 	}
-	return true, nil
+	return id, nil
+}
+
+// clampRating keeps a foreign rating inside the 0-5 range the assets CHECK
+// constraint allows, so one odd value cannot fail an entire migration batch.
+func clampRating(r int) int {
+	if r < 0 {
+		return 0
+	}
+	if r > 5 {
+		return 5
+	}
+	return r
 }
 
 type assetRow struct {
@@ -729,6 +798,9 @@ type assetRow struct {
 	Favorite     bool
 	Description  string
 	WebViewable  bool
+	Rating       int
+	Archived     bool
+	Hidden       bool
 }
 
 func (i *Importer) insertAsset(ctx context.Context, row assetRow) error {
@@ -742,14 +814,16 @@ func (i *Importer) insertAsset(ctx context.Context, row assetRow) error {
 		INSERT INTO assets (
 			id, owner_id, content_hash, original_path, filename, mime_type, media_type,
 			width, height, size_bytes, taken_at, camera_make, camera_model, gps_lat,
-			gps_lon, duration_ms, place_city, place_country, favorite, description, web_viewable
+			gps_lon, duration_ms, place_city, place_country, favorite, description, web_viewable,
+			rating, archived, hidden
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, row.ID, row.OwnerID, row.ContentHash, row.OriginalPath, row.Filename, row.MimeType,
 		string(row.MediaType), row.Width, row.Height, row.SizeBytes, timePtrText(row.TakenAt),
 		row.CameraMake, row.CameraModel, floatPtr(row.GPSLat), floatPtr(row.GPSLon), row.DurationMS,
 		nullString(row.PlaceCity), nullString(row.PlaceCountry), boolInt(row.Favorite),
-		nullString(row.Description), boolInt(row.WebViewable))
+		nullString(row.Description), boolInt(row.WebViewable),
+		clampRating(row.Rating), boolInt(row.Archived), boolInt(row.Hidden))
 	if err != nil {
 		return fmt.Errorf("importer: insert asset: %w", err)
 	}
