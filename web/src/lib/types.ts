@@ -18,6 +18,11 @@ export type MediaIssue = S['apitypes.MediaIssue'];
 export type LibraryStats = S['apitypes.LibraryStats'];
 export type ChangesResponse = S['apitypes.ChangesResponse'];
 export type ChangeEntry = S['apitypes.ChangeEntry'];
+export type SettingInfo = S['apitypes.SettingInfo'];
+export type SettingsResponse = S['apitypes.SettingsResponse'];
+export type SettingsPatchResponse = S['apitypes.SettingsPatchResponse'];
+export type DeviceInfo = S['apitypes.DeviceInfo'];
+export type ExternalLibrary = S['apitypes.ExternalLibrary'];
 
 // not in contract: /api/duplicates returns an untyped map (domain-package struct, kept out of swag scope)
 export type DupAsset = {

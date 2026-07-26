@@ -1,5 +1,5 @@
 import { session } from './stores';
-import type { Album, Asset, AssetList, BackupStatus, ChangesResponse, DupAsset, IntegrityRun, Job, JobDetail, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SetupStatus, Tag } from './types';
+import type { Album, Asset, AssetList, BackupStatus, ChangesResponse, DeviceInfo, DupAsset, ExternalLibrary, IntegrityRun, Job, JobDetail, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SettingsPatchResponse, SettingsResponse, SetupStatus, Tag } from './types';
 
 export type AssetPatch = {
   taken_at?: string;
@@ -113,7 +113,22 @@ export const api = {
     req<ChangesResponse>(`/api/changes?since=${since}${limit ? `&limit=${limit}` : ''}`),
   savedSearches: () => req<{ saved_searches: SavedSearch[] }>('/api/saved-searches'),
   createSavedSearch: (name: string, query: Record<string, string>) => req<SavedSearch>('/api/saved-searches', jsonBody({ name, query })),
-  deleteSavedSearch: (id: string) => req<void>(`/api/saved-searches/${id}`, { method: 'DELETE' })
+  deleteSavedSearch: (id: string) => req<void>(`/api/saved-searches/${id}`, { method: 'DELETE' }),
+
+  settings: () => req<SettingsResponse>('/api/settings'),
+  patchSettings: (patch: Record<string, string>) =>
+    req<SettingsPatchResponse>('/api/settings', jsonBody(patch, 'PATCH')),
+  devices: () => req<{ devices: DeviceInfo[] }>('/api/devices'),
+  revokeDevice: (id: string) => req<void>(`/api/devices/${id}`, { method: 'DELETE' }),
+  externalLibraries: () => req<{ libraries: ExternalLibrary[] }>('/api/external-libraries'),
+  createExternalLibrary: (name: string, rootPath: string) =>
+    req<{ id: string; name: string; root_path: string; scanned: number; indexed: number }>(
+      '/api/external-libraries',
+      jsonBody({ name, root_path: rootPath })
+    ),
+  scanExternalLibrary: (id: string) =>
+    req<{ scanned: number; indexed: number }>(`/api/external-libraries/${id}/scan`, { method: 'POST' }),
+  runDuplicatesScan: () => req<void>('/api/duplicates/run', { method: 'POST' })
 };
 
 // downloadZip streams a zip of the given originals to a browser download.
