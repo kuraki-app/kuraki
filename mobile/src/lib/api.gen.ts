@@ -1643,7 +1643,36 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List paired devices */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["apitypes.DeviceList"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["apitypes.Error"];
+                    };
+                };
+            };
+        };
         put?: never;
         /** Register device */
         post: {
@@ -3043,6 +3072,112 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List server settings */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["apitypes.SettingsResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["apitypes.Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["apitypes.Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update server settings */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description partial key/value map */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["apitypes.SettingsPatchRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["apitypes.SettingsPatchResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["apitypes.Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["apitypes.Error"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["apitypes.Error"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/setup": {
         parameters: {
             query?: never;
@@ -3602,6 +3737,15 @@ export interface components {
             password?: string;
             username?: string;
         };
+        "apitypes.DeviceInfo": {
+            created_at: string;
+            id: string;
+            last_seen_at?: string;
+            name: string;
+        };
+        "apitypes.DeviceList": {
+            devices: components["schemas"]["apitypes.DeviceInfo"][];
+        };
         "apitypes.DeviceRequest": {
             name?: string;
         };
@@ -3721,6 +3865,44 @@ export interface components {
         "apitypes.SavedSearchRequest": {
             name?: string;
             query?: Record<string, never>;
+        };
+        "apitypes.SettingInfo": {
+            /** @enum {string} */
+            apply: "live" | "restart";
+            default?: string;
+            env_var: string;
+            is_set?: boolean;
+            key: string;
+            max?: number;
+            min?: number;
+            pinned_by_env?: boolean;
+            secret?: boolean;
+            /** @enum {string} */
+            type: "int" | "bool" | "string" | "path";
+            unit?: string;
+            value?: string;
+        };
+        "apitypes.SettingRejection": {
+            error: string;
+            key: string;
+        };
+        "apitypes.SettingWarning": {
+            key: string;
+            warning: string;
+        };
+        "apitypes.SettingsPatchRequest": {
+            [key: string]: string;
+        };
+        "apitypes.SettingsPatchResponse": {
+            applied?: string[];
+            pending_restart?: string[];
+            rejected?: components["schemas"]["apitypes.SettingRejection"][];
+            warnings?: components["schemas"]["apitypes.SettingWarning"][];
+        };
+        "apitypes.SettingsResponse": {
+            restart_pending?: string[];
+            settings: components["schemas"]["apitypes.SettingInfo"][];
+            version: string;
         };
         "apitypes.SetupStatus": {
             setup_required: boolean;
