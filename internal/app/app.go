@@ -22,6 +22,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/httpapi"
 	"github.com/kuraki-app/kuraki/internal/importer"
 	"github.com/kuraki-app/kuraki/internal/media"
+	"github.com/kuraki-app/kuraki/internal/migrate"
 	"github.com/kuraki-app/kuraki/internal/ocr"
 	"github.com/kuraki-app/kuraki/internal/queue"
 	"github.com/kuraki-app/kuraki/internal/stacks"
@@ -114,6 +115,63 @@ func (a *App) Import(ctx context.Context, opts importer.Options) (importer.Resul
 		}
 	}
 	return result, err
+}
+
+// Migrate imports another photo server's library, preserving the metadata that
+// does not live in the media bytes. It opens a jobs row so the Activity view
+// tracks progress, then hands off to the source-agnostic engine.
+func (a *App) Migrate(ctx context.Context, src migrate.Source, opts migrate.Options) (migrate.Run, error) {
+	engine := &migrate.Engine{
+		DB:         a.DB,
+		Store:      a.Store,
+		Media:      a.Media,
+		Log:        a.Log,
+		ThumbSize:  a.Cfg.ThumbnailSize,
+		StagingDir: a.Cfg.StagingDir(),
+		Opts:       opts,
+	}
+
+	// A dry run writes nothing, so it gets no job row either.
+	var jobID string
+	if !opts.DryRun {
+		owner := opts.OwnerUsername
+		if owner == "" {
+			owner = "owner"
+		}
+		id, err := a.Queue.TrackMigration(ctx, owner, "pending", 0)
+		if err != nil {
+			a.Log.Warn("migration job tracking unavailable", "err", err)
+		} else {
+			jobID = id
+			engine.JobID = id
+		}
+	}
+
+	run, runErr := engine.Run(ctx, src)
+
+	if jobID != "" {
+		// Point the job at the real run id now that it exists, so the crash
+		// recovery hint names something resumable.
+		if run.ID != "" {
+			_, _ = a.DB.ExecContext(ctx, `UPDATE jobs SET source = ? WHERE id = ?`, run.ID, jobID)
+		}
+		status, message := "succeeded", ""
+		if runErr != nil {
+			status, message = "failed", runErr.Error()
+		}
+		if err := a.Queue.FinishMigration(ctx, jobID, status, message); err != nil {
+			a.Log.Warn("finalize migration job failed", "err", err)
+		}
+	}
+
+	// Migrated assets can form stacks by filename the source never declared
+	// (RAW+JPEG pairs), the same as any bulk import.
+	if runErr == nil && run.Imported > 0 {
+		if derr := stacks.Detect(ctx, a.DB); derr != nil {
+			a.Log.Warn("stack detection failed", "err", derr)
+		}
+	}
+	return run, runErr
 }
 
 // Verify re-checksums every original against its stored BLAKE3 hash (F-12).

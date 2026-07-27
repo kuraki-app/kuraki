@@ -1,7 +1,8 @@
 // Command kuraki is the single entrypoint for the Kuraki photo server.
 //
-//	kuraki serve     start the web server
+//	kuraki serve      start the web server
 //	kuraki import     bulk-import a directory (M1)
+//	kuraki migrate    migrate a library from another photo server
 //	kuraki verify     re-checksum the library (M2)
 //	kuraki version    print version
 package main
@@ -51,7 +52,7 @@ func rootCmd() *cobra.Command {
 		SilenceErrors: false,
 		Version:       version,
 	}
-	root.AddCommand(serveCmd(), importCmd(), verifyCmd(), backupCmd(), restoreCmd(), passwdCmd(), healthcheckCmd(), versionCmd())
+	root.AddCommand(serveCmd(), importCmd(), migrateCmd(), verifyCmd(), backupCmd(), restoreCmd(), passwdCmd(), healthcheckCmd(), versionCmd())
 	return root
 }
 

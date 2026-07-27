@@ -21,10 +21,13 @@ type member struct {
 
 // Detect (re)computes all stacks. Safe to run repeatedly.
 func Detect(ctx context.Context, db *sql.DB) error {
+	// stack_locked rows were stacked explicitly by a source server during a
+	// library migration. Filename heuristics must not second-guess them, so they
+	// are excluded from both the grouping and the reset below.
 	rows, err := db.QueryContext(ctx, `
 		SELECT id, owner_id, filename, media_type, web_viewable, size_bytes,
 		       substr(COALESCE(taken_at, created_at), 1, 10)
-		FROM assets WHERE deleted_at IS NULL`)
+		FROM assets WHERE deleted_at IS NULL AND stack_locked = 0`)
 	if err != nil {
 		return err
 	}
@@ -56,7 +59,7 @@ func Detect(ctx context.Context, db *sql.DB) error {
 
 	// Reset only currently-stacked rows, then reassign detected stacks.
 	if _, err := tx.ExecContext(ctx,
-		`UPDATE assets SET stack_id = NULL, stack_primary = 1 WHERE stack_id IS NOT NULL`); err != nil {
+		`UPDATE assets SET stack_id = NULL, stack_primary = 1 WHERE stack_id IS NOT NULL AND stack_locked = 0`); err != nil {
 		return err
 	}
 	for _, members := range groups {
