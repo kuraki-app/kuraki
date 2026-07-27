@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { User, Palette, SlidersHorizontal, Smartphone, Activity, Server } from '@lucide/svelte';
+  import { User, Users, Palette, SlidersHorizontal, Smartphone, Activity, Server } from '@lucide/svelte';
 
   const items = [
     { href: '/settings', label: 'Overview', icon: SlidersHorizontal, exact: true },
@@ -9,7 +9,10 @@
     { href: '/settings/library', label: 'Library', icon: SlidersHorizontal },
     { href: '/settings/devices', label: 'Devices', icon: Smartphone },
     { href: '/settings/activity', label: 'Activity', icon: Activity },
-    { href: '/settings/server', label: 'Server', icon: Server }
+    { href: '/settings/server', label: 'Server', icon: Server },
+    // Admin-only server-side; the page itself renders a plain "admins only"
+    // message on 403 rather than the nav guessing at the caller's role.
+    { href: '/settings/users', label: 'Users', icon: Users }
   ];
 
   function active(href: string, exact: boolean | undefined, pathname: string) {

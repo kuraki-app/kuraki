@@ -1,0 +1,1 @@
+import{l,E as m,h as o,b as v,m as y,n as f,s as p,o as i,q as T,d as A}from"./DjTD-D_2.js";import{B as E}from"./DRSTU_Vb.js";function g(d,_,s){var e;o&&(e=A,v());var r=new E(d);l(()=>{var a=_()??null;if(o){var h=y(e),c=h===T,u=a!==null;if(c!==u){var t=f();p(t),r.anchor=t,i(!1),r.ensure(a,a&&(n=>s(n,a))),i(!0);return}}r.ensure(a,a&&(n=>s(n,a)))},m)}export{g as c};

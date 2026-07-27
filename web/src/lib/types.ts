@@ -22,6 +22,11 @@ export type SettingInfo = S['apitypes.SettingInfo'];
 export type SettingsResponse = S['apitypes.SettingsResponse'];
 export type SettingsPatchResponse = S['apitypes.SettingsPatchResponse'];
 export type DeviceInfo = S['apitypes.DeviceInfo'];
+export type UserSummary = S['apitypes.UserSummary'];
+export type UserList = S['apitypes.UserList'];
+export type UserCreate = S['apitypes.UserCreate'];
+export type UserPatch = S['apitypes.UserPatch'];
+export type UserDeleteBlocked = S['apitypes.UserDeleteBlocked'];
 export type ExternalLibrary = S['apitypes.ExternalLibrary'];
 
 // not in contract: /api/duplicates returns an untyped map (domain-package struct, kept out of swag scope)

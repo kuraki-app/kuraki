@@ -17,8 +17,10 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"text/tabwriter"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/kuraki-app/kuraki/internal/app"
 	"github.com/kuraki-app/kuraki/internal/auth"
 	"github.com/kuraki-app/kuraki/internal/backup"
@@ -52,7 +54,7 @@ func rootCmd() *cobra.Command {
 		SilenceErrors: false,
 		Version:       version,
 	}
-	root.AddCommand(serveCmd(), importCmd(), migrateCmd(), verifyCmd(), backupCmd(), restoreCmd(), passwdCmd(), healthcheckCmd(), versionCmd())
+	root.AddCommand(serveCmd(), importCmd(), migrateCmd(), verifyCmd(), backupCmd(), restoreCmd(), passwdCmd(), userAddCmd(), userListCmd(), healthcheckCmd(), versionCmd())
 	return root
 }
 
@@ -110,6 +112,122 @@ func passwdCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&dataDir, "data-dir", config.Default().DataDir, "library data directory")
 	cmd.Flags().StringVar(&username, "username", "owner", "account username to reset")
+	return cmd
+}
+
+// userAddCmd creates an account offline, directly against the library
+// database. It is the counterpart to passwd: the recovery path when there is
+// no admin left to create accounts through the web UI, and the way to seed
+// the first non-owner account on a headless server.
+func userAddCmd() *cobra.Command {
+	var dataDir, username, role string
+	cmd := &cobra.Command{
+		Use:   "useradd",
+		Short: "Create an account directly against the library (offline)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := config.Load(os.Getenv)
+			if cmd.Flags().Changed("data-dir") {
+				cfg.DataDir = dataDir
+			}
+			if username == "" {
+				return fmt.Errorf("--username is required")
+			}
+			if role != "admin" && role != "user" {
+				return fmt.Errorf("--role must be \"admin\" or \"user\", got %q", role)
+			}
+
+			password, err := readNewPassword(cmd)
+			if err != nil {
+				return err
+			}
+			if len(password) < 8 {
+				return fmt.Errorf("password must be at least 8 characters")
+			}
+			hash, err := auth.HashPassword(password)
+			if err != nil {
+				return err
+			}
+
+			database, err := db.Open(cmd.Context(), cfg.DBPath())
+			if err != nil {
+				return err
+			}
+			defer database.Close()
+			if err := db.Migrate(database, nil); err != nil {
+				return err
+			}
+
+			id, err := uuid.NewV7()
+			if err != nil {
+				return err
+			}
+			_, err = database.ExecContext(cmd.Context(),
+				`INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)`,
+				id.String(), username, hash, role)
+			if err != nil {
+				if strings.Contains(strings.ToLower(err.Error()), "unique constraint") {
+					return fmt.Errorf("an account named %q already exists", username)
+				}
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "created %s account %q\n", role, username)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&dataDir, "data-dir", config.Default().DataDir, "library data directory")
+	cmd.Flags().StringVar(&username, "username", "", "username for the new account (required)")
+	cmd.Flags().StringVar(&role, "role", "user", `account role: "user" or "admin"`)
+	return cmd
+}
+
+// userListCmd prints every account. It reports role, state and library size
+// so an operator can see who exists without starting the server.
+func userListCmd() *cobra.Command {
+	var dataDir string
+	cmd := &cobra.Command{
+		Use:   "userlist",
+		Short: "List accounts in the library",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg := config.Load(os.Getenv)
+			if cmd.Flags().Changed("data-dir") {
+				cfg.DataDir = dataDir
+			}
+			database, err := db.Open(cmd.Context(), cfg.DBPath())
+			if err != nil {
+				return err
+			}
+			defer database.Close()
+
+			rows, err := database.QueryContext(cmd.Context(), `
+				SELECT u.username, u.role, u.disabled_at IS NOT NULL,
+				       (SELECT COUNT(*) FROM assets a WHERE a.owner_id = u.id AND a.deleted_at IS NULL)
+				FROM users u ORDER BY u.created_at ASC`)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
+			fmt.Fprintln(w, "USERNAME\tROLE\tSTATE\tASSETS")
+			for rows.Next() {
+				var name, role string
+				var disabled bool
+				var assets int
+				if err := rows.Scan(&name, &role, &disabled, &assets); err != nil {
+					return err
+				}
+				state := "enabled"
+				if disabled {
+					state = "disabled"
+				}
+				fmt.Fprintf(w, "%s\t%s\t%s\t%d\n", name, role, state, assets)
+			}
+			if err := rows.Err(); err != nil {
+				return err
+			}
+			return w.Flush()
+		},
+	}
+	cmd.Flags().StringVar(&dataDir, "data-dir", config.Default().DataDir, "library data directory")
 	return cmd
 }
 

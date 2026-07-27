@@ -1,5 +1,5 @@
 import { session } from './stores';
-import type { Album, Asset, AssetList, BackupStatus, ChangesResponse, DeviceInfo, DupAsset, ExternalLibrary, IntegrityRun, Job, JobDetail, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SettingsPatchResponse, SettingsResponse, SetupStatus, Tag } from './types';
+import type { Album, Asset, AssetList, BackupStatus, ChangesResponse, DeviceInfo, DupAsset, ExternalLibrary, IntegrityRun, Job, JobDetail, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SettingsPatchResponse, SettingsResponse, SetupStatus, Tag, UserCreate, UserList, UserPatch, UserSummary } from './types';
 
 export type AssetPatch = {
   taken_at?: string;
@@ -53,6 +53,15 @@ export const api = {
   logout: () => req<void>('/api/logout', { method: 'POST' }),
   changePassword: (currentPassword: string, newPassword: string) =>
     req<void>('/api/account/password', jsonBody({ current_password: currentPassword, new_password: newPassword })),
+
+  // Admin-only (403 admin_required otherwise). Account administration --
+  // these never expose another user's library contents.
+  users: () => req<UserList>('/api/users'),
+  createUser: (body: UserCreate) => req<UserSummary>('/api/users', jsonBody(body)),
+  patchUser: (id: string, patch: UserPatch) =>
+    req<UserSummary>(`/api/users/${id}`, jsonBody(patch, 'PATCH')),
+  deleteUser: (id: string, purge = false) =>
+    req<void>(`/api/users/${id}${purge ? '?purge=true' : ''}`, { method: 'DELETE' }),
 
   assets: (cursor = '') =>
     req<AssetList>(`/api/assets?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
