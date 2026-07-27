@@ -336,6 +336,6 @@
     cursor: pointer;
   }
   .saved-list .del:hover {
-    color: var(--stamp, var(--destructive));
+    color: var(--destructive);
   }
 </style>

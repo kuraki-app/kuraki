@@ -378,7 +378,6 @@
   nav a.active {
     background: var(--accent);
     color: var(--foreground);
-    box-shadow: inset 2px 0 0 var(--stamp);
   }
   .group + .group {
     margin-top: 14px;
