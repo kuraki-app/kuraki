@@ -60,6 +60,47 @@ type AssetList struct {
 type User struct {
 	ID       string `json:"id" validate:"required"`
 	Username string `json:"username" validate:"required"`
+	// Role is "admin" or "user". Admins manage accounts and server settings;
+	// they cannot read another user's library.
+	Role string `json:"role" validate:"required"`
+}
+
+// UserSummary is one account in the admin user list. It deliberately carries
+// no library contents -- an admin manages accounts, not photos. AssetCount is
+// included only so deletion can warn about what a purge would destroy.
+type UserSummary struct {
+	ID         string  `json:"id" validate:"required"`
+	Username   string  `json:"username" validate:"required"`
+	Role       string  `json:"role" validate:"required"`
+	CreatedAt  string  `json:"created_at" validate:"required"`
+	DisabledAt *string `json:"disabled_at,omitempty"`
+	AssetCount int     `json:"asset_count" validate:"required"`
+}
+
+// UserList is the envelope for the admin user list.
+type UserList struct {
+	Users []UserSummary `json:"users" validate:"required"`
+}
+
+// UserCreate is the admin create-account request.
+type UserCreate struct {
+	Username string `json:"username" validate:"required"`
+	Password string `json:"password" validate:"required"`
+	Role     string `json:"role,omitempty"`
+}
+
+// UserPatch updates an account. Every field is optional; nil means unchanged.
+type UserPatch struct {
+	Role     *string `json:"role,omitempty"`
+	Disabled *bool   `json:"disabled,omitempty"`
+	Password *string `json:"password,omitempty"`
+}
+
+// UserDeleteBlocked explains a refused deletion: the account still owns
+// assets, and destroying a library requires explicit intent.
+type UserDeleteBlocked struct {
+	Error      string `json:"error" validate:"required"`
+	AssetCount int    `json:"asset_count" validate:"required"`
 }
 
 // SetupStatus reports whether initial setup is required and, if signed in,

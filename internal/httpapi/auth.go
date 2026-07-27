@@ -180,6 +180,10 @@ type principal struct {
 	OwnerID  string
 	Kind     principalKind
 	DeviceID string
+	// Role is the session user's role ("admin"/"user"). Device principals
+	// have no role: a device token is capture/library access, never account
+	// administration, so admin routes are session-only by construction.
+	Role string
 }
 
 type principalCtxKey struct{}
@@ -211,7 +215,7 @@ func (d Deps) requirePrincipal(next http.Handler) http.Handler {
 			return
 		}
 		if u := d.currentUser(r); u != nil {
-			p := principal{OwnerID: u.ID, Kind: principalSession}
+			p := principal{OwnerID: u.ID, Kind: principalSession, Role: u.Role}
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalCtxKey{}, p)))
 			return
 		}
@@ -243,13 +247,14 @@ func (d Deps) requireSessionPrincipal(next http.Handler) http.Handler {
 	})
 }
 
-// requireOwner narrows a route to the account owner's session. It is
-// currently identical to requireSessionPrincipal's check — Kuraki has
-// exactly one user role today, and multi-user is parked (AGENTS.md). It is
-// kept as its own function so a future owner-vs-member check has a single,
-// named chokepoint to edit (settings and device management are its first
-// users) rather than requiring a hunt through every handler that should be
-// owner-only.
+// requireOwner narrows a route to an admin's session -- server
+// administration: accounts and server-wide settings.
+//
+// It guards administration, NOT data. An admin cannot read another user's
+// library; isolation is enforced by owner_id on every query (see
+// ownerscope_guard_test.go), not by role. Anything a user does with their own
+// data -- including managing their own devices -- stays on plain session auth
+// and must not be moved behind this gate.
 func (d Deps) requireOwner(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p, ok := principalFrom(r)
@@ -259,6 +264,10 @@ func (d Deps) requireOwner(next http.Handler) http.Handler {
 		}
 		if p.Kind != principalSession {
 			writeError(w, http.StatusForbidden, "session_required")
+			return
+		}
+		if p.Role != roleAdmin {
+			writeError(w, http.StatusForbidden, "admin_required")
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -308,17 +317,19 @@ func (d Deps) upsertSetupUser(ctx context.Context, username, passwordHash string
 		}
 		id = newID.String()
 		_, err = tx.ExecContext(ctx,
-			`INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)`,
-			id, username, passwordHash)
+			`INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)`,
+			id, username, passwordHash, roleAdmin)
 		if err != nil {
 			return "", err
 		}
 	} else if err != nil {
 		return "", err
 	} else {
+		// Claiming the placeholder account also claims administration of the
+		// server: whoever completes first-run setup owns it.
 		_, err = tx.ExecContext(ctx,
-			`UPDATE users SET username = ?, password_hash = ? WHERE id = ?`,
-			username, passwordHash, id)
+			`UPDATE users SET username = ?, password_hash = ?, role = ? WHERE id = ?`,
+			username, passwordHash, roleAdmin, id)
 		if err != nil {
 			return "", err
 		}
@@ -352,11 +363,11 @@ func (d Deps) currentUser(r *http.Request) *apitypes.User {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	var user apitypes.User
 	err = d.DB.QueryRowContext(r.Context(), `
-		SELECT u.id, u.username
+		SELECT u.id, u.username, u.role
 		FROM sessions s
 		JOIN users u ON u.id = s.user_id
-		WHERE s.id = ? AND s.expires_at > ?
-	`, cookie.Value, now).Scan(&user.ID, &user.Username)
+		WHERE s.id = ? AND s.expires_at > ? AND u.disabled_at IS NULL
+	`, cookie.Value, now).Scan(&user.ID, &user.Username, &user.Role)
 	if err != nil {
 		return nil
 	}
