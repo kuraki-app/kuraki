@@ -60,7 +60,7 @@
   async function save(s: SettingInfo) {
     saving = { ...saving, [s.key]: true };
     try {
-      const resp = await api.patchSettings({ [s.key]: drafts[s.key] });
+      const resp = await api.patchSettings({ [s.key]: String(drafts[s.key]) });
       if (resp.rejected?.length) {
         showToast(resp.rejected[0].error);
         return;
