@@ -8,9 +8,6 @@ import {
   EyeOff,
   Copy,
   Trash2,
-  BarChart3,
-  Smartphone,
-  Activity,
   Settings,
   type Icon
 } from '@lucide/svelte';
@@ -55,11 +52,9 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Server',
     items: [
-      // Renamed from "Library": /stats is the dashboard ABOUT the library, not
-      // the library. The old label collided with the group above.
-      { href: '/stats', label: 'Overview', icon: BarChart3, register: 'vault' },
-      { href: '/devices', label: 'Devices', icon: Smartphone, register: 'vault' },
-      { href: '/activity', label: 'Activity', icon: Activity, register: 'vault' },
+      // The four items this group used to hold (Overview/Devices/Activity/
+      // Settings) are now nested routes under /settings — see
+      // web/src/routes/settings/+layout.svelte for that sub-nav.
       { href: '/settings', label: 'Settings', icon: Settings, register: 'vault' }
     ]
   }

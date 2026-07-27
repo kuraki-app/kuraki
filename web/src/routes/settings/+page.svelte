@@ -1,97 +1,199 @@
 <script lang="ts">
-  import { KeyRound } from '@lucide/svelte';
+  import { onMount } from 'svelte';
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
+  import { fileSize, relativeTime } from '$lib/format';
+  import type { BackupStatus, IntegrityRun, LibraryStats } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import StatCard from '$lib/components/StatCard.svelte';
   import { Button } from '$lib/components/ui/button';
-  import { Input } from '$lib/components/ui/input';
-  import { Label } from '$lib/components/ui/label';
 
-  let current = '';
-  let next = '';
-  let confirm = '';
-  let busy = false;
+  let stats: LibraryStats | null = null;
+  let integrity: IntegrityRun | null = null;
+  let backup: BackupStatus | null = null;
+  let loading = true;
 
-  $: tooShort = next.length > 0 && next.length < 8;
-  $: mismatch = confirm.length > 0 && next !== confirm;
-  $: canSubmit = !busy && current.length > 0 && next.length >= 8 && next === confirm;
-
-  async function submit(e: SubmitEvent) {
-    e.preventDefault();
-    if (!canSubmit) return;
-    busy = true;
+  onMount(async () => {
     try {
-      await api.changePassword(current, next);
-      current = next = confirm = '';
-      showToast('Password changed. Other sessions were signed out.');
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Could not change password';
-      showToast(msg === 'invalid_credentials' ? 'Current password is incorrect' : msg);
+      const [s, i, b] = await Promise.all([api.stats(), api.integrity(), api.backup()]);
+      stats = s;
+      integrity = i.last;
+      backup = b;
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to load stats');
     } finally {
-      busy = false;
+      loading = false;
     }
-  }
+  });
+
+  // A configured backup that has not run in over ~1.5 days is stale-ish; surface it.
+  $: backupStale =
+    !!backup?.enabled &&
+    !!backup.last?.finished_at &&
+    Date.now() - new Date(backup.last.finished_at).getTime() > 36 * 60 * 60 * 1000;
+  $: backupClass = !backup?.enabled
+    ? 'off'
+    : backup.last?.status === 'error'
+      ? 'error'
+      : backupStale
+        ? 'problems'
+        : 'ok';
+
+  const integrityLabel = (s: string) =>
+    s === 'clean' ? 'All originals verified' : s === 'problems' ? 'Problems found' : s === 'running' ? 'Verifying…' : 'Verification error';
+
+  $: maxYear = stats ? Math.max(1, ...stats.by_year.map((y) => y.count)) : 1;
 </script>
 
-<PageHeader title="Settings" subtitle="Manage your account." />
+<PageHeader title="Overview" subtitle="Library stats, integrity, and backup status.">
+  <Button variant="outline" href="/api/export" download>Export library (.zip)</Button>
+</PageHeader>
 
-<section class="card">
-  <h2><KeyRound size={18} aria-hidden="true" /> Change password</h2>
-  <p class="hint">
-    Changing your password signs out every other browser and device session. Your
-    paired phones keep their own device tokens and are unaffected.
-  </p>
-  <form on:submit={submit}>
-    <div class="field">
-      <Label for="current">Current password</Label>
-      <Input id="current" type="password" autocomplete="current-password" bind:value={current} />
+{#if loading}
+  <p class="muted">Loading…</p>
+{:else if stats}
+  <div class="cards">
+    <StatCard value={stats.total.toLocaleString()} label="Photos & videos" />
+    <StatCard value={fileSize(stats.total_bytes)} label="Total size" />
+    <StatCard value={stats.images.toLocaleString()} label="Photos" />
+    <StatCard value={stats.videos.toLocaleString()} label="Videos" />
+    <StatCard value={stats.favorites.toLocaleString()} label="Favorites" />
+    <StatCard value={stats.albums.toLocaleString()} label="Albums" />
+    <StatCard value={stats.places.toLocaleString()} label="Places" />
+    <StatCard value={stats.trashed.toLocaleString()} label="In trash" />
+  </div>
+
+  <section class="integrity {integrity?.status ?? ''}">
+    <div class="int-text">
+      <strong>Integrity</strong>
+      {#if integrity}
+        <span>{integrityLabel(integrity.status)} · {integrity.checked.toLocaleString()} checked{#if integrity.problems}, {integrity.problems} problem{integrity.problems === 1 ? '' : 's'}{/if}{#if integrity.finished_at} · {relativeTime(integrity.finished_at)}{/if}</span>
+      {:else}
+        <span>Not verified yet</span>
+      {/if}
     </div>
-    <div class="field">
-      <Label for="next">New password</Label>
-      <Input id="next" type="password" autocomplete="new-password" bind:value={next} aria-invalid={tooShort} />
-      {#if tooShort}<span class="err">At least 8 characters.</span>{/if}
+  </section>
+  <p class="see-server"><a href="/settings/server">Run a check or scan for duplicates →</a></p>
+
+  <section class="integrity {backupClass}">
+    <div class="int-text">
+      <strong>Backup</strong>
+      {#if !backup?.enabled}
+        <span>Automatic backup is off. Set a backup directory in <a href="/settings/server">Settings → Server</a> to keep scheduled copies, or run <code>kuraki backup</code> by hand.</span>
+      {:else if backup.last?.status === 'error'}
+        <span>Last automatic backup failed{#if backup.last.finished_at} · {relativeTime(backup.last.finished_at)}{/if}{#if backup.last.error} · {backup.last.error}{/if}</span>
+      {:else if backup.last}
+        <span>Last backup {fileSize(backup.last.bytes)}{#if backup.last.finished_at} · {relativeTime(backup.last.finished_at)}{/if}{#if backupStale} · overdue{/if}</span>
+      {:else}
+        <span>Automatic backup is on; no backup has run yet.</span>
+      {/if}
     </div>
-    <div class="field">
-      <Label for="confirm">Confirm new password</Label>
-      <Input id="confirm" type="password" autocomplete="new-password" bind:value={confirm} aria-invalid={mismatch} />
-      {#if mismatch}<span class="err">Passwords do not match.</span>{/if}
-    </div>
-    <Button type="submit" disabled={!canSubmit}>{busy ? 'Saving…' : 'Change password'}</Button>
-  </form>
-</section>
+  </section>
+
+  {#if stats.by_year.length > 0}
+    <section class="years">
+      <h2>By year</h2>
+      <div class="bars">
+        {#each stats.by_year as y (y.year)}
+          <div class="row">
+            <span class="yr">{y.year || '—'}</span>
+            <div class="track"><div class="fill" style="width:{(y.count / maxYear) * 100}%"></div></div>
+            <span class="n">{y.count.toLocaleString()}</span>
+          </div>
+        {/each}
+      </div>
+    </section>
+  {/if}
+{/if}
 
 <style>
-  .card {
-    max-width: 420px;
-    padding: 20px;
+  .muted {
+    color: var(--muted-foreground);
+  }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .integrity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    padding: 14px 16px;
     border: 1px solid var(--border);
     border-radius: 12px;
     background: var(--card);
   }
-  .card h2 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 0 8px;
-    font-size: 16px;
-    font-weight: 700;
+  .integrity.problems,
+  .integrity.error {
+    border-color: var(--destructive-border);
+    background: var(--destructive-bg);
   }
-  .hint {
+  .int-text {
+    display: grid;
+    gap: 2px;
+    margin-right: auto;
+    min-width: 0;
+  }
+  .int-text strong {
+    color: var(--foreground);
+  }
+  .int-text span {
     color: var(--muted-foreground);
     font-size: 13px;
-    line-height: 1.6;
-    margin: 0 0 16px;
   }
-  form {
-    display: grid;
-    gap: 14px;
+  .int-text span a {
+    color: var(--foreground);
   }
-  .field {
-    display: grid;
-    gap: 6px;
-  }
-  .err {
+  .integrity.problems .int-text span,
+  .integrity.error .int-text span {
     color: var(--destructive);
-    font-size: 12px;
+  }
+  .see-server {
+    margin: 8px 0 0;
+    font-size: 13px;
+  }
+  .see-server a {
+    color: var(--foreground);
+  }
+  .years {
+    margin-top: 28px;
+  }
+  .years h2 {
+    margin: 0 0 12px;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-dim);
+  }
+  .bars {
+    display: grid;
+    gap: 8px;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 48px 1fr 60px;
+    align-items: center;
+    gap: 10px;
+  }
+  .yr {
+    color: var(--muted-foreground);
+    font-size: 14px;
+  }
+  .track {
+    height: 12px;
+    border-radius: 6px;
+    background: var(--muted);
+    overflow: hidden;
+  }
+  .fill {
+    height: 100%;
+    border-radius: 6px;
+    background: var(--primary);
+  }
+  .n {
+    text-align: right;
+    color: var(--text-dim);
+    font-size: 14px;
   }
 </style>

@@ -141,11 +141,6 @@ func seedHTTPAsset(t *testing.T, ctx context.Context) (*sql.DB, storage.Storage,
 	return database, store, sourceDir
 }
 
-func getJSON[T any](t *testing.T, handler http.Handler, path string) T {
-	t.Helper()
-	return getJSONWithCookie[T](t, handler, path, nil)
-}
-
 func getJSONWithCookie[T any](t *testing.T, handler http.Handler, path string, cookie *http.Cookie) T {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, path, nil)

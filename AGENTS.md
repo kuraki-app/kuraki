@@ -38,9 +38,11 @@ Phase 1 = single-owner personal backup.
 - **R1 content admission (2026-07-10):** standard image/video signatures now determine media type before the filename extension; renamed valid media imports with its detected MIME, while mismatched advertised media is recorded as an import error. Opaque camera RAW files retain an extension-based admission exception until a fixture-backed decoder policy is available.
 - **Import/export safety (2026-07-10):** browser queue staging isolates each uploaded file, so repeated filenames cannot overwrite one another. Portable backup format v2 records an archive manifest; restore validates it in a temporary sibling directory before swapping into an empty target. `kuraki backup` takes an online SQLite snapshot before packaging a live library. ZIP exports preflight originals and bypass the normal API deadline, so they no longer quietly omit unavailable files or time out at 60 seconds.
 - **Capture foundation (2026-07-10):** migration `00012` adds revocable devices and resumable upload sessions. Browser-authenticated users create a device token; `POST/PATCH/complete /api/capture/uploads` writes bounded chunks to staging and hands a complete file to the existing queue/importer. `mobile/` is an Expo/React Native iOS+Android client with SecureStore settings, status receipts, and manual photo selection/upload. It also does automatic camera-roll backup (persisted, restart/network-loss safe), OS background scheduling, streamed large-file uploads, QR pairing, and per-album selection — the Capture loop is functionally complete.
-- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00014`.
-- **Not browser-click-tested:** the SvelteKit UI compiles and serves and all endpoints are E2E-verified
-  via curl, but no headless-browser pass has been run (per human request).
+- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00022`.
+- **Browser verification is partial:** the merged timeline and Settings routes were smoke-tested at
+  a 390×844 viewport on 2026-07-27 (no horizontal overflow; writable restart settings persisted
+  with feedback; legacy `/stats` redirect worked; no console warnings/errors). The full media
+  viewer/morph, keyboard, reduced-motion, and cross-browser matrix still needs release certification.
 - **Env-gated / pending:** `-tags vips` build (needs libvips + `pkg-config`), HEIC out of the box,
   low-resource benchmark; plus roadmap items (slideshow, stacks, near-duplicate grouping,
   multi-user, mobile, optional ML).
@@ -56,6 +58,16 @@ Phase 1 = single-owner personal backup.
   focus and mobile sheet all need a human pass. See §11 for the traps this work uncovered
   (`@theme inline` never emits custom properties; box-shadow paints under children;
   `view-transition-name` must be uniquely held; Svelte transitions ignore the CSS reduced-motion rule).
+- **Settings consolidation (2026-07-27, `feat/settings-consolidation`):** the former Stats, account,
+  Devices, Activity, appearance, library, and server controls now live under one responsive
+  `/settings` shell. Migration `00022` stores the owner-writable catalog; `config.Store` resolves
+  defaults < DB < environment/CLI and exposes live versus restart-required values. The OpenAPI
+  contract includes settings and device-list endpoints. Security-sensitive `android_apk` remains
+  environment-only because `/download/android` is intentionally public.
+- **Mobile web overflow fix (2026-07-27, `fix/mobile-responsive`):** timeline headers and filters
+  wrap, the app grid uses a zero-minimum content track, batch actions remain visible, and virtualized
+  section spacers recalculate across the phone breakpoint/rotation. Verified at 390×844 with
+  document/header scroll widths bounded to the viewport.
 - **Mobile parity (2026-07-18, `feat/mobile-parity`):** the Expo client gained **Albums** (view/create/add/remove), **On this day** (memories), and **Trash** (restore + permanent delete) — server-authoritative in the Immich model (all writes via API, local SQLite mirror + offline mutation queue). A narrow `ownerID(r)` bridge lets album handlers serve both session (web) and device (mobile) auth; the flagged unscoped `setFavorite` is now owner-scoped; device trash writes (delete/restore/purge) are owner-guarded via `ownsAsset`; new `trash.Purge` backs permanent delete. Library tab gained Timeline/Albums/On-this-day segments; Trash lives under Settings; album creation is online-only.
 - **Mobile foundation (2026-07-18, `feat/mobile-foundation`):** the Expo client gained a production
   foundation — a design system GENERATED from the web palette (`mobile/scripts/sync-tokens.mjs` parses
@@ -245,6 +257,8 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Mobile Tags (`feat/mobile-tags`): per-asset tag editor (viewer, offline-queued `set_tags`, online-only create) + browse-by-tag (Library sheet → filtered-grid route). Cached tag list (cache v4). One server change: `tag` filter in `parseAssetFilters`. Go filter test + Vitest green; native sheets dev-client-verified. Second of 3 parity slices | 🟡 code-complete (go test + tsc + lint + vitest green), **native sheets need a device pass** |
 
 | **Immich migration** (`feat/immich-migration`): source-agnostic `internal/migrate` engine + `internal/migrate/immich` REST client; `kuraki migrate immich` / `migrate status`; migration 00021 (`migration_runs`, `migration_map`, `albums.description`, `assets.stack_locked`); `importer.MetadataProvider` seam. Verified end-to-end against a real Immich v3.0.3 in Docker | ✅ done |
+| **Settings consolidation** (`feat/settings-consolidation`): one `/settings` shell for overview/account/appearance/library/devices/activity/server; live DB-backed settings store with env/CLI precedence; owner settings + device-list APIs; migration 00022 | ✅ done |
+| **Mobile web overflow** (`fix/mobile-responsive`): wrapped timeline controls/batch actions, zero-minimum app track, responsive virtualization spacer estimates | ✅ done; browser-smoked at 390×844 |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
@@ -272,6 +286,24 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `main` branch integration (2026-07-27) — **Audited and merged every outstanding branch.**
+  - Merged `feat/immich-migration`, `fix/mobile-responsive`, and
+    `feat/settings-consolidation` on top of the local landing-page commit already on `main`.
+  - Preserved Immich's documented schema as `00021_migrations.sql` and renumbered the independent
+    settings migration to `00022_settings.sql`; Goose now has one file per version.
+  - Rebuilt the embedded SvelteKit output from the combined responsive + Settings sources instead
+    of choosing either branch's stale timestamp-hashed bundle.
+  - Integration verification found two cross-branch compile failures that isolated branch tests
+    could not: `App.Migrate` still read the removed `a.Cfg`, and both migration CLI commands called
+    the old four-argument `app.New`. They now use `Settings.Booted()` and pass `os.Getenv`.
+  - Verified the final merged tree with `make check`, `make check-gen`, web `svelte-check` + build,
+    mobile `tsc` + Expo lint + 48 Vitest tests, and pure-Go cross-compiles for linux/amd64,
+    linux/arm64, darwin/arm64, and windows/amd64.
+  - Browser smoke at 390×844: Timeline `document.scrollWidth === clientWidth === 390`, header
+    scroll width stayed within its 358px box; Settings Overview/Server rendered, a restart-required
+    numeric setting saved and returned feedback, `/stats` redirected to `/settings`, the public APK
+    path was absent from the writable catalog, and no console warning/error was emitted.
 
 - `feat/immich-migration` (2026-07-26) — **Migrate a whole library in from Immich, metadata intact.**
   - **New packages.** `internal/migrate` is a source-agnostic engine: a `Source` only enumerates

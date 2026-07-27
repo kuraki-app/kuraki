@@ -41,6 +41,10 @@ existing promise works.
   backup permissions, deployment validation for TLS/secure-cookie/trusted-proxy
   settings, dependency/container scanning, Prometheus-compatible metrics, and
   structured security/operation audit events.
+  **Shipped foundation:** the owner console now has one DB-backed Settings area
+  for operational controls, with explicit live/restart semantics and
+  environment/CLI pinning. This does not close the blocker: deployment
+  validation, scanning, and audit evidence remain required.
 
 - **[production blocker] Mobile release certification — Mobile users — M.** Add
   iOS/Android identifiers and signed release profiles, decide crash/error
@@ -82,6 +86,14 @@ existing promise works.
   sections across all scroll positions). The *capacity budgets* at 10k/50k/500k
   remain owed under "Capacity and regression evidence" below — the mechanism
   exists; the large-library evidence does not yet.
+
+- **[done] Consolidated responsive settings and mobile timeline controls —
+  Self-hosters and phone users — S.** Stats, account, appearance, library,
+  devices, activity, and server controls now share `/settings`; legacy routes
+  redirect. Timeline controls and batch actions wrap without horizontal
+  overflow, and virtualization estimates track the phone breakpoint/rotation.
+  Browser-smoked at 390×844; the broader cross-browser release matrix remains
+  part of the media/capacity evidence gates.
 
 - **[new feature] Smart albums — Organizers — M.** Build on saved searches with
   explicit ownership, preview, and reversible membership semantics.

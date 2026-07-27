@@ -234,7 +234,7 @@ func serveCmd() *cobra.Command {
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 
-			a, err := app.New(ctx, cfg, version, log)
+			a, err := app.New(ctx, cfg, os.Getenv, version, log)
 			if err != nil {
 				return err
 			}
@@ -270,7 +270,7 @@ func importCmd() *cobra.Command {
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 
-			a, err := app.New(ctx, cfg, version, log)
+			a, err := app.New(ctx, cfg, os.Getenv, version, log)
 			if err != nil {
 				return err
 			}
@@ -346,7 +346,7 @@ func verifyCmd() *cobra.Command {
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 
-			a, err := app.New(ctx, cfg, version, log)
+			a, err := app.New(ctx, cfg, os.Getenv, version, log)
 			if err != nil {
 				return err
 			}

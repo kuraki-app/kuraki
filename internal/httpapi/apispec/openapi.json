@@ -1632,6 +1632,34 @@
             }
         },
         "/api/devices": {
+            "get": {
+                "tags": [
+                    "devices"
+                ],
+                "summary": "List paired devices",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.DeviceList"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             "post": {
                 "tags": [
                     "devices"
@@ -2808,6 +2836,105 @@
                 }
             }
         },
+        "/api/settings": {
+            "get": {
+                "tags": [
+                    "admin"
+                ],
+                "summary": "List server settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.SettingsResponse"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Update server settings",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/apitypes.SettingsPatchRequest"
+                            }
+                        }
+                    },
+                    "description": "partial key/value map",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.SettingsPatchResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/setup": {
             "get": {
                 "tags": [
@@ -3610,6 +3737,42 @@
                     }
                 }
             },
+            "apitypes.DeviceInfo": {
+                "type": "object",
+                "required": [
+                    "created_at",
+                    "id",
+                    "name"
+                ],
+                "properties": {
+                    "created_at": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "last_seen_at": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    }
+                }
+            },
+            "apitypes.DeviceList": {
+                "type": "object",
+                "required": [
+                    "devices"
+                ],
+                "properties": {
+                    "devices": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/apitypes.DeviceInfo"
+                        }
+                    }
+                }
+            },
             "apitypes.DeviceRequest": {
                 "type": "object",
                 "properties": {
@@ -4070,6 +4233,152 @@
                     },
                     "query": {
                         "type": "object"
+                    }
+                }
+            },
+            "apitypes.SettingInfo": {
+                "type": "object",
+                "required": [
+                    "apply",
+                    "env_var",
+                    "key",
+                    "type"
+                ],
+                "properties": {
+                    "apply": {
+                        "type": "string",
+                        "enum": [
+                            "live",
+                            "restart"
+                        ]
+                    },
+                    "default": {
+                        "type": "string"
+                    },
+                    "env_var": {
+                        "type": "string"
+                    },
+                    "is_set": {
+                        "type": "boolean"
+                    },
+                    "key": {
+                        "type": "string"
+                    },
+                    "max": {
+                        "type": "integer"
+                    },
+                    "min": {
+                        "type": "integer"
+                    },
+                    "pinned_by_env": {
+                        "type": "boolean"
+                    },
+                    "secret": {
+                        "type": "boolean"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "int",
+                            "bool",
+                            "string",
+                            "path"
+                        ]
+                    },
+                    "unit": {
+                        "type": "string"
+                    },
+                    "value": {
+                        "type": "string"
+                    }
+                }
+            },
+            "apitypes.SettingRejection": {
+                "type": "object",
+                "required": [
+                    "error",
+                    "key"
+                ],
+                "properties": {
+                    "error": {
+                        "type": "string"
+                    },
+                    "key": {
+                        "type": "string"
+                    }
+                }
+            },
+            "apitypes.SettingWarning": {
+                "type": "object",
+                "required": [
+                    "key",
+                    "warning"
+                ],
+                "properties": {
+                    "key": {
+                        "type": "string"
+                    },
+                    "warning": {
+                        "type": "string"
+                    }
+                }
+            },
+            "apitypes.SettingsPatchRequest": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "string"
+                }
+            },
+            "apitypes.SettingsPatchResponse": {
+                "type": "object",
+                "properties": {
+                    "applied": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "pending_restart": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "rejected": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/apitypes.SettingRejection"
+                        }
+                    },
+                    "warnings": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/apitypes.SettingWarning"
+                        }
+                    }
+                }
+            },
+            "apitypes.SettingsResponse": {
+                "type": "object",
+                "required": [
+                    "settings",
+                    "version"
+                ],
+                "properties": {
+                    "restart_pending": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "settings": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/apitypes.SettingInfo"
+                        }
+                    },
+                    "version": {
+                        "type": "string"
                     }
                 }
             },

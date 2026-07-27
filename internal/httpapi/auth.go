@@ -243,6 +243,28 @@ func (d Deps) requireSessionPrincipal(next http.Handler) http.Handler {
 	})
 }
 
+// requireOwner narrows a route to the account owner's session. It is
+// currently identical to requireSessionPrincipal's check — Kuraki has
+// exactly one user role today, and multi-user is parked (AGENTS.md). It is
+// kept as its own function so a future owner-vs-member check has a single,
+// named chokepoint to edit (settings and device management are its first
+// users) rather than requiring a hunt through every handler that should be
+// owner-only.
+func (d Deps) requireOwner(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p, ok := principalFrom(r)
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "unauthorized")
+			return
+		}
+		if p.Kind != principalSession {
+			writeError(w, http.StatusForbidden, "session_required")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // requireDevicePrincipal narrows a route to device (Bearer token) principals
 // only. Same nesting assumption as requireSessionPrincipal.
 func (d Deps) requireDevicePrincipal(next http.Handler) http.Handler {

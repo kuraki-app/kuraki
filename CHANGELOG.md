@@ -42,6 +42,10 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - Configurable trash retention and thumbnail size via `KURAKI_TRASH_RETENTION_DAYS`
   and `KURAKI_THUMBNAIL_SIZE`; `KURAKI_SECURE_COOKIES=1` marks the session cookie
   Secure for HTTPS production; `KURAKI_OCR=1` enables the local OCR worker.
+- Consolidated owner settings UI with Overview, Account, Appearance, Library,
+  Devices, Activity, and Server sections. A live settings store resolves defaults,
+  database values, and environment/CLI overrides, reports restart-required
+  changes, and keeps security-sensitive Android APK serving environment-only.
 - `KURAKI_TRUST_PROXY=1` opts into deriving the client IP from
   `X-Forwarded-For`/`X-Real-IP`. Off by default so a directly-exposed server
   keys rate limits on the real TCP peer and forged headers cannot bypass the
@@ -251,6 +255,10 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 ### Fixed
 - Filename search returned nothing for partial words (for example, searching
   "photo" missed "photo3.jpg"); search now matches on prefixes.
+- The web timeline no longer overflows sideways on phones: headers and filters
+  wrap, batch actions stay visible, the app grid permits its content track to
+  shrink, and virtualized section spacers recalculate across the mobile
+  breakpoint and rotation.
 
 ### Changed
 - Positioned as a Docker-first, self-hosted application built around a libvips +

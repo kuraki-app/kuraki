@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import { page } from '$app/stores';
+  import { goto } from '$app/navigation';
   import { Upload, LogOut, Lock, Monitor, Sun, Moon } from '@lucide/svelte';
   import { ModeWatcher, setMode, userPrefersMode } from 'mode-watcher';
   import { Toaster } from '$lib/components/ui/sonner';
@@ -10,6 +12,7 @@
   import { api, uploadFiles } from '$lib/api';
   import { session, bumpLibrary, showToast } from '$lib/stores';
   import { startSync } from '$lib/sync';
+  import { defaultView } from '$lib/prefs';
   import { NAV_GROUPS, isActive, registerFor } from '$lib/nav';
   import MobileNav from '$lib/components/MobileNav.svelte';
   import '../app.css';
@@ -77,6 +80,10 @@
         ? await api.setup(username.trim() || 'admin', password)
         : await api.login(username, password);
       session.set({ checking: false, setupRequired: s.setup_required, user: s.user ?? null });
+      if (s.user) {
+        const target = get(defaultView);
+        if (target !== '/' && $page.url.pathname === '/') goto(target);
+      }
       password = '';
       confirmPassword = '';
     } catch (e) {
@@ -371,7 +378,6 @@
   nav a.active {
     background: var(--accent);
     color: var(--foreground);
-    box-shadow: inset 2px 0 0 var(--stamp);
   }
   .group + .group {
     margin-top: 14px;

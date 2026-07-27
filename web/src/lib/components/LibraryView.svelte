@@ -2,11 +2,13 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { fade } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
+  import { get } from 'svelte/store';
   import { CheckSquare, Grid2X2, Grid3X3, Grid } from '@lucide/svelte';
   import type { Album, Asset, AssetList } from '$lib/types';
   import { api, downloadZip } from '$lib/api';
   import { canMorph, morph } from '$lib/motion';
   import { libraryVersion, showToast } from '$lib/stores';
+  import { gridDensity } from '$lib/prefs';
   import AssetGrid from './AssetGrid.svelte';
   import Viewer from './Viewer.svelte';
   import BatchBar from './BatchBar.svelte';
@@ -46,8 +48,7 @@
 
   onMount(() => {
     mounted = true;
-    const saved = localStorage.getItem('kuraki:grid-density');
-    if (saved === 'compact' || saved === 'comfortable' || saved === 'large') density = saved;
+    density = get(gridDensity);
     reload();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -74,7 +75,7 @@
   }
   function setDensity(next: typeof density) {
     density = next;
-    localStorage.setItem('kuraki:grid-density', next);
+    gridDensity.set(next);
   }
 
   async function reload() {
