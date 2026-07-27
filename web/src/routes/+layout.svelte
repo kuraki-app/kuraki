@@ -452,7 +452,12 @@
    * More sheet. The bottom padding clears the fixed tab bar. */
   @media (max-width: 820px) {
     .app {
-      grid-template-columns: 1fr;
+      /* minmax(0, 1fr), never a bare 1fr. A bare `1fr` is `minmax(auto, 1fr)`,
+       * whose floor is the content's *min-content* width — so one wide,
+       * non-wrapping toolbar inside .content stretches the track and drags the
+       * whole page past the viewport instead of being contained by it. The
+       * desktop track above carries the same guard for the same reason. */
+      grid-template-columns: minmax(0, 1fr);
     }
     .side {
       display: none;

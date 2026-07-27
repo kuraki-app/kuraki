@@ -56,17 +56,39 @@
     morphId != null ? (groups.find((g) => g.items.some((a) => a.id === morphId))?.day ?? null) : null;
   $: isLive = (day: string) => visible.has(day) || day === morphDay;
 
-  function estimateHeight(group: { day: string; items: Asset[] }): number {
-    const min = density === 'compact' ? 96 : density === 'large' ? 188 : 132;
-    const w = containerWidth || 1200;
-    const cols = Math.max(1, Math.floor(w / min));
-    const tile = w / cols; // tiles are square (aspect-ratio: 1)
-    const rows = Math.ceil(group.items.length / cols);
-    const header = grouped && group.day ? 35 : 0; // h2 line + its gap
-    return rows * tile + header;
-  }
-  $: heightFor = (group: { day: string; items: Asset[] }): number =>
-    heights.get(group.day) ?? estimateHeight(group);
+  // Minimum tile width per density, mirroring the grid-template-columns below.
+  // These MUST track the CSS: the estimate decides how tall a spacer reserves
+  // for a section that is not materialized, so a stale number here shows up as
+  // dead space or a scroll jump — and only on the viewports whose values drifted.
+  const TILE_MIN = { compact: 96, comfortable: 132, large: 188 };
+  const TILE_MIN_NARROW = { compact: 96, comfortable: 104, large: 144 };
+  const NARROW_MAX = 780; // keep in sync with the @media query in this file
+
+  // Bound, not read once: rotating a phone crosses the breakpoint, and a stale
+  // estimate would misreserve every spacer until each section is re-measured.
+  let viewportWidth = 0;
+
+  // The space each section reserves while it is not materialized: its measured
+  // height once known, an estimate before that. Computed as one reactive map
+  // rather than a function so every input — viewport width, container width,
+  // density, the measured heights — is referenced here textually and therefore
+  // actually tracked; a helper function's internals are invisible to Svelte's
+  // dependency analysis, so a rotation would otherwise leave stale spacers.
+  $: reserved = new Map(
+    groups.map((g) => {
+      const measured = heights.get(g.day);
+      if (measured != null) return [g.day, measured] as const;
+      const min = (viewportWidth && viewportWidth <= NARROW_MAX ? TILE_MIN_NARROW : TILE_MIN)[
+        density
+      ];
+      const w = containerWidth || 1200;
+      const cols = Math.max(1, Math.floor(w / min));
+      const tile = w / cols; // tiles are square (aspect-ratio: 1)
+      const rows = Math.ceil(g.items.length / cols);
+      const header = grouped && g.day ? 35 : 0; // h2 line + its gap
+      return [g.day, rows * tile + header] as const;
+    }),
+  );
 
   let observer: IntersectionObserver | null = null;
   if (typeof IntersectionObserver !== 'undefined') {
@@ -125,6 +147,8 @@
   }
 </script>
 
+<svelte:window bind:innerWidth={viewportWidth} />
+
 <div class="timeline" bind:clientWidth={containerWidth}>
   {#each groups as group (group.day)}
     <!-- Each section is always in the DOM (so the observer can watch it and the
@@ -133,7 +157,7 @@
       class="day"
       data-day={group.day}
       use:observe
-      style:min-height={isLive(group.day) ? undefined : `${heightFor(group)}px`}
+      style:min-height={isLive(group.day) ? undefined : `${reserved.get(group.day) ?? 0}px`}
     >
       {#if isLive(group.day)}
         <div class="day-inner" use:measure={group.day}>

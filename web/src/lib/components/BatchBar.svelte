@@ -108,6 +108,26 @@
   @media (max-width: 820px) {
     .bar {
       bottom: calc(70px + env(safe-area-inset-bottom, 0));
+      /* Six actions need ~733px; a phone gives ~366. `overflow-x: auto` alone
+       * left half of them — Download and Delete included — behind a horizontal
+       * scroll with no visible affordance, so on a phone they may as well not
+       * exist. Wrap to as many rows as it takes instead: the bar is transient
+       * (it only exists in select mode), so spending vertical space on it is
+       * cheaper than hiding actions. */
+      flex-wrap: wrap;
+      overflow-x: visible;
+      justify-content: center;
+      row-gap: 8px;
+      /* Shrink-to-fit plus wrapping collapses the bar to its narrowest column,
+       * stacking six actions vertically. Claim the row so they wrap into two or
+       * three rows instead. */
+      width: calc(100vw - 24px);
+    }
+    .acts {
+      flex: 1 1 100%;
+      flex-wrap: wrap;
+      justify-content: center;
+      row-gap: 6px;
     }
   }
 </style>
