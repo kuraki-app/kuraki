@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Kuraki is a self-hosted photo & video backup server (AGPL-3.0). A single Go binary embeds a SvelteKit SPA and can serve the whole app from one port (the Docker image additionally fronts the UI with Caddy — see Runtime shape below). There is also an Expo/React Native mobile client (`mobile/`) for camera-roll backup and library browsing. Three surfaces — `internal/` (Go server), `web/` (SvelteKit), `mobile/` (Expo) — are all CI-gated.
+Kuraki is a self-hosted photo & video backup server (AGPL-3.0). A single Go binary embeds a SvelteKit SPA and serves the whole app from one port — including in Docker (see Runtime shape below). There is also an Expo/React Native mobile client (`mobile/`) for camera-roll backup and library browsing. Three surfaces — `internal/` (Go server), `web/` (SvelteKit), `mobile/` (Expo) — are all CI-gated, and the two clients are wired to the server through a **generated API contract** (see below).
 
 ## Commands
 
@@ -21,16 +21,30 @@ make build        # pure-Go binary -> ./bin/kuraki (CGO_ENABLED=0)
 make build-vips   # libvips backend (needs libvips-dev + pkg-config; -tags vips)
 make dev          # API :3000 + Vite UI :5173, hot reload (scripts/dev.sh) — open :5173
 make start        # build web + binary, one production-like process on :3000
+make gen          # regenerate OpenAPI contract + web/mobile TS types (see below)
+make check-gen    # what CI runs: gen, then fail if the committed artifacts moved
 ```
 
 Run a single Go test: `go test -race ./internal/importer -run TestName`.
-Note: `make` targets use `GO_PACKAGES` (`go list ./...` minus `node_modules`) — Expo fixtures under `mobile/` contain Go files that must not be treated as project packages.
+Note: `make` targets use `GO_PACKAGES` (`go list ./...` minus `node_modules`) — Expo fixtures under `mobile/` contain Go files that must not be treated as project packages. (`make check` uses it; CI runs bare `./...`.)
 
-Web (`cd web`): `npm run dev` (Vite, proxies /api to :3000) · `npm run build` (outputs embedded assets into `internal/httpapi/assets` via `go:embed`).
+Web (`cd web`): `npm run dev` (Vite, proxies /api to :3000) · `npm run build` (outputs embedded assets into `internal/httpapi/assets` via `go:embed`) · **`npm run check` (svelte-check) — `build` does NOT typecheck, this is the only type gate.**
 
-Mobile (`cd mobile`): `npm run ios` / `npm run android` · `npm run lint` (`expo lint`) · `npx tsc --noEmit` (typecheck).
+Mobile (`cd mobile`): `npm run ios` / `npm run android` · `npm run lint` (`expo lint`) · `npx tsc --noEmit` · `npm run test` (Vitest, pure logic only) · `npm run check-tokens` (design-token drift gate).
 
-**CI (`.github/workflows/ci.yml`) gates six jobs:** vet+`go test -race`, web build, mobile `tsc --noEmit` + `expo lint`, pure-Go cross-compile, Docker image, and a **media-contract job** that installs libvips and runs `CGO_ENABLED=1 go test -race -tags vips ./...`. That last one is the only place `-tags vips` code is exercised (this machine has no libvips), so treat `vips.go` changes as untestable locally — build them in Docker or expect CI to be the first check. Some tests self-skip when `ffmpeg`/`tesseract` are absent rather than failing.
+**CI (`.github/workflows/ci.yml`) gates seven jobs:** vet+`go test -race`, **API contract up to date** (`make check-gen`), web `npm run check` + `build`, mobile `tsc --noEmit` + `expo lint` + `npm run test` + `npm run check-tokens`, pure-Go cross-compile, Docker image, and a **media-contract job** that installs libvips and runs `CGO_ENABLED=1 go test -race -tags vips ./...`. That last one is the only place `-tags vips` code is exercised (this machine has no libvips), so treat `vips.go` changes as untestable locally — build them in Docker or expect CI to be the first check. Some tests self-skip when `ffmpeg`/`tesseract` are absent rather than failing.
+
+## Generated artifacts (never hand-edit — regenerate and commit)
+
+Three files are machine-generated and CI-gated; editing them by hand fails the build.
+
+| File | Generated from | Command |
+|---|---|---|
+| `internal/httpapi/apispec/openapi.json` | swag annotations on the handlers + `internal/httpapi/apitypes` | `make openapi` |
+| `web/src/lib/api.gen.ts`, `mobile/src/lib/api.gen.ts` | the OpenAPI JSON above | `make client-types` |
+| `mobile/src/design/tokens.ts` | `web/src/app.css` (`:root` + `.dark` blocks) | `cd mobile && npm run sync-tokens` |
+
+So: **touching a handler signature or an `apitypes` struct means running `make gen` and committing the diff**, and **touching the palette in `web/src/app.css` means running `npm run sync-tokens`**. The palette is additionally WCAG-gated by `web/scripts/check-contrast.py`, which parses `app.css` directly. Generator versions are pinned in the `Makefile` so `check-gen` can't fail spuriously.
 
 ## Architecture
 
@@ -41,8 +55,11 @@ Mobile (`cd mobile`): `npm run ios` / `npm run android` · `npm run lint` (`expo
 - `internal/storage` — `Storage` interface + write-once, atomic, traversal-safe FS impl. `FS.Write` refuses overwrite (`ErrExists`).
 - `internal/db` — `modernc.org/sqlite` (pure-Go, WAL, FTS5), perf pragmas, goose migrations (embedded, **append-only**), auto-snapshot before every schema change. Keep this layer CGO-free.
 - `internal/media` — `Processor` interface with a pure-Go fallback (`purego.go`) and a libvips backend behind `//go:build vips` (`vips.go`); ffmpeg posters/transcodes; EXIF; perceptual hashing.
-- `internal/httpapi` — chi router, handlers, middleware; `assets/` holds the embedded built UI. Filters live in `filters.go` (`parseAssetFilters` + `respondFiltered`) — the one filter language behind `/api/search` and the device read endpoints.
-- Feature packages: `importer` (recursive import, BLAKE3 dedup, resume, derivatives, Takeout+geocode), `queue` (background import jobs with retry/backoff/crash recovery), `takeout`, `geo` (offline reverse geocoding, embedded GeoNames), `trash`, `verify`, `auth` (argon2id + sessions), `ocr` (opt-in tesseract via exec), `duplicates`, `stacks`, `backup`, `external`.
+- `internal/httpapi` — chi router, handlers, middleware; `assets/` holds the embedded built UI, `apitypes/` the DTOs, `apispec/` the generated contract. Filters live in `filters.go` (`parseAssetFilters` + `respondFiltered`) — the one filter language behind `/api/search` and the device read endpoints; add a filter there and web + mobile both get it.
+- `internal/config` — `Store` resolves settings **defaults < DB < env/flags** and marks each value live vs restart-required; `internal/serversettings` is the DB half (owner-writable catalog, migration `00022`). Env-only settings stay env-only on purpose (e.g. `android_apk`, because `/download/android` is public).
+- Feature packages: `importer` (recursive import, BLAKE3 dedup, resume, derivatives, Takeout+geocode), `queue` (background import jobs with retry/backoff/crash recovery), `takeout`, `migrate` (Immich library import, `immich/` sub-adapter), `geo` (offline reverse geocoding, embedded GeoNames), `trash`, `verify`, `auth` (argon2id + sessions), `ocr` (opt-in tesseract via exec), `duplicates`, `stacks`, `backup`, `external`.
+
+**Two auth principals, one handler.** Web uses session cookies; mobile uses device tokens (`/api/capture/*`). Shared handlers resolve the owner through the `ownerID(r)` bridge under `requirePrincipal` — when adding an endpoint mobile needs, mount the same handler on both trees rather than forking it. Every asset mutation must also write to `change_log` (owner-scoped, cursor-paginated), which is what `GET /api/changes` + `/api/capture/changes` replay for delta sync.
 
 **Data dir layout** (everything the library needs lives under `KURAKI_DATA_DIR`): `kuraki.db` (metadata + pointers only) · `originals/YYYY/MM/` (write-once) · `derivatives/<id>/` (thumbs, posters, transcodes) · `staging/` (uploads awaiting the queue) · `trash/` (retention window) · `snapshots/` (pre-migration DB copies). The DB stores pointers, never bytes.
 
@@ -58,6 +75,7 @@ Mobile (`cd mobile`): `npm run ios` / `npm run android` · `npm run lint` (`expo
 4. **DB/storage/domain stay CGO-free.** libvips CGO is confined to `media` behind `-tags vips`.
 5. **Default build must stay pure-Go** — `go build ./...` (no tags) always succeeds without libvips. Anything needing libvips goes behind `//go:build vips`.
 6. Structured logging only (`log/slog`); wrap errors with context (`fmt.Errorf("pkg: doing X: %w", err)`).
+7. **Generated artifacts are never hand-edited** — regenerate via the table above and commit the result.
 
 ## Build tags & environment
 
@@ -68,6 +86,7 @@ Config is zero-config with `KURAKI_*` env overrides (`internal/config`; preceden
 ## Conventions
 
 - One logical change per branch/commit; branch from `main` (`feat/…`, `fix/…`). Commit style: `type: imperative summary`.
-- `make check` must pass before committing. This repo has favored **batching changes** (avoid tiny sub-8-file commits unless told).
+- **No `Co-Authored-By` trailer on commits here** — this deliberately overrides AGENTS.md §10.
+- `make check` must pass before committing; if you touched handlers/`apitypes` or the palette, `make check-gen` too. This repo has favored **batching changes** (avoid tiny sub-8-file commits unless told).
 - Never commit `docs/` or `kuraki-data/` (both gitignored).
 - Locked decisions (§3 of AGENTS.md) — Go+embedded UI, SvelteKit adapter-static SPA, pure-Go sqlite, goose, media behind `Processor`, UUIDv7 PKs — are not to be relitigated without human sign-off.
