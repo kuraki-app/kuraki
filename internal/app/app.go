@@ -664,6 +664,7 @@ func (a *App) Serve(ctx context.Context) error {
 		Store:          a.Store,
 		Media:          a.Media,
 		Queue:          a.Queue,
+		Settings:       a.Settings,
 		ThumbSize:      booted.ThumbnailSize,
 		SecureCookies:  booted.SecureCookies,
 		TrustProxy:     booted.TrustProxy,
