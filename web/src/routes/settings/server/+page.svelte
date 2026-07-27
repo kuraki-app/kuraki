@@ -14,6 +14,7 @@
   let restartPending: string[] = [];
   let backupSettings: SettingInfo[] = [];
   let drafts: Record<string, string> = {};
+  let touched: Record<string, boolean> = {};
   let saving: Record<string, boolean> = {};
   let loading = true;
 
@@ -38,6 +39,7 @@
       restartPending = resp.restart_pending ?? [];
       backupSettings = resp.settings.filter((s) => (BACKUP_KEYS as readonly string[]).includes(s.key));
       for (const s of backupSettings) drafts[s.key] = s.value ?? '';
+      touched = {};
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to load settings');
     }
@@ -66,7 +68,13 @@
         return;
       }
       restartPending = resp.pending_restart ?? [];
-      showToast('Saved');
+      if (resp.warnings?.length) {
+        showToast(resp.warnings[0].warning);
+      } else if (resp.applied?.includes(s.key)) {
+        showToast('Saved');
+      } else {
+        showToast('Saved — takes effect after restart');
+      }
       await loadSettings();
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Save failed');
@@ -158,7 +166,7 @@
           backup_dir: 'Where unattended backups are written. Empty disables automatic backups.',
           backup_interval_hours: 'How often an unattended backup runs.',
           backup_keep: 'How many recent automatic backups to retain.',
-          metrics_token: 'Required Bearer token for scrapers reading /metrics. A signed-in owner can always read it.'
+          metrics_token: 'Required Bearer token for scrapers reading /metrics. A signed-in owner can always read /metrics directly, without this token. The stored value is never shown once saved — clear the field and save to remove it.'
         }[s.key] ?? ''}
         status={statusFor(s)}
         envVar={s.env_var}
@@ -170,12 +178,15 @@
             placeholder={s.secret && s.is_set ? '••••••••' : ''}
             disabled={s.pinned_by_env}
             bind:value={drafts[s.key]}
+            oninput={() => (touched[s.key] = true)}
           />
           {#if s.unit}<span class="unit">{s.unit}</span>{/if}
           <Button
             variant="outline"
             size="sm"
-            disabled={s.pinned_by_env || saving[s.key] || drafts[s.key] === s.value}
+            disabled={s.pinned_by_env ||
+              saving[s.key] ||
+              (s.secret ? !touched[s.key] : String(drafts[s.key]) === (s.value ?? ''))}
             onclick={() => save(s)}
           >
             Save

@@ -46,7 +46,13 @@
         return;
       }
       pendingRestart = resp.pending_restart ?? [];
-      if (resp.applied?.includes(s.key)) showToast('Saved');
+      if (resp.warnings?.length) {
+        showToast(resp.warnings[0].warning);
+      } else if (resp.applied?.includes(s.key)) {
+        showToast('Saved');
+      } else {
+        showToast('Saved — takes effect after restart');
+      }
       await load();
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Save failed');
@@ -108,7 +114,7 @@
             <Button
               variant="outline"
               size="sm"
-              disabled={s.pinned_by_env || saving[s.key] || drafts[s.key] === s.value}
+              disabled={s.pinned_by_env || saving[s.key] || String(drafts[s.key]) === (s.value ?? '')}
               onclick={() => save(s)}
             >
               Save

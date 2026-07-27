@@ -79,7 +79,7 @@
     <div class="int-text">
       <strong>Backup</strong>
       {#if !backup?.enabled}
-        <span>Automatic backup is off. Set <code>KURAKI_BACKUP_DIR</code> to keep scheduled copies, or run <code>kuraki backup</code> by hand.</span>
+        <span>Automatic backup is off. Set a backup directory in <a href="/settings/server">Settings → Server</a> to keep scheduled copies, or run <code>kuraki backup</code> by hand.</span>
       {:else if backup.last?.status === 'error'}
         <span>Last automatic backup failed{#if backup.last.finished_at} · {relativeTime(backup.last.finished_at)}{/if}{#if backup.last.error} · {backup.last.error}{/if}</span>
       {:else if backup.last}
@@ -142,6 +142,9 @@
   .int-text span {
     color: var(--muted-foreground);
     font-size: 13px;
+  }
+  .int-text span a {
+    color: var(--foreground);
   }
   .integrity.problems .int-text span,
   .integrity.error .int-text span {

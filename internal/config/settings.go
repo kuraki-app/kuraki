@@ -21,7 +21,6 @@ const (
 	KeyBackupIntervalHours SettingKey = "backup_interval_hours"
 	KeyBackupKeep          SettingKey = "backup_keep"
 	KeyMetricsToken        SettingKey = "metrics_token"
-	KeyAndroidAPK          SettingKey = "android_apk"
 )
 
 // Apply describes when a saved setting change takes effect. Most of the
@@ -73,7 +72,6 @@ var Catalog = []SettingDescriptor{
 	{Key: KeyBackupIntervalHours, EnvVar: "KURAKI_BACKUP_INTERVAL_HOURS", Type: TypeInt, Unit: "hours", Apply: ApplyRestart, Min: 1},
 	{Key: KeyBackupKeep, EnvVar: "KURAKI_BACKUP_KEEP", Type: TypeInt, Unit: "archives", Apply: ApplyRestart, Min: 1},
 	{Key: KeyMetricsToken, EnvVar: "KURAKI_METRICS_TOKEN", Type: TypeString, Apply: ApplyRestart, Secret: true},
-	{Key: KeyAndroidAPK, EnvVar: "KURAKI_ANDROID_APK", Type: TypePath, Apply: ApplyRestart},
 }
 
 var descriptorByKey = func() map[SettingKey]SettingDescriptor {
@@ -173,8 +171,6 @@ func ApplyDB(cfg Config, rows map[string]string, envPresent map[string]bool) Con
 			}
 		case KeyMetricsToken:
 			cfg.MetricsToken = v
-		case KeyAndroidAPK:
-			cfg.AndroidAPK = strings.TrimSpace(v)
 		}
 	}
 	return cfg
@@ -263,8 +259,6 @@ func FieldString(c Config, key SettingKey) string {
 		return strconv.Itoa(c.BackupKeep)
 	case KeyMetricsToken:
 		return c.MetricsToken
-	case KeyAndroidAPK:
-		return c.AndroidAPK
 	default:
 		return ""
 	}
