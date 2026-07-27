@@ -1,8 +1,11 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import QRCode from 'qrcode';
-  import { Smartphone, RefreshCw, Download } from '@lucide/svelte';
+  import { Smartphone, RefreshCw, Download, Trash2 } from '@lucide/svelte';
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
+  import { relativeTime } from '$lib/format';
+  import type { DeviceInfo } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { Button } from '$lib/components/ui/button';
 
@@ -10,9 +13,35 @@
   let expiresAt = '';
   let loading = false;
 
-  // base64url-encode so the QR carries an opaque blob, not a readable code. A
-  // generic QR reader sees only `kuraki://pair?d=…`; only the Kuraki app decodes
-  // it. The code itself is never shown as text and is stored hashed server-side.
+  let devices: DeviceInfo[] = [];
+  let devicesLoading = true;
+  let revoking: Record<string, boolean> = {};
+
+  onMount(loadDevices);
+
+  async function loadDevices() {
+    try {
+      devices = (await api.devices()).devices;
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to load devices');
+    } finally {
+      devicesLoading = false;
+    }
+  }
+
+  async function revoke(d: DeviceInfo) {
+    revoking = { ...revoking, [d.id]: true };
+    try {
+      await api.revokeDevice(d.id);
+      devices = devices.filter((x) => x.id !== d.id);
+      showToast(`${d.name} revoked`);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Revoke failed');
+    } finally {
+      revoking = { ...revoking, [d.id]: false };
+    }
+  }
+
   function base64url(s: string): string {
     return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
@@ -22,7 +51,6 @@
     try {
       const res = await api.createPairingCode();
       expiresAt = res.expires_at;
-      // The phone needs both where to reach this server and the one-time code.
       const payload = base64url(JSON.stringify({ base_url: location.origin, code: res.code }));
       const qrData = `kuraki://pair?d=${payload}`;
       qrSvg = await QRCode.toString(qrData, { type: 'svg', margin: 1, width: 240 });
@@ -37,6 +65,25 @@
 </script>
 
 <PageHeader title="Devices" subtitle="Pair a phone to back up its camera roll to this server." />
+
+{#if !devicesLoading && devices.length > 0}
+  <section class="card">
+    <h2><Smartphone size={18} aria-hidden="true" /> Paired devices</h2>
+    <ul class="devices">
+      {#each devices as d (d.id)}
+        <li>
+          <div class="d-text">
+            <strong>{d.name}</strong>
+            <span>Paired {relativeTime(d.created_at)}{#if d.last_seen_at} · last seen {relativeTime(d.last_seen_at)}{/if}</span>
+          </div>
+          <Button variant="outline" size="sm" disabled={revoking[d.id]} onclick={() => revoke(d)}>
+            <Trash2 size={14} aria-hidden="true" /> Revoke
+          </Button>
+        </li>
+      {/each}
+    </ul>
+  </section>
+{/if}
 
 <section class="card">
   <h2><Smartphone size={18} aria-hidden="true" /> Pair a phone</h2>
@@ -70,6 +117,7 @@
     border: 1px solid var(--border);
     border-radius: 12px;
     background: var(--card);
+    margin-bottom: 16px;
   }
   .card h2 {
     display: flex;
@@ -78,6 +126,33 @@
     margin: 0 0 12px;
     font-size: 16px;
     font-weight: 700;
+  }
+  .devices {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+  }
+  .devices li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .devices li:last-child {
+    border-bottom: 0;
+  }
+  .d-text {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+  .d-text span {
+    color: var(--muted-foreground);
+    font-size: 12px;
   }
   ol {
     margin: 0 0 16px;
@@ -90,7 +165,6 @@
     width: 240px;
     max-width: 100%;
     margin: 0 auto 12px;
-    /* Always white so the QR stays scannable regardless of theme. */
     background: #fff;
     padding: 12px;
     border-radius: 10px;
