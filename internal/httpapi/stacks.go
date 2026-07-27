@@ -21,9 +21,18 @@ import (
 // @Router  /api/assets/{id}/stack [get]
 func (d Deps) stackAssets(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+	// Both the members and the stack_id lookup are owner-scoped: the inner
+	// select must not resolve another owner's stack, or the existence of
+	// their stacked asset would leak through the fallback below.
 	rows, err := d.DB.QueryContext(r.Context(),
-		assetSelectSQL(`WHERE a.deleted_at IS NULL AND a.stack_id IS NOT NULL
-		 AND a.stack_id = (SELECT stack_id FROM assets WHERE id = ?)`)+" LIMIT 500", id)
+		assetSelectSQL(`WHERE a.owner_id = ? AND a.deleted_at IS NULL AND a.stack_id IS NOT NULL
+		 AND a.stack_id = (SELECT stack_id FROM assets WHERE id = ? AND owner_id = ?)`)+" LIMIT 500",
+		owner, id, owner)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_stack_failed")
 		return

@@ -20,13 +20,18 @@ import (
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/media/issues [get]
 func (d Deps) mediaIssues(w http.ResponseWriter, r *http.Request) {
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	rows, err := d.DB.QueryContext(r.Context(), `
 		SELECT m.asset_id, a.filename, a.media_type, m.kind, m.message, m.created_at
 		FROM media_issues m
 		JOIN assets a ON a.id = m.asset_id
-		WHERE a.deleted_at IS NULL
+		WHERE a.owner_id = ? AND a.deleted_at IS NULL
 		ORDER BY m.created_at DESC
-		LIMIT 100`)
+		LIMIT 100`, owner)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_media_issues_failed")
 		return
@@ -63,9 +68,14 @@ func (d Deps) mediaIssues(w http.ResponseWriter, r *http.Request) {
 // @Router  /api/assets/{id}/rebuild [post]
 func (d Deps) rebuildAsset(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	var one int
 	err := d.DB.QueryRowContext(r.Context(),
-		`SELECT 1 FROM assets WHERE id = ? AND deleted_at IS NULL`, id).Scan(&one)
+		`SELECT 1 FROM assets WHERE id = ? AND owner_id = ? AND deleted_at IS NULL`, id, owner).Scan(&one)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "asset_not_found")
 		return

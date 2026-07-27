@@ -15,8 +15,14 @@ import (
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/places [get]
 func (d Deps) placesAssets(w http.ResponseWriter, r *http.Request) {
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	rows, err := d.DB.QueryContext(r.Context(),
-		assetSelectSQL("WHERE a.deleted_at IS NULL AND a.gps_lat IS NOT NULL AND a.gps_lon IS NOT NULL")+" LIMIT 5000")
+		assetSelectSQL("WHERE a.owner_id = ? AND a.deleted_at IS NULL AND a.gps_lat IS NOT NULL AND a.gps_lon IS NOT NULL")+" LIMIT 5000",
+		owner)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_places_failed")
 		return
@@ -39,12 +45,17 @@ func (d Deps) placesAssets(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/places/summary [get]
 func (d Deps) placesSummary(w http.ResponseWriter, r *http.Request) {
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	rows, err := d.DB.QueryContext(r.Context(), `
 		SELECT place_city, COALESCE(place_country,''), COUNT(*), MAX(id)
 		FROM assets
-		WHERE deleted_at IS NULL AND place_city IS NOT NULL AND place_city <> ''
+		WHERE owner_id = ? AND deleted_at IS NULL AND place_city IS NOT NULL AND place_city <> ''
 		GROUP BY place_country, place_city
-		ORDER BY COUNT(*) DESC, place_city ASC`)
+		ORDER BY COUNT(*) DESC, place_city ASC`, owner)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_places_summary_failed")
 		return
