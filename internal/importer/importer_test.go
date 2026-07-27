@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kuraki-app/kuraki/internal/db"
 	"github.com/kuraki-app/kuraki/internal/media"
@@ -258,5 +259,53 @@ func assertCount(t *testing.T, ctx context.Context, database *sql.DB, table stri
 	}
 	if got != want {
 		t.Fatalf("%s count = %d, want %d", table, got, want)
+	}
+}
+
+// TestImportStateScopedByOwner proves resume/skip state is per-owner. With a
+// global source_path key, a second owner importing the same path -- a shared
+// NAS mount, the same external drive -- was silently skipped as "already
+// done", leaving their library short with no error reported.
+func TestImportStateScopedByOwner(t *testing.T) {
+	ctx := context.Background()
+	runner, database, _ := newTestImporter(t, ctx)
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO users(id,username,password_hash) VALUES ('owner-a','a','h'),('owner-b','b','h')`); err != nil {
+		t.Fatal(err)
+	}
+	const path = "/nas/shared/IMG_0001.jpg"
+	mtime := time.Unix(1700000000, 0).UTC()
+
+	if err := runner.setImportState(ctx, "owner-a", path, 1234, mtime, "hash", "done", ""); err != nil {
+		t.Fatalf("record owner-a state: %v", err)
+	}
+
+	doneA, err := runner.alreadyProcessed(ctx, "owner-a", path, 1234, mtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !doneA {
+		t.Fatal("owner-a should skip a path they already imported")
+	}
+
+	doneB, err := runner.alreadyProcessed(ctx, "owner-b", path, 1234, mtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doneB {
+		t.Fatal("owner-b was skipped for a path only owner-a imported")
+	}
+
+	// Both owners can now hold state for the same path without colliding.
+	if err := runner.setImportState(ctx, "owner-b", path, 1234, mtime, "hash", "done", ""); err != nil {
+		t.Fatalf("owner-b state collided with owner-a: %v", err)
+	}
+	var n int
+	if err := database.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM import_state WHERE source_path = ?`, path).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Fatalf("import_state rows for shared path = %d, want 2 (one per owner)", n)
 	}
 }

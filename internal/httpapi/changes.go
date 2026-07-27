@@ -55,6 +55,11 @@ func (d Deps) changes(w http.ResponseWriter, r *http.Request) {
 		limit = changesMaxLimit
 	}
 
+	// Every writer sets owner_id, and migration 00023 attributed the last
+	// legacy NULL rows (pre-00020 entries for already-purged assets) to the
+	// sole owner. The feed's old `OR owner_id IS NULL` fallback is therefore
+	// dead, and would have shown one owner's entries to everyone.
+	//
 	// If the client's cursor is below the pruned floor (the oldest retained id),
 	// the rows it hasn't seen were pruned — it can never catch up incrementally,
 	// so tell it to resync: discard its mirror and reload, then resume from the
@@ -62,14 +67,14 @@ func (d Deps) changes(w http.ResponseWriter, r *http.Request) {
 	// so it never triggers a reset.
 	var oldestKept sql.NullInt64
 	if err := d.DB.QueryRowContext(r.Context(),
-		`SELECT MIN(id) FROM change_log WHERE owner_id = ? OR owner_id IS NULL`, owner).Scan(&oldestKept); err != nil {
+		`SELECT MIN(id) FROM change_log WHERE owner_id = ?`, owner).Scan(&oldestKept); err != nil {
 		writeError(w, http.StatusInternalServerError, "changes_floor_failed")
 		return
 	}
 	if since > 0 && oldestKept.Valid && since < oldestKept.Int64-1 {
 		var maxID sql.NullInt64
 		if err := d.DB.QueryRowContext(r.Context(),
-			`SELECT MAX(id) FROM change_log WHERE owner_id = ? OR owner_id IS NULL`, owner).Scan(&maxID); err != nil {
+			`SELECT MAX(id) FROM change_log WHERE owner_id = ?`, owner).Scan(&maxID); err != nil {
 			writeError(w, http.StatusInternalServerError, "changes_head_failed")
 			return
 		}
@@ -84,7 +89,7 @@ func (d Deps) changes(w http.ResponseWriter, r *http.Request) {
 
 	rows, err := d.DB.QueryContext(r.Context(),
 		`SELECT id, entity, entity_id, op FROM change_log
-		 WHERE id > ? AND (owner_id = ? OR owner_id IS NULL)
+		 WHERE id > ? AND owner_id = ?
 		 ORDER BY id ASC LIMIT ?`,
 		since, owner, limit+1)
 	if err != nil {

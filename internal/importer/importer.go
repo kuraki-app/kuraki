@@ -222,13 +222,13 @@ func (i *Importer) importFile(ctx context.Context, ownerID, path string, kind do
 	if !dryRun {
 		defer func() {
 			if err != nil {
-				_ = i.setImportState(ctx, path, info.Size(), mtime, "", "error", err.Error())
+				_ = i.setImportState(ctx, ownerID, path, info.Size(), mtime, "", "error", err.Error())
 			}
 		}()
 	}
 
 	if !dryRun {
-		skip, err := i.alreadyProcessed(ctx, path, info.Size(), mtime)
+		skip, err := i.alreadyProcessed(ctx, ownerID, path, info.Size(), mtime)
 		if err != nil {
 			return nil, err
 		}
@@ -236,7 +236,7 @@ func (i *Importer) importFile(ctx context.Context, ownerID, path string, kind do
 			result.Skipped++
 			return nil, nil
 		}
-		if err := i.setImportState(ctx, path, info.Size(), mtime, "", "pending", ""); err != nil {
+		if err := i.setImportState(ctx, ownerID, path, info.Size(), mtime, "", "pending", ""); err != nil {
 			return nil, err
 		}
 	}
@@ -260,7 +260,7 @@ func (i *Importer) importFile(ctx context.Context, ownerID, path string, kind do
 				SourcePath: path, AssetID: existingID, Duplicate: true,
 			})
 			if !dryRun {
-				return nil, i.setImportState(ctx, path, info.Size(), mtime, hash, "skipped", "")
+				return nil, i.setImportState(ctx, ownerID, path, info.Size(), mtime, hash, "skipped", "")
 			}
 			return nil, nil
 		}
@@ -365,7 +365,7 @@ func (i *Importer) importFile(ctx context.Context, ownerID, path string, kind do
 	}); err != nil {
 		return nil, err
 	}
-	if err := i.setImportState(ctx, path, info.Size(), mtime, hash, "done", ""); err != nil {
+	if err := i.setImportState(ctx, ownerID, path, info.Size(), mtime, hash, "done", ""); err != nil {
 		return nil, err
 	}
 
@@ -712,11 +712,15 @@ func (i *Importer) ensureOwner(ctx context.Context, username string) (string, er
 	return id.String(), nil
 }
 
-func (i *Importer) alreadyProcessed(ctx context.Context, path string, size int64, mtime time.Time) (bool, error) {
+// alreadyProcessed reports whether this owner has already imported this exact
+// file. Scoped by owner: two people importing the same shared source path must
+// each get their own copy, not have the second silently skipped.
+func (i *Importer) alreadyProcessed(ctx context.Context, ownerID, path string, size int64, mtime time.Time) (bool, error) {
 	var status string
 	err := i.DB.QueryRowContext(ctx,
-		`SELECT status FROM import_state WHERE source_path = ? AND size = ? AND mtime = ?`,
-		path, size, timeText(mtime)).Scan(&status)
+		`SELECT status FROM import_state
+		 WHERE owner_id = ? AND source_path = ? AND size = ? AND mtime = ?`,
+		ownerID, path, size, timeText(mtime)).Scan(&status)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -726,22 +730,22 @@ func (i *Importer) alreadyProcessed(ctx context.Context, path string, size int64
 	return status == "done" || status == "skipped", nil
 }
 
-func (i *Importer) setImportState(ctx context.Context, path string, size int64, mtime time.Time, hash, status, message string) error {
+func (i *Importer) setImportState(ctx context.Context, ownerID, path string, size int64, mtime time.Time, hash, status, message string) error {
 	var importedAt any
 	if status == "done" || status == "skipped" || status == "error" {
 		importedAt = timeText(time.Now().UTC())
 	}
 	_, err := i.DB.ExecContext(ctx, `
-		INSERT INTO import_state (source_path, size, mtime, content_hash, status, error, imported_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(source_path) DO UPDATE SET
+		INSERT INTO import_state (owner_id, source_path, size, mtime, content_hash, status, error, imported_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(owner_id, source_path) DO UPDATE SET
 			size = excluded.size,
 			mtime = excluded.mtime,
 			content_hash = excluded.content_hash,
 			status = excluded.status,
 			error = excluded.error,
 			imported_at = excluded.imported_at
-	`, path, size, timeText(mtime), nullString(hash), status, message, importedAt)
+	`, ownerID, path, size, timeText(mtime), nullString(hash), status, message, importedAt)
 	if err != nil {
 		return fmt.Errorf("importer: set import state: %w", err)
 	}
