@@ -119,8 +119,12 @@ existing promise works.
 
 ## Explicitly not doing
 
-- Sharing, household accounts, OIDC, and multi-user roles: parked until
-  single-owner recovery and operational evidence are complete.
+- Sharing, shared albums, household accounts, and OIDC: still parked. Kuraki's
+  multi-user model is **isolated libraries** — there is deliberately no path
+  from one account to another's photos, and no plan to add one without a
+  separate design decision.
+  (Multi-user itself unparked 2026-07-27 by human decision and shipped as
+  admin-managed accounts; see AGENTS.md §11 `feat/multi-user-isolation`.)
 - Automatic source deletion: unsafe without independently verified recovery.
 - Bundled cloud ML, mandatory GPU use, face recognition, or ANN infrastructure:
   no approved user job or benchmark yet.

@@ -19,24 +19,34 @@ import (
 // client's poll timer.
 //
 // One shared poller (not one query per subscriber) means push cost is constant
-// in the number of connected clients. Phase-1 is single-owner, so a global
-// high-water mark is broadcast to everyone; once multi-user lands this should
-// broadcast per owner_id (a spurious wakeup is currently harmless — the drain
-// is owner-scoped and just returns empty — but it is needless chatter). See the
-// AGENTS.md handoff for the multi-user follow-up.
+// in the number of connected clients: a single GROUP BY owner_id per tick,
+// served by ix_change_log_owner_id, regardless of how many are connected.
+//
+// Wakeups are scoped per owner. A global high-water mark would wake every
+// client on every other client's activity — the drain is owner-scoped so no
+// data leaks, but an idle user would learn exactly when other people on the
+// server are active, and would burn a request finding nothing.
 type ChangeBroker struct {
 	db  *sql.DB
 	log *slog.Logger
 
-	mu     sync.Mutex
-	subs   map[chan int64]struct{}
-	lastID int64
+	mu sync.Mutex
+	// subs maps owner id to that owner's connected subscribers.
+	subs map[string]map[chan int64]struct{}
+	// lastID is the per-owner high-water mark. An owner absent from the map
+	// has not been seen advancing yet.
+	lastID map[string]int64
 }
 
 // NewChangeBroker constructs a broker over db. Poll must be started separately
 // (typically as a background worker by the composition root).
 func NewChangeBroker(db *sql.DB, log *slog.Logger) *ChangeBroker {
-	return &ChangeBroker{db: db, log: log, subs: make(map[chan int64]struct{})}
+	return &ChangeBroker{
+		db:     db,
+		log:    log,
+		subs:   make(map[string]map[chan int64]struct{}),
+		lastID: make(map[string]int64),
+	}
 }
 
 // subscribe registers a subscriber and returns its channel. The channel is
@@ -47,28 +57,38 @@ func NewChangeBroker(db *sql.DB, log *slog.Logger) *ChangeBroker {
 // No initial ping is sent on connect: the client always drains once when its
 // EventSource opens (see the web sync module), so priming here would be a
 // redundant wakeup. The broker's job is purely to signal *subsequent* changes.
-func (b *ChangeBroker) subscribe() chan int64 {
+func (b *ChangeBroker) subscribe(owner string) chan int64 {
 	ch := make(chan int64, 1)
 	b.mu.Lock()
-	b.subs[ch] = struct{}{}
+	if b.subs[owner] == nil {
+		b.subs[owner] = make(map[chan int64]struct{})
+	}
+	b.subs[owner][ch] = struct{}{}
 	b.mu.Unlock()
 	return ch
 }
 
-func (b *ChangeBroker) unsubscribe(ch chan int64) {
+func (b *ChangeBroker) unsubscribe(owner string, ch chan int64) {
 	b.mu.Lock()
-	delete(b.subs, ch)
+	if subs := b.subs[owner]; subs != nil {
+		delete(subs, ch)
+		// Drop the owner's bucket once empty so a server with many
+		// short-lived accounts does not accumulate empty maps.
+		if len(subs) == 0 {
+			delete(b.subs, owner)
+		}
+	}
 	b.mu.Unlock()
 }
 
-// broadcast pings every subscriber with id. The send is non-blocking: if a
-// subscriber's buffer is full it already has an un-drained wakeup pending, and
-// since the client drains everything past its cursor, one ping stands in for
-// any number of coalesced changes.
-func (b *ChangeBroker) broadcast(id int64) {
+// broadcast pings one owner's subscribers with id. The send is non-blocking:
+// if a subscriber's buffer is full it already has an un-drained wakeup
+// pending, and since the client drains everything past its cursor, one ping
+// stands in for any number of coalesced changes.
+func (b *ChangeBroker) broadcast(owner string, id int64) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	for ch := range b.subs {
+	for ch := range b.subs[owner] {
 		select {
 		case ch <- id:
 		default:
@@ -80,9 +100,12 @@ func (b *ChangeBroker) broadcast(id int64) {
 // advance. It returns when ctx is cancelled. One row-cheap indexed MAX query
 // per tick regardless of subscriber count.
 func (b *ChangeBroker) Poll(ctx context.Context, interval time.Duration) {
-	// Seed lastID from the current max so a fresh process doesn't broadcast the
-	// entire backlog as "new" to the first subscriber.
+	// Seed each owner's mark from the current max so a fresh process doesn't
+	// replay the backlog as "new" to the first subscriber.
+	b.mu.Lock()
 	b.lastID = b.currentMax(ctx)
+	b.mu.Unlock()
+
 	t := time.NewTicker(interval)
 	defer t.Stop()
 	for {
@@ -90,29 +113,56 @@ func (b *ChangeBroker) Poll(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			max := b.currentMax(ctx)
+			current := b.currentMax(ctx)
+			// Collect advances under the lock, then broadcast outside it.
+			type advance struct {
+				owner string
+				id    int64
+			}
+			var advances []advance
 			b.mu.Lock()
-			advanced := max > b.lastID
-			if advanced {
-				b.lastID = max
+			for owner, id := range current {
+				if id > b.lastID[owner] {
+					b.lastID[owner] = id
+					advances = append(advances, advance{owner, id})
+				}
 			}
 			b.mu.Unlock()
-			if advanced {
-				b.broadcast(max)
+			for _, a := range advances {
+				b.broadcast(a.owner, a.id)
 			}
 		}
 	}
 }
 
-func (b *ChangeBroker) currentMax(ctx context.Context) int64 {
-	var max sql.NullInt64
-	if err := b.db.QueryRowContext(ctx, `SELECT MAX(id) FROM change_log`).Scan(&max); err != nil {
+// currentMax reads every owner's high-water mark in one grouped query, so poll
+// cost stays constant in the number of connected clients.
+func (b *ChangeBroker) currentMax(ctx context.Context) map[string]int64 {
+	out := make(map[string]int64)
+	rows, err := b.db.QueryContext(ctx,
+		`SELECT owner_id, MAX(id) FROM change_log WHERE owner_id IS NOT NULL GROUP BY owner_id`)
+	if err != nil {
 		if b.log != nil {
 			b.log.Warn("change broker: max query failed", "err", err)
 		}
-		return 0
+		return out
 	}
-	return max.Int64
+	defer rows.Close()
+	for rows.Next() {
+		var owner string
+		var max sql.NullInt64
+		if err := rows.Scan(&owner, &max); err != nil {
+			if b.log != nil {
+				b.log.Warn("change broker: max scan failed", "err", err)
+			}
+			return out
+		}
+		out[owner] = max.Int64
+	}
+	if err := rows.Err(); err != nil && b.log != nil {
+		b.log.Warn("change broker: max iteration failed", "err", err)
+	}
+	return out
 }
 
 const sseHeartbeat = 25 * time.Second
@@ -131,7 +181,8 @@ const sseHeartbeat = 25 * time.Second
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/events [get]
 func (d Deps) events(w http.ResponseWriter, r *http.Request) {
-	if _, ok := d.ownerID(r); !ok {
+	owner, ok := d.ownerID(r)
+	if !ok {
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
@@ -150,8 +201,8 @@ func (d Deps) events(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "retry: %d\n\n", 5000)
 	flusher.Flush()
 
-	ch := d.Events.subscribe()
-	defer d.Events.unsubscribe(ch)
+	ch := d.Events.subscribe(owner)
+	defer d.Events.unsubscribe(owner, ch)
 
 	heartbeat := time.NewTicker(sseHeartbeat)
 	defer heartbeat.Stop()

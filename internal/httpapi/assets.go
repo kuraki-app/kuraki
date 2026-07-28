@@ -263,7 +263,7 @@ func assetSelectSQLWithJoin(join, where string) string {
 			a.camera_model, a.gps_lat, a.gps_lon, a.duration_ms, a.favorite, a.rating, a.archived, a.hidden,
 			a.created_at, a.description, a.place_city, a.place_country, COALESCE(d_thumb.path, d_poster.path),
 			d_preview.path, a.web_viewable, a.stack_id,
-			(SELECT COUNT(*) FROM assets s WHERE s.stack_id = a.stack_id AND s.deleted_at IS NULL)
+			(SELECT COUNT(*) FROM assets s WHERE s.stack_id = a.stack_id AND s.owner_id = a.owner_id AND s.deleted_at IS NULL)
 		FROM assets a
 		LEFT JOIN derivatives d_thumb ON d_thumb.asset_id = a.id AND d_thumb.kind = 'thumb'
 		LEFT JOIN derivatives d_poster ON d_poster.asset_id = a.id AND d_poster.kind = 'poster'

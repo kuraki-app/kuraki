@@ -156,7 +156,16 @@ func NewRouter(d Deps) http.Handler {
 				r.Delete("/devices/{id}", d.revokeDevice)
 				r.With(d.requireOwner).Get("/settings", d.getSettings)
 				r.With(d.requireOwner).Patch("/settings", d.patchSettings)
-				r.With(d.requireOwner).Get("/devices", d.listDevices)
+				// Device management is per-user, not administration:
+				// listDevices is already owner-scoped, so every user manages
+				// their own devices and this must NOT sit behind requireOwner.
+				r.Get("/devices", d.listDevices)
+
+				// --- ADMIN (server administration: accounts + settings) ---
+				r.With(d.requireOwner).Get("/users", d.listUsers)
+				r.With(d.requireOwner).Post("/users", d.createUser)
+				r.With(d.requireOwner).Patch("/users/{id}", d.patchUser)
+				r.With(d.requireOwner).Delete("/users/{id}", d.deleteUser)
 				r.Get("/events", d.events)
 				r.Post("/duplicates/run", d.runDuplicates)
 				r.Get("/export", d.exportLibrary)

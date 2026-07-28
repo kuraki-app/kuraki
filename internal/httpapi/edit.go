@@ -43,8 +43,9 @@ func (d Deps) patchAsset(w http.ResponseWriter, r *http.Request) {
 	var takenAt, description sql.NullString
 	var lat, lon sql.NullFloat64
 	err := d.DB.QueryRowContext(r.Context(),
-		`SELECT taken_at, description, gps_lat, gps_lon FROM assets WHERE id = ? AND deleted_at IS NULL`,
-		id).Scan(&takenAt, &description, &lat, &lon)
+		`SELECT taken_at, description, gps_lat, gps_lon FROM assets
+		 WHERE id = ? AND owner_id = ? AND deleted_at IS NULL`,
+		id, owner).Scan(&takenAt, &description, &lat, &lon)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "asset_not_found")
 		return

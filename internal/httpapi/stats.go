@@ -6,7 +6,9 @@ import (
 	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
 
-// stats reports library totals for the dashboard.
+// stats reports library totals for the dashboard. Every aggregate is scoped to
+// the calling owner -- these counts describe the caller's library, not the
+// server's.
 // @Summary Library stats
 // @Tags    stats
 // @Produce json
@@ -14,6 +16,11 @@ import (
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/stats [get]
 func (d Deps) stats(w http.ResponseWriter, r *http.Request) {
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	var s apitypes.LibraryStats
 	ctx := r.Context()
 
@@ -23,7 +30,7 @@ func (d Deps) stats(w http.ResponseWriter, r *http.Request) {
 		       COALESCE(SUM(media_type = 'image'), 0),
 		       COALESCE(SUM(media_type = 'video'), 0),
 		       COALESCE(SUM(favorite), 0)
-		FROM assets WHERE deleted_at IS NULL`).
+		FROM assets WHERE owner_id = ? AND deleted_at IS NULL`, owner).
 		Scan(&s.Total, &s.TotalBytes, &s.Images, &s.Videos, &s.Favorites)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "stats_failed")
@@ -31,20 +38,20 @@ func (d Deps) stats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = d.DB.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM assets WHERE deleted_at IS NOT NULL`).Scan(&s.Trashed)
+		`SELECT COUNT(*) FROM assets WHERE owner_id = ? AND deleted_at IS NOT NULL`, owner).Scan(&s.Trashed)
 	_ = d.DB.QueryRowContext(ctx,
-		`SELECT COUNT(*) FROM albums WHERE deleted_at IS NULL`).Scan(&s.Albums)
+		`SELECT COUNT(*) FROM albums WHERE owner_id = ? AND deleted_at IS NULL`, owner).Scan(&s.Albums)
 	_ = d.DB.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM (
 			SELECT 1 FROM assets
-			WHERE deleted_at IS NULL AND place_city IS NOT NULL AND place_city <> ''
+			WHERE owner_id = ? AND deleted_at IS NULL AND place_city IS NOT NULL AND place_city <> ''
 			GROUP BY place_country, place_city
-		)`).Scan(&s.Places)
+		)`, owner).Scan(&s.Places)
 
 	rows, err := d.DB.QueryContext(ctx, `
 		SELECT substr(COALESCE(taken_at, created_at), 1, 4) AS yr, COUNT(*)
-		FROM assets WHERE deleted_at IS NULL
-		GROUP BY yr ORDER BY yr DESC`)
+		FROM assets WHERE owner_id = ? AND deleted_at IS NULL
+		GROUP BY yr ORDER BY yr DESC`, owner)
 	if err == nil {
 		defer rows.Close()
 		s.ByYear = make([]apitypes.YearCount, 0)

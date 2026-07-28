@@ -102,8 +102,14 @@ func (d Deps) downloadZip(w http.ResponseWriter, r *http.Request) {
 // @Failure 409 {object} apitypes.Error
 // @Router  /api/export [get]
 func (d Deps) exportLibrary(w http.ResponseWriter, r *http.Request) {
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	rows, err := d.DB.QueryContext(r.Context(),
-		`SELECT original_path, filename FROM assets WHERE deleted_at IS NULL ORDER BY original_path`)
+		`SELECT original_path, filename FROM assets
+		 WHERE owner_id = ? AND deleted_at IS NULL ORDER BY original_path`, owner)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_failed")
 		return
