@@ -18,6 +18,7 @@ export type BackupProgress = {
   currentPercent: number;
   lastSuccess: { filename: string; at: number } | null;
   albumIds: string[];
+  wifiOnly: boolean;
   message: string;
 };
 
@@ -29,6 +30,7 @@ class BackupEngine {
   private listeners = new Set<Listener>();
   private albumIds: string[] = [];
   private auto = false;
+  private wifiOnly = true;
 
   subscribe(listener: Listener): () => void {
     this.listeners.add(listener);
@@ -50,6 +52,7 @@ class BackupEngine {
       currentPercent: 0,
       lastSuccess: null,
       albumIds: this.albumIds,
+      wifiOnly: this.wifiOnly,
       message: unsupported,
     };
   }
@@ -68,9 +71,18 @@ class BackupEngine {
     this.emit();
   }
 
+  async setWifiOnly(value: boolean): Promise<void> {
+    this.wifiOnly = value;
+    this.emit();
+  }
+
+  async isAuto(): Promise<boolean> {
+    return this.auto;
+  }
+
   stop(): void {}
 
-  async run(): Promise<void> {
+  async run(_options: { background?: boolean } = {}): Promise<void> {
     this.emit();
   }
 

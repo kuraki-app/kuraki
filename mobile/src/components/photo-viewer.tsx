@@ -2,6 +2,7 @@ import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useState } from 'react';
 import { Dimensions, FlatList, Modal, Pressable, StyleSheet, View, type ViewToken } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import TagEditor from '@/components/tag-editor';
 import { ThemedText } from '@/components/themed-text';
@@ -31,8 +32,18 @@ export default function PhotoViewer({ assets, initialIndex, settings, onClose, o
   const current = assets[active];
 
   return (
-    <Modal visible animationType="fade" onRequestClose={onClose}>
-      <View style={styles.fill}>
+    <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      {/*
+        A second GestureHandlerRootView, inside the Modal.
+
+        react-native-gesture-handler ships platform variants: on iOS the root is
+        a plain View, but GestureHandlerRootView.android.tsx renders a native
+        RNGestureHandlerRootView that gesture handlers must live under. An RN
+        Modal is a separate native window, so the app-level root in _layout.tsx
+        does not cover this subtree -- which left the tag sheet's drag and
+        pan-down-to-close dead on Android while working fine on iOS.
+      */}
+      <GestureHandlerRootView style={styles.fill}>
         <FlatList
           data={assets}
           keyExtractor={(a) => a.id}
@@ -78,7 +89,7 @@ export default function PhotoViewer({ assets, initialIndex, settings, onClose, o
         {editingTags && current && (
           <TagEditor asset={current} settings={settings} onClose={() => setEditingTags(false)} />
         )}
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
