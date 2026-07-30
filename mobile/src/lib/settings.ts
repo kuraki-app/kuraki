@@ -1,4 +1,4 @@
-import { deleteSecret, getSecret, setSecret } from '@/lib/secret-store';
+import { deleteSecret, getSecret, rewriteSecretForBackgroundAccess, setSecret } from '@/lib/secret-store';
 
 const baseURLKey = 'kuraki.capture.base-url';
 const deviceTokenKey = 'kuraki.capture.device-token';
@@ -11,6 +11,20 @@ export type CaptureSettings = {
 export async function loadCaptureSettings(): Promise<CaptureSettings> {
   const [baseURL, deviceToken] = await Promise.all([getSecret(baseURLKey), getSecret(deviceTokenKey)]);
   return { baseURL: baseURL ?? '', deviceToken: deviceToken ?? '' };
+}
+
+/**
+ * migrateSecretsForBackgroundAccess re-saves the capture credentials under the
+ * background-readable keychain class. A keychain item keeps whatever
+ * accessibility it was created with, so devices paired before that change would
+ * keep failing every locked-device background wake until re-paired by hand.
+ * Idempotent, and a no-op when nothing is stored.
+ */
+export async function migrateSecretsForBackgroundAccess(): Promise<void> {
+  await Promise.all([
+    rewriteSecretForBackgroundAccess(baseURLKey),
+    rewriteSecretForBackgroundAccess(deviceTokenKey),
+  ]);
 }
 
 export async function saveCaptureSettings(settings: CaptureSettings): Promise<void> {

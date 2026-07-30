@@ -73,30 +73,86 @@ export async function uploadFile(
   file: { uri: string; filename: string },
   onProgress?: (completed: number, total: number) => void,
   signal?: AbortSignal,
+  resume?: ResumeHooks,
 ): Promise<CaptureSession> {
   requireConnected(settings);
   const source = await openSource(file.uri);
   try {
     if (source.size < 1) throw new CaptureAPIError('The selected item is empty.', 0);
 
-    const start = await deviceRequest<StartResponse>(settings, '/api/capture/uploads', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filename: file.filename, size_bytes: source.size }),
-    });
+    let session = await startOrResume(settings, file.filename, source.size, resume);
+    let offset = session.offset;
 
-    let offset = start.received_bytes;
     while (offset < source.size) {
       throwIfAborted(signal);
       const length = Math.min(uploadChunkBytes, source.size - offset);
       const body = await source.readChunk(offset, length);
-      offset = await sendChunk(settings, start.id, body, offset, source.size, signal);
+      try {
+        offset = await sendChunk(settings, session.id, body, offset, source.size, signal);
+      } catch (cause) {
+        // A resumed session the server no longer has (expired by the janitor,
+        // or purged with the device) is not a real upload failure -- start a
+        // fresh one once rather than surfacing it to the user.
+        if (session.resumed && isMissingSession(cause)) {
+          await resume?.clear();
+          session = await startOrResume(settings, file.filename, source.size, undefined);
+          offset = session.offset;
+          continue;
+        }
+        throw cause;
+      }
+      // Persist progress so a process death resumes here, not at byte 0.
+      await resume?.save({ sessionId: session.id, sizeBytes: source.size, offsetBytes: offset });
       onProgress?.(offset, source.size);
     }
-    return deviceRequest<CaptureSession>(settings, `/api/capture/uploads/${start.id}/complete`, { method: 'POST' });
+    const done = await deviceRequest<CaptureSession>(settings, `/api/capture/uploads/${session.id}/complete`, {
+      method: 'POST',
+    });
+    await resume?.clear();
+    return done;
   } finally {
     source.close();
   }
+}
+
+/**
+ * ResumeHooks lets a caller persist an in-flight session so an interrupted
+ * upload continues across process death. Without it uploadFile behaves exactly
+ * as before -- one session per call, starting at zero.
+ */
+export type ResumeHooks = {
+  load: () => Promise<{ sessionId: string; sizeBytes: number; offsetBytes: number } | null>;
+  save: (upload: { sessionId: string; sizeBytes: number; offsetBytes: number }) => Promise<void>;
+  clear: () => Promise<void>;
+};
+
+/**
+ * startOrResume reuses a stored session when one still describes this file,
+ * otherwise opens a new one. A stored offset is only ever a hint: the first
+ * PATCH carries it, and the server's 409 + Upload-Offset realignment (see
+ * sendChunk) corrects any drift, so a stale hint costs one round trip rather
+ * than corrupting the upload.
+ */
+async function startOrResume(
+  settings: CaptureSettings,
+  filename: string,
+  size: number,
+  resume?: ResumeHooks,
+): Promise<{ id: string; offset: number; resumed: boolean }> {
+  const stored = resume ? await resume.load() : null;
+  if (stored && stored.sizeBytes === size && stored.offsetBytes > 0 && stored.offsetBytes < size) {
+    return { id: stored.sessionId, offset: stored.offsetBytes, resumed: true };
+  }
+  const start = await deviceRequest<StartResponse>(settings, '/api/capture/uploads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename, size_bytes: size }),
+  });
+  return { id: start.id, offset: start.received_bytes, resumed: false };
+}
+
+function isMissingSession(cause: unknown): boolean {
+  return cause instanceof CaptureAPIError && (cause.status === 404 || cause.status === 410);
 }
 
 // MediaSource reads a file one chunk at a time so a multi-gigabyte video is

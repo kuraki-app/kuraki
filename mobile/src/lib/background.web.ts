@@ -12,3 +12,7 @@ export async function disableBackgroundBackup(): Promise<void> {}
 export async function backgroundAvailable(): Promise<boolean> {
   return false;
 }
+
+export async function reconcileBackgroundBackup(): Promise<'registered' | 'unregistered' | 'unavailable'> {
+  return 'unavailable';
+}

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, View, type AlertButton } from 'react-native';
 
 import PhotoGrid from '@/components/photo-grid';
 import { ThemedText } from '@/components/themed-text';
@@ -133,14 +133,25 @@ export default function TrashScreen() {
 
   function confirmDeleteForever() {
     const count = selected.size;
-    Alert.alert(
-      'Delete forever?',
-      `This permanently deletes ${count} item${count === 1 ? '' : 's'}. This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete forever', style: 'destructive', onPress: () => void purgeSelected() },
-      ],
-    );
+    const body = `This permanently deletes ${count} item${count === 1 ? '' : 's'}. This cannot be undone.`;
+    // Android's Alert ignores `style` entirely and assigns roles by position:
+    // the LAST button becomes the emphasized positive action. With the iOS
+    // ordering (Cancel, then Delete forever) that made the irreversible purge
+    // the default-looking button in plain text, exactly inverting the safety
+    // cue iOS gets from `destructive`. Ordering Cancel last puts it in the
+    // positive slot on Android, and iOS still styles by `style` regardless of
+    // order -- so both platforms end up de-emphasising the destructive path.
+    const buttons: AlertButton[] =
+      Platform.OS === 'android'
+        ? [
+            { text: 'Delete forever', style: 'destructive', onPress: () => void purgeSelected() },
+            { text: 'Cancel', style: 'cancel' },
+          ]
+        : [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Delete forever', style: 'destructive', onPress: () => void purgeSelected() },
+          ];
+    Alert.alert('Delete forever?', body, buttons);
   }
 
   async function loadMore() {

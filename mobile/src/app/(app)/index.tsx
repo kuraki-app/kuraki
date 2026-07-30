@@ -7,7 +7,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
-import { disableBackgroundBackup, enableBackgroundBackup } from '@/lib/background';
+import { disableBackgroundBackup, enableBackgroundBackup, reconcileBackgroundBackup } from '@/lib/background';
 import { backupEngine, type BackupProgress } from '@/lib/backup-engine';
 import { getCaptureStatus, uploadPhoto, type CaptureStatus } from '@/lib/capture-api';
 import { isAuthLost, onAuthLost } from '@/lib/session';
@@ -15,6 +15,9 @@ import { loadCaptureSettings } from '@/lib/settings';
 
 const reg = registerStyle('vault');
 const heading = { fontFamily: reg.heading };
+
+const registeredNote = 'Will also back up periodically in the background.';
+const unavailableNote = 'Background backup is unavailable; runs while the app is open.';
 
 export default function BackupScreen() {
   const tokens = useTokens();
@@ -78,6 +81,30 @@ export default function BackupScreen() {
 
   const running = progress?.running ?? false;
   const [bgNote, setBgNote] = useState('');
+
+  // The note previously appeared only as a result of tapping the switch, so a
+  // user returning to this screen saw nothing at all -- including when
+  // background backup was silently unavailable. Ask the OS for the truth.
+  //
+  // Deferred a tick (the places-screen/library pattern) so the setState does
+  // not fire synchronously within the effect.
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (!autoOn) {
+        setBgNote('');
+        return;
+      }
+      void reconcileBackgroundBackup().then((state) => {
+        if (!cancelled) setBgNote(state === 'registered' ? registeredNote : unavailableNote);
+      });
+    }, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [autoOn]);
+
   const [pickingAlbums, setPickingAlbums] = useState(false);
   const albumCount = progress?.albumIds.length ?? 0;
 
@@ -85,7 +112,7 @@ export default function BackupScreen() {
     await backupEngine.setAuto(next);
     if (next) {
       const ok = await enableBackgroundBackup();
-      setBgNote(ok ? 'Will also back up periodically in the background.' : 'Background backup is unavailable; runs while the app is open.');
+      setBgNote(ok ? registeredNote : unavailableNote);
     } else {
       await disableBackgroundBackup();
       setBgNote('');
@@ -140,6 +167,18 @@ export default function BackupScreen() {
           {bgNote ? (
             <ThemedText type="small" themeColor="mutedForeground" selectable>{bgNote}</ThemedText>
           ) : null}
+          <View style={styles.row}>
+            <View style={styles.rowText}>
+              <ThemedText type="smallBold">Wi-Fi only</ThemedText>
+              <ThemedText type="small" themeColor="mutedForeground">
+                Avoid using mobile data to upload.
+              </ThemedText>
+            </View>
+            <Switch
+              value={progress?.wifiOnly ?? true}
+              onValueChange={(next) => void backupEngine.setWifiOnly(next)}
+            />
+          </View>
           <Pressable style={styles.albumRow} onPress={() => setPickingAlbums(true)}>
             <ThemedText type="small" themeColor="mutedForeground">Albums</ThemedText>
             <ThemedText type="smallBold">

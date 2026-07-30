@@ -2,6 +2,15 @@ import * as MediaLibrary from 'expo-media-library';
 
 import { CaptureAPIError, uploadFile } from '@/lib/capture-api';
 import { loadBackupState, saveBackupState, type BackupState, type FailedItem } from '@/lib/backup-store';
+import {
+  clearResumableUpload,
+  importLegacyDoneIds,
+  loadBackedUpIds,
+  loadResumableUpload,
+  markBackedUp,
+  saveResumableUpload,
+} from '@/lib/backup-ledger';
+import { currentConnection, evaluateNetworkGate, gateMessage } from '@/lib/network';
 import { loadCaptureSettings } from '@/lib/settings';
 
 // expo-media-library ships a legacy and a next-generation API under one module;
@@ -24,6 +33,7 @@ export type BackupProgress = {
   currentPercent: number;
   lastSuccess: { filename: string; at: number } | null;
   albumIds: string[];
+  wifiOnly: boolean;
   message: string;
 };
 
@@ -39,7 +49,14 @@ const pageSize = 100;
  * restart or a retry can never create a duplicate asset.
  */
 class BackupEngine {
-  private state: BackupState = { auto: false, doneIds: [], failed: [], lastSuccess: null, albumIds: [] };
+  private state: BackupState = {
+    auto: false,
+    failed: [],
+    lastSuccess: null,
+    albumIds: [],
+    wifiOnly: true,
+    legacyDoneIds: [],
+  };
   private done = new Set<string>();
   private loaded = false;
   private running = false;
@@ -71,6 +88,7 @@ class BackupEngine {
       currentPercent: this.currentPercent,
       lastSuccess: this.state.lastSuccess,
       albumIds: this.state.albumIds,
+      wifiOnly: this.state.wifiOnly,
       message: this.message,
     };
   }
@@ -78,7 +96,7 @@ class BackupEngine {
   /** listAlbums returns the device's albums so the user can choose which to back up. */
   async listAlbums(): Promise<BackupAlbum[]> {
     await this.ensureLoaded();
-    if (!(await this.ensurePermission())) return [];
+    if (!(await this.ensurePermission(false))) return [];
     const albums = await MediaLibrary.getAlbumsAsync({ includeSmartAlbums: true });
     return albums
       .filter((a) => a.assetCount > 0)
@@ -106,8 +124,13 @@ class BackupEngine {
     this.controller?.abort();
   }
 
-  /** run scans for new photos/videos and uploads everything not yet backed up. */
-  async run(): Promise<void> {
+  /**
+   * run scans for new photos/videos and uploads everything not yet backed up.
+   *
+   * `background` marks a headless OS wake, where there is no Activity to attach
+   * a permission dialog to and no user to answer it.
+   */
+  async run(options: { background?: boolean } = {}): Promise<void> {
     await this.ensureLoaded();
     if (this.running) return;
 
@@ -117,8 +140,18 @@ class BackupEngine {
       this.emit();
       return;
     }
-    if (!(await this.ensurePermission())) {
-      this.message = 'Allow photo access to back up automatically.';
+    if (!(await this.ensurePermission(options.background ?? false))) {
+      this.message = options.background
+        ? 'Photo access is needed. Open Kuraki to grant it.'
+        : 'Allow photo access to back up automatically.';
+      this.emit();
+      return;
+    }
+    // Automatic backup pushes an entire camera roll, and the OS schedules wakes
+    // without regard to which network is attached.
+    const gate = evaluateNetworkGate(await currentConnection(), this.state.wifiOnly);
+    if (gate !== 'allowed') {
+      this.message = gateMessage(gate) ?? 'Waiting for a connection.';
       this.emit();
       return;
     }
@@ -171,9 +204,14 @@ class BackupEngine {
           this.emit();
         },
         signal,
+        {
+          load: () => loadResumableUpload(asset.id),
+          save: (upload) => saveResumableUpload(asset.id, upload),
+          clear: () => clearResumableUpload(asset.id),
+        },
       );
       this.done.add(asset.id);
-      this.state.doneIds = [...this.done];
+      await markBackedUp(asset.id);
       this.state.failed = this.state.failed.filter((f) => f.localId !== asset.id);
       this.state.lastSuccess = { filename: asset.filename, at: Date.now() };
       await this.persist();
@@ -232,8 +270,19 @@ class BackupEngine {
     this.state.failed = failed.slice(0, 100);
   }
 
-  private async ensurePermission(): Promise<boolean> {
-    const result = await MediaLibrary.requestPermissionsAsync();
+  /**
+   * ensurePermission checks access, and only *asks* in the foreground.
+   *
+   * requestPermissionsAsync needs a current Activity on Android to attach its
+   * dialog to; from a WorkManager wake there is none, so the request either
+   * rejects or resolves denied and the task fails with no user-visible reason.
+   * A headless wake therefore reads the existing grant and gives up quietly if
+   * it is missing -- the next foreground run will ask properly.
+   */
+  private async ensurePermission(background: boolean): Promise<boolean> {
+    const result = background
+      ? await MediaLibrary.getPermissionsAsync()
+      : await MediaLibrary.requestPermissionsAsync();
     this.permission = result.granted ? 'granted' : 'denied';
     return result.granted;
   }
@@ -241,8 +290,30 @@ class BackupEngine {
   private async ensureLoaded(): Promise<void> {
     if (this.loaded) return;
     this.state = await loadBackupState();
-    this.done = new Set(this.state.doneIds);
+    // One-time migration off the old AsyncStorage array. Importing before
+    // reading the ledger means an interrupted migration is simply retried next
+    // launch; INSERT OR IGNORE makes it idempotent.
+    if (this.state.legacyDoneIds.length > 0) {
+      await importLegacyDoneIds(this.state.legacyDoneIds);
+      this.state.legacyDoneIds = [];
+      await this.persist();
+    }
+    this.done = await loadBackedUpIds();
     this.loaded = true;
+  }
+
+  /** isAuto reports the persisted automatic-backup preference. */
+  async isAuto(): Promise<boolean> {
+    await this.ensureLoaded();
+    return this.state.auto;
+  }
+
+  /** setWifiOnly restricts (or releases) automatic backup to un-metered networks. */
+  async setWifiOnly(value: boolean): Promise<void> {
+    await this.ensureLoaded();
+    this.state.wifiOnly = value;
+    await this.persist();
+    this.emit();
   }
 
   private async persist(): Promise<void> {
