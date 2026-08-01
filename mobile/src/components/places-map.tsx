@@ -5,7 +5,7 @@ import { useColorScheme } from 'react-native';
 import { mapStyleForScheme } from '@/design/map-style';
 import { buildPlacesGeoJSON, type PlacePoint } from '@/lib/places';
 
-type Props = {
+export type PlacesMapProps = {
   points: PlacePoint[];
   onPressPoint: (assetId: string) => void;
 };
@@ -18,7 +18,7 @@ const STAMP = '#8a1c1c';
 // count bubbles + plain point dots, no thumbnails on the map (5000 authed
 // images as native markers would be a perf + Bearer-header nightmare).
 // Thumbnails live in the place list sheet instead.
-export default function PlacesMap({ points, onPressPoint }: Props) {
+export default function PlacesMap({ points, onPressPoint }: PlacesMapProps) {
   const scheme = useColorScheme();
   const mapStyle = mapStyleForScheme(scheme);
   const shape = useMemo(() => buildPlacesGeoJSON(points), [points]);

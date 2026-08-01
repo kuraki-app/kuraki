@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import QRCode from 'qrcode';
-  import { Smartphone, RefreshCw, Download, Trash2 } from '@lucide/svelte';
+  import { Smartphone, RefreshCw, Download, Trash2, Copy, Check, TriangleAlert } from '@lucide/svelte';
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
   import { relativeTime } from '$lib/format';
@@ -12,12 +12,36 @@
   let qrSvg = '';
   let expiresAt = '';
   let loading = false;
+  let code = '';
+  let copied = false;
+
+  // The address the phone is told to connect to. It seeds from this tab's own
+  // origin, but that is only right when the browser reached the server over the
+  // network. An owner administering the server from the machine it runs on sees
+  // localhost here, and a phone that "connects to localhost" connects to
+  // itself — so this is editable, and warned about below.
+  let serverURL = '';
 
   let devices: DeviceInfo[] = [];
   let devicesLoading = true;
   let revoking: Record<string, boolean> = {};
 
-  onMount(loadDevices);
+  onMount(() => {
+    serverURL = location.origin;
+    void loadDevices();
+  });
+
+  function hostnameOf(url: string): string {
+    try {
+      return new URL(url).hostname.replace(/^\[|\]$/g, '').toLowerCase();
+    } catch {
+      return '';
+    }
+  }
+
+  $: host = hostnameOf(serverURL);
+  $: loopback = host === 'localhost' || host === '::1' || /^127\./.test(host);
+  $: addressUsable = host !== '' && !loopback;
 
   async function loadDevices() {
     try {
@@ -51,13 +75,31 @@
     try {
       const res = await api.createPairingCode();
       expiresAt = res.expires_at;
-      const payload = base64url(JSON.stringify({ base_url: location.origin, code: res.code }));
-      const qrData = `kuraki://pair?d=${payload}`;
-      qrSvg = await QRCode.toString(qrData, { type: 'svg', margin: 1, width: 240 });
+      code = res.code;
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Could not create a pairing code');
     } finally {
       loading = false;
+    }
+  }
+
+  // Re-rendered whenever the code or the address changes, so correcting a
+  // localhost address updates the QR in place — the code itself stays valid for
+  // its full five minutes, no need to mint a new one.
+  async function renderQR(activeCode: string, url: string) {
+    const payload = base64url(JSON.stringify({ base_url: url.replace(/\/+$/, ''), code: activeCode }));
+    qrSvg = await QRCode.toString(`kuraki://pair?d=${payload}`, { type: 'svg', margin: 1, width: 240 });
+  }
+
+  $: if (code && serverURL) void renderQR(code, serverURL);
+
+  async function copyCode() {
+    try {
+      await navigator.clipboard.writeText(code);
+      copied = true;
+      setTimeout(() => (copied = false), 2000);
+    } catch {
+      showToast('Could not copy — select the code and copy it manually.');
     }
   }
 
@@ -89,7 +131,7 @@
   <h2><Smartphone size={18} aria-hidden="true" /> Pair a phone</h2>
   <ol>
     <li>Install the Kuraki app and open <strong>Settings → Scan QR to pair</strong>.</li>
-    <li>Generate a code below and scan it. The phone receives its own revocable token.</li>
+    <li>Generate a code below, then either scan the QR or type the code into the app.</li>
     <li>Turn on <strong>Automatic backup</strong> on the phone.</li>
   </ol>
 
@@ -97,14 +139,37 @@
     <Download size={15} aria-hidden="true" /> Download the Android app (.apk)
   </a>
 
-  {#if qrSvg}
+  <label class="field" for="server-url">Address the phone should connect to</label>
+  <input id="server-url" class="input" bind:value={serverURL} spellcheck="false" autocomplete="off" />
+  {#if loopback}
+    <p class="warn">
+      <TriangleAlert size={15} aria-hidden="true" />
+      <span>
+        <strong>{host}</strong> only means “this machine”. A phone using it would try to reach itself.
+        Replace it with this server’s address on your network (for example <code>http://192.168.1.20:3000</code>).
+      </span>
+    </p>
+  {/if}
+
+  {#if code}
     <div class="qr">{@html qrSvg}</div>
-    <p class="hint">Scan with the Kuraki app only. Expires at {expiryLabel}. Single use — generate a new one if it expires.</p>
+
+    <div class="code-row">
+      <code class="code">{code}</code>
+      <Button variant="outline" size="sm" onclick={copyCode} aria-label="Copy pairing code">
+        {#if copied}<Check size={14} aria-hidden="true" /> Copied{:else}<Copy size={14} aria-hidden="true" /> Copy{/if}
+      </Button>
+    </div>
+    <p class="hint">
+      Scan the QR, or type the code into the app — either works, and both need the address above.
+      Expires at {expiryLabel}. Single use.
+    </p>
+
     <Button variant="outline" onclick={pair} disabled={loading}>
       <RefreshCw size={15} aria-hidden="true" /> New code
     </Button>
   {:else}
-    <Button onclick={pair} disabled={loading}>
+    <Button onclick={pair} disabled={loading || !addressUsable}>
       {loading ? 'Generating…' : 'Generate pairing code'}
     </Button>
   {/if}
@@ -180,6 +245,63 @@
     color: var(--muted-foreground);
     font-size: 13px;
     margin: 0 0 14px;
+  }
+  .field {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .input {
+    width: 100%;
+    padding: 8px 10px;
+    margin-bottom: 12px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--foreground);
+    background: var(--background);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .warn {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    margin: -4px 0 14px;
+    padding: 10px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--foreground);
+    background: var(--destructive-bg, rgba(220, 38, 38, 0.08));
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .warn :global(svg) {
+    flex: none;
+    margin-top: 2px;
+  }
+  .warn code {
+    font-size: 12px;
+    word-break: break-all;
+  }
+  .code-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .code {
+    flex: 1;
+    min-width: 0;
+    padding: 10px;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    text-align: center;
+    word-break: break-all;
+    user-select: all;
+    background: var(--muted, rgba(127, 127, 127, 0.1));
+    border: 1px solid var(--border);
+    border-radius: 8px;
   }
   .download {
     display: inline-flex;
