@@ -171,7 +171,7 @@ export default function TrashScreen() {
   return (
     <ThemedView style={styles.fill}>
       <View style={styles.header}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(app)/explore'))} hitSlop={8}>
+        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(app)/settings'))} hitSlop={8}>
           <ThemedText type="smallBold" style={{ color: tokens.mutedForeground }}>Close</ThemedText>
         </Pressable>
         <ThemedText type="title" style={[styles.title, heading]}>Trash</ThemedText>
