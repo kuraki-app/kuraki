@@ -2,6 +2,7 @@ import { DarkTheme, DefaultTheme, Redirect, Slot, ThemeProvider, useSegments } f
 import { Image } from 'expo-image';
 import { Platform, useColorScheme, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEffect, useState } from 'react';
 
 import { useAppFonts } from '@/design/fonts';
@@ -65,9 +66,15 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        {redirect ? <Redirect href={redirect} /> : <Slot />}
-      </ThemeProvider>
+      {/* Nothing below this measured the notch/Dynamic Island before: screens
+          drew under the status bar and the tab bar owned the bottom inset
+          natively. The custom tab bar makes both insets ours to handle, so the
+          provider has to exist app-wide. */}
+      <SafeAreaProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          {redirect ? <Redirect href={redirect} /> : <Slot />}
+        </ThemeProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
