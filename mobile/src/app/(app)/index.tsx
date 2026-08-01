@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AlbumTargetPicker from '@/components/album-target-picker';
 import PhotoGrid from '@/components/photo-grid';
+import { useScrollReporter } from '@/components/scroll-reporter';
 import PlacesScreen from '@/components/places-screen';
-import TagList from '@/components/tag-list';
 import SelectionBar from '@/components/selection-bar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -28,15 +29,7 @@ import {
 } from '@/lib/library-api';
 import { isAuthLost, onAuthLost } from '@/lib/session';
 import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
-
-type Chip = { label: string; filter: LibraryFilters };
-
-const chips: Chip[] = [
-  { label: 'All', filter: {} },
-  { label: 'Photos', filter: { type: 'image' } },
-  { label: 'Videos', filter: { type: 'video' } },
-  { label: 'Favorites', filter: { favorite: true } },
-];
+import { TAB_BAR_HEIGHT } from '@/lib/tab-bar';
 
 type Segment = 'timeline' | 'memories' | 'places';
 
@@ -51,13 +44,12 @@ const heading = { fontFamily: reg.heading };
 
 export default function LibraryScreen() {
   const tokens = useTokens();
+  const insets = useSafeAreaInsets();
+  const { report } = useScrollReporter();
   const [segment, setSegment] = useState<Segment>('timeline');
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
-  const [tagSheet, setTagSheet] = useState(false);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
-  const [chip, setChip] = useState(0);
-  const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -103,11 +95,6 @@ export default function LibraryScreen() {
       }),
     [settings],
   );
-
-  const filters = useMemo<LibraryFilters>(() => {
-    const q = query.trim();
-    return { ...chips[chip].filter, ...(q ? { q } : {}) };
-  }, [chip, query]);
 
   const load = useCallback(async (active: CaptureSettings, f: LibraryFilters) => {
     setLoading(true);
@@ -170,11 +157,10 @@ export default function LibraryScreen() {
       }
       const active = await loadCaptureSettings();
       setSettings(active);
-      await load(active, { ...chips[0].filter });
+      await load(active, {});
       void probe(active);
-      void syncAndRefresh(active, { ...chips[0].filter });
+      void syncAndRefresh(active, {});
     })();
-    // Filter changes are driven imperatively from the chip and search handlers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -184,11 +170,11 @@ export default function LibraryScreen() {
     const sub = AppState.addEventListener('change', (s) => {
       if (s === 'active') {
         void probe(settings);
-        void syncAndRefresh(settings, filters);
+        void syncAndRefresh(settings, {});
       }
     });
     return () => sub.remove();
-  }, [probe, settings, syncAndRefresh, filters]);
+  }, [probe, settings, syncAndRefresh]);
 
   // Optimistic favorite: write the cache and UI immediately so the toggle never
   // waits on the network. Only enqueue for later when we're offline or the
@@ -274,23 +260,11 @@ export default function LibraryScreen() {
     }
   }, [selected, settings, disconnected]);
 
-  function selectChip(i: number) {
-    cancelSelection();
-    setChip(i);
-    const q = query.trim();
-    if (settings) void load(settings, { ...chips[i].filter, ...(q ? { q } : {}) });
-  }
-
-  function submitSearch() {
-    cancelSelection();
-    if (settings) void load(settings, filters);
-  }
-
   async function loadMore() {
     if (loadingMore || !cursor || !settings) return;
     setLoadingMore(true);
     try {
-      const page = await fetchLibrary(settings, filters, cursor);
+      const page = await fetchLibrary(settings, {}, cursor);
       const pend = await pendingFavorites();
       const merged = pend.size
         ? page.assets.map((a) => (pend.has(a.id) ? { ...a, favorite: pend.get(a.id)! } : a))
@@ -380,7 +354,7 @@ export default function LibraryScreen() {
           </View>
         </View>
       )}
-      <View style={styles.segments}>
+      <View style={[styles.segments, { paddingTop: insets.top + Spacing.two }]}>
         {segments.map((s) => (
           <Pressable
             key={s.key}
@@ -404,63 +378,26 @@ export default function LibraryScreen() {
       </View>
 
       {segment === 'timeline' && (
-        <>
-          <View style={styles.header}>
-            <TextInput
-              placeholder="Search your library"
-              autoCapitalize="none"
-              autoCorrect={false}
-              value={query}
-              onChangeText={setQuery}
-              onSubmitEditing={submitSearch}
-              style={[styles.search, { borderColor: tokens.input }]}
-              returnKeyType="search"
-            />
-            <View style={styles.chips}>
-              {chips.map((c, i) => (
-                <Pressable
-                  key={c.label}
-                  onPress={() => selectChip(i)}
-                  style={[
-                    styles.chip,
-                    { borderColor: tokens.input },
-                    i === chip && { backgroundColor: tokens.primary, borderColor: tokens.primary },
-                  ]}>
-                  <ThemedText
-                    type="small"
-                    themeColor={i === chip ? 'primaryForeground' : undefined}
-                    style={heading}>
-                    {c.label}
-                  </ThemedText>
-                </Pressable>
-              ))}
-              <Pressable
-                onPress={() => setTagSheet(true)}
-                style={[styles.chip, { borderColor: tokens.input }]}>
-                <ThemedText type="small" style={heading}>Tags ▾</ThemedText>
-              </Pressable>
-            </View>
+        error ? (
+          <View style={styles.center}>
+            <ThemedText type="subtitle" style={heading}>Nothing to show</ThemedText>
+            <ThemedText themeColor="mutedForeground" style={styles.msg} selectable>{error}</ThemedText>
           </View>
-
-          {error ? (
-            <View style={styles.center}>
-              <ThemedText type="subtitle" style={heading}>Nothing to show</ThemedText>
-              <ThemedText themeColor="mutedForeground" style={styles.msg} selectable>{error}</ThemedText>
-            </View>
-          ) : (
-            <PhotoGrid
-              assets={assets}
-              settings={settings}
-              loading={loading}
-              onEndReached={() => void loadMore()}
-              onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
-              selectedIds={selected}
-              onToggleSelect={toggleSelect}
-              onLongPressItem={startSelection}
-              emptyMessage="No photos match this filter yet."
-            />
-          )}
-        </>
+        ) : (
+          <PhotoGrid
+            assets={assets}
+            settings={settings}
+            loading={loading}
+            onEndReached={() => void loadMore()}
+            onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
+            selectedIds={selected}
+            onToggleSelect={toggleSelect}
+            onLongPressItem={startSelection}
+            onScroll={report}
+            bottomInset={TAB_BAR_HEIGHT + insets.bottom}
+            emptyMessage="No photos here yet."
+          />
+        )
       )}
 
       {segment === 'memories' && (
@@ -497,17 +434,6 @@ export default function LibraryScreen() {
         onPick={(albumId) => void addSelectedToAlbum(albumId)}
         onClose={() => setPickerOpen(false)}
       />
-
-      {tagSheet && settings && (
-        <TagList
-          settings={settings}
-          onClose={() => setTagSheet(false)}
-          onPressTag={(t) => {
-            setTagSheet(false);
-            router.push({ pathname: '/(app)/tag', params: { tag: t.id, title: t.name } });
-          }}
-        />
-      )}
     </ThemedView>
   );
 }
@@ -524,7 +450,7 @@ const styles = StyleSheet.create({
   },
   bannerText: { flex: 1 },
   bannerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  segments: { flexDirection: 'row', gap: Spacing.one, paddingHorizontal: Spacing.two, paddingTop: Spacing.two },
+  segments: { flexDirection: 'row', gap: Spacing.one, paddingHorizontal: Spacing.two },
   segment: { flex: 1, alignItems: 'center', paddingVertical: Spacing.two, borderRadius: Spacing.two, borderWidth: 1 },
   header: { padding: Spacing.two, gap: Spacing.two },
   search: {
@@ -534,8 +460,6 @@ const styles = StyleSheet.create({
     minHeight: 44,
     paddingHorizontal: Spacing.two,
   },
-  chips: { flexDirection: 'row', gap: Spacing.one, flexWrap: 'wrap' },
-  chip: { paddingVertical: Spacing.one, paddingHorizontal: Spacing.two, borderRadius: 999, borderWidth: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24, minHeight: 200 },
   msg: { textAlign: 'center' },
 });

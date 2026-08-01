@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Dimensions, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import PhotoViewer from '@/components/photo-viewer';
@@ -26,6 +26,12 @@ type Props = {
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
   onLongPressItem?: (id: string) => void;
+  // Feeds the tab bar's collapse machine. Optional, so surfaces that should
+  // leave the pill alone (Search, Album detail) simply omit it.
+  onScroll?: (e: { dy: number; atTop: boolean }) => void;
+  // Room for the floating tab bar, so the last row is reachable instead of
+  // sitting behind it.
+  bottomInset?: number;
 };
 
 // PhotoGrid is the tile grid + full-screen viewer shared by every photo
@@ -42,10 +48,13 @@ export default function PhotoGrid({
   selectedIds,
   onToggleSelect,
   onLongPressItem,
+  onScroll,
+  bottomInset,
 }: Props) {
   const tokens = useTokens();
   const [viewerIndex, setViewerIndex] = useState(-1);
   const selectionActive = !!selectedIds && selectedIds.size > 0;
+  const lastY = useRef(0);
 
   const tile = useMemo(() => {
     const width = Dimensions.get('window').width;
@@ -59,9 +68,19 @@ export default function PhotoGrid({
         keyExtractor={(a) => a.id}
         numColumns={columns}
         columnWrapperStyle={{ gap }}
-        contentContainerStyle={{ gap }}
+        contentContainerStyle={{ gap, paddingBottom: bottomInset ?? 0 }}
         onEndReached={onEndReached}
         onEndReachedThreshold={0.6}
+        scrollEventThrottle={16}
+        onScroll={
+          onScroll &&
+          ((e) => {
+            const y = e.nativeEvent.contentOffset.y;
+            const dy = y - lastY.current;
+            lastY.current = y;
+            onScroll({ dy, atTop: y <= 0 });
+          })
+        }
         renderItem={({ item, index }) => {
           const source = settings ? thumbSource(settings, item) : null;
           const selected = selectedIds?.has(item.id) ?? false;
