@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -23,6 +24,7 @@ const reg = registerStyle('vault');
 const heading = { fontFamily: reg.heading };
 
 export default function DuplicatesScreen() {
+  const insets = useSafeAreaInsets();
   const tokens = useTokens();
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
   const [groups, setGroups] = useState<DupAsset[][]>([]);
@@ -128,7 +130,7 @@ export default function DuplicatesScreen() {
 
   return (
     <ThemedView style={styles.screen}>
-      <View style={styles.bar}>
+      <View style={[styles.bar, { paddingTop: insets.top }]}>
         <Pressable onPress={() => router.back()} hitSlop={8} style={styles.back}>
           <SymbolView
             name="chevron.left"

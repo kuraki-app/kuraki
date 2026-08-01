@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Platform, Pressable, StyleSheet, View, type AlertButton } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import PhotoGrid from '@/components/photo-grid';
 import { ThemedText } from '@/components/themed-text';
@@ -26,6 +27,7 @@ const reg = registerStyle('vault');
 const heading = { fontFamily: reg.heading };
 
 export default function TrashScreen() {
+  const insets = useSafeAreaInsets();
   const tokens = useTokens();
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
   // Seed disconnected from the process-wide auth-lost signal (set on a 401
@@ -170,7 +172,7 @@ export default function TrashScreen() {
 
   return (
     <ThemedView style={styles.fill}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top }]}>
         <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(app)/settings'))} hitSlop={8}>
           <ThemedText type="smallBold" style={{ color: tokens.mutedForeground }}>Close</ThemedText>
         </Pressable>

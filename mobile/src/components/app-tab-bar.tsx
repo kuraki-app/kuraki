@@ -92,7 +92,19 @@ export default function AppTabBar({ state, navigation }: BottomTabBarProps) {
 }
 
 const styles = StyleSheet.create({
+  // Absolute, so the bar floats over the content rather than taking a row of
+  // its own. BottomTabView lays its children out in a column with the screens
+  // at flex:1 and the bar beneath them, so a statically-positioned bar would
+  // reserve its full height *and* every screen would still be padding by
+  // TAB_BAR_HEIGHT to clear it — a double gap. Floating is also what makes the
+  // collapse-on-scroll behaviour read: photos pass underneath the pill.
+  // pointerEvents="box-none" keeps the gap between pill and search button
+  // transparent to touches so the grid underneath stays scrollable.
   bar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
