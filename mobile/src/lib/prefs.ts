@@ -19,7 +19,7 @@ export type Prefs = {
   gridGap: number;
   groupBy: GroupBy;
   showGroupHeaders: boolean;
-  showBackupBadge: boolean;
+  showSizeBadge: boolean;
 };
 
 export const GRID_COLUMNS = { min: 2, max: 6 } as const;
@@ -36,7 +36,7 @@ export const DEFAULT_PREFS: Prefs = {
   gridGap: 2,
   groupBy: 'month',
   showGroupHeaders: true,
-  showBackupBadge: false,
+  showSizeBadge: false,
 };
 
 const GROUP_VALUES: GroupBy[] = ['month', 'year', 'off'];
@@ -76,7 +76,7 @@ export function mergePrefs(stored: unknown): Prefs {
     gridGap: clampInt(s.gridGap, GRID_GAP.min, GRID_GAP.max, DEFAULT_PREFS.gridGap),
     groupBy: GROUP_VALUES.includes(s.groupBy as GroupBy) ? (s.groupBy as GroupBy) : DEFAULT_PREFS.groupBy,
     showGroupHeaders: bool(s.showGroupHeaders, DEFAULT_PREFS.showGroupHeaders),
-    showBackupBadge: bool(s.showBackupBadge, DEFAULT_PREFS.showBackupBadge),
+    showSizeBadge: bool(s.showSizeBadge, DEFAULT_PREFS.showSizeBadge),
   };
 }
 

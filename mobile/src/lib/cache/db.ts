@@ -97,6 +97,17 @@ export function getDB(): Promise<SQLite.SQLiteDatabase> {
           COMMIT;
         `);
       }
+      if (v < 6) {
+        // v6: size_bytes, for the grid's size badge. Same reason as taken_day:
+        // a value the mirror does not store is a value the offline grid cannot
+        // show.
+        await db.execAsync(`
+          BEGIN;
+          ALTER TABLE assets ADD COLUMN size_bytes INTEGER;
+          PRAGMA user_version = 6;
+          COMMIT;
+        `);
+      }
       return db;
     })();
   }

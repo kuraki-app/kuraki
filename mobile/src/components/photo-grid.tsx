@@ -16,6 +16,7 @@ import ScrollScrubber from '@/components/scroll-scrubber';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing, useTokens } from '@/constants/theme';
 import { usePrefs } from '@/hooks/use-prefs';
+import { formatBytes } from '@/lib/format';
 import { groupAssets, type PhotoRow } from '@/lib/gallery';
 import { thumbSource, type LibraryAsset } from '@/lib/library-api';
 import { offsetForProgress, progressForOffset } from '@/lib/scrubber';
@@ -57,7 +58,7 @@ export default function PhotoGrid({
   // Layout and grouping are preferences, read here rather than threaded through
   // every caller: there is one grid, and Settings > Photo Grid is its one
   // source of truth.
-  const { gridColumns: columns, gridGap: gap, groupBy, showGroupHeaders } = usePrefs();
+  const { gridColumns: columns, gridGap: gap, groupBy, showGroupHeaders, showSizeBadge } = usePrefs();
   const [viewerIndex, setViewerIndex] = useState(-1);
   const selectionActive = !!selectedIds && selectedIds.size > 0;
 
@@ -195,6 +196,13 @@ export default function PhotoGrid({
                     </ThemedText>
                   )}
                   {item.media_type === 'video' && <View style={styles.videoDot} />}
+                  {showSizeBadge && item.size_bytes ? (
+                    <View style={styles.sizeBadge}>
+                      <ThemedText type="small" style={styles.sizeText}>
+                        {formatBytes(item.size_bytes)}
+                      </ThemedText>
+                    </View>
+                  ) : null}
                   {selected && (
                     <View
                       style={[
@@ -254,6 +262,19 @@ const styles = StyleSheet.create({
   tile: { alignItems: 'center', justifyContent: 'center' },
   thumb: { width: '100%', height: '100%' },
   sectionHeader: { paddingHorizontal: Spacing.two, paddingTop: Spacing.three, paddingBottom: Spacing.one },
+  // Bottom-right, so it never sits under the selection check in the corner
+  // opposite. Fixed light-on-dark rather than themed: it is drawn over a
+  // photograph, not over the app's background.
+  sizeBadge: {
+    position: 'absolute',
+    right: 4,
+    bottom: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  sizeText: { color: '#fff', fontSize: 10, lineHeight: 14 },
   videoDot: { position: 'absolute', bottom: 6, left: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' },
   checkBadge: {
     position: 'absolute',

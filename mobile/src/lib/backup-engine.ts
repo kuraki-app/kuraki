@@ -19,6 +19,7 @@ import {
 } from '@/lib/backup-ledger';
 import { currentConnection, evaluateNetworkGate, gateMessage } from '@/lib/network';
 import { loadCaptureSettings } from '@/lib/settings';
+import { notify } from '@/lib/notifications';
 import { loadPrefs, mediaTypesFor } from '@/lib/prefs';
 
 // expo-media-library ships a legacy and a next-generation API under one module;
@@ -171,6 +172,12 @@ class BackupEngine {
     this.emit();
 
     try {
+      // Counted against the state before this run so the notification reports
+      // what *this* run did, not the lifetime totals: `done` is a persisted
+      // ledger and `failed` carries over between runs.
+      const doneBefore = this.done.size;
+      const failedBefore = this.state.failed.length;
+
       const fresh = await this.collectNewAssets(signal);
       this.pending = fresh.length;
       this.message = fresh.length ? `${fresh.length} to back up` : 'Everything is backed up.';
@@ -182,9 +189,30 @@ class BackupEngine {
         this.pending = Math.max(0, this.pending - 1);
         this.emit();
       }
-      if (!signal.aborted) this.message = this.state.failed.length ? 'Some items need attention.' : 'All caught up.';
+      if (!signal.aborted) {
+        const failed = this.state.failed.length;
+        const uploaded = this.done.size - doneBefore;
+        const newlyFailed = failed - failedBefore;
+        this.message = failed ? 'Some items need attention.' : 'All caught up.';
+        // Only worth a notification if this run actually moved something --
+        // a no-op catch-up run every time the app foregrounds would be noise.
+        if (newlyFailed > 0) {
+          void notify('backup-failed', {
+            title: 'Backup needs attention',
+            body: `${newlyFailed} ${newlyFailed === 1 ? 'item' : 'items'} could not be uploaded.`,
+          });
+        } else if (uploaded > 0) {
+          void notify('backup-complete', {
+            title: 'Backup finished',
+            body: `${uploaded} ${uploaded === 1 ? 'item' : 'items'} backed up.`,
+          });
+        }
+      }
     } catch (cause) {
-      if (!isAbort(cause)) this.message = cause instanceof Error ? cause.message : 'Backup failed.';
+      if (!isAbort(cause)) {
+        this.message = cause instanceof Error ? cause.message : 'Backup failed.';
+        void notify('backup-failed', { title: 'Backup failed', body: this.message });
+      }
     } finally {
       this.running = false;
       this.currentFile = '';

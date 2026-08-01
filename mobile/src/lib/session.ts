@@ -26,6 +26,17 @@ export function reportAuthLost(): void {
   if (lost) return;
   lost = true;
   void clearDeviceToken();
+  // A revoked device stops backing up silently, which is the one state the
+  // user cannot discover on their own. The `lost` guard above means this fires
+  // once per revocation, not once per failing request. Imported lazily so this
+  // module keeps no dependency on the notification stack, which pulls in native
+  // code and would otherwise load on every session import.
+  void import('@/lib/notifications').then(({ notify }) =>
+    notify('disconnected', {
+      title: 'Kuraki disconnected',
+      body: 'This device was disconnected and is no longer backing up. Re-pair it in Settings.',
+    }),
+  );
   for (const listener of listeners) listener();
 }
 

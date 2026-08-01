@@ -11,6 +11,7 @@ import { isSetupComplete, migrateSecretsForBackgroundAccess, onSetupChange, setu
 // can relaunch the app headlessly to run it. Defining the task is a module
 // side effect; reconcileBackgroundBackup below is what actually schedules it.
 import { reconcileBackgroundBackup } from '@/lib/background';
+import { configureNotifications } from '@/lib/notifications';
 
 // A 512 MB LRU disk cap so the thumbnail/preview cache expo-image keeps for
 // the library grid and viewer can't grow unbounded on the device.
@@ -22,6 +23,11 @@ import { reconcileBackgroundBackup } from '@/lib/background';
 if (Platform.OS === 'ios') {
   Image.configureCache({ maxDiskSize: 512 * 1024 * 1024 });
 }
+
+// Without a foreground handler iOS silently suppresses a notification posted
+// while the app is open, which reads as "notifications are broken". Safe at
+// module scope: it no-ops when the native module is absent.
+configureNotifications();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();

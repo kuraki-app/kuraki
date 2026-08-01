@@ -8,15 +8,15 @@ export async function upsertAssets(assets: LibraryAsset[]): Promise<void> {
   await db.withTransactionAsync(async () => {
     for (const a of assets) {
       await db.runAsync(
-        `INSERT INTO assets (id, filename, media_type, taken_at, taken_day, favorite, thumbnail_url, preview_url, web_viewable, place_city, place_country, cached_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO assets (id, filename, media_type, taken_at, taken_day, size_bytes, favorite, thumbnail_url, preview_url, web_viewable, place_city, place_country, cached_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            filename=excluded.filename, media_type=excluded.media_type, taken_at=excluded.taken_at,
-           taken_day=excluded.taken_day,
+           taken_day=excluded.taken_day, size_bytes=excluded.size_bytes,
            favorite=excluded.favorite, thumbnail_url=excluded.thumbnail_url, preview_url=excluded.preview_url,
            web_viewable=excluded.web_viewable, place_city=excluded.place_city, place_country=excluded.place_country,
            cached_at=excluded.cached_at`,
-        [a.id, a.filename, a.media_type, a.taken_at ?? null, a.taken_day ?? null, a.favorite ? 1 : 0,
+        [a.id, a.filename, a.media_type, a.taken_at ?? null, a.taken_day ?? null, a.size_bytes ?? null, a.favorite ? 1 : 0,
          a.thumbnail_url ?? null, a.preview_url ?? null, a.web_viewable ? 1 : 0,
          a.place_city ?? null, a.place_country ?? null, now],
       );
@@ -38,6 +38,7 @@ export function rowToAsset(r: Record<string, unknown>): LibraryAsset {
     // rather than sending null, and the contract types these as optional.
     taken_at: (r.taken_at as string | null) ?? undefined,
     taken_day: (r.taken_day as string | null) ?? undefined,
+    size_bytes: (r.size_bytes as number | null) ?? undefined,
     favorite: !!r.favorite,
     thumbnail_url: (r.thumbnail_url as string | null) ?? undefined,
     preview_url: (r.preview_url as string | null) ?? undefined,

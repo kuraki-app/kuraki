@@ -28,7 +28,13 @@ export type LibraryAsset = Pick<
   | 'preview_url'
   | 'place_city'
   | 'place_country'
->;
+> & {
+  // Optional on purpose. The contract always sends it, but synthetic assets
+  // built inside the app -- album cover stubs, place points -- carry only the
+  // fields their surface needs, and the grid's size badge simply hides when it
+  // is absent rather than forcing every construction site to invent a number.
+  size_bytes?: number;
+};
 
 // Place grouping from /api/places/summary, derived from the contract.
 export type PlaceGroup = components['schemas']['apitypes.PlaceGroup'];

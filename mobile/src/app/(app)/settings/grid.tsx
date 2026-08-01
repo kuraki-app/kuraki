@@ -25,11 +25,11 @@ export default function GridSettings() {
       <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
         <SettingsSection
           title="Tiles"
-          footer="Shows whether each item has reached your server, so you can tell at a glance what is safe.">
+          footer="Shows each item’s file size on its tile, so you can spot what is using space while browsing.">
           <SettingsSwitch
-            label="Show backup state"
-            value={prefs.showBackupBadge}
-            onValueChange={(v) => void patch({ showBackupBadge: v })}
+            label="Show file size"
+            value={prefs.showSizeBadge}
+            onValueChange={(v) => void patch({ showSizeBadge: v })}
           />
         </SettingsSection>
 
