@@ -84,6 +84,19 @@ export function getDB(): Promise<SQLite.SQLiteDatabase> {
           COMMIT;
         `);
       }
+      if (v < 5) {
+        // v5: taken_day. The mirror only ever stored taken_at, so a grid seeded
+        // from this cache had no calendar day to group by and every photo fell
+        // into "Undated". taken_at is a UTC instant; taken_day is the local day
+        // the photo was taken, which is what the date headings must use — see
+        // groupLabel in lib/gallery.ts. Same all-or-nothing discipline as above.
+        await db.execAsync(`
+          BEGIN;
+          ALTER TABLE assets ADD COLUMN taken_day TEXT;
+          PRAGMA user_version = 5;
+          COMMIT;
+        `);
+      }
       return db;
     })();
   }

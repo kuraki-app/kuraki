@@ -91,7 +91,6 @@ export default function AlbumList() {
   return (
     <ThemedView style={styles.fill}>
       <View style={styles.header}>
-        <ThemedText type="subtitle" style={heading}>Albums</ThemedText>
         <Pressable style={[styles.addButton, { backgroundColor: tokens.primary }]} onPress={openCreate} hitSlop={8}>
           <ThemedText type="smallBold" themeColor="primaryForeground">＋</ThemedText>
         </Pressable>

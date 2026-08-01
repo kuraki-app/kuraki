@@ -145,7 +145,6 @@ export default function BackupPanel({ registerRefresh }: Props) {
             </ThemedText>
           </ThemedView>
         )}
-        <ThemedText type="title" style={heading}>Backup</ThemedText>
         <ThemedText themeColor="mutedForeground" selectable>
           Your phone will show every item waiting for Kuraki, not just a generic sync spinner.
         </ThemedText>
