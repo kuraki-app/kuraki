@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AlbumTargetPicker from '@/components/album-target-picker';
 import GalleryHeader from '@/components/gallery-header';
 import PhotoGrid from '@/components/photo-grid';
+import { usePrefs } from '@/hooks/use-prefs';
 import PlacesScreen from '@/components/places-screen';
 import SelectionBar from '@/components/selection-bar';
 import { ThemedText } from '@/components/themed-text';
@@ -28,7 +29,8 @@ import {
   type LibraryFilters,
 } from '@/lib/library-api';
 import { isAuthLost, onAuthLost } from '@/lib/session';
-import { type GalleryView, type GroupBy } from '@/lib/gallery';
+import { type GalleryView } from '@/lib/gallery';
+import { savePrefs } from '@/lib/prefs';
 import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
 
 const reg = registerStyle('kura');
@@ -38,7 +40,7 @@ export default function LibraryScreen() {
   const tokens = useTokens();
   const insets = useSafeAreaInsets();
   const [segment, setSegment] = useState<GalleryView>('timeline');
-  const [groupBy, setGroupBy] = useState<GroupBy>('month');
+  const { groupBy } = usePrefs();
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
@@ -354,7 +356,7 @@ export default function LibraryScreen() {
             cancelSelection();
             setSegment(v);
           }}
-          onChangeGroupBy={setGroupBy}
+          onChangeGroupBy={(g) => void savePrefs({ groupBy: g })}
         />
       </View>
 
@@ -374,7 +376,6 @@ export default function LibraryScreen() {
             selectedIds={selected}
             onToggleSelect={toggleSelect}
             onLongPressItem={startSelection}
-            groupBy={groupBy}
             emptyMessage="No photos here yet."
           />
         )

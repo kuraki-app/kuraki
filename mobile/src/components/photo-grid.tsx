@@ -15,13 +15,11 @@ import PhotoViewer from '@/components/photo-viewer';
 import ScrollScrubber from '@/components/scroll-scrubber';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing, useTokens } from '@/constants/theme';
-import { groupAssets, type GroupBy, type PhotoRow } from '@/lib/gallery';
+import { usePrefs } from '@/hooks/use-prefs';
+import { groupAssets, type PhotoRow } from '@/lib/gallery';
 import { thumbSource, type LibraryAsset } from '@/lib/library-api';
 import { offsetForProgress, progressForOffset } from '@/lib/scrubber';
 import type { CaptureSettings } from '@/lib/settings';
-
-const columns = 3;
-const gap = 2;
 
 type Props = {
   assets: LibraryAsset[];
@@ -38,10 +36,6 @@ type Props = {
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
   onLongPressItem?: (id: string) => void;
-  /** Date grouping. 'off' renders one continuous run of tiles. */
-  groupBy?: GroupBy;
-  /** Draw the date heading above each group. Grouping still drives the scrubber when off. */
-  showGroupHeaders?: boolean;
 };
 
 // PhotoGrid is the tile grid + full-screen viewer shared by every photo surface
@@ -58,10 +52,12 @@ export default function PhotoGrid({
   selectedIds,
   onToggleSelect,
   onLongPressItem,
-  groupBy = 'off',
-  showGroupHeaders = true,
 }: Props) {
   const tokens = useTokens();
+  // Layout and grouping are preferences, read here rather than threaded through
+  // every caller: there is one grid, and Settings > Photo Grid is its one
+  // source of truth.
+  const { gridColumns: columns, gridGap: gap, groupBy, showGroupHeaders } = usePrefs();
   const [viewerIndex, setViewerIndex] = useState(-1);
   const selectionActive = !!selectedIds && selectedIds.size > 0;
 
@@ -74,7 +70,7 @@ export default function PhotoGrid({
   const fade = useMemo(() => new Animated.Value(0), []);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const sections = useMemo(() => groupAssets(assets, groupBy, columns), [assets, groupBy]);
+  const sections = useMemo(() => groupAssets(assets, groupBy, columns), [assets, groupBy, columns]);
 
   // A flat, index-aligned view of the same assets, so the viewer can open at
   // the right photo and page through the whole library rather than one group.
@@ -83,7 +79,7 @@ export default function PhotoGrid({
   const tile = useMemo(() => {
     const width = Dimensions.get('window').width;
     return (width - gap * (columns - 1)) / columns;
-  }, []);
+  }, [columns, gap]);
 
   // Fade in on movement, out after a pause. `hold` keeps it pinned while a
   // finger is down so the thumb cannot vanish mid-drag.
@@ -171,7 +167,7 @@ export default function PhotoGrid({
           ) : null
         }
         renderItem={({ item: row }) => (
-          <View style={styles.row}>
+          <View style={[styles.row, { gap, marginBottom: gap }]}>
             {row.map((item) => {
               const source = settings ? thumbSource(settings, item) : null;
               const selected = selectedIds?.has(item.id) ?? false;
@@ -251,9 +247,10 @@ export default function PhotoGrid({
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  // gap/marginBottom are applied inline because they come from preferences.
   // No right padding: the scrubber floats over the edge of the grid (and only
   // while the list is moving), so tiles keep the full screen width.
-  row: { flexDirection: 'row', gap, marginBottom: gap },
+  row: { flexDirection: 'row' },
   tile: { alignItems: 'center', justifyContent: 'center' },
   thumb: { width: '100%', height: '100%' },
   sectionHeader: { paddingHorizontal: Spacing.two, paddingTop: Spacing.three, paddingBottom: Spacing.one },

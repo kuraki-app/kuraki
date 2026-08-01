@@ -1,13 +1,15 @@
+import { Button, Host, Picker, Text, TextField } from '@expo/ui/swift-ui';
+import { pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import PhotoGrid from '@/components/photo-grid';
 import TagList from '@/components/tag-list';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { setCachedFavorite } from '@/lib/cache/assets';
 import { enqueueFavorite, pendingFavorites } from '@/lib/cache/mutations';
@@ -18,11 +20,12 @@ import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
 const reg = registerStyle('kura');
 const heading = { fontFamily: reg.heading };
 
-// Search owns the query field and the filter chips that used to crowd the top
-// of the library screen. It deliberately does not report scrolling to the tab
-// bar: the pill stays expanded here, so the way back is always visible.
+// The native TextField has no submit callback, so search runs on a debounce
+// rather than a return key. That suits search better anyway — results narrow as
+// you type instead of after a commit.
+const DEBOUNCE_MS = 300;
+
 export default function SearchScreen() {
-  const tokens = useTokens();
   const insets = useSafeAreaInsets();
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
   const [query, setQuery] = useState('');
@@ -33,6 +36,7 @@ export default function SearchScreen() {
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState('');
   const [tagSheet, setTagSheet] = useState(false);
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const run = useCallback(async (active: CaptureSettings | null, chipIndex: number, q: string) => {
     if (!active) return;
@@ -41,8 +45,8 @@ export default function SearchScreen() {
     setSearched(true);
     try {
       const page = await fetchLibrary(active, searchFilters(chipIndex, q));
-      // Same overlay Gallery applies: an un-flushed optimistic favorite must
-      // not be visually reverted by the server's older value.
+      // Same overlay Gallery applies: an un-flushed optimistic favorite must not
+      // be visually reverted by the server's older value.
       const pend = await pendingFavorites();
       setAssets(
         pend.size
@@ -59,11 +63,34 @@ export default function SearchScreen() {
   }, []);
 
   useEffect(() => {
-    void loadCaptureSettings().then(setSettings);
+    const timer = setTimeout(() => void loadCaptureSettings().then(setSettings), 0);
+    return () => clearTimeout(timer);
   }, []);
 
-  function selectChip(index: number) {
+  useEffect(
+    () => () => {
+      if (debounce.current) clearTimeout(debounce.current);
+    },
+    [],
+  );
+
+  const schedule = useCallback(
+    (chipIndex: number, q: string) => {
+      if (debounce.current) clearTimeout(debounce.current);
+      debounce.current = setTimeout(() => void run(settings, chipIndex, q), DEBOUNCE_MS);
+    },
+    [run, settings],
+  );
+
+  function onQueryChange(text: string) {
+    setQuery(text);
+    schedule(chip, text);
+  }
+
+  function onChipChange(index: number) {
     setChip(index);
+    // A filter change is a deliberate act, so it applies immediately.
+    if (debounce.current) clearTimeout(debounce.current);
     void run(settings, index, query);
   }
 
@@ -101,42 +128,31 @@ export default function SearchScreen() {
         <ThemedText type="title" style={heading}>
           Search
         </ThemedText>
-        <TextInput
-          autoCapitalize="none"
-          autoCorrect={false}
-          autoFocus
-          onChangeText={setQuery}
-          onSubmitEditing={() => void run(settings, chip, query)}
-          placeholder="Search your library"
-          placeholderTextColor={tokens.textFaint}
-          returnKeyType="search"
-          style={[styles.search, { borderColor: tokens.input, color: tokens.foreground }]}
-          value={query}
-        />
-        <View style={styles.chips}>
-          {SEARCH_CHIPS.map((c, i) => (
-            <Pressable
-              key={c.label}
-              onPress={() => selectChip(i)}
-              style={[
-                styles.chip,
-                { borderColor: tokens.input },
-                i === chip && { backgroundColor: tokens.primary, borderColor: tokens.primary },
-              ]}>
-              <ThemedText
-                type="small"
-                themeColor={i === chip ? 'primaryForeground' : undefined}
-                style={heading}>
+
+        <Host matchContents style={styles.field}>
+          <TextField
+            autoFocus
+            placeholder="Search your library"
+            onTextChange={onQueryChange}
+          />
+        </Host>
+
+        <Host matchContents style={styles.picker}>
+          <Picker
+            modifiers={[pickerStyle('segmented')]}
+            selection={chip}
+            onSelectionChange={(next) => onChipChange(Number(next))}>
+            {SEARCH_CHIPS.map((c, i) => (
+              <Text key={c.label} modifiers={[tag(i)]}>
                 {c.label}
-              </ThemedText>
-            </Pressable>
-          ))}
-          <Pressable onPress={() => setTagSheet(true)} style={[styles.chip, { borderColor: tokens.input }]}>
-            <ThemedText type="small" style={heading}>
-              Tags ▾
-            </ThemedText>
-          </Pressable>
-        </View>
+              </Text>
+            ))}
+          </Picker>
+        </Host>
+
+        <Host matchContents style={styles.tags}>
+          <Button systemImage="tag" label="Browse tags" onPress={() => setTagSheet(true)} />
+        </Host>
       </View>
 
       {error ? (
@@ -172,16 +188,10 @@ export default function SearchScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  header: { padding: Spacing.three, gap: Spacing.two },
-  search: {
-    borderRadius: Spacing.two,
-    borderWidth: 1,
-    fontSize: 16,
-    minHeight: 44,
-    paddingHorizontal: Spacing.two,
-  },
-  chips: { flexDirection: 'row', gap: Spacing.one, flexWrap: 'wrap' },
-  chip: { paddingVertical: Spacing.one, paddingHorizontal: Spacing.two, borderRadius: 999, borderWidth: 1 },
+  header: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two, gap: Spacing.two },
+  field: { minHeight: 44 },
+  picker: { minHeight: 36 },
+  tags: { alignItems: 'flex-start', minHeight: 36, paddingBottom: Spacing.two },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.four },
   msg: { textAlign: 'center' },
 });
