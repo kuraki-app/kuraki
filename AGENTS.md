@@ -32,6 +32,12 @@ Phase 1 = single-owner personal backup.
   with re-geocode, batch timezone shift), a library **stats** dashboard; trash + retention + `verify`;
   argon2id auth + login rate-limit; safe-upgrade snapshots; and serving perf (cache headers, gzip,
   SQLite tuning). See [CHANGELOG.md](./CHANGELOG.md) for the full list.
+- **Mobile navigation was rebuilt (2026-08-01).** The app no longer uses `NativeTabs`: `(app)/_layout.tsx`
+  renders a custom split bar — a left pill (Gallery / Albums / Settings) that auto-collapses on scroll,
+  and a separate Search button. Routes are `(app)/index` (Gallery), `albums`, `settings`, `search`;
+  Backup is a **section of Settings** (`components/backup-panel.tsx`), not a tab. Device tokens and
+  pairing codes are never rendered once paired — see `lib/connection-view.ts`. **All of this is
+  code-complete but device-unverified**; there is no simulator here.
 - **Builds & tests:** `go build ./...`, `go vet ./...`, `gofmt`, `go test -race ./...` all green;
   `npm run build` (web) clean. Cross-compiles linux/amd64+arm64, darwin/arm64, windows/amd64 (CGO off).
 - **R1 media core (2026-07-10):** current import admission covers JPEG/PNG/GIF/WebP/HEIC/HEIF/AVIF/TIFF plus MP4/M4V/MOV/WebM. A per-asset capability flag now prevents the viewer from rendering known-incompatible originals: libvips/pure-Go creates image previews where possible, ffprobe identifies browser-compatible video codecs, and ffmpeg creates H.264/AAC playback derivatives otherwise. Failed derivatives remain downloadable and appear in Activity's Media health section. Cross-engine and libvips fixture certification remains env-gated.
@@ -242,7 +248,9 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | OS background scheduling (expo-background-task) + streamed large-file uploads (expo-file-system handle) | ✅ done (client) |
 | Android launch blockers (iOS-only `Image.configureCache` at module scope; cleartext HTTP unconfigured) | ✅ done |
 | Background sync completed: launch-time registration, background delta feed + queue drain, headless-safe permissions, locked-device keychain access, mid-file upload resume, Wi-Fi-only default, SQLite upload ledger | ✅ done |
-| Mobile cosmetic parity (safe areas, font weights, Switch colors, video derivative, unused audio permissions, EAS `.aab` vs served `.apk`) | ⬜ deferred by decision |
+| Mobile cosmetic parity (font weights, Switch colors, video derivative, unused audio permissions, EAS `.aab` vs served `.apk`) | ⬜ deferred by decision |
+| Mobile pairing repair: typed pairing-code path, loopback-address guard, copyable code on web, Places no longer crashes the library route | ✅ code-complete, not device-verified |
+| Mobile navigation redesign: split tab bar (collapsible pill + search button), search on its own route, Backup folded into Settings, safe areas app-wide, device tokens never rendered | ✅ code-complete, not device-verified |
 | Capture-session expiry sweep (startup + hourly janitor) | ✅ done |
 | R1/R2 exit criteria | ✅ met (Takeout + mounted folder re-import without metadata loss; backup/restore on clean instance; org actions on indexed queries) |
 | R1 full fixture matrix across libvips and Chromium/Firefox/WebKit | ⬜ env-gated release certification |
@@ -309,6 +317,13 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `feat/mobile-nav-redesign` (2026-08-01) — **Split tab bar, search moved to its own route, Backup folded into Settings, device tokens no longer rendered. Stacked on `fix/mobile-pairing-and-map`. Nothing device-verified.**
+  - **The iOS UI had no safe-area handling at all.** `react-native-safe-area-context` was a dependency the app never imported once. `NativeTabs` was silently supplying the bottom inset; nothing ever supplied the top, so the library segment row rendered under the Dynamic Island with its labels clipped. Replacing the native bar made both insets ours: `SafeAreaProvider` is now in the root layout, screens pad by `insets.top`, and grids pad by `TAB_BAR_HEIGHT + insets.bottom` so the last row clears the floating bar.
+  - **Routes were restructured**, which is the part most likely to trip up later work: `(app)/library.tsx` → `(app)/index.tsx` (Gallery), `(app)/explore.tsx` → `(app)/settings.tsx`, new `(app)/albums.tsx` and `(app)/search.tsx`. The old Backup screen at `(app)/index.tsx` was **not deleted** — it is `components/backup-panel.tsx`, now a section of Settings. `app-tabs.tsx` and its orphaned `.web` variant are gone. `search`, `place` and `tag` are registered with `href: null` so they are navigable but never drawn as tab items.
+  - **Decision logic is pure and tested; the rendering is not tested at all.** `lib/tab-bar.ts` (collapse state machine), `lib/search.ts` (chip → `LibraryFilters`), `lib/connection-view.ts` (what the connection section shows). 95 vitest tests pass. That is the honest boundary: every layout, animation and gesture in this change is unverified.
+  - **The token rule is an invariant, not just UI code.** `connectionView` checks `hasToken` before anything else, so it can never return `unpaired` for a paired device, and `showsCodeInput` is true only for `unpaired` — the single gate on a code field. Settings reads the stored token solely to derive a boolean and to make requests; it is never bound to a rendered component. `PairSheet` is the only place a pairing secret can be entered, and it only accepts input, never displays one.
+  - **Verification ceiling.** `tsc`, `expo lint`, vitest and `check-tokens` all pass, and a full `npx expo export` bundles cleanly — which proves every route resolves and no module throws while evaluating (the failure mode that produced the "missing default export" bug in the previous branch). **It proves nothing about how any of it looks or feels.** In particular the auto-collapse thresholds in `lib/tab-bar.ts` (`COLLAPSE_THRESHOLD` 12, `EXPAND_THRESHOLD` 8, `IDLE_MS` 150) are guesses and should be expected to need tuning on hardware. There is no simulator in this development environment.
 
 - `fix/mobile-android-parity-background-sync` (2026-07-30) — **The Android app did not launch. Background sync was upload-only and unregistered on cold launch. Both fixed; cosmetic parity deliberately deferred.**
   - **Read this before trusting any "verified" claim about mobile.** Every defect below survived `tsc`, `expo lint`, `vitest` and CI, because none of those can see a screen or a device. The two launch blockers were found by reading the code against the platform docs, not by tooling.
