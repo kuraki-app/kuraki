@@ -1,6 +1,7 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import PhotoGrid from '@/components/photo-grid';
 import { ThemedText } from '@/components/themed-text';
@@ -17,6 +18,7 @@ const heading = { fontFamily: reg.heading };
 // sheet. Reuses PhotoGrid (which owns its viewer) and the server tag filter —
 // the exact place.tsx pattern with { tag } instead of { place_city }.
 export default function TagScreen() {
+  const insets = useSafeAreaInsets();
   const { tag, title } = useLocalSearchParams<{ tag: string; title?: string }>();
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
@@ -56,7 +58,7 @@ export default function TagScreen() {
   return (
     <ThemedView style={styles.screen}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.bar}>
+      <View style={[styles.bar, { paddingTop: insets.top }]}>
         <Pressable onPress={() => router.back()} hitSlop={8}>
           <ThemedText style={heading}>‹ Back</ThemedText>
         </Pressable>

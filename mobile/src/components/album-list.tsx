@@ -91,7 +91,6 @@ export default function AlbumList() {
   return (
     <ThemedView style={styles.fill}>
       <View style={styles.header}>
-        <ThemedText type="subtitle" style={heading}>Albums</ThemedText>
         <Pressable style={[styles.addButton, { backgroundColor: tokens.primary }]} onPress={openCreate} hitSlop={8}>
           <ThemedText type="smallBold" themeColor="primaryForeground">＋</ThemedText>
         </Pressable>
@@ -109,6 +108,7 @@ export default function AlbumList() {
           numColumns={columns}
           columnWrapperStyle={{ gap, paddingHorizontal: Spacing.two }}
           contentContainerStyle={styles.grid}
+          contentInsetAdjustmentBehavior="automatic"
           renderItem={({ item }) => {
             const source = settings && item.cover_asset_id ? thumbSource(settings, coverAsset(item.cover_asset_id)) : null;
             return (
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  grid: { paddingBottom: Spacing.four, gap: Spacing.three },
+  grid: { gap: Spacing.three, paddingBottom: Spacing.four },
   card: { flex: 1, gap: Spacing.one },
   cover: { width: '100%', aspectRatio: 1, borderRadius: Spacing.two, overflow: 'hidden' },
   coverImage: { width: '100%', height: '100%' },

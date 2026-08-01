@@ -1,5 +1,12 @@
 import { router } from 'expo-router';
-import * as MediaLibrary from 'expo-media-library';
+// Imported from the `legacy` entry point deliberately. The same functions
+// re-exported from the package root are deprecated and documented as
+// "will throw in runtime" -- they currently console.warn on every call,
+// which is what surfaced a wall of deprecation text inside the Backup UI.
+// The legacy entry is Expo's own documented target and is behaviour-identical;
+// migrating to the new class-based API is a separate change that needs a
+// device to verify, since it rewrites the backup scan path.
+import * as MediaLibrary from 'expo-media-library/legacy';
 import { useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 

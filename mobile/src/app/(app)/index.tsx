@@ -1,307 +1,444 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import AlbumPicker from '@/components/album-picker';
+import AlbumTargetPicker from '@/components/album-target-picker';
+import GalleryHeader from '@/components/gallery-header';
+import PhotoGrid from '@/components/photo-grid';
+import { usePrefs } from '@/hooks/use-prefs';
+import PlacesScreen from '@/components/places-screen';
+import SelectionBar from '@/components/selection-bar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
-import { disableBackgroundBackup, enableBackgroundBackup, reconcileBackgroundBackup } from '@/lib/background';
-import { backupEngine, type BackupProgress } from '@/lib/backup-engine';
-import { getCaptureStatus, uploadPhoto, type CaptureStatus } from '@/lib/capture-api';
+import { readAssets, setCachedFavorite } from '@/lib/cache/assets';
+import { enqueueAlbumAdd, enqueueFavorite, enqueueTrash, pendingFavorites } from '@/lib/cache/mutations';
+import { setTrashed } from '@/lib/cache/albums';
+import { nextConnectionState, probeServer, type ConnectionState } from '@/lib/connection';
+import {
+  addToAlbum,
+  fetchLibrary,
+  fetchMemories,
+  flushFavorites,
+  setFavorite,
+  syncChanges,
+  trashAsset,
+  type LibraryAsset,
+  type LibraryFilters,
+} from '@/lib/library-api';
 import { isAuthLost, onAuthLost } from '@/lib/session';
-import { loadCaptureSettings } from '@/lib/settings';
+import { type GalleryView } from '@/lib/gallery';
+import { savePrefs } from '@/lib/prefs';
+import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
 
-const reg = registerStyle('vault');
+const reg = registerStyle('kura');
 const heading = { fontFamily: reg.heading };
 
-const registeredNote = 'Will also back up periodically in the background.';
-const unavailableNote = 'Background backup is unavailable; runs while the app is open.';
-
-export default function BackupScreen() {
+export default function LibraryScreen() {
   const tokens = useTokens();
-  const [progress, setProgress] = useState<BackupProgress | null>(null);
-  const [status, setStatus] = useState<CaptureStatus | null>(null);
+  const insets = useSafeAreaInsets();
+  const [segment, setSegment] = useState<GalleryView>('timeline');
+  const { groupBy } = usePrefs();
+  const [settings, setSettings] = useState<CaptureSettings | null>(null);
+  const [assets, setAssets] = useState<LibraryAsset[]>([]);
+  const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [error, setError] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
-  const [uploading, setUploading] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
-  const [disconnected, setDisconnected] = useState(isAuthLost());
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  // On-this-day has no offline cache (it's a date-filtered resurfacing view,
+  // not the plain recent one) — its own small state so a failure there can
+  // never blank out the Timeline grid or vice versa.
+  const [memories, setMemories] = useState<LibraryAsset[]>([]);
+  const [memoriesCursor, setMemoriesCursor] = useState<string | undefined>(undefined);
+  const [memoriesLoading, setMemoriesLoading] = useState(false);
+  const [memoriesError, setMemoriesError] = useState('');
+  // The three-state connection machine: a 401 revoke is `disconnected` (only a
+  // re-pair clears it), a network/address failure is `unreachable` (a probe can
+  // recover it). Seed disconnected from the process-wide auth-lost signal.
+  const [connection, setConnection] = useState<ConnectionState>(isAuthLost() ? 'disconnected' : 'online');
+  const [dismissed, setDismissed] = useState(false);
+  const disconnected = connection === 'disconnected';
+  // Selection mode (Task 7, Timeline grid only): a Set<string> of selected ids
+  // owned here so the bulk actions below can mutate `assets` directly.
+  // Selection is "active" whenever the set is non-empty (see PhotoGrid).
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [pickerOpen, setPickerOpen] = useState(false);
 
-  useEffect(() => backupEngine.subscribe(setProgress), []);
-  // Reflect the current auth-lost signal on any notification (not just set true)
-  // so a recovery/re-pair clears the persistent disconnected notice.
-  useEffect(() => onAuthLost(() => setDisconnected(isAuthLost())), []);
+  // probe feeds a reachability check through the machine. It can never clear a
+  // revoke (nextConnectionState guards that), only move online<->unreachable.
+  const probe = useCallback(async (active: CaptureSettings | null) => {
+    if (!active) return;
+    const result = await probeServer(active.baseURL);
+    setConnection((c) => nextConnectionState(c, result === 'ok' ? 'probe-ok' : 'probe-unreachable'));
+  }, []);
 
-  // If automatic backup was left on, catch up in the foreground on open; the
-  // engine ignores the call when a run is already in progress.
-  const autoOn = progress?.auto ?? false;
-  useEffect(() => {
-    if (autoOn) void backupEngine.run();
-  }, [autoOn]);
+  // An auth-lost notification reflects the current signal: a report drives us to
+  // `disconnected`; a recovery (clearAuthLost after re-pair) maps to `reconnected`
+  // and drains the offline favorite queue over the freshly reconnected link.
+  useEffect(
+    () =>
+      onAuthLost(() => {
+        if (isAuthLost()) {
+          setConnection((c) => nextConnectionState(c, 'auth-lost'));
+        } else {
+          setConnection((c) => nextConnectionState(c, 'reconnected'));
+          if (settings) void flushFavorites(settings);
+        }
+      }),
+    [settings],
+  );
 
-  const refresh = useCallback(async () => {
-    setRefreshing(true);
+  const load = useCallback(async (active: CaptureSettings, f: LibraryFilters) => {
+    setLoading(true);
+    setError('');
     try {
-      setStatus(await getCaptureStatus(await loadCaptureSettings()));
-      setError('');
+      const page = await fetchLibrary(active, f);
+      // Overlay any un-flushed optimistic favorites so the server's stale value
+      // (upserted into the cache by fetchLibrary) can't visually revert them.
+      const pend = await pendingFavorites();
+      const merged = pend.size
+        ? page.assets.map((a) => (pend.has(a.id) ? { ...a, favorite: pend.get(a.id)! } : a))
+        : page.assets;
+      setAssets(merged);
+      setCursor(page.next_cursor);
+      // fetchLibrary already refreshed the offline cache on an unfiltered page.
     } catch (cause) {
-      setStatus(null);
-      setError(cause instanceof Error ? cause.message : 'Could not check backup status.');
+      // Offline or the server is unreachable: fall back to whatever this filter
+      // last saw in the SQLite cache so the grid still shows something.
+      const cachedFallback = await readAssets(f);
+      if (cachedFallback.length) {
+        setAssets(cachedFallback);
+        setError('');
+      } else {
+        setError(cause instanceof Error ? cause.message : 'Could not load your library.');
+        setAssets([]);
+      }
     } finally {
-      setRefreshing(false);
+      setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => void refresh(), 0);
-    return () => clearTimeout(timer);
-  }, [refresh]);
-
-  async function chooseAndUpload() {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: 'images', allowsEditing: false, quality: 1 });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    const filename = asset.fileName ?? asset.uri.split('/').pop() ?? `photo-${Date.now()}.jpg`;
-    try {
-      setIsUploading(true);
-      setUploading('Preparing photo…');
-      await uploadPhoto(await loadCaptureSettings(), { uri: asset.uri, filename }, (completed, total) => {
-        setUploading(`Uploading ${Math.round((completed / total) * 100)}%`);
-      });
-      setUploading('Queued for Kuraki import.');
-      await refresh();
-    } catch (cause) {
-      setUploading(cause instanceof Error ? cause.message : 'Upload failed.');
-    } finally {
-      setIsUploading(false);
-    }
-  }
-
-  const running = progress?.running ?? false;
-  const [bgNote, setBgNote] = useState('');
-
-  // The note previously appeared only as a result of tapping the switch, so a
-  // user returning to this screen saw nothing at all -- including when
-  // background backup was silently unavailable. Ask the OS for the truth.
-  //
-  // Deferred a tick (the places-screen/library pattern) so the setState does
-  // not fire synchronously within the effect.
-  useEffect(() => {
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      if (!autoOn) {
-        setBgNote('');
-        return;
+  // Drain the delta feed into the SQLite mirror, then repaint the current filter
+  // from the reconciled mirror if anything actually changed. Silent on failure —
+  // a 401 is already surfaced by the auth-lost machine, and an offline tick just
+  // leaves the cursor for the next run. Guarded against concurrent runs so an
+  // AppState wake mid-sync doesn't double-apply.
+  const syncing = useRef(false);
+  const syncAndRefresh = useCallback(
+    async (active: CaptureSettings | null, f: LibraryFilters) => {
+      if (!active || syncing.current) return;
+      syncing.current = true;
+      try {
+        const { applied, reset } = await syncChanges(active);
+        if (applied > 0 || reset) await load(active, f);
+      } catch {
+        // best-effort; cursor is preserved for the next attempt
+      } finally {
+        syncing.current = false;
       }
-      void reconcileBackgroundBackup().then((state) => {
-        if (!cancelled) setBgNote(state === 'registered' ? registeredNote : unavailableNote);
-      });
-    }, 0);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [autoOn]);
+    },
+    [load],
+  );
 
-  const [pickingAlbums, setPickingAlbums] = useState(false);
-  const albumCount = progress?.albumIds.length ?? 0;
+  useEffect(() => {
+    void (async () => {
+      const cached = await readAssets({});
+      if (cached.length) {
+        setAssets(cached);
+        setLoading(false);
+      }
+      const active = await loadCaptureSettings();
+      setSettings(active);
+      await load(active, {});
+      void probe(active);
+      void syncAndRefresh(active, {});
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  async function toggleAuto(next: boolean) {
-    await backupEngine.setAuto(next);
-    if (next) {
-      const ok = await enableBackgroundBackup();
-      setBgNote(ok ? registeredNote : unavailableNote);
-    } else {
-      await disableBackgroundBackup();
-      setBgNote('');
+  // On foreground: re-probe reachability (server may have moved on DHCP, or the
+  // network came back) and drain the delta feed so edits made elsewhere land.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') {
+        void probe(settings);
+        void syncAndRefresh(settings, {});
+      }
+    });
+    return () => sub.remove();
+  }, [probe, settings, syncAndRefresh]);
+
+  // Optimistic favorite: write the cache and UI immediately so the toggle never
+  // waits on the network. Only enqueue for later when we're offline or the
+  // direct send fails — a successful online write must not leave a queue row
+  // behind (it would be replayed and never resolved).
+  const toggleFavorite = useCallback(
+    async (id: string, next: boolean) => {
+      setAssets((prev) => prev.map((a) => (a.id === id ? { ...a, favorite: next } : a)));
+      setMemories((prev) => prev.map((a) => (a.id === id ? { ...a, favorite: next } : a)));
+      await setCachedFavorite(id, next);
+      if (settings && !disconnected) {
+        try {
+          await setFavorite(settings, id, next);
+          return; // synced online — nothing to queue
+        } catch {
+          // fall through: queue for the next reconnect flush
+        }
+      }
+      await enqueueFavorite(id, next);
+    },
+    [settings, disconnected],
+  );
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  // A long-press on any tile starts selection mode by selecting that tile —
+  // selection mode has no separate flag, it's just "the set is non-empty".
+  const startSelection = useCallback((id: string) => {
+    setSelected((prev) => new Set(prev).add(id));
+  }, []);
+
+  function cancelSelection() {
+    setSelected(new Set());
+  }
+
+  // Add-to-album: same optimistic+queue shape as toggleFavorite above — try
+  // the batched online send first and return early on success (nothing to
+  // queue), otherwise fall through and queue each id individually so the
+  // mutation queue (which is per-asset) can replay it on reconnect.
+  const addSelectedToAlbum = useCallback(
+    async (albumId: string) => {
+      const ids = [...selected];
+      setPickerOpen(false);
+      setSelected(new Set());
+      if (settings && !disconnected) {
+        try {
+          await addToAlbum(settings, albumId, ids);
+          return; // synced online — nothing to queue
+        } catch {
+          // fall through: queue for the next reconnect flush
+        }
+      }
+      for (const id of ids) await enqueueAlbumAdd(id, albumId);
+    },
+    [selected, settings, disconnected],
+  );
+
+  // Move to trash: optimistic removal from both visible lists + cache, then
+  // the same send-if-online / leave-queued-on-fail shape per id.
+  const trashSelected = useCallback(async () => {
+    const ids = [...selected];
+    setSelected(new Set());
+    for (const id of ids) {
+      setAssets((prev) => prev.filter((a) => a.id !== id));
+      setMemories((prev) => prev.filter((a) => a.id !== id));
+      await setTrashed(id, true);
+      if (settings && !disconnected) {
+        try {
+          await trashAsset(settings, id);
+          continue; // synced online — nothing to queue
+        } catch {
+          // fall through: queue for the next reconnect flush
+        }
+      }
+      await enqueueTrash(id);
+    }
+  }, [selected, settings, disconnected]);
+
+  async function loadMore() {
+    if (loadingMore || !cursor || !settings) return;
+    setLoadingMore(true);
+    try {
+      const page = await fetchLibrary(settings, {}, cursor);
+      const pend = await pendingFavorites();
+      const merged = pend.size
+        ? page.assets.map((a) => (pend.has(a.id) ? { ...a, favorite: pend.get(a.id)! } : a))
+        : page.assets;
+      setAssets((prev) => [...prev, ...merged]);
+      setCursor(page.next_cursor);
+    } catch {
+      /* keep what we have */
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  const loadMemories = useCallback(async (active: CaptureSettings) => {
+    setMemoriesLoading(true);
+    setMemoriesError('');
+    try {
+      const page = await fetchMemories(active);
+      setMemories(page.assets);
+      setMemoriesCursor(page.next_cursor);
+    } catch (cause) {
+      // fetchMemories has no offline cache — it's a date-filtered resurfacing
+      // view, not the plain recent one, so there's nothing sane to fall back
+      // to. Show a message instead of crashing or displaying stale photos
+      // that don't correspond to "on this day".
+      setMemories([]);
+      setMemoriesError(cause instanceof Error ? cause.message : "Couldn't load memories.");
+    } finally {
+      setMemoriesLoading(false);
+    }
+  }, []);
+
+  // Reload whenever the segment switches to On-this-day (cheap and keeps the
+  // resurfacing view fresh rather than caching a load-once snapshot). Deferred
+  // a tick (matching the Backup tab's refresh-on-mount pattern) so the first
+  // setState inside loadMemories doesn't fire synchronously within the effect.
+  useEffect(() => {
+    if (segment !== 'memories' || !settings) return;
+    const timer = setTimeout(() => void loadMemories(settings), 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [segment, settings]);
+
+  async function loadMoreMemories() {
+    if (!settings || !memoriesCursor) return;
+    try {
+      const page = await fetchMemories(settings, memoriesCursor);
+      setMemories((prev) => [...prev, ...page.assets]);
+      setMemoriesCursor(page.next_cursor);
+    } catch {
+      /* keep what we have */
     }
   }
 
   return (
-    <ScrollView
-      contentInsetAdjustmentBehavior="automatic"
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
-      <ThemedView style={styles.content}>
-        {disconnected && (
-          // Deliberately not dismissible: unlike the Library banner, this must
-          // never be hideable — a paired device silently not backing up is the
-          // one state the user must always be able to see.
-          <ThemedView style={[styles.banner, { backgroundColor: tokens.destructiveBg }]}>
-            <ThemedText type="smallBold" style={{ color: tokens.destructive }}>
-              This device is disconnected — your photos are not being backed up.
-            </ThemedText>
-            <ThemedText type="small" style={{ color: tokens.destructive }}>
-              Reconnect it on the Settings tab to resume automatic backup.
-            </ThemedText>
-          </ThemedView>
-        )}
-        <ThemedText type="title" style={heading}>Backup</ThemedText>
-        <ThemedText themeColor="mutedForeground" selectable>
-          Your phone will show every item waiting for Kuraki, not just a generic sync spinner.
-        </ThemedText>
-
-        {error ? (
-          <ThemedView type="card" style={styles.card}>
-            <ThemedText type="subtitle" style={heading}>Connect this device</ThemedText>
-            <ThemedText themeColor="mutedForeground" selectable>{error}</ThemedText>
-          </ThemedView>
-        ) : null}
-
-        <ThemedView type="card" style={styles.card}>
-          <View style={styles.row}>
-            <View style={styles.rowText}>
-              <ThemedText type="subtitle" style={heading}>Automatic backup</ThemedText>
-              <ThemedText type="small" themeColor="mutedForeground">
-                Back up new photos and videos from this phone.
-              </ThemedText>
-            </View>
-            <Switch value={autoOn} onValueChange={(next) => void toggleAuto(next)} />
-          </View>
-          {progress?.permission === 'denied' && (
-            <ThemedText type="small" themeColor="mutedForeground" selectable>
-              Photo access is off. Enable it in system settings to back up automatically.
-            </ThemedText>
-          )}
-          {bgNote ? (
-            <ThemedText type="small" themeColor="mutedForeground" selectable>{bgNote}</ThemedText>
-          ) : null}
-          <View style={styles.row}>
-            <View style={styles.rowText}>
-              <ThemedText type="smallBold">Wi-Fi only</ThemedText>
-              <ThemedText type="small" themeColor="mutedForeground">
-                Avoid using mobile data to upload.
-              </ThemedText>
-            </View>
-            <Switch
-              value={progress?.wifiOnly ?? true}
-              onValueChange={(next) => void backupEngine.setWifiOnly(next)}
-            />
-          </View>
-          <Pressable style={styles.albumRow} onPress={() => setPickingAlbums(true)}>
-            <ThemedText type="small" themeColor="mutedForeground">Albums</ThemedText>
-            <ThemedText type="smallBold">
-              {albumCount ? `${albumCount} selected` : 'All photos & videos'}
-            </ThemedText>
-          </Pressable>
-          <View style={styles.actions}>
-            <Pressable
-              disabled={running}
-              style={[styles.buttonSmall, { backgroundColor: tokens.primary }]}
-              onPress={() => void backupEngine.run()}>
-              <ThemedText type="smallBold" themeColor="primaryForeground">
-                {running ? 'Backing up…' : 'Back up new photos'}
-              </ThemedText>
+    <ThemedView style={styles.fill}>
+      {disconnected && !dismissed && (
+        <View style={[styles.banner, { backgroundColor: tokens.destructiveBg }]}>
+          <ThemedText type="small" style={[styles.bannerText, { color: tokens.destructive }]}>
+            This device was disconnected. Re-pair it in Settings.
+          </ThemedText>
+          <View style={styles.bannerActions}>
+            <Pressable onPress={() => router.push('/(app)/settings')} hitSlop={8}>
+              <ThemedText type="smallBold" style={{ color: tokens.destructive }}>Reconnect</ThemedText>
             </Pressable>
-            {running && (
-              <Pressable style={[styles.buttonGhost, { borderColor: tokens.input }]} onPress={() => backupEngine.stop()}>
-                <ThemedText type="smallBold">Pause</ThemedText>
-              </Pressable>
-            )}
+            <Pressable onPress={() => setDismissed(true)} hitSlop={8}>
+              <ThemedText type="smallBold" style={{ color: tokens.destructive }}>✕</ThemedText>
+            </Pressable>
           </View>
-          {progress?.message ? (
-            <ThemedText type="small" themeColor="mutedForeground" selectable>
-              {running && progress.currentFile
-                ? `${progress.currentFile} · ${progress.currentPercent}%`
-                : progress.message}
-            </ThemedText>
-          ) : null}
-        </ThemedView>
-
-        <View style={styles.counts}>
-          <StatusCard label="Waiting" value={progress?.pending ?? 0} />
-          <StatusCard label="Backed up" value={progress?.done ?? 0} />
-          <StatusCard label="Needs attention" value={progress?.failed.length ?? 0} />
         </View>
-
-        {progress?.lastSuccess && (
-          <ThemedText type="small" themeColor="mutedForeground" selectable>
-            Last backed up: {progress.lastSuccess.filename}
+      )}
+      {connection === 'unreachable' && (
+        // Distinct from the 401 banner: the token is still valid, the server is
+        // just unreachable (e.g. it moved addresses). Not dismissible — it stays
+        // until a probe recovers or the user fixes the address.
+        <View style={[styles.banner, { backgroundColor: tokens.destructiveBg }]}>
+          <ThemedText type="small" style={[styles.bannerText, { color: tokens.destructive }]}>
+            Can’t reach your server.
           </ThemedText>
-        )}
+          <View style={styles.bannerActions}>
+            <Pressable onPress={() => void probe(settings)} hitSlop={8}>
+              <ThemedText type="smallBold" style={{ color: tokens.destructive }}>Retry</ThemedText>
+            </Pressable>
+            <Pressable onPress={() => router.push('/(app)/settings')} hitSlop={8}>
+              <ThemedText type="smallBold" style={{ color: tokens.destructive }}>Edit address</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      )}
+      <View style={{ paddingTop: insets.top + Spacing.two }}>
+        <GalleryHeader
+          view={segment}
+          groupBy={groupBy}
+          onChangeView={(v) => {
+            cancelSelection();
+            setSegment(v);
+          }}
+          onChangeGroupBy={(g) => void savePrefs({ groupBy: g })}
+        />
+      </View>
 
-        {progress?.failed.length ? (
-          <ThemedView type="card" style={styles.card}>
-            <View style={styles.row}>
-              <ThemedText type="subtitle" style={heading}>Needs attention</ThemedText>
-              <Pressable
-                disabled={running}
-                style={[styles.retryButton, { backgroundColor: tokens.primary }]}
-                onPress={() => void backupEngine.run()}>
-                <ThemedText type="smallBold" themeColor="primaryForeground">
-                  {running ? 'Retrying…' : 'Retry now'}
-                </ThemedText>
-              </Pressable>
-            </View>
-            <ThemedText type="small" themeColor="mutedForeground">
-              Retry checks the server offset and skips items already accepted by Kuraki.
-            </ThemedText>
-            {progress.failed.slice(0, 8).map((item) => (
-              <View key={item.localId} style={styles.session}>
-                <ThemedText selectable>{item.filename}</ThemedText>
-                <ThemedText type="small" themeColor="mutedForeground" selectable>{item.error}</ThemedText>
-              </View>
-            ))}
-          </ThemedView>
-        ) : null}
+      {segment === 'timeline' && (
+        error ? (
+          <View style={styles.center}>
+            <ThemedText type="subtitle" style={heading}>Nothing to show</ThemedText>
+            <ThemedText themeColor="mutedForeground" style={styles.msg} selectable>{error}</ThemedText>
+          </View>
+        ) : (
+          <PhotoGrid
+            assets={assets}
+            settings={settings}
+            loading={loading}
+            onEndReached={() => void loadMore()}
+            onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
+            selectedIds={selected}
+            onToggleSelect={toggleSelect}
+            onLongPressItem={startSelection}
+            emptyMessage="No photos here yet."
+          />
+        )
+      )}
 
-        <ThemedView type="card" style={styles.card}>
-          <ThemedText type="subtitle" style={heading}>Server activity</ThemedText>
-          {status?.sessions.length ? (
-            status.sessions.slice(0, 8).map((session) => (
-              <View key={session.id} style={styles.session}>
-                <ThemedText selectable>{session.filename}</ThemedText>
-                <ThemedText type="small" themeColor="mutedForeground" selectable>
-                  {session.status} · {Math.round((session.received_bytes / session.size_bytes) * 100)}%
-                </ThemedText>
-              </View>
-            ))
-          ) : (
-            <ThemedText themeColor="mutedForeground">No recent uploads from this device.</ThemedText>
-          )}
-        </ThemedView>
+      {segment === 'memories' && (
+        memoriesError ? (
+          <View style={styles.center}>
+            <ThemedText type="subtitle" style={heading}>Nothing to show</ThemedText>
+            <ThemedText themeColor="mutedForeground" style={styles.msg} selectable>{memoriesError}</ThemedText>
+          </View>
+        ) : (
+          <PhotoGrid
+            assets={memories}
+            settings={settings}
+            loading={memoriesLoading}
+            onEndReached={() => void loadMoreMemories()}
+            onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
+            emptyMessage="No memories from this day yet."
+          />
+        )
+      )}
 
-        <Pressable
-          disabled={isUploading}
-          style={[styles.button, { backgroundColor: tokens.primary }]}
-          onPress={() => void chooseAndUpload()}>
-          <ThemedText type="smallBold" themeColor="primaryForeground">
-            {isUploading ? 'Backing up…' : 'Choose a single photo'}
-          </ThemedText>
-        </Pressable>
-        {uploading ? <ThemedText themeColor="mutedForeground" selectable>{uploading}</ThemedText> : null}
-      </ThemedView>
-      <Modal visible={pickingAlbums} animationType="slide" onRequestClose={() => setPickingAlbums(false)}>
-        <AlbumPicker selected={progress?.albumIds ?? []} onClose={() => setPickingAlbums(false)} />
-      </Modal>
-    </ScrollView>
-  );
-}
+      {segment === 'places' && settings && <PlacesScreen settings={settings} />}
 
-function StatusCard({ label, value }: { label: string; value: number }) {
-  return (
-    <ThemedView type="card" style={styles.countCard}>
-      <ThemedText style={styles.count} selectable>{value}</ThemedText>
-      <ThemedText type="small" themeColor="mutedForeground">{label}</ThemedText>
+      {segment === 'timeline' && selected.size > 0 && (
+        <SelectionBar
+          count={selected.size}
+          onAddToAlbum={() => setPickerOpen(true)}
+          onTrash={() => void trashSelected()}
+          onCancel={cancelSelection}
+        />
+      )}
+      <AlbumTargetPicker
+        visible={pickerOpen}
+        settings={settings}
+        onPick={(albumId) => void addSelectedToAlbum(albumId)}
+        onClose={() => setPickerOpen(false)}
+      />
     </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: Spacing.three, gap: Spacing.three, flex: 1 },
-  banner: { padding: Spacing.three, borderRadius: Spacing.three, gap: Spacing.half },
-  counts: { flexDirection: 'row', gap: Spacing.two },
-  countCard: { flex: 1, padding: Spacing.three, borderRadius: Spacing.three, gap: Spacing.one },
-  count: { fontSize: 30, fontVariant: ['tabular-nums'] },
-  card: { padding: Spacing.three, borderRadius: Spacing.three, gap: Spacing.two },
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  albumRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
-  rowText: { flex: 1, gap: Spacing.half },
-  actions: { flexDirection: 'row', gap: Spacing.two },
-  session: { gap: Spacing.half },
-  button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
-  buttonSmall: { flex: 1, alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
-  buttonGhost: { alignItems: 'center', borderRadius: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: Spacing.three, borderWidth: 1 },
-  retryButton: { marginLeft: 'auto', borderRadius: Spacing.two, paddingHorizontal: Spacing.two, paddingVertical: Spacing.one },
+  fill: { flex: 1 },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.two,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.two,
+  },
+  bannerText: { flex: 1 },
+  bannerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  header: { padding: Spacing.two, gap: Spacing.two },
+  search: {
+    borderRadius: Spacing.two,
+    borderWidth: 1,
+    fontSize: 16,
+    minHeight: 44,
+    paddingHorizontal: Spacing.two,
+  },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24, minHeight: 200 },
+  msg: { textAlign: 'center' },
 });

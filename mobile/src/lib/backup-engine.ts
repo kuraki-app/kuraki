@@ -1,4 +1,11 @@
-import * as MediaLibrary from 'expo-media-library';
+// Imported from the `legacy` entry point deliberately. The same functions
+// re-exported from the package root are deprecated and documented as
+// "will throw in runtime" -- they currently console.warn on every call,
+// which is what surfaced a wall of deprecation text inside the Backup UI.
+// The legacy entry is Expo's own documented target and is behaviour-identical;
+// migrating to the new class-based API is a separate change that needs a
+// device to verify, since it rewrites the backup scan path.
+import * as MediaLibrary from 'expo-media-library/legacy';
 
 import { CaptureAPIError, uploadFile } from '@/lib/capture-api';
 import { loadBackupState, saveBackupState, type BackupState, type FailedItem } from '@/lib/backup-store';
@@ -12,6 +19,8 @@ import {
 } from '@/lib/backup-ledger';
 import { currentConnection, evaluateNetworkGate, gateMessage } from '@/lib/network';
 import { loadCaptureSettings } from '@/lib/settings';
+import { notify } from '@/lib/notifications';
+import { loadPrefs, mediaTypesFor } from '@/lib/prefs';
 
 // expo-media-library ships a legacy and a next-generation API under one module;
 // the exported query functions still use the legacy plain-object Asset, so we
@@ -163,6 +172,12 @@ class BackupEngine {
     this.emit();
 
     try {
+      // Counted against the state before this run so the notification reports
+      // what *this* run did, not the lifetime totals: `done` is a persisted
+      // ledger and `failed` carries over between runs.
+      const doneBefore = this.done.size;
+      const failedBefore = this.state.failed.length;
+
       const fresh = await this.collectNewAssets(signal);
       this.pending = fresh.length;
       this.message = fresh.length ? `${fresh.length} to back up` : 'Everything is backed up.';
@@ -174,9 +189,30 @@ class BackupEngine {
         this.pending = Math.max(0, this.pending - 1);
         this.emit();
       }
-      if (!signal.aborted) this.message = this.state.failed.length ? 'Some items need attention.' : 'All caught up.';
+      if (!signal.aborted) {
+        const failed = this.state.failed.length;
+        const uploaded = this.done.size - doneBefore;
+        const newlyFailed = failed - failedBefore;
+        this.message = failed ? 'Some items need attention.' : 'All caught up.';
+        // Only worth a notification if this run actually moved something --
+        // a no-op catch-up run every time the app foregrounds would be noise.
+        if (newlyFailed > 0) {
+          void notify('backup-failed', {
+            title: 'Backup needs attention',
+            body: `${newlyFailed} ${newlyFailed === 1 ? 'item' : 'items'} could not be uploaded.`,
+          });
+        } else if (uploaded > 0) {
+          void notify('backup-complete', {
+            title: 'Backup finished',
+            body: `${uploaded} ${uploaded === 1 ? 'item' : 'items'} backed up.`,
+          });
+        }
+      }
     } catch (cause) {
-      if (!isAbort(cause)) this.message = cause instanceof Error ? cause.message : 'Backup failed.';
+      if (!isAbort(cause)) {
+        this.message = cause instanceof Error ? cause.message : 'Backup failed.';
+        void notify('backup-failed', { title: 'Backup failed', body: this.message });
+      }
     } finally {
       this.running = false;
       this.currentFile = '';
@@ -229,6 +265,13 @@ class BackupEngine {
    * albums is uploaded once); otherwise the whole library is scanned.
    */
   private async collectNewAssets(signal: AbortSignal): Promise<LibraryAsset[]> {
+    // Which media types the user actually wants backed up. An empty list means
+    // both switches are off, and must short-circuit: passing an empty
+    // mediaType to the media library matches everything, which would back up
+    // precisely what was just turned off.
+    const mediaType = mediaTypesFor(await loadPrefs());
+    if (mediaType.length === 0) return [];
+
     const albums = this.state.albumIds;
     const scopes: (string | undefined)[] = albums.length ? albums : [undefined];
     const fresh: LibraryAsset[] = [];
@@ -241,7 +284,7 @@ class BackupEngine {
           first: pageSize,
           after,
           album,
-          mediaType: ['photo', 'video'],
+          mediaType,
           sortBy: [['creationTime', false]],
         });
         for (const asset of page.assets) {

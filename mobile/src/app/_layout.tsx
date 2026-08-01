@@ -2,6 +2,7 @@ import { DarkTheme, DefaultTheme, Redirect, Slot, ThemeProvider, useSegments } f
 import { Image } from 'expo-image';
 import { Platform, useColorScheme, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEffect, useState } from 'react';
 
 import { useAppFonts } from '@/design/fonts';
@@ -10,6 +11,7 @@ import { isSetupComplete, migrateSecretsForBackgroundAccess, onSetupChange, setu
 // can relaunch the app headlessly to run it. Defining the task is a module
 // side effect; reconcileBackgroundBackup below is what actually schedules it.
 import { reconcileBackgroundBackup } from '@/lib/background';
+import { configureNotifications } from '@/lib/notifications';
 
 // A 512 MB LRU disk cap so the thumbnail/preview cache expo-image keeps for
 // the library grid and viewer can't grow unbounded on the device.
@@ -21,6 +23,11 @@ import { reconcileBackgroundBackup } from '@/lib/background';
 if (Platform.OS === 'ios') {
   Image.configureCache({ maxDiskSize: 512 * 1024 * 1024 });
 }
+
+// Without a foreground handler iOS silently suppresses a notification posted
+// while the app is open, which reads as "notifications are broken". Safe at
+// module scope: it no-ops when the native module is absent.
+configureNotifications();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -65,9 +72,15 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        {redirect ? <Redirect href={redirect} /> : <Slot />}
-      </ThemeProvider>
+      {/* Nothing below this measured the notch/Dynamic Island before: screens
+          drew under the status bar and the tab bar owned the bottom inset
+          natively. The custom tab bar makes both insets ours to handle, so the
+          provider has to exist app-wide. */}
+      <SafeAreaProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          {redirect ? <Redirect href={redirect} /> : <Slot />}
+        </ThemeProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

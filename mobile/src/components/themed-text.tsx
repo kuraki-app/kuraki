@@ -47,14 +47,18 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     fontWeight: 500,
   },
+  // Phone sizes. These were 48/32, which is a desktop display scale: at 48pt a
+  // screen title ate a third of the viewport before any content, and a card
+  // heading as short as "Automatic backup" wrapped onto two lines. 28/20 keeps
+  // the same visual hierarchy while leaving the screen for content.
   title: {
-    fontSize: 48,
+    fontSize: 28,
     fontWeight: 600,
-    lineHeight: 52,
+    lineHeight: 34,
   },
   subtitle: {
-    fontSize: 32,
-    lineHeight: 44,
+    fontSize: 20,
+    lineHeight: 26,
     fontWeight: 600,
   },
   link: {

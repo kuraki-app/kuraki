@@ -28,7 +28,13 @@ export type LibraryAsset = Pick<
   | 'preview_url'
   | 'place_city'
   | 'place_country'
->;
+> & {
+  // Optional on purpose. The contract always sends it, but synthetic assets
+  // built inside the app -- album cover stubs, place points -- carry only the
+  // fields their surface needs, and the grid's size badge simply hides when it
+  // is absent rather than forcing every construction site to invent a number.
+  size_bytes?: number;
+};
 
 // Place grouping from /api/places/summary, derived from the contract.
 export type PlaceGroup = components['schemas']['apitypes.PlaceGroup'];
@@ -315,6 +321,16 @@ export async function fetchPlaces(settings: CaptureSettings): Promise<import('@/
 export async function fetchPlacesSummary(settings: CaptureSettings): Promise<PlaceGroup[]> {
   const body = await authedGet<{ places: PlaceGroup[] }>(settings, '/api/places/summary');
   return body.places;
+}
+
+// Library totals from the server, including the on-disk size. /api/stats sits
+// in the router's both-principals group and resolves its owner through
+// ownerID(r), so a device token reads its own owner's numbers with no
+// device-specific endpoint -- see internal/httpapi/stats_device_test.go.
+export type LibraryStats = components['schemas']['apitypes.LibraryStats'];
+
+export async function fetchStats(settings: CaptureSettings): Promise<LibraryStats> {
+  return authedGet<LibraryStats>(settings, '/api/stats');
 }
 
 // DupAsset is one member of a duplicate group. /api/duplicates returns an

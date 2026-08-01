@@ -1,6 +1,7 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import PhotoGrid from '@/components/photo-grid';
 import { ThemedText } from '@/components/themed-text';
@@ -17,6 +18,7 @@ const heading = { fontFamily: reg.heading };
 // bottom-sheet card. It reuses PhotoGrid (which owns its own viewer) and the
 // server's place_city/place_country filter — no new server route.
 export default function PlaceScreen() {
+  const insets = useSafeAreaInsets();
   const { place_city, place_country, title } = useLocalSearchParams<{
     place_city: string;
     place_country?: string;
@@ -62,7 +64,7 @@ export default function PlaceScreen() {
   return (
     <ThemedView style={styles.screen}>
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.bar}>
+      <View style={[styles.bar, { paddingTop: insets.top }]}>
         <Pressable onPress={() => router.back()} hitSlop={8}>
           <ThemedText style={heading}>‹ Back</ThemedText>
         </Pressable>
