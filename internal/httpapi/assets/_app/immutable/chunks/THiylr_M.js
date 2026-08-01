@@ -1,1 +1,0 @@
-import"./BSQ5w_vH.js";import{s,r as t}from"./DRSTU_Vb.js";import{I as p}from"./CSt8renh.js";var n=new Set(["$$slots","$$events","$$legacy"]);function m(e,r){let c=t(r,n);const o=[["circle",{cx:"12",cy:"12",r:"10"}],["path",{d:"m9 12 2 2 4-4"}]];p(e,s({name:"circle-check"},()=>c,{get iconNode(){return o}}))}export{m as C};

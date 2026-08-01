@@ -1,3 +1,4 @@
+import * as Device from 'expo-device';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, TextInput } from 'react-native';
@@ -7,7 +8,10 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
+import { claimPairing } from '@/lib/capture-api';
+import { clearAuthLost } from '@/lib/session';
 import { loadCaptureSettings, saveCaptureSettings } from '@/lib/settings';
+import { normalizeServerURL } from '@/lib/url';
 
 const reg = registerStyle('vault');
 const heading = { fontFamily: reg.heading };
@@ -15,7 +19,8 @@ const heading = { fontFamily: reg.heading };
 export default function PairStep() {
   const tokens = useTokens();
   const [baseURL, setBaseURL] = useState('');
-  const [token, setToken] = useState('');
+  const [code, setCode] = useState('');
+  const [claiming, setClaiming] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [note, setNote] = useState('');
   const [loaded, setLoaded] = useState(false);
@@ -40,13 +45,23 @@ export default function PairStep() {
     router.push('/(setup)/permissions');
   }
 
-  async function saveManualToken() {
+  // The typed path redeems the same one-time code the QR carries, through the
+  // same claim endpoint — it is the QR path without the camera. It must never
+  // just store what was typed: a pairing code is not a device token, and saving
+  // one directly produced a device that looked paired and then 401'd forever.
+  async function claimManualCode() {
     setError('');
+    setClaiming(true);
     try {
-      await saveCaptureSettings({ baseURL, deviceToken: token });
+      const server = normalizeServerURL(baseURL);
+      const device = await claimPairing(server, code.trim(), Device.deviceName ?? 'My phone');
+      await saveCaptureSettings({ baseURL: server, deviceToken: device.token });
+      clearAuthLost();
       router.push('/(setup)/permissions');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not save that token.');
+      setError(cause instanceof Error ? cause.message : 'Could not pair with that code.');
+    } finally {
+      setClaiming(false);
     }
   }
 
@@ -74,23 +89,26 @@ export default function PairStep() {
       {note ? <ThemedText themeColor="mutedForeground">{note}</ThemedText> : null}
 
       <ThemedText themeColor="mutedForeground">
-        Or paste a device token from Kuraki&rsquo;s web app (Devices tab) by hand.
+        Or type the pairing code shown under the QR in Kuraki&rsquo;s web app (Devices tab).
       </ThemedText>
       <TextInput
         autoCapitalize="none"
         autoCorrect={false}
-        placeholder="Paste a device token"
+        placeholder="Pairing code"
         placeholderTextColor={tokens.textFaint}
-        secureTextEntry
-        value={token}
-        onChangeText={setToken}
+        value={code}
+        onChangeText={setCode}
+        editable={!claiming}
         style={[styles.input, { borderColor: tokens.input, color: tokens.foreground }]}
       />
       <Pressable
-        disabled={!loaded || !token.trim() || !baseURL}
-        onPress={() => void saveManualToken()}
-        style={[styles.buttonGhost, { borderColor: tokens.input, opacity: loaded && token.trim() && baseURL ? 1 : 0.5 }]}>
-        <ThemedText type="smallBold">Save token</ThemedText>
+        disabled={!loaded || !code.trim() || !baseURL || claiming}
+        onPress={() => void claimManualCode()}
+        style={[
+          styles.buttonGhost,
+          { borderColor: tokens.input, opacity: loaded && code.trim() && baseURL && !claiming ? 1 : 0.5 },
+        ]}>
+        <ThemedText type="smallBold">{claiming ? 'Pairing…' : 'Pair with code'}</ThemedText>
       </Pressable>
       {error ? <ThemedText themeColor="destructive">{error}</ThemedText> : null}
 

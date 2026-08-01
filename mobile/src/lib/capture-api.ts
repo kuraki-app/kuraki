@@ -45,12 +45,25 @@ export type PairedDevice = { id: string; name: string; token: string };
  * and returns the device's own revocable token on success.
  */
 export async function claimPairing(baseURL: string, code: string, name: string): Promise<PairedDevice> {
-  const url = `${baseURL.replace(/\/+$/, '')}/api/devices/pair/claim`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ code, name }),
-  });
+  const origin = baseURL.replace(/\/+$/, '');
+  let response: Response;
+  try {
+    response = await fetch(`${origin}/api/devices/pair/claim`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, name }),
+    });
+  } catch {
+    // A transport failure here is almost always the address, not the code: the
+    // phone is on another network, or the QR carried an address only the
+    // server's own machine can resolve. `fetch` reports it as a bare
+    // "Network request failed", which names nothing the owner can act on.
+    throw new CaptureAPIError(
+      `Could not reach ${origin}. Check the phone is on the same network as your server, and that the address in the code is the server's network address.`,
+      0,
+      true,
+    );
+  }
   return unwrap<PairedDevice>(response, 'Pairing failed. Generate a new code and try again.');
 }
 

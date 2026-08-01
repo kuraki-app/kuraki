@@ -4,14 +4,27 @@ import { StyleSheet, View } from 'react-native';
 
 import PhotoViewer from '@/components/photo-viewer';
 import PlaceList from '@/components/place-list';
-import PlacesMap from '@/components/places-map';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { probeServer } from '@/lib/connection';
 import { fetchPlaces, fetchPlacesSummary, type LibraryAsset, type PlaceGroup } from '@/lib/library-api';
+import { loadOptionalModule } from '@/lib/optional-native';
 import { placesViewState, type PlacePoint } from '@/lib/places';
 import type { CaptureSettings } from '@/lib/settings';
+
+// The map is resolved at call time, never statically imported: MapLibre's
+// MLRN* TurboModules only exist in a build that compiled its native code, and a
+// static import would throw during module evaluation in Expo Go — taking the
+// whole Library route down with it (see loadOptionalModule). `typeof import()`
+// is a type-level query, erased at compile time, so it keeps the props typed
+// without pulling the module in.
+const PlacesMap = loadOptionalModule<typeof import('@/components/places-map')>(
+  // require, not import: the deferral is the entire point, and Metro only runs
+  // the module factory when this arrow is called.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  () => require('@/components/places-map'),
+)?.default;
 
 const reg = registerStyle('vault');
 const heading = { fontFamily: reg.heading };
@@ -77,10 +90,16 @@ export default function PlacesScreen({ settings }: { settings: CaptureSettings }
 
   return (
     <View style={styles.fill}>
-      <PlacesMap
-        points={points}
-        onPressPoint={(assetId) => setViewerIndex(points.findIndex((p) => p.id === assetId))}
-      />
+      {PlacesMap ? (
+        <PlacesMap
+          points={points}
+          onPressPoint={(assetId) => setViewerIndex(points.findIndex((p) => p.id === assetId))}
+        />
+      ) : (
+        // No native map in this binary — degrade to the place list alone rather
+        // than an empty Places tab. The list below is fully functional.
+        <Center text="The map needs a development build — MapLibre isn’t in this binary. Your places are still listed below." />
+      )}
       <PlaceList
         groups={groups}
         settings={settings}
