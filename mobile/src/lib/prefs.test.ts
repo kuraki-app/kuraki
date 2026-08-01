@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_PREFS, GRID_COLUMNS, GRID_GAP, mergePrefs } from '@/lib/prefs';
+import { DEFAULT_PREFS, GRID_COLUMNS, GRID_GAP, mediaTypesFor, mergePrefs } from '@/lib/prefs';
 
 describe('mergePrefs', () => {
   it('returns the defaults when nothing is stored', () => {
@@ -53,5 +53,23 @@ describe('mergePrefs', () => {
 
   it('coerces booleans rather than passing through truthy junk', () => {
     expect(mergePrefs({ backupPhotos: 'no' }).backupPhotos).toBe(DEFAULT_PREFS.backupPhotos);
+  });
+});
+
+describe('mediaTypesFor', () => {
+  it('asks for both when both are on', () => {
+    expect(mediaTypesFor({ backupPhotos: true, backupVideos: true })).toEqual(['photo', 'video']);
+  });
+
+  it('narrows to one when the other is off', () => {
+    expect(mediaTypesFor({ backupPhotos: true, backupVideos: false })).toEqual(['photo']);
+    expect(mediaTypesFor({ backupPhotos: false, backupVideos: true })).toEqual(['video']);
+  });
+
+  it('returns an empty list when neither is selected', () => {
+    // The caller must treat this as "back up nothing" rather than passing an
+    // empty mediaType to the media library, which would match everything and
+    // silently back up what the user just turned off.
+    expect(mediaTypesFor({ backupPhotos: false, backupVideos: false })).toEqual([]);
   });
 });

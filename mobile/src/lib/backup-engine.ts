@@ -19,6 +19,7 @@ import {
 } from '@/lib/backup-ledger';
 import { currentConnection, evaluateNetworkGate, gateMessage } from '@/lib/network';
 import { loadCaptureSettings } from '@/lib/settings';
+import { loadPrefs, mediaTypesFor } from '@/lib/prefs';
 
 // expo-media-library ships a legacy and a next-generation API under one module;
 // the exported query functions still use the legacy plain-object Asset, so we
@@ -236,6 +237,13 @@ class BackupEngine {
    * albums is uploaded once); otherwise the whole library is scanned.
    */
   private async collectNewAssets(signal: AbortSignal): Promise<LibraryAsset[]> {
+    // Which media types the user actually wants backed up. An empty list means
+    // both switches are off, and must short-circuit: passing an empty
+    // mediaType to the media library matches everything, which would back up
+    // precisely what was just turned off.
+    const mediaType = mediaTypesFor(await loadPrefs());
+    if (mediaType.length === 0) return [];
+
     const albums = this.state.albumIds;
     const scopes: (string | undefined)[] = albums.length ? albums : [undefined];
     const fresh: LibraryAsset[] = [];
@@ -248,7 +256,7 @@ class BackupEngine {
           first: pageSize,
           after,
           album,
-          mediaType: ['photo', 'video'],
+          mediaType,
           sortBy: [['creationTime', false]],
         });
         for (const asset of page.assets) {

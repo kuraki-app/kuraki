@@ -80,6 +80,21 @@ export function mergePrefs(stored: unknown): Prefs {
   };
 }
 
+/**
+ * mediaTypesFor turns the two backup switches into the media-library filter.
+ *
+ * The empty result is the case that matters: the scan used to pass a hardcoded
+ * ['photo','video'], and handing the media library an *empty* mediaType matches
+ * everything rather than nothing — which would silently back up exactly what
+ * the user just switched off. Callers must treat [] as "scan nothing".
+ */
+export function mediaTypesFor(prefs: Pick<Prefs, 'backupPhotos' | 'backupVideos'>): ('photo' | 'video')[] {
+  const types: ('photo' | 'video')[] = [];
+  if (prefs.backupPhotos) types.push('photo');
+  if (prefs.backupVideos) types.push('video');
+  return types;
+}
+
 const KEY = 'kuraki.prefs';
 
 // A synchronous mirror so screens can render the right thing on first paint

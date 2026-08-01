@@ -317,6 +317,16 @@ export async function fetchPlacesSummary(settings: CaptureSettings): Promise<Pla
   return body.places;
 }
 
+// Library totals from the server, including the on-disk size. /api/stats sits
+// in the router's both-principals group and resolves its owner through
+// ownerID(r), so a device token reads its own owner's numbers with no
+// device-specific endpoint -- see internal/httpapi/stats_device_test.go.
+export type LibraryStats = components['schemas']['apitypes.LibraryStats'];
+
+export async function fetchStats(settings: CaptureSettings): Promise<LibraryStats> {
+  return authedGet<LibraryStats>(settings, '/api/stats');
+}
+
 // DupAsset is one member of a duplicate group. /api/duplicates returns an
 // untyped map on the server (no generated contract type), so this is
 // hand-declared to match the DupAsset wire struct.
