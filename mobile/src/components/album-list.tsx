@@ -28,9 +28,7 @@ function coverAsset(id: string): LibraryAsset {
 // with a create action. Tapping a card overlays AlbumDetail via local state
 // rather than an expo-router route — consistent with how AlbumPicker (in the
 // Backup tab) is toggled in place rather than routed to.
-// bottomInset leaves room for the floating tab bar so the last row of album
-// cards is reachable instead of sitting under the pill.
-export default function AlbumList({ bottomInset }: { bottomInset?: number } = {}) {
+export default function AlbumList() {
   const tokens = useTokens();
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
   const [albums, setAlbums] = useState<CachedAlbum[]>([]);
@@ -110,7 +108,8 @@ export default function AlbumList({ bottomInset }: { bottomInset?: number } = {}
           keyExtractor={(a) => a.id}
           numColumns={columns}
           columnWrapperStyle={{ gap, paddingHorizontal: Spacing.two }}
-          contentContainerStyle={[styles.grid, { paddingBottom: (bottomInset ?? 0) + Spacing.four }]}
+          contentContainerStyle={styles.grid}
+          contentInsetAdjustmentBehavior="automatic"
           renderItem={({ item }) => {
             const source = settings && item.cover_asset_id ? thumbSource(settings, coverAsset(item.cover_asset_id)) : null;
             return (
@@ -184,7 +183,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  grid: { gap: Spacing.three },
+  grid: { gap: Spacing.three, paddingBottom: Spacing.four },
   card: { flex: 1, gap: Spacing.one },
   cover: { width: '100%', aspectRatio: 1, borderRadius: Spacing.two, overflow: 'hidden' },
   coverImage: { width: '100%', height: '100%' },

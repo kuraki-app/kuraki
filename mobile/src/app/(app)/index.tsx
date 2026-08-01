@@ -4,8 +4,8 @@ import { AppState, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AlbumTargetPicker from '@/components/album-target-picker';
+import GalleryHeader from '@/components/gallery-header';
 import PhotoGrid from '@/components/photo-grid';
-import { useScrollReporter } from '@/components/scroll-reporter';
 import PlacesScreen from '@/components/places-screen';
 import SelectionBar from '@/components/selection-bar';
 import { ThemedText } from '@/components/themed-text';
@@ -28,16 +28,8 @@ import {
   type LibraryFilters,
 } from '@/lib/library-api';
 import { isAuthLost, onAuthLost } from '@/lib/session';
+import { type GalleryView, type GroupBy } from '@/lib/gallery';
 import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
-import { TAB_BAR_HEIGHT } from '@/lib/tab-bar';
-
-type Segment = 'timeline' | 'memories' | 'places';
-
-const segments: { key: Segment; label: string }[] = [
-  { key: 'timeline', label: 'Timeline' },
-  { key: 'memories', label: 'On this day' },
-  { key: 'places', label: 'Places' },
-];
 
 const reg = registerStyle('kura');
 const heading = { fontFamily: reg.heading };
@@ -45,8 +37,8 @@ const heading = { fontFamily: reg.heading };
 export default function LibraryScreen() {
   const tokens = useTokens();
   const insets = useSafeAreaInsets();
-  const { report } = useScrollReporter();
-  const [segment, setSegment] = useState<Segment>('timeline');
+  const [segment, setSegment] = useState<GalleryView>('timeline');
+  const [groupBy, setGroupBy] = useState<GroupBy>('month');
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
@@ -354,27 +346,16 @@ export default function LibraryScreen() {
           </View>
         </View>
       )}
-      <View style={[styles.segments, { paddingTop: insets.top + Spacing.two }]}>
-        {segments.map((s) => (
-          <Pressable
-            key={s.key}
-            onPress={() => {
-              cancelSelection();
-              setSegment(s.key);
-            }}
-            style={[
-              styles.segment,
-              { borderColor: tokens.input },
-              segment === s.key && { backgroundColor: tokens.primary, borderColor: tokens.primary },
-            ]}>
-            <ThemedText
-              type="small"
-              themeColor={segment === s.key ? 'primaryForeground' : undefined}
-              style={heading}>
-              {s.label}
-            </ThemedText>
-          </Pressable>
-        ))}
+      <View style={{ paddingTop: insets.top + Spacing.two }}>
+        <GalleryHeader
+          view={segment}
+          groupBy={groupBy}
+          onChangeView={(v) => {
+            cancelSelection();
+            setSegment(v);
+          }}
+          onChangeGroupBy={setGroupBy}
+        />
       </View>
 
       {segment === 'timeline' && (
@@ -393,8 +374,7 @@ export default function LibraryScreen() {
             selectedIds={selected}
             onToggleSelect={toggleSelect}
             onLongPressItem={startSelection}
-            onScroll={report}
-            bottomInset={TAB_BAR_HEIGHT + insets.bottom}
+            groupBy={groupBy}
             emptyMessage="No photos here yet."
           />
         )
@@ -450,8 +430,6 @@ const styles = StyleSheet.create({
   },
   bannerText: { flex: 1 },
   bannerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  segments: { flexDirection: 'row', gap: Spacing.one, paddingHorizontal: Spacing.two },
-  segment: { flex: 1, alignItems: 'center', paddingVertical: Spacing.two, borderRadius: Spacing.two, borderWidth: 1 },
   header: { padding: Spacing.two, gap: Spacing.two },
   search: {
     borderRadius: Spacing.two,

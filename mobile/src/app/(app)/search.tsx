@@ -14,7 +14,6 @@ import { enqueueFavorite, pendingFavorites } from '@/lib/cache/mutations';
 import { fetchLibrary, setFavorite, type LibraryAsset } from '@/lib/library-api';
 import { SEARCH_CHIPS, searchFilters } from '@/lib/search';
 import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
-import { TAB_BAR_HEIGHT } from '@/lib/tab-bar';
 
 const reg = registerStyle('kura');
 const heading = { fontFamily: reg.heading };
@@ -153,7 +152,6 @@ export default function SearchScreen() {
           loading={loading}
           onEndReached={() => void loadMore()}
           onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
-          bottomInset={TAB_BAR_HEIGHT + insets.bottom}
           emptyMessage={searched ? 'Nothing matched that search.' : 'Search your photos and videos.'}
         />
       )}

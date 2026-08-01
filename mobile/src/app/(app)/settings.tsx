@@ -20,7 +20,6 @@ import {
   loadCaptureSettings,
   saveCaptureSettings,
 } from '@/lib/settings';
-import { TAB_BAR_HEIGHT } from '@/lib/tab-bar';
 import { normalizeServerURL } from '@/lib/url';
 
 const reg = registerStyle('vault');
@@ -128,7 +127,6 @@ export default function SettingsScreen() {
       <ScrollView
         contentContainerStyle={{
           paddingTop: insets.top,
-          paddingBottom: TAB_BAR_HEIGHT + insets.bottom + Spacing.three,
         }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} />}>
         <ThemedView style={styles.header}>

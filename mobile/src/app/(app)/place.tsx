@@ -10,7 +10,6 @@ import { Spacing } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { fetchLibrary, type LibraryAsset } from '@/lib/library-api';
 import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
-import { TAB_BAR_HEIGHT } from '@/lib/tab-bar';
 
 const reg = registerStyle('vault');
 const heading = { fontFamily: reg.heading };
@@ -75,7 +74,6 @@ export default function PlaceScreen() {
         <View style={styles.spacer} />
       </View>
       <PhotoGrid
-        bottomInset={TAB_BAR_HEIGHT + insets.bottom}
         assets={assets}
         settings={settings}
         loading={loading}

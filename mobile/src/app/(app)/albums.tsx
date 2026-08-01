@@ -6,7 +6,6 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
-import { TAB_BAR_HEIGHT } from '@/lib/tab-bar';
 
 const reg = registerStyle('kura');
 const heading = { fontFamily: reg.heading };
@@ -21,7 +20,7 @@ export default function AlbumsScreen() {
       <ThemedText type="title" style={[heading, styles.title]}>
         Albums
       </ThemedText>
-      <AlbumList bottomInset={TAB_BAR_HEIGHT + insets.bottom} />
+      <AlbumList />
     </ThemedView>
   );
 }
