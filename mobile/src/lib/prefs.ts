@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import type { GroupBy } from '@/lib/gallery';
+import { RETENTION_DAYS } from '@/lib/reclaim';
 
 // Every user-facing preference in one record. They live together because they
 // are read together (the grid needs three of them at once) and because a single
@@ -20,6 +21,10 @@ export type Prefs = {
   groupBy: GroupBy;
   showGroupHeaders: boolean;
   showSizeBadge: boolean;
+  // Free up space: how many days a backed-up photo stays on the phone before
+  // it is offered for local deletion. -1 keeps everything, and is the default —
+  // this feature deletes photographs, so it must be opted into.
+  keepLocalDays: number;
 };
 
 export const GRID_COLUMNS = { min: 2, max: 6 } as const;
@@ -37,6 +42,7 @@ export const DEFAULT_PREFS: Prefs = {
   groupBy: 'month',
   showGroupHeaders: true,
   showSizeBadge: false,
+  keepLocalDays: -1,
 };
 
 const GROUP_VALUES: GroupBy[] = ['month', 'year', 'off'];
@@ -77,6 +83,12 @@ export function mergePrefs(stored: unknown): Prefs {
     groupBy: GROUP_VALUES.includes(s.groupBy as GroupBy) ? (s.groupBy as GroupBy) : DEFAULT_PREFS.groupBy,
     showGroupHeaders: bool(s.showGroupHeaders, DEFAULT_PREFS.showGroupHeaders),
     showSizeBadge: bool(s.showSizeBadge, DEFAULT_PREFS.showSizeBadge),
+    // Only a value this build offers is honoured. A number from a newer build,
+    // or junk, falls back to keep-everything rather than to some window the
+    // user never chose — the failure mode here is deleted photographs.
+    keepLocalDays: (RETENTION_DAYS as readonly number[]).includes(s.keepLocalDays as number)
+      ? (s.keepLocalDays as number)
+      : DEFAULT_PREFS.keepLocalDays,
   };
 }
 

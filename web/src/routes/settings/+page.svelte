@@ -43,6 +43,13 @@
     s === 'clean' ? 'All originals verified' : s === 'problems' ? 'Problems found' : s === 'running' ? 'Verifying…' : 'Verification error';
 
   $: maxYear = stats ? Math.max(1, ...stats.by_year.map((y) => y.count)) : 1;
+
+  // Absent on a platform or storage backend that cannot report it. Zero is not
+  // a fallback: "0 bytes free" reads as a full disk, so the whole block hides
+  // rather than claiming something untrue.
+  $: diskFree = stats?.disk_free_bytes ?? 0;
+  $: diskTotal = stats?.disk_total_bytes ?? 0;
+  $: diskPercent = diskTotal > 0 ? Math.round(((diskTotal - diskFree) / diskTotal) * 100) : 0;
 </script>
 
 <PageHeader title="Overview" subtitle="Library stats, integrity, and backup status.">
@@ -61,7 +68,25 @@
     <StatCard value={stats.albums.toLocaleString()} label="Albums" />
     <StatCard value={stats.places.toLocaleString()} label="Places" />
     <StatCard value={stats.trashed.toLocaleString()} label="In trash" />
+    {#if diskTotal > 0}
+      <StatCard value={fileSize(diskFree)} label="Free on disk" />
+    {/if}
   </div>
+
+  {#if diskTotal > 0}
+    <!-- The library's share of the disk, not the disk's used share: the point
+         is how much room is left for photos, and on a NAS most of what is used
+         may be nothing to do with Kuraki. -->
+    <section class="disk">
+      <div class="disk-bar" role="img" aria-label="{diskPercent}% of the disk is in use">
+        <div class="disk-fill" style="width: {Math.min(100, diskPercent)}%"></div>
+      </div>
+      <span class="muted">
+        {fileSize(stats.total_bytes)} of library in {fileSize(diskTotal)} of storage ·
+        {fileSize(diskFree)} free
+      </span>
+    </section>
+  {/if}
 
   <section class="integrity {integrity?.status ?? ''}">
     <div class="int-text">
@@ -115,6 +140,23 @@
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 12px;
   }
+  .disk {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .disk-bar {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--muted);
+    overflow: hidden;
+  }
+  .disk-fill {
+    height: 100%;
+    background: var(--primary);
+  }
+
   .integrity {
     display: flex;
     align-items: center;

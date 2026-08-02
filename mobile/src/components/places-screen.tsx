@@ -30,8 +30,8 @@ const reg = registerStyle('vault');
 const heading = { fontFamily: reg.heading };
 
 // PlacesScreen owns the Places segment's fetch + state and composes the map,
-// the bottom-sheet place list, and the viewer. Online-first: it fetches on
-// mount and falls back to the connection/empty states via placesViewState.
+// the place list beneath it, and the viewer. Online-first: it fetches on mount
+// and falls back to the connection/empty states via placesViewState.
 export default function PlacesScreen({ settings }: { settings: CaptureSettings }) {
   const [points, setPoints] = useState<PlacePoint[]>([]);
   const [groups, setGroups] = useState<PlaceGroup[]>([]);
@@ -89,17 +89,22 @@ export default function PlacesScreen({ settings }: { settings: CaptureSettings }
   const viewerAssets = points as LibraryAsset[];
 
   return (
+    // A split, not a map with a sheet floating over it. The list is a sibling
+    // that owns its own share of the screen, so nothing it holds can end up
+    // underneath the tab bar (see place-list.tsx).
     <View style={styles.fill}>
-      {PlacesMap ? (
-        <PlacesMap
-          points={points}
-          onPressPoint={(assetId) => setViewerIndex(points.findIndex((p) => p.id === assetId))}
-        />
-      ) : (
-        // No native map in this binary — degrade to the place list alone rather
-        // than an empty Places tab. The list below is fully functional.
-        <Center text="The map needs a development build — MapLibre isn’t in this binary. Your places are still listed below." />
-      )}
+      <View style={styles.map}>
+        {PlacesMap ? (
+          <PlacesMap
+            points={points}
+            onPressPoint={(assetId) => setViewerIndex(points.findIndex((p) => p.id === assetId))}
+          />
+        ) : (
+          // No native map in this binary — degrade to the place list alone
+          // rather than an empty Places tab. The list below is fully functional.
+          <Center text="The map needs a development build — MapLibre isn’t in this binary. Your places are still listed below." />
+        )}
+      </View>
       <PlaceList
         groups={groups}
         settings={settings}
@@ -135,6 +140,9 @@ function Center({ text }: { text: string }) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  // 3:2 against PlaceList's `flex: 2` — the map is what the segment is for, and
+  // the list still shows three or four places without scrolling.
+  map: { flex: 3 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.four },
   msg: { textAlign: 'center' },
 });

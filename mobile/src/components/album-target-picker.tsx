@@ -1,16 +1,12 @@
-import BottomSheet, { BottomSheetFlatList, BottomSheetTextInput } from '@gorhom/bottom-sheet';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import Dialog from '@/components/dialog';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing, useTokens } from '@/constants/theme';
-import { registerStyle } from '@/design/registers';
 import type { CachedAlbum } from '@/lib/cache/albums';
 import { createAlbum, fetchAlbums } from '@/lib/library-api';
 import type { CaptureSettings } from '@/lib/settings';
-
-const reg = registerStyle('kura');
-const heading = { fontFamily: reg.heading };
 
 type Props = {
   visible: boolean;
@@ -25,10 +21,10 @@ type Props = {
 // backups from — this one picks a *server* album, via the same
 // fetchAlbums/createAlbum calls AlbumList uses to render the Albums tab.
 //
-// A bottom sheet, matching every other pick-one-thing surface in the app. It
-// was a centred transparent Modal with its own hand-drawn Cancel button, which
-// meant a list of albums capped at 80% of the screen in a floating card that
-// could not be dragged, flicked away or resized.
+// A Dialog. As a bottom sheet this was the clearest casualty of sheets being
+// laid out inside the screen: the native tab bar covered the album list's last
+// rows and the "Create & add" button, so selecting photos and choosing where to
+// put them ended at a control that could be seen but not pressed.
 export default function AlbumTargetPicker({ visible, settings, onPick, onClose }: Props) {
   const tokens = useTokens();
   const [albums, setAlbums] = useState<CachedAlbum[]>([]);
@@ -36,7 +32,6 @@ export default function AlbumTargetPicker({ visible, settings, onPick, onClose }
   const [error, setError] = useState('');
   const [name, setName] = useState('');
   const [creating, setCreating] = useState(false);
-  const snapPoints = useMemo(() => ['50%', '85%'], []);
 
   const refresh = useCallback(async (active: CaptureSettings) => {
     setLoading(true);
@@ -75,26 +70,15 @@ export default function AlbumTargetPicker({ visible, settings, onPick, onClose }
     }
   }
 
-  if (!visible) return null;
-
   return (
-    <BottomSheet
-      index={0}
-      snapPoints={snapPoints}
-      onClose={onClose}
-      enablePanDownToClose
-      backgroundStyle={{ backgroundColor: tokens.card }}
-      handleIndicatorStyle={{ backgroundColor: tokens.mutedForeground }}>
-      <View style={styles.header}>
-        <ThemedText type="subtitle" style={heading}>Add to album</ThemedText>
-      </View>
+    <Dialog visible={visible} title="Add to album" register="kura" onClose={onClose}>
       {error ? (
         <ThemedText type="small" style={[styles.pad, { color: tokens.destructive }]} selectable>
           {error}
         </ThemedText>
       ) : null}
       <View style={styles.createRow}>
-        <BottomSheetTextInput
+        <TextInput
           placeholder="New album name"
           placeholderTextColor={tokens.textFaint}
           value={name}
@@ -111,9 +95,10 @@ export default function AlbumTargetPicker({ visible, settings, onPick, onClose }
           <ThemedText type="smallBold" themeColor="primaryForeground">Create &amp; add</ThemedText>
         </Pressable>
       </View>
-      <BottomSheetFlatList
+      <FlatList
         data={albums}
         keyExtractor={(a) => a.id}
+        keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => (
           <Pressable style={[styles.row, { borderBottomColor: tokens.border }]} onPress={() => onPick(item.id)}>
             <ThemedText>{item.name}</ThemedText>
@@ -130,12 +115,11 @@ export default function AlbumTargetPicker({ visible, settings, onPick, onClose }
           )
         }
       />
-    </BottomSheet>
+    </Dialog>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.one },
   pad: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.half },
   createRow: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.two, gap: Spacing.two },
   input: { borderRadius: Spacing.two, borderWidth: 1, fontSize: 16, minHeight: 44, paddingHorizontal: Spacing.two },

@@ -4,11 +4,12 @@ import { StyleSheet, View } from 'react-native';
 import AlbumAddPicker from '@/components/album-add-picker';
 import AlbumTargetPicker from '@/components/album-target-picker';
 import PhotoGrid from '@/components/photo-grid';
-import SelectionBar from '@/components/selection-bar';
+import SelectionHeader from '@/components/selection-header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { registerStyle } from '@/design/registers';
 import { setCachedFavorite } from '@/lib/cache/assets';
+import { allFavorite } from '@/lib/selection';
 import { setTrashed } from '@/lib/cache/albums';
 import { enqueueAlbumAdd, enqueueFavorite, enqueueTrash } from '@/lib/cache/mutations';
 import {
@@ -24,11 +25,17 @@ import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
 const reg = registerStyle('kura');
 const heading = { fontFamily: reg.heading };
 
+/** What the route needs to know about selection: the count for its header
+ *  title, and `null` for "not selecting" so it can restore the Add button. */
+export type SelectionReport = { count: number; total: number } | null;
+
 type Props = {
   albumId: string;
   /** Opened from the route's "Add photos" toolbar button. */
   adding: boolean;
   onAddingChange: (next: boolean) => void;
+  /** Selection lives here, but the header that shows it belongs to the route. */
+  onSelectionChange: (report: SelectionReport) => void;
 };
 
 // AlbumDetail is the body of the album route. It loads its own settings the
@@ -36,7 +43,7 @@ type Props = {
 // grid + viewer, plus selection mode with the same add-to-album/trash actions
 // as the Timeline grid (Task 7). The title and the back affordance belong to
 // the route's native header, not to this component.
-export default function AlbumDetail({ albumId, adding, onAddingChange }: Props) {
+export default function AlbumDetail({ albumId, adding, onAddingChange, onSelectionChange }: Props) {
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,11 +137,38 @@ export default function AlbumDetail({ albumId, adding, onAddingChange }: Props) 
     setSelectionMode(false);
   }
 
-  // Select all flips to clear once everything is chosen, so one control does
-  // both and the bar does not grow a fifth action.
-  function selectAll() {
-    setSelected((prev) => (prev.size >= assets.length ? new Set() : new Set(assets.map((a) => a.id))));
-  }
+  // Selecting is "the mode is on, or something is picked" — a long-press picks
+  // a tile without having gone through the mode first.
+  const selecting = selectionMode || selected.size > 0;
+
+  // Reported up rather than rendered here: the count belongs in the native
+  // header title, and the route owns that.
+  useEffect(() => {
+    onSelectionChange(selecting ? { count: selected.size, total: assets.length } : null);
+  }, [selecting, selected.size, assets.length, onSelectionChange]);
+
+  // Leaving the album mid-selection would otherwise strand the route's header
+  // showing "3 selected" over whatever came back.
+  useEffect(() => () => onSelectionChange(null), [onSelectionChange]);
+
+  // Per-group rather than whole-album: same reasoning as the Gallery's, and it
+  // is the control the grid's date headings now carry.
+  const selectSection = useCallback((ids: string[], allSelected: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (allSelected) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const favoriteSelected = useCallback(async () => {
+    const ids = [...selected];
+    const next = !allFavorite(assets, selected);
+    for (const id of ids) await toggleFavorite(id, next);
+  }, [selected, assets, toggleFavorite]);
 
   /**
    * Remove from *this* album, which only unlinks: the photos stay in the
@@ -223,19 +257,34 @@ export default function AlbumDetail({ albumId, adding, onAddingChange }: Props) 
             setSelectionMode(true);
             startSelection(id);
           }}
+          onSelectSection={selectSection}
           emptyMessage="No photos in this album yet."
         />
       )}
 
-      {(selectionMode || selected.size > 0) && (
-        <SelectionBar
+      {selecting && (
+        <SelectionHeader
           count={selected.size}
-          total={assets.length}
-          onSelectAll={selectAll}
-          onAddToAlbum={() => setPickerOpen(true)}
-          onRemoveFromAlbum={() => void removeSelected()}
-          onTrash={() => void trashSelected()}
           onCancel={cancelSelection}
+          onFavorite={() => void favoriteSelected()}
+          allFavorite={allFavorite(assets, selected)}
+          onTrash={() => void trashSelected()}
+          actions={[
+            {
+              key: 'album',
+              label: 'Add to album',
+              icon: 'rectangle.stack.badge.plus',
+              onPress: () => setPickerOpen(true),
+            },
+            // Unlinking from this album and moving to trash read as the same
+            // act until they are spelled out; the menu has room to.
+            {
+              key: 'remove',
+              label: 'Remove from this album',
+              icon: 'rectangle.stack.badge.minus',
+              onPress: () => void removeSelected(),
+            },
+          ]}
         />
       )}
       <AlbumTargetPicker

@@ -1,9 +1,11 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
+	"github.com/kuraki-app/kuraki/internal/storage"
 )
 
 // stats reports library totals for the dashboard. Every aggregate is scoped to
@@ -60,6 +62,19 @@ func (d Deps) stats(w http.ResponseWriter, r *http.Request) {
 			if err := rows.Scan(&y.Year, &y.Count); err == nil {
 				s.ByYear = append(s.ByYear, y)
 			}
+		}
+	}
+
+	// Best-effort, and left at zero on any failure. "How big is my library" is
+	// a database question and always answerable; "how much room is left" is a
+	// filesystem question that a backend may not be able to answer at all, and
+	// a statfs that fails must not take the whole dashboard down with it.
+	if reporter, ok := d.Store.(storage.UsageReporter); ok {
+		if usage, err := reporter.Usage(); err == nil {
+			s.DiskFreeBytes = usage.FreeBytes
+			s.DiskTotalBytes = usage.TotalBytes
+		} else if !errors.Is(err, storage.ErrUsageUnsupported) && d.Logger != nil {
+			d.Logger.Warn("stats: disk usage unavailable", "err", err)
 		}
 	}
 

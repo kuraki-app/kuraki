@@ -23,6 +23,7 @@ export default function SettingsLayout() {
       <Stack.Screen name="permissions" options={headerOptions({ title: 'Permissions' })} />
       <Stack.Screen name="notifications" options={headerOptions({ title: 'Notifications' })} />
       <Stack.Screen name="grid" options={headerOptions({ title: 'Photo Grid' })} />
+      <Stack.Screen name="free-up-space" options={headerOptions({ title: 'Free up space' })} />
       <Stack.Screen name="trash" options={headerOptions({ title: 'Trash' })} />
       <Stack.Screen name="duplicates" options={headerOptions({ title: 'Duplicates' })} />
     </Stack>

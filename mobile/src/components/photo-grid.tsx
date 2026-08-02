@@ -18,6 +18,7 @@ import { Spacing, useTokens } from '@/constants/theme';
 import { usePrefs } from '@/hooks/use-prefs';
 import { formatBytes } from '@/lib/format';
 import { groupAssets, type PhotoRow } from '@/lib/gallery';
+import { sectionAllSelected, sectionIds } from '@/lib/selection';
 import { thumbSource, type LibraryAsset } from '@/lib/library-api';
 import { offsetForProgress, progressForOffset } from '@/lib/scrubber';
 import type { CaptureSettings } from '@/lib/settings';
@@ -51,6 +52,15 @@ type Props = {
    * album picker needs the same thing permanently.
    */
   selectionMode?: boolean;
+  /**
+   * Select or clear a whole date group from its heading.
+   *
+   * Only meaningful while selecting, and only offered then: a control sitting
+   * in every heading all the time would be a permanent invitation to a mode the
+   * user is not in. `allSelected` says which way the tap should go, so the
+   * caller does not have to recompute what the heading already knows.
+   */
+  onSelectSection?: (ids: string[], allSelected: boolean) => void;
 };
 
 // PhotoGrid is the tile grid + full-screen viewer shared by every photo surface
@@ -69,6 +79,7 @@ export default function PhotoGrid({
   onToggleSelect,
   onLongPressItem,
   selectionMode = false,
+  onSelectSection,
 }: Props) {
   const tokens = useTokens();
   // Layout and grouping are preferences, read here rather than threaded through
@@ -176,13 +187,33 @@ export default function PhotoGrid({
         scrollEventThrottle={16}
         onViewableItemsChanged={onViewableItemsChanged}
         stickySectionHeadersEnabled={false}
-        renderSectionHeader={({ section }) =>
-          showGroupHeaders && section.title ? (
-            <ThemedText type="smallBold" style={styles.sectionHeader}>
-              {section.title}
-            </ThemedText>
-          ) : null
-        }
+        renderSectionHeader={({ section }) => {
+          const selectAll = selectionActive && onSelectSection;
+          if (!showGroupHeaders || !section.title) {
+            // With headings switched off there is nothing to hang the control
+            // on, so per-group selection simply is not offered.
+            return null;
+          }
+          const allSelected = selectAll ? sectionAllSelected(section, selectedIds ?? new Set()) : false;
+          return (
+            <View style={styles.sectionRow}>
+              <ThemedText type="smallBold" style={styles.sectionHeader}>
+                {section.title}
+              </ThemedText>
+              {selectAll ? (
+                <Pressable
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${allSelected ? 'Deselect' : 'Select'} everything in ${section.title}`}
+                  onPress={() => onSelectSection(sectionIds(section), allSelected)}>
+                  <ThemedText type="smallBold" themeColor="primary">
+                    {allSelected ? 'None' : 'Select all'}
+                  </ThemedText>
+                </Pressable>
+              ) : null}
+            </View>
+          );
+        }}
         renderItem={({ item: row }) => (
           <View style={[styles.row, { gap, marginBottom: gap }]}>
             {row.map((item) => {
@@ -287,7 +318,13 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row' },
   tile: { alignItems: 'center', justifyContent: 'center' },
   thumb: { width: '100%', height: '100%' },
-  sectionHeader: { paddingHorizontal: Spacing.two, paddingTop: Spacing.three, paddingBottom: Spacing.one },
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.two,
+  },
+  sectionHeader: { paddingTop: Spacing.three, paddingBottom: Spacing.one },
   // Bottom-right, so it never sits under the selection check in the corner
   // opposite. Fixed light-on-dark rather than themed: it is drawn over a
   // photograph, not over the app's background.

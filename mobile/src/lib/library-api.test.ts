@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { routeForMutation } from '@/lib/library-api';
+import { isUnfiltered, routeForMutation } from '@/lib/library-api';
 
 describe('routeForMutation', () => {
   it('favorite', () => {
@@ -29,5 +29,22 @@ describe('routeForMutation', () => {
   it('set_tags maps to a full-set PUT', () => {
     expect(routeForMutation('set_tags', 'a1', JSON.stringify({ tag_ids: ['t1', 't2'] })))
       .toEqual({ method: 'PUT', path: '/api/assets/a1/tags', body: { ids: ['t1', 't2'] } });
+  });
+});
+
+describe('isUnfiltered', () => {
+  it('the plain timeline is cacheable', () => {
+    expect(isUnfiltered({})).toBe(true);
+  });
+
+  it('the archived view is not', () => {
+    // Caching it would write archived photos into the offline mirror of the
+    // ordinary timeline, and the next cold start would open on them.
+    expect(isUnfiltered({ archived: true })).toBe(false);
+  });
+
+  it('any other filter is not either', () => {
+    expect(isUnfiltered({ favorite: true })).toBe(false);
+    expect(isUnfiltered({ tag: 'beach' })).toBe(false);
   });
 });

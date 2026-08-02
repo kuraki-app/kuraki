@@ -55,6 +55,9 @@ export type LibraryFilters = {
   place_city?: string;
   place_country?: string;
   tag?: string;
+  /** The Archived view. `parseAssetFilters` reads `archived=1`; anything else
+   *  means the ordinary library, which already excludes archived rows. */
+  archived?: boolean;
 };
 
 export class LibraryError extends Error {
@@ -67,7 +70,7 @@ export class LibraryError extends Error {
 // A page is "unfiltered" when it is the plain recent view (no search, type,
 // favorite, date range, or place filter) — that's the only view worth caching
 // for instant paint on the next open / offline fallback.
-function isUnfiltered(filters: LibraryFilters): boolean {
+export function isUnfiltered(filters: LibraryFilters): boolean {
   return (
     !filters.q &&
     !filters.type &&
@@ -76,7 +79,11 @@ function isUnfiltered(filters: LibraryFilters): boolean {
     !filters.to &&
     !filters.place_city &&
     !filters.place_country &&
-    !filters.tag
+    !filters.tag &&
+    // Archived is a filter like any other. Leaving it out here would let the
+    // archived page write itself into the offline mirror of the plain
+    // timeline, so the next cold start would open on archived photos.
+    !filters.archived
   );
 }
 
@@ -97,6 +104,7 @@ export async function fetchLibrary(
   if (filters.place_city) params.set('place_city', filters.place_city);
   if (filters.place_country) params.set('place_country', filters.place_country);
   if (filters.tag) params.set('tag', filters.tag);
+  if (filters.archived) params.set('archived', '1');
   if (cursor) params.set('cursor', cursor);
 
   const response = await fetch(`${settings.baseURL}/api/search?${params.toString()}`, {
@@ -243,6 +251,30 @@ export async function createAlbum(settings: CaptureSettings, name: string): Prom
     throw new LibraryError(`Could not create album (${response.status})`, response.status);
   }
   return (await response.json()) as { id: string; name: string };
+}
+
+/**
+ * setArchived moves a selection in or out of the archive and reports how many
+ * rows the server actually changed.
+ *
+ * Both directions, deliberately: archiving hides photos from the timeline, so
+ * shipping it without `unarchive` would make the action a one-way door. The
+ * endpoint has carried `archive`/`unarchive` since the organization migration;
+ * it simply had no mobile caller.
+ *
+ * The response's `succeeded` is the truth rather than `ids.length`, because the
+ * endpoint skips rows the owner does not own instead of failing the request.
+ */
+export async function setArchived(
+  settings: CaptureSettings,
+  ids: string[],
+  archived: boolean,
+): Promise<number> {
+  const res = await authedPost<{ succeeded?: number }>(settings, '/api/assets/batch', {
+    ids,
+    op: archived ? 'archive' : 'unarchive',
+  });
+  return res.succeeded ?? 0;
 }
 
 /**
