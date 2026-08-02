@@ -9,9 +9,11 @@ import { useTokens } from '@/constants/theme';
 // button to the right of that pill. A custom component reimplementing either
 // would only be an approximation of a control the OS ships.
 //
-// `place` and `tag` are intentionally not declared: an undeclared route stays
-// navigable but gets no tab item, which is what a pushed detail screen wants.
-// `hidden` would be wrong — it makes a route unreachable by any means.
+// Each tab points at a *group* that owns a Stack rather than at a bare screen,
+// because NativeTabs draws no header. The parentheses keep every URL exactly
+// where it was; what changes is that each tab can now push (Gallery -> a place
+// or a tag, Albums -> an album, Settings -> its subpages) while keeping the tab
+// bar, the system back button and the back gesture.
 export default function AppLayout() {
   const tokens = useTokens();
 
@@ -21,12 +23,12 @@ export default function AppLayout() {
       backgroundColor={tokens.background}
       indicatorColor={tokens.card}
       labelStyle={{ selected: { color: tokens.foreground } }}>
-      <NativeTabs.Trigger name="index">
+      <NativeTabs.Trigger name="(gallery)">
         <NativeTabs.Trigger.Label>Gallery</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="photo.on.rectangle" md="photo_library" />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="albums">
+      <NativeTabs.Trigger name="(albums)">
         <NativeTabs.Trigger.Label>Albums</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="rectangle.stack" md="collections" />
       </NativeTabs.Trigger>
@@ -36,7 +38,7 @@ export default function AppLayout() {
         <NativeTabs.Trigger.Icon sf="gearshape" md="settings" />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="search" role="search">
+      <NativeTabs.Trigger name="(search)" role="search">
         <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="magnifyingglass" md="search" />
       </NativeTabs.Trigger>

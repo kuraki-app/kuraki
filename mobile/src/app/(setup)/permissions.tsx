@@ -11,7 +11,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import SetupStep from '@/components/setup-step';
 import { Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { markSetupComplete } from '@/lib/settings';
@@ -36,11 +36,11 @@ export default function PermissionsStep() {
 
   async function finish() {
     await markSetupComplete();
-    router.replace('/(app)');
+    router.replace('/(app)/(gallery)');
   }
 
   return (
-    <ThemedView style={styles.content}>
+    <SetupStep>
       <ThemedText type="title" style={heading}>
         Photo access
       </ThemedText>
@@ -65,12 +65,11 @@ export default function PermissionsStep() {
       <Pressable onPress={() => void finish()} style={[styles.buttonGhost, { borderColor: tokens.input }]}>
         <ThemedText type="smallBold">Finish</ThemedText>
       </Pressable>
-    </ThemedView>
+    </SetupStep>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, padding: Spacing.three, gap: Spacing.three, justifyContent: 'center' },
   button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
   buttonGhost: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three, borderWidth: 1 },
 });

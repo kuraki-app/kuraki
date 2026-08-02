@@ -31,3 +31,25 @@ export function formatCount(count: number): string {
   if (!Number.isFinite(count) || count <= 0) return '0';
   return Math.round(count).toLocaleString('en-US');
 }
+
+/**
+ * formatTakenAt renders an asset's capture time for the viewer's details
+ * sheet: "2 August 2026 at 14:32".
+ *
+ * The server sends `taken_at` as an ISO string, and it is optional — an import
+ * with no EXIF date has none. An empty string rather than a thrown error or an
+ * "Invalid Date" is what the sheet wants: the row is simply omitted.
+ */
+export function formatTakenAt(iso: string | undefined): string {
+  if (!iso) return '';
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return '';
+
+  const date = at.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const time = at.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  return `${date} at ${time}`;
+}

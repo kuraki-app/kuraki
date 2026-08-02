@@ -1,25 +1,20 @@
-import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet } from 'react-native';
 
 import PhotoGrid from '@/components/photo-grid';
-import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
-import { registerStyle } from '@/design/registers';
 import { fetchLibrary, type LibraryAsset } from '@/lib/library-api';
 import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
 
-const reg = registerStyle('vault');
-const heading = { fontFamily: reg.heading };
-
-// TagScreen is the grid of a single tag's photos, pushed from the Library tag
-// sheet. Reuses PhotoGrid (which owns its viewer) and the server tag filter —
-// the exact place.tsx pattern with { tag } instead of { place_city }.
-export default function TagScreen() {
-  const insets = useSafeAreaInsets();
-  const { tag, title } = useLocalSearchParams<{ tag: string; title?: string }>();
+// TagGrid is the body of a single tag's photo grid: the server tag filter fed
+// into the shared PhotoGrid (which owns its own viewer).
+//
+// It is a component rather than a screen because a tag is reachable from two
+// tabs -- the Gallery's tag sheet and the Search screen's "Browse tags" -- and
+// each tab owns its own stack. A single shared route would have made tapping a
+// tag in Search jump the user into the Gallery tab; a thin route in each stack
+// pushing this component keeps them where they were.
+export default function TagGrid({ tag }: { tag: string }) {
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [cursor, setCursor] = useState<string | undefined>();
@@ -57,14 +52,6 @@ export default function TagScreen() {
 
   return (
     <ThemedView style={styles.screen}>
-      <Stack.Screen options={{ headerShown: false }} />
-      <View style={[styles.bar, { paddingTop: insets.top }]}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <ThemedText style={heading}>‹ Back</ThemedText>
-        </Pressable>
-        <ThemedText type="subtitle" style={heading}>{title ?? 'Tag'}</ThemedText>
-        <View style={styles.spacer} />
-      </View>
       <PhotoGrid
         assets={assets}
         settings={settings}
@@ -78,12 +65,4 @@ export default function TagScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.two,
-  },
-  spacer: { width: 44 },
 });

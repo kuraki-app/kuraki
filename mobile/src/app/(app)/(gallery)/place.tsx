@@ -1,24 +1,19 @@
-import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet } from 'react-native';
 
 import PhotoGrid from '@/components/photo-grid';
-import { ThemedText } from '@/components/themed-text';
+import { headerOptions } from '@/components/screen-header';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
-import { registerStyle } from '@/design/registers';
 import { fetchLibrary, type LibraryAsset } from '@/lib/library-api';
 import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
 
-const reg = registerStyle('vault');
-const heading = { fontFamily: reg.heading };
-
 // PlaceScreen is the grid of a single place's photos, pushed from a Places
 // bottom-sheet card. It reuses PhotoGrid (which owns its own viewer) and the
-// server's place_city/place_country filter — no new server route.
+// server's place_city/place_country filter — no new server route. The bar it
+// used to draw for itself (a `‹ Back` label and a centred title under a manual
+// `insets.top`) is now the stack's native header.
 export default function PlaceScreen() {
-  const insets = useSafeAreaInsets();
   const { place_city, place_country, title } = useLocalSearchParams<{
     place_city: string;
     place_country?: string;
@@ -63,16 +58,12 @@ export default function PlaceScreen() {
 
   return (
     <ThemedView style={styles.screen}>
-      <Stack.Screen options={{ headerShown: false }} />
-      <View style={[styles.bar, { paddingTop: insets.top }]}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <ThemedText style={heading}>‹ Back</ThemedText>
-        </Pressable>
-        <ThemedText type="subtitle" style={heading}>
-          {title ?? place_city}
-        </ThemedText>
-        <View style={styles.spacer} />
-      </View>
+      <Stack.Screen
+        options={headerOptions({
+          title: title ?? place_city ?? 'Place',
+          register: 'vault',
+        })}
+      />
       <PhotoGrid
         assets={assets}
         settings={settings}
@@ -86,12 +77,4 @@ export default function PlaceScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.two,
-  },
-  spacer: { width: 44 },
 });

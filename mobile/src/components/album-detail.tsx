@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import AlbumTargetPicker from '@/components/album-target-picker';
 import PhotoGrid from '@/components/photo-grid';
 import SelectionBar from '@/components/selection-bar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { setCachedFavorite } from '@/lib/cache/assets';
 import { setTrashed } from '@/lib/cache/albums';
@@ -19,16 +18,14 @@ const heading = { fontFamily: reg.heading };
 
 type Props = {
   albumId: string;
-  albumName?: string;
-  onClose: () => void;
 };
 
-// AlbumDetail is pushed (as a local overlay, not a router route — see
-// AlbumList) when a card is tapped. It loads its own settings the same way
-// every other top-level photo surface does, then reuses the shared grid +
-// viewer, plus selection mode with the same add-to-album/trash actions as
-// the Timeline grid (Task 7).
-export default function AlbumDetail({ albumId, albumName, onClose }: Props) {
+// AlbumDetail is the body of the album route. It loads its own settings the
+// same way every other top-level photo surface does, then reuses the shared
+// grid + viewer, plus selection mode with the same add-to-album/trash actions
+// as the Timeline grid (Task 7). The title and the back affordance belong to
+// the route's native header, not to this component.
+export default function AlbumDetail({ albumId }: Props) {
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,12 +127,6 @@ export default function AlbumDetail({ albumId, albumName, onClose }: Props) {
 
   return (
     <ThemedView style={styles.fill}>
-      <View style={styles.header}>
-        <Pressable onPress={onClose} hitSlop={12} style={styles.back}>
-          <ThemedText type="smallBold" style={heading}>‹ Albums</ThemedText>
-        </Pressable>
-        <ThemedText type="subtitle" style={heading} numberOfLines={1}>{albumName ?? 'Album'}</ThemedText>
-      </View>
       {error ? (
         <View style={styles.center}>
           <ThemedText type="subtitle" style={heading}>Nothing to show</ThemedText>
@@ -174,8 +165,6 @@ export default function AlbumDetail({ albumId, albumName, onClose }: Props) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  header: { padding: Spacing.two, gap: Spacing.one },
-  back: { alignSelf: 'flex-start', paddingVertical: Spacing.one },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24, minHeight: 200 },
   msg: { textAlign: 'center' },
 });

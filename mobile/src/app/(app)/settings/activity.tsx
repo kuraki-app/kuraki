@@ -3,7 +3,6 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-n
 
 import { SettingsSection } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { Spacing, useTokens } from '@/constants/theme';
 import { backupEngine, type BackupProgress } from '@/lib/backup-engine';
 import { getCaptureStatus, type CaptureStatus } from '@/lib/capture-api';
@@ -43,72 +42,70 @@ export default function ActivitySettings() {
   const running = progress?.running ?? false;
 
   return (
-    <ThemedView style={styles.fill}>
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} />}>
-        <SettingsSection title="This device">
-          <View style={styles.counts}>
-            <Count label="Waiting" value={progress?.pending ?? 0} />
-            <Count label="Backed up" value={progress?.done ?? 0} />
-            <Count label="Failed" value={failed.length} />
-          </View>
-          {progress?.lastSuccess ? (
-            <ThemedText type="small" themeColor="mutedForeground" selectable style={styles.line}>
-              Last backed up: {progress.lastSuccess.filename}
-            </ThemedText>
-          ) : null}
-        </SettingsSection>
-
-        {failed.length ? (
-          <SettingsSection
-            title="Needs attention"
-            footer="Retry checks the server offset and skips items Kuraki already accepted.">
-            {failed.slice(0, 8).map((item) => (
-              <View key={item.localId} style={styles.entry}>
-                <ThemedText type="smallBold" selectable>
-                  {item.filename}
-                </ThemedText>
-                <ThemedText type="small" themeColor="mutedForeground" selectable>
-                  {item.error}
-                </ThemedText>
-              </View>
-            ))}
-            <Pressable
-              disabled={running}
-              style={[styles.button, { backgroundColor: tokens.primary, opacity: running ? 0.5 : 1 }]}
-              onPress={() => void backupEngine.run()}>
-              <ThemedText type="smallBold" themeColor="primaryForeground">
-                {running ? 'Retrying…' : 'Retry now'}
-              </ThemedText>
-            </Pressable>
-          </SettingsSection>
+    <ScrollView
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerStyle={styles.content}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} />}>
+      <SettingsSection title="This device">
+        <View style={styles.counts}>
+          <Count label="Waiting" value={progress?.pending ?? 0} />
+          <Count label="Backed up" value={progress?.done ?? 0} />
+          <Count label="Failed" value={failed.length} />
+        </View>
+        {progress?.lastSuccess ? (
+          <ThemedText type="small" themeColor="mutedForeground" selectable style={styles.line}>
+            Last backed up: {progress.lastSuccess.filename}
+          </ThemedText>
         ) : null}
+      </SettingsSection>
 
-        <SettingsSection title="Server activity" footer={error || undefined}>
-          {status?.sessions.length ? (
-            status.sessions.slice(0, 10).map((session) => (
-              <View key={session.id} style={styles.entry}>
-                <ThemedText type="smallBold" selectable>
-                  {session.filename}
-                </ThemedText>
-                <ThemedText type="small" themeColor="mutedForeground" selectable>
-                  {session.status} ·{' '}
-                  {session.size_bytes > 0
-                    ? `${Math.round((session.received_bytes / session.size_bytes) * 100)}%`
-                    : '0%'}
-                </ThemedText>
-              </View>
-            ))
-          ) : (
-            <ThemedText themeColor="mutedForeground" style={styles.line}>
-              No recent uploads from this device.
+      {failed.length ? (
+        <SettingsSection
+          title="Needs attention"
+          footer="Retry checks the server offset and skips items Kuraki already accepted.">
+          {failed.slice(0, 8).map((item) => (
+            <View key={item.localId} style={styles.entry}>
+              <ThemedText type="smallBold" selectable>
+                {item.filename}
+              </ThemedText>
+              <ThemedText type="small" themeColor="mutedForeground" selectable>
+                {item.error}
+              </ThemedText>
+            </View>
+          ))}
+          <Pressable
+            disabled={running}
+            style={[styles.button, { backgroundColor: tokens.primary, opacity: running ? 0.5 : 1 }]}
+            onPress={() => void backupEngine.run()}>
+            <ThemedText type="smallBold" themeColor="primaryForeground">
+              {running ? 'Retrying…' : 'Retry now'}
             </ThemedText>
-          )}
+          </Pressable>
         </SettingsSection>
-      </ScrollView>
-    </ThemedView>
+      ) : null}
+
+      <SettingsSection title="Server activity" footer={error || undefined}>
+        {status?.sessions.length ? (
+          status.sessions.slice(0, 10).map((session) => (
+            <View key={session.id} style={styles.entry}>
+              <ThemedText type="smallBold" selectable>
+                {session.filename}
+              </ThemedText>
+              <ThemedText type="small" themeColor="mutedForeground" selectable>
+                {session.status} ·{' '}
+                {session.size_bytes > 0
+                  ? `${Math.round((session.received_bytes / session.size_bytes) * 100)}%`
+                  : '0%'}
+              </ThemedText>
+            </View>
+          ))
+        ) : (
+          <ThemedText themeColor="mutedForeground" style={styles.line}>
+            No recent uploads from this device.
+          </ThemedText>
+        )}
+      </SettingsSection>
+    </ScrollView>
   );
 }
 

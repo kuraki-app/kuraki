@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, TextInput } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import SetupStep from '@/components/setup-step';
 import { Spacing, useTokens } from '@/constants/theme';
 import { probeServer } from '@/lib/connection';
 import { normalizeServerURL } from '@/lib/url';
@@ -36,7 +36,7 @@ export default function ServerStep() {
   }
 
   return (
-    <ThemedView style={styles.content}>
+    <SetupStep>
       <ThemedText type="title">Your server</ThemedText>
       <ThemedText themeColor="textDim">
         Enter your Kuraki server address. A local IP like 192.168.1.40 is fine — we will add the rest.
@@ -53,12 +53,11 @@ export default function ServerStep() {
           {busy ? 'Checking…' : 'Continue'}
         </ThemedText>
       </Pressable>
-    </ThemedView>
+    </SetupStep>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, padding: Spacing.three, gap: Spacing.three, justifyContent: 'center' },
   input: { borderWidth: 1, borderRadius: Spacing.two, minHeight: 48, paddingHorizontal: Spacing.two, fontSize: 16 },
   button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
 });

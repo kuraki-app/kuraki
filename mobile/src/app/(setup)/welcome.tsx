@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import SetupStep from '@/components/setup-step';
 import { Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 
@@ -13,7 +13,7 @@ export default function WelcomeStep() {
   const tokens = useTokens();
 
   return (
-    <ThemedView style={styles.content}>
+    <SetupStep>
       <ThemedText type="title" style={heading}>
         Welcome to the Vault
       </ThemedText>
@@ -31,11 +31,10 @@ export default function WelcomeStep() {
           Get started
         </ThemedText>
       </Pressable>
-    </ThemedView>
+    </SetupStep>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, padding: Spacing.three, gap: Spacing.three, justifyContent: 'center' },
   button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
 });

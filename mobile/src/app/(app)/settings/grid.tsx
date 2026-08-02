@@ -3,12 +3,12 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { SettingsSection, SettingsSwitch } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { Spacing, useTokens } from '@/constants/theme';
 import { GROUP_OPTIONS, type GroupBy } from '@/lib/gallery';
 import { DEFAULT_PREFS, GRID_COLUMNS, GRID_GAP, loadPrefs, savePrefs, type Prefs } from '@/lib/prefs';
 
 export default function GridSettings() {
+  const tokens = useTokens();
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
 
   useEffect(() => {
@@ -21,53 +21,54 @@ export default function GridSettings() {
   }, []);
 
   return (
-    <ThemedView style={styles.fill}>
-      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
-        <SettingsSection
-          title="Tiles"
-          footer="Shows each item’s file size on its tile, so you can spot what is using space while browsing.">
-          <SettingsSwitch
-            label="Show file size"
-            value={prefs.showSizeBadge}
-            onValueChange={(v) => void patch({ showSizeBadge: v })}
-          />
-        </SettingsSection>
+    <ScrollView
+      contentInsetAdjustmentBehavior="automatic"
+      style={[styles.fill, { backgroundColor: tokens.background }]}
+      contentContainerStyle={styles.content}>
+      <SettingsSection
+        title="Tiles"
+        footer="Shows each item’s file size on its tile, so you can spot what is using space while browsing.">
+        <SettingsSwitch
+          label="Show file size"
+          value={prefs.showSizeBadge}
+          onValueChange={(v) => void patch({ showSizeBadge: v })}
+        />
+      </SettingsSection>
 
-        <SettingsSection title="Layout">
-          <Stepper
-            label="Columns"
-            value={prefs.gridColumns}
-            min={GRID_COLUMNS.min}
-            max={GRID_COLUMNS.max}
-            onChange={(v) => void patch({ gridColumns: v })}
-          />
-          <Stepper
-            label="Spacing"
-            value={prefs.gridGap}
-            min={GRID_GAP.min}
-            max={GRID_GAP.max}
-            step={2}
-            onChange={(v) => void patch({ gridGap: v })}
-          />
-        </SettingsSection>
+      <SettingsSection title="Layout">
+        <Stepper
+          label="Columns"
+          value={prefs.gridColumns}
+          min={GRID_COLUMNS.min}
+          max={GRID_COLUMNS.max}
+          onChange={(v) => void patch({ gridColumns: v })}
+        />
+        <Stepper
+          label="Spacing"
+          value={prefs.gridGap}
+          min={GRID_GAP.min}
+          max={GRID_GAP.max}
+          step={2}
+          onChange={(v) => void patch({ gridGap: v })}
+        />
+      </SettingsSection>
 
-        <SettingsSection
-          title="Grouping"
-          footer="Grouping also drives the date shown while dragging the scroll indicator.">
-          <Choice
-            value={prefs.groupBy}
-            options={GROUP_OPTIONS}
-            onChange={(v) => void patch({ groupBy: v })}
-          />
-          <SettingsSwitch
-            label="Show date headings"
-            value={prefs.showGroupHeaders}
-            disabled={prefs.groupBy === 'off'}
-            onValueChange={(v) => void patch({ showGroupHeaders: v })}
-          />
-        </SettingsSection>
-      </ScrollView>
-    </ThemedView>
+      <SettingsSection
+        title="Grouping"
+        footer="Grouping also drives the date shown while dragging the scroll indicator.">
+        <Choice
+          value={prefs.groupBy}
+          options={GROUP_OPTIONS}
+          onChange={(v) => void patch({ groupBy: v })}
+        />
+        <SettingsSwitch
+          label="Show date headings"
+          value={prefs.showGroupHeaders}
+          disabled={prefs.groupBy === 'off'}
+          onValueChange={(v) => void patch({ showGroupHeaders: v })}
+        />
+      </SettingsSection>
+    </ScrollView>
   );
 }
 

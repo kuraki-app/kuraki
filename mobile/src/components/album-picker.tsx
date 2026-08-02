@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -15,6 +16,10 @@ type Props = {
 // An empty selection means the whole library, shown as "All photos & videos".
 export default function AlbumPicker({ selected, onClose }: Props) {
   const tokens = useTokens();
+  // Rendered inside a full-screen Modal with no header, so nothing was keeping
+  // "Albums to back up" clear of the status bar and Dynamic Island, or the
+  // Save row clear of the home indicator.
+  const insets = useSafeAreaInsets();
   const [albums, setAlbums] = useState<BackupAlbum[] | null>(null);
   const [chosen, setChosen] = useState<Set<string>>(new Set(selected));
   const [error, setError] = useState('');
@@ -44,7 +49,7 @@ export default function AlbumPicker({ selected, onClose }: Props) {
   }
 
   return (
-    <ThemedView style={styles.content}>
+    <ThemedView style={[styles.content, { paddingTop: insets.top + Spacing.three, paddingBottom: insets.bottom + Spacing.three }]}>
       <ThemedText type="title">Albums to back up</ThemedText>
       <ThemedText themeColor="mutedForeground" selectable>
         Choose which albums back up, or back up everything.
@@ -102,7 +107,7 @@ export default function AlbumPicker({ selected, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, padding: Spacing.three, gap: Spacing.two },
+  content: { flex: 1, paddingHorizontal: Spacing.three, gap: Spacing.two },
   list: { flex: 1 },
   row: {
     flexDirection: 'row',

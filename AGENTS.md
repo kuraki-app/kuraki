@@ -32,12 +32,15 @@ Phase 1 = single-owner personal backup.
   with re-geocode, batch timezone shift), a library **stats** dashboard; trash + retention + `verify`;
   argon2id auth + login rate-limit; safe-upgrade snapshots; and serving perf (cache headers, gzip,
   SQLite tuning). See [CHANGELOG.md](./CHANGELOG.md) for the full list.
-- **Mobile navigation was rebuilt (2026-08-01).** The app no longer uses `NativeTabs`: `(app)/_layout.tsx`
-  renders a custom split bar — a left pill (Gallery / Albums / Settings) that auto-collapses on scroll,
-  and a separate Search button. Routes are `(app)/index` (Gallery), `albums`, `settings`, `search`;
-  Backup is a **section of Settings** (`components/backup-panel.tsx`), not a tab. Device tokens and
-  pairing codes are never rendered once paired — see `lib/connection-view.ts`. **All of this is
-  code-complete but device-unverified**; there is no simulator here.
+- **Mobile chrome is the platform's, not ours (2026-08-02).** `(app)/_layout.tsx` renders `NativeTabs`
+  (the custom split bar described here previously was deleted — see §11, 2026-08-02), and **every tab
+  points at a route group that owns a `Stack`**: `(app)/(gallery)/`, `(app)/(albums)/`, `(app)/(search)/`,
+  `(app)/settings/`. URLs are unchanged by the parentheses. Headers come from one definition,
+  `components/screen-header.tsx` — there is no hand-drawn header bar left in the app, and no screen
+  pads by `insets.top` any more. `place`/`tag` push inside the Gallery stack; Trash and Duplicates live
+  in the Settings stack. Backup is a **page of Settings**, not a tab. Device tokens and pairing codes
+  are never rendered once paired — see `lib/connection-view.ts`. **All of this is code-complete but
+  device-unverified**; there is no simulator here.
 - **Builds & tests:** `go build ./...`, `go vet ./...`, `gofmt`, `go test -race ./...` all green;
   `npm run build` (web) clean. Cross-compiles linux/amd64+arm64, darwin/arm64, windows/amd64 (CGO off).
 - **R1 media core (2026-07-10):** current import admission covers JPEG/PNG/GIF/WebP/HEIC/HEIF/AVIF/TIFF plus MP4/M4V/MOV/WebM. A per-asset capability flag now prevents the viewer from rendering known-incompatible originals: libvips/pure-Go creates image previews where possible, ffprobe identifies browser-compatible video codecs, and ffmpeg creates H.264/AAC playback derivatives otherwise. Failed derivatives remain downloadable and appear in Activity's Media health section. Cross-engine and libvips fixture certification remains env-gated.
@@ -255,6 +258,13 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Mobile settings tree: stats index + Backup/Connection/Activity/Notifications/Photo Grid subpages, preference store | ✅ code-complete, not device-verified |
 | Mobile local notifications (backup finished/failed, disconnected) for iOS + Android, guarded so Expo Go still runs | ✅ code-complete, needs a dev build to fire |
 | Mobile UI defects: 48pt type scale, duplicate headings, "Undated" grouping, media-library deprecation warnings | ✅ fixed |
+| One header for every screen (`components/screen-header.tsx`); per-tab route-group stacks; seven hand-rolled bars and all manual `insets.top` deleted | ✅ code-complete, not device-verified |
+| Large-title overlap on all six settings pages (ScrollView was not the screen's direct child) | ✅ fixed |
+| Navigation theme built from Kuraki tokens (was react-navigation's stock white/black) | ✅ fixed |
+| Photo viewer: tap-to-toggle chrome, corner close/favorite icons, bottom details sheet (filename, date, size, place, tags) | ✅ code-complete, not device-verified |
+| Album detail promoted from local-state swap to a real pushed route (back button/gesture/Android back now work) | ✅ fixed |
+| Remaining picker Modals converted to `@gorhom/bottom-sheet`; modal safe areas; setup steps scroll under the keyboard | ✅ code-complete, not device-verified |
+| Selection bars (`selection-bar` + `trash-selection-bar`) still duplicated and pinned above a hardcoded `BottomTabInset` | ⬜ open |
 | expo-media-library migration to the new class-based API (legacy entry is a documented stopgap) | ⬜ needs a device to verify the backup scan |
 | Capture-session expiry sweep (startup + hourly janitor) | ✅ done |
 | R1/R2 exit criteria | ✅ met (Takeout + mounted folder re-import without metadata loss; backup/restore on clean instance; org actions on indexed queries) |
@@ -322,6 +332,17 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `feat/mobile-common-header-and-viewer` (2026-08-02, third pass) — **One header definition for the whole app, per-tab stacks, the large-title overlap bug, and a photo viewer that finally shows an asset's metadata. Nothing device-verified.**
+  - **The reported bug and the real bug were the same bug, in six places.** The screenshot showed "Settings" drawn on top of the library stats card. Cause: `settings/index.tsx` wrapped its `ScrollView` in a `ThemedView`. `headerLargeTitle` makes UIKit **overlay** the navigation bar and rely on the screen's *first-descendant* scroll view to carry the content inset; behind a wrapper view, react-native-screens finds nothing to inset, so `contentInsetAdjustmentBehavior="automatic"` was already set and did nothing. All six settings pages had the wrapper. **The generalisable rule: a large title is a contract with the scroll view, not a style.** `headerOptions({ large })` therefore defaults to **false** and is opted into only where the scroll view really is the screen's root — the photo surfaces put their grid behind banners and error states, so they take the compact title and depend on nothing.
+  - **There were seven hand-rolled header bars**, in three type sizes with three different back treatments, none collapsing, none blurring, each re-deriving `insets.top`. All gone. `components/screen-header.tsx` returns *navigation options*, not JSX, because the header worth having is the platform's — that is where collapse-on-scroll, the blur, the system back button and the interactive back gesture come from.
+  - **`NativeTabs` draws no header, so every tab needed a Stack.** Tabs now point at route groups — `(app)/(gallery)/`, `(app)/(albums)/`, `(app)/(search)/` — and the parentheses keep every URL where it was (verified against the regenerated `.expo/types/router.d.ts`). Consequences worth knowing: `place`/`tag` push **inside** the Gallery tab instead of covering it; `trash`/`duplicates` moved out of the router root into the Settings stack, so they keep the tab bar and get a real back button; and **a tab stack can only push its own routes** — Search needs its own copy of the tag route (`(search)/tag.tsx`) or tapping a tag there would throw the user into the Gallery tab. Both copies render the shared `components/tag-grid.tsx`. The root redirect target is now `/(app)/(gallery)`, not `/(app)`.
+  - **The root `ThemeProvider` was feeding react-navigation stock `DefaultTheme`/`DarkTheme`.** Every surface the OS draws — native headers, the background behind a push transition, the tab bar — reads its colours from there, so all of it was plain `#fff`/`#000` while the app painted warm paper everywhere else. That is *why* native chrome never matched, and why each screen had been painting over it by hand. The theme is now built from the Kuraki tokens.
+  - **The viewer's top bar was a single flex row of four text pills** — `Close`, the filename at `flex: 1`, `♡ Favorite`, `⊕ Tags` — so the filename was always the thing that lost, truncating to "Screensh…" between two buttons that kept full width. It was also permanently on screen over the photograph. Now a tap toggles everything: two corner icons (positioned off real insets, not the old hardcoded `top: 48`) and a `@gorhom/bottom-sheet` carrying filename, capture date, size, media type, place and tags — **none of which the viewer previously showed anywhere**. Tags are keyed on the asset **id**, not the asset object, or every favourite tap would refetch them.
+  - **Album detail was never navigation.** `AlbumList` swapped `AlbumDetail` in via local state, which looks like a push and is not: no back button, no back gesture, and Android's hardware back left the tab instead of closing the album. It is now `(app)/(albums)/album.tsx`, a real route.
+  - **Smaller things found by reading rather than by tooling:** `album-picker` and `pair-scanner` render inside full-screen `Modal`s with no header, so their titles sat under the Dynamic Island and `pair-scanner`'s overlay was pinned to a hardcoded `bottom: 40` (on the home indicator); the four `(setup)` steps centred their content in a plain `View`, so with the keyboard up the pair-code field was behind it with nothing to scroll — now `components/setup-step.tsx` plus a `KeyboardAvoidingView` in the setup layout.
+  - **Still open, deliberately:** `selection-bar.tsx` and `trash-selection-bar.tsx` are near-duplicates floating above a hardcoded `BottomTabInset` (50/80) instead of real insets. It is a behaviour change to selection mode rather than header/viewer work, so it was left out of this branch.
+  - **Verification ceiling, unchanged and worth repeating.** `tsc --noEmit`, `expo lint`, 135 vitest tests, `check-tokens`, `make check`, and a clean `expo export` — which proves routes resolve and modules evaluate, **and nothing about how any of it looks**. There is no simulator here. The large-title/scroll-view contract above is the specific thing to check first on hardware.
 
 - `feat/mobile-nav-redesign` (2026-08-02, second pass) — **Native tab bar, settings tree, preference store, notifications. Four UI defects fixed. Nothing device-verified.**
   - **The custom tab bar was deleted, and that is the lesson.** iOS 26 already ships this design: `NativeTabs` takes `minimizeBehavior="onScrollDown"` for the collapse-to-pill, and a trigger with `role="search"` is rendered by the system as the separate circular button. About 200 lines of `app-tab-bar` + `scroll-reporter` + a hand-written collapse state machine were an approximation of a control the OS provides. **Check the native API before building a lookalike.** Screens now use `contentInsetAdjustmentBehavior="automatic"` rather than manual `TAB_BAR_HEIGHT` padding.
