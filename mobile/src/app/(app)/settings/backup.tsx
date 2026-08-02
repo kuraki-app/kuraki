@@ -7,7 +7,7 @@ import { uploadPhoto } from '@/lib/capture-api';
 import { loadCaptureSettings } from '@/lib/settings';
 import { SettingsRow, SettingsSection, SettingsSwitch } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 import {
   disableBackgroundBackup,
   enableBackgroundBackup,
@@ -220,6 +220,6 @@ const styles = StyleSheet.create({
   content: { paddingBottom: Spacing.five },
   note: { paddingHorizontal: Spacing.four, paddingTop: Spacing.two },
   actions: { flexDirection: 'row', gap: Spacing.two, paddingHorizontal: Spacing.three, paddingTop: Spacing.four },
-  button: { flex: 1, alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
-  buttonGhost: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three, borderWidth: 1 },
+  button: { flex: 1, alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three },
+  buttonGhost: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three, borderWidth: 1 },
 });

@@ -12,7 +12,7 @@ import { Pressable, StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import SetupStep from '@/components/setup-step';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { markSetupComplete } from '@/lib/settings';
 
@@ -70,6 +70,6 @@ export default function PermissionsStep() {
 }
 
 const styles = StyleSheet.create({
-  button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
-  buttonGhost: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three, borderWidth: 1 },
+  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three },
+  buttonGhost: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three, borderWidth: 1 },
 });

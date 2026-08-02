@@ -3,7 +3,7 @@ import { Pressable, StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import SetupStep from '@/components/setup-step';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 
 const reg = registerStyle('vault');
@@ -36,5 +36,5 @@ export default function WelcomeStep() {
 }
 
 const styles = StyleSheet.create({
-  button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
+  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three },
 });

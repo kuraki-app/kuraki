@@ -14,14 +14,43 @@ export function useTokens(): ThemeTokens {
   return scheme === 'dark' ? darkTokens : lightTokens;
 }
 
+/**
+ * The spacing rhythm, in points.
+ *
+ * Rebased onto a 4pt grid with a real 12 between 8 and 20. The old scale ran
+ * 2/4/8/16/24/32 — doubling from 8 straight to 16 — so every time 8 was too
+ * tight and 16 too loose, 8 won. A census of the app found `two` (8) carrying
+ * almost all of the vertical work: 18 paddingVertical, 20 gap, 14
+ * paddingHorizontal. That single missing step is why the whole app read as
+ * compact, and adding it loosens every one of those sites at once rather than
+ * through eighty individual edits.
+ *
+ * The names are positions in the scale, not multiples of anything, which is why
+ * renumbering them here is safe: no caller does arithmetic on them.
+ */
 export const Spacing = {
-  half: 2,
-  one: 4,
-  two: 8,
-  three: 16,
-  four: 24,
-  five: 32,
+  half: 4,
+  one: 8,
+  two: 12,
+  three: 20,
+  four: 28,
+  five: 40,
   six: 64,
+} as const;
+
+/**
+ * Corner radii, in points.
+ *
+ * Split out of `Spacing`, which was quietly doing both jobs — 30 border radii
+ * were written as `Spacing.two`. That coupling meant the scale could not be
+ * loosened without rounding every corner in the app as a side effect, so a
+ * spacing decision and a shape decision could not be made independently. They
+ * are separate now, and these values are exactly what those radii already were.
+ */
+export const Radius = {
+  sm: 8,
+  md: 12,
+  lg: 16,
 } as const;
 
 // There is deliberately no BottomTabInset here any more. It was a hardcoded

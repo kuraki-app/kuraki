@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, TextInput } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import SetupStep from '@/components/setup-step';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { probeServer } from '@/lib/connection';
 import { normalizeServerURL } from '@/lib/url';
 import { saveCaptureSettings, loadCaptureSettings } from '@/lib/settings';
@@ -58,6 +58,6 @@ export default function ServerStep() {
 }
 
 const styles = StyleSheet.create({
-  input: { borderWidth: 1, borderRadius: Spacing.two, minHeight: 48, paddingHorizontal: Spacing.two, fontSize: 16 },
-  button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
+  input: { borderWidth: 1, borderRadius: Radius.sm, minHeight: 48, paddingHorizontal: Spacing.two, fontSize: 16 },
+  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three },
 });

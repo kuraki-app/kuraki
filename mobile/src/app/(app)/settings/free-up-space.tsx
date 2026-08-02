@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, 
 
 import { SettingsSection } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { backupEngine } from '@/lib/backup-engine';
 import { loadBackedUpIds } from '@/lib/backup-ledger';
 import { formatBytes } from '@/lib/format';
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
   choiceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.one, paddingTop: Spacing.one },
   choice: {
     borderWidth: 1,
-    borderRadius: Spacing.two,
+    borderRadius: Radius.sm,
     paddingVertical: Spacing.one,
     paddingHorizontal: Spacing.two,
   },
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
   button: {
     alignItems: 'center',
     borderWidth: 1,
-    borderRadius: Spacing.two,
+    borderRadius: Radius.sm,
     padding: Spacing.two,
     marginTop: Spacing.two,
   },

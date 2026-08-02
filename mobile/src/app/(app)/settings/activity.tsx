@@ -3,7 +3,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-n
 
 import { SettingsSection } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { backupEngine, type BackupProgress } from '@/lib/backup-engine';
 import { getCaptureStatus, type CaptureStatus } from '@/lib/capture-api';
 import { loadCaptureSettings } from '@/lib/settings';
@@ -130,5 +130,5 @@ const styles = StyleSheet.create({
   countValue: { fontSize: 24, lineHeight: 30, fontVariant: ['tabular-nums'] },
   entry: { paddingVertical: Spacing.two, gap: 2 },
   line: { paddingVertical: Spacing.two },
-  button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.two, marginVertical: Spacing.two },
+  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.two, marginVertical: Spacing.two },
 });

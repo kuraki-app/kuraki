@@ -42,6 +42,7 @@ export default function TagList({
       <FlatList
         data={tags}
         keyExtractor={(t) => t.id}
+        contentContainerStyle={styles.list}
         renderItem={({ item }) => (
           <Pressable style={styles.row} onPress={() => onPressTag(item)}>
             <ThemedText style={heading}>{item.name}</ThemedText>
@@ -56,5 +57,8 @@ export default function TagList({
 }
 
 const styles = StyleSheet.create({
+  // Keeps the first row off the header's divider and the last off the card's
+  // rounded corner; the list still scrolls edge to edge behind it.
+  list: { paddingVertical: Spacing.one },
   row: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
 });

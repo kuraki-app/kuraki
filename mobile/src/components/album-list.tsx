@@ -6,7 +6,7 @@ import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import Dialog from '@/components/dialog';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import type { CachedAlbum } from '@/lib/cache/albums';
 import { createAlbum, fetchAlbums, thumbSource, type LibraryAsset } from '@/lib/library-api';
@@ -167,18 +167,18 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   grid: { gap: Spacing.three, paddingBottom: Spacing.four },
   card: { flex: 1, gap: Spacing.one },
-  cover: { width: '100%', aspectRatio: 1, borderRadius: Spacing.two, overflow: 'hidden' },
+  cover: { width: '100%', aspectRatio: 1, borderRadius: Radius.sm, overflow: 'hidden' },
   coverImage: { width: '100%', height: '100%' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24, minHeight: 200 },
   msg: { textAlign: 'center' },
   form: { padding: Spacing.three, gap: Spacing.two },
   input: {
-    borderRadius: Spacing.two,
+    borderRadius: Radius.sm,
     borderWidth: 1,
     fontSize: 16,
     minHeight: 44,
     paddingHorizontal: Spacing.two,
   },
-  button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
+  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three },
   disabled: { opacity: 0.5 },
 });

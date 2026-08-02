@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { backupEngine, type BackupAlbum } from '@/lib/backup-engine';
 
 type Props = {
@@ -119,6 +119,6 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, gap: Spacing.half },
   check: { width: 26, height: 26, borderRadius: 13, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   actions: { flexDirection: 'row', gap: Spacing.two },
-  button: { flex: 1, alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
-  ghost: { alignItems: 'center', borderRadius: Spacing.two, paddingVertical: Spacing.three, paddingHorizontal: Spacing.three, borderWidth: 1 },
+  button: { flex: 1, alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three },
+  ghost: { alignItems: 'center', borderRadius: Radius.sm, paddingVertical: Spacing.three, paddingHorizontal: Spacing.three, borderWidth: 1 },
 });

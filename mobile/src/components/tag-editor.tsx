@@ -3,7 +3,7 @@ import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import Dialog from '@/components/dialog';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { enqueueSetTags } from '@/lib/cache/mutations';
 import { probeServer } from '@/lib/connection';
@@ -101,6 +101,7 @@ export default function TagEditor({
         data={all}
         keyExtractor={(t) => t.id}
         keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.list}
         renderItem={({ item }) => {
           const on = selected.has(item.id);
           return (
@@ -120,14 +121,22 @@ export default function TagEditor({
 }
 
 const styles = StyleSheet.create({
-  createRow: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two, paddingBottom: Spacing.one },
+  list: { paddingBottom: Spacing.one },
+  // Matches the album picker's create row exactly: these two dialogs are the
+  // same shape and drifting apart on padding is how they stop looking like it.
+  createRow: {
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.two,
+    gap: Spacing.two,
+  },
   input: {
     borderWidth: 1,
-    borderRadius: Spacing.two,
+    borderRadius: Radius.sm,
     fontSize: 16,
     minHeight: 44,
     paddingHorizontal: Spacing.two,
   },
   row: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
-  err: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.half },
+  err: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.one },
 });

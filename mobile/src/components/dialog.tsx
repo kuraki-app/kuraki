@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { registerStyle, type Register } from '@/design/registers';
 
 type Action = {
@@ -110,19 +110,26 @@ const styles = StyleSheet.create({
     // on a tablet.
     maxWidth: 520,
     maxHeight: '85%',
-    borderRadius: Spacing.three,
+    borderRadius: Radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.three,
+    // Between the confirm and the ✕ only — the title takes the rest with
+    // flex: 1. At Spacing.three the two controls drifted apart far enough to
+    // read as belonging to different groups.
+    gap: Spacing.two,
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   title: { flex: 1 },
   disabled: { opacity: 0.5 },
+  // No padding here on purpose. Some bodies are forms that pad themselves and
+  // would double up; the rest are scrolling lists that must reach the card's
+  // edges so their rows and dividers run full width. Each supplies its own
+  // inset — a list through contentContainerStyle, a form through its padding.
   body: { flexShrink: 1 },
 });

@@ -431,8 +431,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
   },
   chromeGlyph: { color: '#fff' },
-  details: { padding: Spacing.three, gap: Spacing.half },
+  details: { padding: Spacing.three, gap: Spacing.one },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.one, paddingTop: Spacing.two },
-  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: Spacing.two, paddingVertical: Spacing.half },
+  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: Spacing.two, paddingVertical: Spacing.one },
   chipAction: { borderStyle: 'dashed' },
 });

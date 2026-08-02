@@ -11,7 +11,7 @@ import ProfileDialog from '@/components/profile-dialog';
 import SelectionHeader from '@/components/selection-header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { readAssets, setCachedFavorite } from '@/lib/cache/assets';
 import { enqueueAlbumAdd, enqueueFavorite, enqueueTrash, pendingFavorites } from '@/lib/cache/mutations';
@@ -620,7 +620,7 @@ const styles = StyleSheet.create({
   bannerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   header: { padding: Spacing.two, gap: Spacing.two },
   search: {
-    borderRadius: Spacing.two,
+    borderRadius: Radius.sm,
     borderWidth: 1,
     fontSize: 16,
     minHeight: 44,

@@ -5,7 +5,7 @@ import { Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import PairScanner from '@/components/pair-scanner';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { claimPairing } from '@/lib/capture-api';
 import { clearAuthLost } from '@/lib/session';
@@ -153,14 +153,14 @@ export default function PairSheet({ visible, baseURL, onClose, onPaired }: Props
 const styles = StyleSheet.create({
   content: { flex: 1, padding: Spacing.three, gap: Spacing.three, justifyContent: 'center' },
   input: {
-    borderRadius: Spacing.two,
+    borderRadius: Radius.sm,
     borderWidth: 1,
     fontSize: 16,
     minHeight: 48,
     paddingHorizontal: Spacing.two,
   },
-  button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
-  buttonGhost: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three, borderWidth: 1 },
+  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three },
+  buttonGhost: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three, borderWidth: 1 },
   link: { alignItems: 'center', paddingVertical: Spacing.two },
   spacer: { height: Spacing.three },
 });

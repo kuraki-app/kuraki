@@ -6,7 +6,7 @@ import { Modal, Pressable, StyleSheet, TextInput } from 'react-native';
 import PairScanner from '@/components/pair-scanner';
 import { ThemedText } from '@/components/themed-text';
 import SetupStep from '@/components/setup-step';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { claimPairing } from '@/lib/capture-api';
 import { clearAuthLost } from '@/lib/session';
@@ -120,7 +120,7 @@ export default function PairStep() {
 }
 
 const styles = StyleSheet.create({
-  input: { borderWidth: 1, borderRadius: Spacing.two, minHeight: 48, paddingHorizontal: Spacing.two, fontSize: 16 },
-  button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
-  buttonGhost: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three, borderWidth: 1 },
+  input: { borderWidth: 1, borderRadius: Radius.sm, minHeight: 48, paddingHorizontal: Spacing.two, fontSize: 16 },
+  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three },
+  buttonGhost: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three, borderWidth: 1 },
 });
