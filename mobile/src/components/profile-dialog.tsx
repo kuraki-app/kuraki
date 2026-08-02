@@ -26,13 +26,10 @@ type Props = {
  * library is, where it lives, what version is talking to it, and the two places
  * worth going from here.
  *
- * **It reports the library's size, not the disk's.** `/api/stats` counts the
- * owner's assets; nothing on the server reports filesystem space, so this
- * cannot answer "how much room is left" — the question someone opening a
- * storage panel most likely has. Answering it means a `Statfs` on the data dir
- * behind `//go:build unix` (with a fallback for the Windows cross-compile
- * target), a new field on `apitypes.LibraryStats`, and `make gen`. That was
- * weighed and deferred; it is a gap, not an oversight.
+ * The disk figures are optional on the wire: a storage backend that cannot
+ * report filesystem space omits them. Zero is never rendered as a number —
+ * "0 bytes free" reads as a full disk — so the bar and the free line hide
+ * together when the server did not send them.
  */
 export default function ProfileDialog({ visible, settings, onClose }: Props) {
   const tokens = useTokens();
@@ -63,6 +60,12 @@ export default function ProfileDialog({ visible, settings, onClose }: Props) {
   // is the dependable source on every binary this ships as.
   const version = Constants.expoConfig?.version ?? 'unknown';
 
+  // Optional on the wire. Zero means "the server did not say", not "the disk is
+  // full", so every disk figure hides together rather than rendering a 0.
+  const diskFree = stats?.disk_free_bytes ?? 0;
+  const diskTotal = stats?.disk_total_bytes ?? 0;
+  const diskPercent = diskTotal > 0 ? Math.round(((diskTotal - diskFree) / diskTotal) * 100) : 0;
+
   function go(path: string) {
     onClose();
     router.push(path as Parameters<typeof router.push>[0]);
@@ -80,10 +83,32 @@ export default function ProfileDialog({ visible, settings, onClose }: Props) {
           </ThemedText>
         ) : stats ? (
           <>
+            {diskTotal > 0 ? (
+              <View
+                style={[styles.bar, { backgroundColor: tokens.muted }]}
+                accessibilityRole="progressbar"
+                accessibilityLabel={`${diskPercent}% of the disk is in use`}>
+                <View
+                  style={[styles.barFill, { width: `${Math.min(100, diskPercent)}%`, backgroundColor: tokens.primary }]}
+                />
+              </View>
+            ) : null}
             <View style={styles.figure}>
               <ThemedText type="small" themeColor="mutedForeground">Kuraki library</ThemedText>
               <ThemedText type="smallBold" style={heading}>{formatBytes(stats.total_bytes)}</ThemedText>
             </View>
+            {diskTotal > 0 ? (
+              <>
+                <View style={styles.figure}>
+                  <ThemedText type="small" themeColor="mutedForeground">Free on server</ThemedText>
+                  <ThemedText type="smallBold" style={heading}>{formatBytes(diskFree)}</ThemedText>
+                </View>
+                <View style={styles.figure}>
+                  <ThemedText type="small" themeColor="mutedForeground">Disk</ThemedText>
+                  <ThemedText type="small" themeColor="mutedForeground">{formatBytes(diskTotal)}</ThemedText>
+                </View>
+              </>
+            ) : null}
             <ThemedText type="small" themeColor="mutedForeground">
               {stats.images.toLocaleString()} photo{stats.images === 1 ? '' : 's'} ·{' '}
               {stats.videos.toLocaleString()} video{stats.videos === 1 ? '' : 's'}
@@ -118,6 +143,8 @@ const styles = StyleSheet.create({
   body: { padding: Spacing.three, gap: Spacing.half },
   sectionTitle: { paddingBottom: Spacing.half },
   figure: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
+  bar: { height: 8, borderRadius: 999, overflow: 'hidden', marginBottom: Spacing.one },
+  barFill: { height: '100%' },
   rows: { paddingHorizontal: Spacing.three, borderTopWidth: StyleSheet.hairlineWidth },
   footer: {
     padding: Spacing.three,

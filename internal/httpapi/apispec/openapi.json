@@ -4294,6 +4294,13 @@
                             "$ref": "#/components/schemas/apitypes.YearCount"
                         }
                     },
+                    "disk_free_bytes": {
+                        "description": "Filesystem holding the data directory. Both are omitted together when the\nplatform or storage backend cannot report them — clients must render\n\"unknown\", never zero, because 0 bytes free reads as a full disk.\n\nDiskFreeBytes is what this process may actually use, not the raw free\nblocks: unix filesystems reserve a slice for root and Windows applies\nper-user quotas, and promising either would turn into a failed write.",
+                        "type": "integer"
+                    },
+                    "disk_total_bytes": {
+                        "type": "integer"
+                    },
                     "favorites": {
                         "type": "integer"
                     },

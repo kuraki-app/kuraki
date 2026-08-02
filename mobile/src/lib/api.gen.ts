@@ -4060,6 +4060,15 @@ export interface components {
         "apitypes.LibraryStats": {
             albums: number;
             by_year: components["schemas"]["apitypes.YearCount"][];
+            /** @description Filesystem holding the data directory. Both are omitted together when the
+             *     platform or storage backend cannot report them — clients must render
+             *     "unknown", never zero, because 0 bytes free reads as a full disk.
+             *
+             *     DiskFreeBytes is what this process may actually use, not the raw free
+             *     blocks: unix filesystems reserve a slice for root and Windows applies
+             *     per-user quotas, and promising either would turn into a failed write. */
+            disk_free_bytes?: number;
+            disk_total_bytes?: number;
             favorites: number;
             images: number;
             places: number;

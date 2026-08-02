@@ -413,6 +413,15 @@ type LibraryStats struct {
 	Places     int         `json:"places" validate:"required"`
 	TotalBytes int64       `json:"total_bytes" validate:"required"`
 	ByYear     []YearCount `json:"by_year" validate:"required"`
+	// Filesystem holding the data directory. Both are omitted together when the
+	// platform or storage backend cannot report them — clients must render
+	// "unknown", never zero, because 0 bytes free reads as a full disk.
+	//
+	// DiskFreeBytes is what this process may actually use, not the raw free
+	// blocks: unix filesystems reserve a slice for root and Windows applies
+	// per-user quotas, and promising either would turn into a failed write.
+	DiskFreeBytes  int64 `json:"disk_free_bytes,omitempty"`
+	DiskTotalBytes int64 `json:"disk_total_bytes,omitempty"`
 }
 
 // SettingInfo describes one server setting for GET /api/settings: its

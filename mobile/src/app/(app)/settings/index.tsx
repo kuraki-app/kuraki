@@ -91,6 +91,7 @@ export default function SettingsIndex() {
       </SettingsSection>
 
       <SettingsSection title="Library">
+        <SettingsRow label="Free up space" icon="internaldrive" href="/(app)/settings/free-up-space" />
         <SettingsRow label="Trash" icon="trash" href="/(app)/settings/trash" />
         <SettingsRow label="Duplicates" icon="square.on.square" href="/(app)/settings/duplicates" />
       </SettingsSection>
