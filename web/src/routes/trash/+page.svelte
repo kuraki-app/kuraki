@@ -4,7 +4,7 @@
 </script>
 
 <LibraryView
-  load={() => api.trash()}
+  load={(cursor) => api.trash(cursor)}
   title="Trash"
   subtitle="Items are permanently removed after 30 days"
   trashMode

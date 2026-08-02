@@ -202,14 +202,28 @@ export async function fetchAlbums(settings: CaptureSettings): Promise<CachedAlbu
   }, readAlbums);
 }
 
-export async function fetchAlbum(settings: CaptureSettings, id: string): Promise<LibraryAsset[]> {
+/**
+ * fetchAlbum returns one page of an album, and the cursor for the next.
+ *
+ * It used to return a bare array and throw the `next_cursor` away, so an album
+ * larger than one page was silently truncated with nothing to page with. The
+ * offline mirror is only written for the first page: it is a cache of what the
+ * album opens to, and appending later pages into it would leave a partial album
+ * looking complete the next time the device is offline.
+ */
+export async function fetchAlbum(
+  settings: CaptureSettings,
+  id: string,
+  cursor?: string,
+): Promise<LibraryPage> {
   return withMirrorFallback(
     async () => {
-      const page = await authedGet<LibraryPage>(settings, `/api/albums/${id}`);
-      await setAlbumAssets(id, page.assets);
-      return page.assets;
+      const params = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
+      const page = await authedGet<LibraryPage>(settings, `/api/albums/${id}${params}`);
+      if (!cursor) await setAlbumAssets(id, page.assets);
+      return page;
     },
-    () => readAlbumAssets(id),
+    async () => ({ assets: await readAlbumAssets(id) }),
   );
 }
 
@@ -231,11 +245,34 @@ export async function createAlbum(settings: CaptureSettings, name: string): Prom
   return (await response.json()) as { id: string; name: string };
 }
 
-export async function addToAlbum(settings: CaptureSettings, albumId: string, ids: string[]): Promise<void> {
-  return authedMutate(settings, `/api/albums/${albumId}/assets`, 'POST', { ids });
+/**
+ * addToAlbum links assets into an album and reports how many were *newly*
+ * linked.
+ *
+ * The server's insert is `INSERT OR IGNORE`, so re-adding something already in
+ * the album is harmless and simply does not count — which is why the caller
+ * wants the server's number rather than `ids.length`. A count of zero is a
+ * successful request that changed nothing.
+ */
+export async function addToAlbum(
+  settings: CaptureSettings,
+  albumId: string,
+  ids: string[],
+): Promise<number> {
+  const res = await authedPost<{ added?: number }>(
+    settings,
+    `/api/albums/${albumId}/assets`,
+    { ids },
+  );
+  return res.added ?? 0;
 }
 
-export async function removeFromAlbum(settings: CaptureSettings, albumId: string, ids: string[]): Promise<void> {
+/** removeFromAlbum unlinks assets and reports how many rows actually went. */
+export async function removeFromAlbum(
+  settings: CaptureSettings,
+  albumId: string,
+  ids: string[],
+): Promise<void> {
   return authedMutate(settings, `/api/albums/${albumId}/assets`, 'DELETE', { ids });
 }
 

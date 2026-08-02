@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatBytes, formatCount, formatTakenAt } from '@/lib/format';
+import { captureTimestamp, formatBytes, formatCount, formatTakenAt } from '@/lib/format';
 
 describe('formatBytes', () => {
   it('shows plain bytes below a kilobyte', () => {
@@ -69,5 +69,28 @@ describe('formatTakenAt', () => {
 
   it('is empty rather than "Invalid Date" for junk', () => {
     expect(formatTakenAt('not-a-date')).toBe('');
+  });
+});
+
+describe('captureTimestamp', () => {
+  it('renders epoch milliseconds as RFC3339', () => {
+    expect(captureTimestamp(Date.UTC(2026, 2, 14, 9, 26, 53))).toBe('2026-03-14T09:26:53.000Z');
+  });
+
+  it('reads a seconds-scale value as seconds', () => {
+    // Android media stores have reported epoch seconds for some entries.
+    // Taken at face value that dates the photo to 1970, which is worse than
+    // sending nothing at all.
+    expect(captureTimestamp(Date.UTC(2026, 2, 14, 9, 26, 53) / 1000)).toBe(
+      '2026-03-14T09:26:53.000Z',
+    );
+  });
+
+  it('is undefined when there is no usable creation time', () => {
+    // The upload omits taken_at entirely rather than asserting a wrong date.
+    expect(captureTimestamp(undefined)).toBeUndefined();
+    expect(captureTimestamp(0)).toBeUndefined();
+    expect(captureTimestamp(-1)).toBeUndefined();
+    expect(captureTimestamp(Number.NaN)).toBeUndefined();
   });
 });

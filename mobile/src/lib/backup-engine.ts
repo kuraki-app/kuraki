@@ -17,6 +17,7 @@ import {
   markBackedUp,
   saveResumableUpload,
 } from '@/lib/backup-ledger';
+import { captureTimestamp } from '@/lib/format';
 import { currentConnection, evaluateNetworkGate, gateMessage } from '@/lib/network';
 import { loadCaptureSettings } from '@/lib/settings';
 import { notify } from '@/lib/notifications';
@@ -234,7 +235,7 @@ class BackupEngine {
       const uri = await this.resolveUri(asset);
       await uploadFile(
         settings,
-        { uri, filename: asset.filename },
+        { uri, filename: asset.filename, takenAt: captureTimestamp(asset.creationTime) },
         (completed, total) => {
           this.currentPercent = total > 0 ? Math.round((completed / total) * 100) : 0;
           this.emit();

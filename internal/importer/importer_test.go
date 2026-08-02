@@ -309,3 +309,54 @@ func TestImportStateScopedByOwner(t *testing.T) {
 		t.Fatalf("import_state rows for shared path = %d, want 2 (one per owner)", n)
 	}
 }
+
+// A JPEG encoded by image/jpeg carries no EXIF, which is exactly the case that
+// used to import with no date: screenshots, exported renders, anything a
+// messaging app rewrites. Those all collapsed into a single "Undated" bucket
+// that no date filter could reach.
+func TestImportFallsBackToFileModTimeWhenMediaCarriesNoDate(t *testing.T) {
+	ctx := context.Background()
+	runner, database, _ := newTestImporter(t, ctx)
+	sourceDir := t.TempDir()
+	path := filepath.Join(sourceDir, "Screenshot.jpg")
+	writeJPEG(t, path)
+
+	// The capture-complete handler stamps this onto a staged upload so the
+	// phone's creation time reaches the importer without the queue carrying it.
+	want := time.Date(2026, 3, 14, 9, 26, 53, 0, time.UTC)
+	if err := os.Chtimes(path, want, want); err != nil {
+		t.Fatalf("chtimes: %v", err)
+	}
+
+	if _, err := runner.Run(ctx, Options{SourceDir: sourceDir}); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+
+	var takenAt string
+	if err := database.QueryRowContext(ctx,
+		`SELECT COALESCE(taken_at, '') FROM assets`).Scan(&takenAt); err != nil {
+		t.Fatalf("asset row: %v", err)
+	}
+	if takenAt == "" {
+		t.Fatal("taken_at is empty; the mtime fallback did not apply and this asset would group as Undated")
+	}
+	got, err := time.Parse(time.RFC3339, takenAt)
+	if err != nil {
+		t.Fatalf("parse taken_at %q: %v", takenAt, err)
+	}
+	if !got.Equal(want) {
+		t.Fatalf("taken_at = %s, want %s", got, want)
+	}
+
+	// taken_day is derived from taken_at by the API layer and is what every
+	// client groups by, so the search index's day text is the closest stored
+	// proxy that this actually became a dated asset.
+	var takenText string
+	if err := database.QueryRowContext(ctx,
+		`SELECT taken_text FROM assets_fts`).Scan(&takenText); err != nil {
+		t.Fatalf("fts row: %v", err)
+	}
+	if takenText != "2026-03-14" {
+		t.Fatalf("taken_text = %q, want 2026-03-14", takenText)
+	}
+}

@@ -83,7 +83,7 @@ export async function getCaptureStatus(settings: CaptureSettings): Promise<Captu
  */
 export async function uploadFile(
   settings: CaptureSettings,
-  file: { uri: string; filename: string },
+  file: { uri: string; filename: string; takenAt?: string },
   onProgress?: (completed: number, total: number) => void,
   signal?: AbortSignal,
   resume?: ResumeHooks,
@@ -93,7 +93,7 @@ export async function uploadFile(
   try {
     if (source.size < 1) throw new CaptureAPIError('The selected item is empty.', 0);
 
-    let session = await startOrResume(settings, file.filename, source.size, resume);
+    let session = await startOrResume(settings, file.filename, source.size, resume, file.takenAt);
     let offset = session.offset;
 
     while (offset < source.size) {
@@ -108,7 +108,7 @@ export async function uploadFile(
         // fresh one once rather than surfacing it to the user.
         if (session.resumed && isMissingSession(cause)) {
           await resume?.clear();
-          session = await startOrResume(settings, file.filename, source.size, undefined);
+          session = await startOrResume(settings, file.filename, source.size, undefined, file.takenAt);
           offset = session.offset;
           continue;
         }
@@ -151,6 +151,7 @@ async function startOrResume(
   filename: string,
   size: number,
   resume?: ResumeHooks,
+  takenAt?: string,
 ): Promise<{ id: string; offset: number; resumed: boolean }> {
   const stored = resume ? await resume.load() : null;
   if (stored && stored.sizeBytes === size && stored.offsetBytes > 0 && stored.offsetBytes < size) {
@@ -159,7 +160,11 @@ async function startOrResume(
   const start = await deviceRequest<StartResponse>(settings, '/api/capture/uploads', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ filename, size_bytes: size }),
+    // taken_at is the phone's own record of when the item was captured. The
+    // server treats it as a fallback below EXIF, and it is what stops a
+    // screenshot -- which carries no EXIF at all -- importing with no date and
+    // grouping under "Undated".
+    body: JSON.stringify({ filename, size_bytes: size, ...(takenAt ? { taken_at: takenAt } : {}) }),
   });
   return { id: start.id, offset: start.received_bytes, resumed: false };
 }

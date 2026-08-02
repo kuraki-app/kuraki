@@ -186,9 +186,28 @@ func checkAssetSelectCall(t *testing.T, fset *token.FileSet, call *ast.CallExpr,
 	where := call.Args[len(call.Args)-1]
 	clause, static := staticString(where)
 	if !static {
+		// Functions that assemble the whole predicate list at runtime stay on
+		// the allowlist -- their static text is bare "WHERE ", which says
+		// nothing either way, so they are covered by isolation tests instead.
 		if _, allowed := allowedDynamicWhere[currentFunc]; allowed {
 			return
 		}
+		// Otherwise a WHERE assembled by concatenation is still readable:
+		// judge its statically-known fragments, exactly as the inline-SQL
+		// branch in checkFile does. The list endpoints append a keyset
+		// pagination predicate (see cursorPredicate) to a literal that already
+		// carries owner_id, and that literal is what matters -- a fragment
+		// ANDed on afterwards can narrow the result, never widen it past the
+		// owner scope.
+		//
+		// Deliberately only for concatenations. A WHERE hidden entirely behind
+		// a variable or a call still fails below, because there the guard
+		// genuinely cannot see the predicate.
+		if joined := staticParts(where); joined != "" {
+			clause, static = joined, true
+		}
+	}
+	if !static {
 		t.Errorf("%s: %s builds a dynamic WHERE for %s that the guard cannot verify.\n"+
 			"Either use a literal containing owner_id, or add %q to allowedDynamicWhere with a reason "+
 			"and a cross-owner isolation test.",

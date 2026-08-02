@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -152,9 +153,15 @@ func (d Deps) getAlbum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	limit := parseLimit(r.URL.Query().Get("limit"))
+	cursor, cursorArgs, cok := requestCursor(w, r)
+	if !cok {
+		return
+	}
+	args := append([]any{id}, cursorArgs...)
+	args = append(args, limit+1)
 	rows, err := d.DB.QueryContext(r.Context(),
 		assetSelectSQLWithJoin("JOIN album_assets aa ON aa.asset_id = a.id",
-			"WHERE aa.album_id = ? AND a.deleted_at IS NULL")+" LIMIT ?", id, limit+1)
+			"WHERE aa.album_id = ? AND a.deleted_at IS NULL"+cursor)+" LIMIT ?", args...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_album_assets_failed")
 		return
@@ -267,23 +274,19 @@ func (d Deps) addAlbumAssets(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
 	}
-	added := 0
-	for _, assetID := range req.IDs {
-		// Only link the asset when it exists and is owned by the caller — this
-		// is the one device write that wasn't owner-scoped (favorite + all
-		// trash writes already are), so without the EXISTS guard any asset_id
-		// could be linked into another owner's album.
-		res, err := d.DB.ExecContext(r.Context(), `
-			INSERT OR IGNORE INTO album_assets (album_id, asset_id, position)
-			SELECT ?, ?, (SELECT COALESCE(MAX(position),0)+1 FROM album_assets WHERE album_id = ?)
-			WHERE EXISTS (SELECT 1 FROM assets WHERE id = ? AND owner_id = ?)`,
-			id, assetID, id, assetID, owner)
-		if err == nil {
-			if n, _ := res.RowsAffected(); n > 0 {
-				added++
-				d.logAssetChange(r.Context(), assetID, owner, "update")
-			}
-		}
+	// The same ceiling /api/assets/batch and /api/assets/zip enforce. These two
+	// endpoints had none, which stopped being theoretical when the clients grew
+	// a Select all and an add-photos picker: one tap can now offer every id in
+	// the library.
+	if len(req.IDs) > maxBatchIDs {
+		writeError(w, http.StatusBadRequest, "too_many_ids")
+		return
+	}
+
+	added, err := d.linkAlbumAssets(r.Context(), id, owner, req.IDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "album_add_failed")
+		return
 	}
 	writeJSON(w, http.StatusOK, map[string]int{"added": added})
 }
@@ -316,16 +319,122 @@ func (d Deps) removeAlbumAssets(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_json")
 		return
 	}
-	removed := 0
-	for _, assetID := range req.IDs {
-		res, err := d.DB.ExecContext(r.Context(),
-			`DELETE FROM album_assets WHERE album_id = ? AND asset_id = ?`, id, assetID)
-		if err == nil {
-			if n, _ := res.RowsAffected(); n > 0 {
-				removed++
-				d.logAssetChange(r.Context(), assetID, owner, "update")
+	if len(req.IDs) > maxBatchIDs {
+		writeError(w, http.StatusBadRequest, "too_many_ids")
+		return
+	}
+
+	removed, err := d.unlinkAlbumAssets(r.Context(), id, owner, req.IDs)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "album_remove_failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"removed": removed})
+}
+
+/*
+ * Album membership writes run in one transaction.
+ *
+ * Both used to loop `d.DB.ExecContext` per asset, so every row was its own
+ * implicit transaction -- and each linked row wrote a change_log entry in a
+ * second one. Adding 500 photos meant a thousand transactions and a thousand
+ * WAL commits for what is one user action, and a failure halfway left the album
+ * holding an arbitrary prefix of the selection with no way to tell.
+ *
+ * One transaction makes the whole operation atomic and commits once. The
+ * prepared statements matter as much as the transaction: the same two queries
+ * run per id, so parsing them once rather than per row is most of what is left.
+ */
+
+func (d Deps) linkAlbumAssets(ctx context.Context, albumID, owner string, ids []string) (int, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	tx, err := d.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("httpapi: begin album add: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op once committed
+
+	// The EXISTS guard is the owner scope: this is a write a device token can
+	// make, and without it any asset id could be linked into another owner's
+	// album.
+	insert, err := tx.PrepareContext(ctx, `
+		INSERT OR IGNORE INTO album_assets (album_id, asset_id, position)
+		SELECT ?, ?, (SELECT COALESCE(MAX(position),0)+1 FROM album_assets WHERE album_id = ?)
+		WHERE EXISTS (SELECT 1 FROM assets WHERE id = ? AND owner_id = ?)`)
+	if err != nil {
+		return 0, fmt.Errorf("httpapi: prepare album add: %w", err)
+	}
+	defer insert.Close()
+
+	logChange, err := tx.PrepareContext(ctx,
+		`INSERT INTO change_log (entity, entity_id, op, owner_id) VALUES ('asset', ?, 'update', ?)`)
+	if err != nil {
+		return 0, fmt.Errorf("httpapi: prepare album add log: %w", err)
+	}
+	defer logChange.Close()
+
+	added := 0
+	for _, assetID := range ids {
+		res, err := insert.ExecContext(ctx, albumID, assetID, albumID, assetID, owner)
+		if err != nil {
+			return 0, fmt.Errorf("httpapi: album add: %w", err)
+		}
+		// Only a row that actually landed counts, and only it is worth a
+		// change_log entry -- re-adding something already in the album is a
+		// no-op that must not wake every device's delta sync.
+		if n, _ := res.RowsAffected(); n > 0 {
+			added++
+			if _, err := logChange.ExecContext(ctx, assetID, owner); err != nil {
+				return 0, fmt.Errorf("httpapi: album add log: %w", err)
 			}
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]int{"removed": removed})
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("httpapi: commit album add: %w", err)
+	}
+	return added, nil
+}
+
+func (d Deps) unlinkAlbumAssets(ctx context.Context, albumID, owner string, ids []string) (int, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	tx, err := d.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("httpapi: begin album remove: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op once committed
+
+	del, err := tx.PrepareContext(ctx, `DELETE FROM album_assets WHERE album_id = ? AND asset_id = ?`)
+	if err != nil {
+		return 0, fmt.Errorf("httpapi: prepare album remove: %w", err)
+	}
+	defer del.Close()
+
+	logChange, err := tx.PrepareContext(ctx,
+		`INSERT INTO change_log (entity, entity_id, op, owner_id) VALUES ('asset', ?, 'update', ?)`)
+	if err != nil {
+		return 0, fmt.Errorf("httpapi: prepare album remove log: %w", err)
+	}
+	defer logChange.Close()
+
+	removed := 0
+	for _, assetID := range ids {
+		res, err := del.ExecContext(ctx, albumID, assetID)
+		if err != nil {
+			return 0, fmt.Errorf("httpapi: album remove: %w", err)
+		}
+		if n, _ := res.RowsAffected(); n > 0 {
+			removed++
+			if _, err := logChange.ExecContext(ctx, assetID, owner); err != nil {
+				return 0, fmt.Errorf("httpapi: album remove log: %w", err)
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("httpapi: commit album remove: %w", err)
+	}
+	return removed, nil
 }

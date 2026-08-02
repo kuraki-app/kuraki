@@ -8,8 +8,9 @@
   import { api, downloadZip } from '$lib/api';
   import { canMorph, morph } from '$lib/motion';
   import { libraryVersion, showToast } from '$lib/stores';
-  import { gridDensity } from '$lib/prefs';
+  import { gridDensity, grouping } from '$lib/prefs';
   import AssetGrid from './AssetGrid.svelte';
+  import ScrollScrubber from './ScrollScrubber.svelte';
   import Viewer from './Viewer.svelte';
   import BatchBar from './BatchBar.svelte';
   import AlbumPicker from './AlbumPicker.svelte';
@@ -110,6 +111,12 @@
     if (loadingMore || !cursor || viewerIndex >= 0) return;
     const remaining = document.documentElement.scrollHeight - window.scrollY - window.innerHeight;
     if (remaining < 900) loadMore();
+  }
+
+  // Select all flips to clear once everything visible is chosen, so one
+  // control does both directions and the bar does not grow another action.
+  function selectAll() {
+    selected = new Set(assets.map((a) => a.id));
   }
 
   function toggle(id: string) {
@@ -372,11 +379,17 @@
       {selected}
       {density}
       {morphId}
+      grouping={$grouping}
       grouped={!trashMode && !albumId}
       on:open={(e) => open(e.detail)}
       on:toggle={(e) => toggle(e.detail)}
     />
   </div>
+  <!-- Only where sections are actually headed: with grouping off the bubble
+       would have nothing to say, and album/trash views are single-section. -->
+  {#if $grouping !== 'off' && !trashMode && !albumId}
+    <ScrollScrubber />
+  {/if}
   {#if cursor}
     <div class="mt-6 flex justify-center">
       <Button variant="outline" disabled={loadingMore} onclick={loadMore}>
@@ -403,9 +416,11 @@
 
 <BatchBar
   count={selected.size}
+  total={assets.length}
   {trashMode}
   albumMode={!!albumId}
   on:clear={clearSel}
+  on:selectAll={selectAll}
   on:favorite={batchFavorite}
   on:delete={batchDelete}
   on:restore={batchRestore}

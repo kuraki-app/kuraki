@@ -1,13 +1,15 @@
 import { DarkTheme, DefaultTheme, Redirect, Slot, ThemeProvider, useSegments } from 'expo-router';
 import { Image } from 'expo-image';
-import { Platform, View } from 'react-native';
+import { AppState, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useTokens } from '@/constants/theme';
 import { useAppFonts } from '@/design/fonts';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { backupEngine } from '@/lib/backup-engine';
+import { shouldRunForegroundBackup } from '@/lib/foreground-backup';
 import { isSetupComplete, migrateSecretsForBackgroundAccess, onSetupChange, setupCompleteSnapshot } from '@/lib/settings';
 // Importing this at the root defines the background backup task before the OS
 // can relaunch the app headlessly to run it. Defining the task is a module
@@ -86,6 +88,45 @@ export default function RootLayout() {
         // real registration state, and the next launch retries.
       }
     })();
+  }, []);
+
+  // Automatic backup has to run while the app is open, not only from an OS wake.
+  //
+  // Nothing triggered `backupEngine.run()` in the foreground at all: the switch
+  // handler starts one pass when it is flipped on, and after that the only
+  // trigger was the background task. Android schedules that no more often than
+  // ~15 minutes, and iOS grants a window on its own judgement of usage and
+  // power -- which for a freshly installed app, or one running from a dev
+  // build, can mean effectively never. So "automatic backup" was on, correctly
+  // registered, and visibly doing nothing.
+  //
+  // App-wide rather than on the Gallery screen deliberately: the same mistake
+  // put the delta sync behind one tab, where a user parked anywhere else never
+  // got it. Rate-limited because the scan walks the whole camera roll.
+  const lastForegroundBackup = useRef(0);
+  useEffect(() => {
+    const pass = () => {
+      void (async () => {
+        try {
+          if (!shouldRunForegroundBackup(await backupEngine.isAuto(), lastForegroundBackup.current, Date.now())) {
+            return;
+          }
+          lastForegroundBackup.current = Date.now();
+          // Foreground, so this pass may prompt for photo access if it is
+          // missing -- the headless wake deliberately cannot.
+          await backupEngine.run();
+        } catch {
+          // The engine reports its own state through the Backup and Activity
+          // screens; a failed pass must never take the app down at launch.
+        }
+      })();
+    };
+
+    pass();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') pass();
+    });
+    return () => sub.remove();
   }, []);
 
   if (!fontsLoaded || ready === null) {

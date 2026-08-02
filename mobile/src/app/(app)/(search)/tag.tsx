@@ -12,7 +12,7 @@ export default function SearchTagScreen() {
   return (
     <>
       <Stack.Screen
-        options={headerOptions({ title: title ?? 'Tag', register: 'vault' })}
+        options={headerOptions({ title: title ?? 'Tag' })}
       />
       <TagGrid tag={tag} />
     </>

@@ -4,6 +4,7 @@ import {
   FolderOpen,
   CalendarClock,
   MapPin,
+  Tags,
   Archive,
   EyeOff,
   Copy,
@@ -35,7 +36,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/favorites', label: 'Favorites', icon: Star, register: 'kura' },
       { href: '/albums', label: 'Albums', icon: FolderOpen, register: 'kura' },
       { href: '/memories', label: 'On this day', icon: CalendarClock, register: 'kura' },
-      { href: '/places', label: 'Places', icon: MapPin, register: 'kura' }
+      { href: '/places', label: 'Places', icon: MapPin, register: 'kura' },
+      { href: '/tags', label: 'Tags', icon: Tags, register: 'kura' }
     ]
   },
   {

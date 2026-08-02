@@ -438,6 +438,40 @@ func encodeCursor(t, id string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(t + "|" + id))
 }
 
+// cursorPredicate is the keyset condition that resumes a page, as a fragment to
+// AND onto a WHERE clause. It returns "" and no args when there is no cursor.
+//
+// It has to match `assetSelectSQLWithJoin`'s ORDER BY
+// (`COALESCE(a.taken_at, a.created_at) DESC, a.id DESC`) and the key
+// `scanAssetRows` encodes, or paging silently skips or repeats rows.
+//
+// This exists because every list endpoint except /search and /assets returned a
+// `next_cursor` and then ignored it: the cursor was computed and sent, but
+// never made it into the query, so following it returned the first page again.
+// Clients that paged (mobile Trash, mobile On-this-day) appended the same rows
+// on every "load more"; clients that did not simply saw the library truncated
+// at one page.
+func cursorPredicate(cursorTime, cursorID string) (string, []any) {
+	if cursorTime == "" {
+		return "", nil
+	}
+	return " AND (COALESCE(a.taken_at, a.created_at) < ?" +
+			" OR (COALESCE(a.taken_at, a.created_at) = ? AND a.id < ?))",
+		[]any{cursorTime, cursorTime, cursorID}
+}
+
+// requestCursor decodes the request's cursor into a predicate, writing the
+// error response itself when the cursor is malformed.
+func requestCursor(w http.ResponseWriter, r *http.Request) (string, []any, bool) {
+	cursorTime, cursorID, err := decodeCursor(r.URL.Query().Get("cursor"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_cursor")
+		return "", nil, false
+	}
+	clause, args := cursorPredicate(cursorTime, cursorID)
+	return clause, args, true
+}
+
 func decodeCursor(raw string) (string, string, error) {
 	if raw == "" {
 		return "", "", nil

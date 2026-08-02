@@ -4,7 +4,7 @@
 </script>
 
 <LibraryView
-  load={() => api.favorites()}
+  load={(cursor) => api.favorites(cursor)}
   title="Favorites"
   favoritesMode
   emptyText="No favorites yet — tap the star on a photo"

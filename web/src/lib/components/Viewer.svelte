@@ -11,9 +11,11 @@
     ChevronRight,
     RotateCcw,
     MapPin,
-    Pencil
+    Pencil,
+    Plus
   } from '@lucide/svelte';
-  import type { Asset } from '$lib/types';
+  import type { Asset, Tag } from '$lib/types';
+  import { api } from '$lib/api';
   import { fileSize, placeLabel } from '$lib/format';
   import { MORPH_NAME, viewerShowsImage, prefersReducedMotion } from '$lib/motion';
 
@@ -33,6 +35,69 @@
   $: if (index >= 0) {
     imgLoaded = false;
     editing = false;
+  }
+
+  // ---- Tags -----------------------------------------------------------------
+  //
+  // The server has had tags since R2 and api.ts has carried the calls all
+  // along, but nothing in the web client ever invoked them — tagging was
+  // reachable only from the mobile app. The panel is the natural home: it is
+  // already where a single asset's metadata is read and edited.
+  let assetTags: Tag[] = [];
+  let allTags: Tag[] = [];
+  let tagPickerOpen = false;
+  let tagsBusy = false;
+  let loadedTagsFor = '';
+
+  // Keyed on the id, so paging between assets refetches but re-rendering the
+  // same one (a favourite toggle, an image load) does not.
+  $: if (asset && asset.id !== loadedTagsFor) {
+    loadedTagsFor = asset.id;
+    tagPickerOpen = false;
+    void loadTags(asset.id);
+  }
+
+  async function loadTags(id: string) {
+    assetTags = [];
+    try {
+      const res = await api.assetTags(id);
+      // Guard against a slow response for an asset the user has already paged
+      // away from overwriting the current one's tags.
+      if (loadedTagsFor === id) assetTags = res.tags;
+    } catch {
+      // A tag list that will not load must not take down the photo it belongs
+      // to; the section simply stays empty.
+    }
+  }
+
+  async function openTagPicker() {
+    tagPickerOpen = !tagPickerOpen;
+    if (!tagPickerOpen || allTags.length) return;
+    try {
+      const res = await api.tags();
+      allTags = [...res.tags].sort((a, b) => a.name.localeCompare(b.name));
+    } catch {
+      allTags = [];
+    }
+  }
+
+  // The server has no add/remove for a single tag — it takes the full desired
+  // set — so both directions go through one write.
+  async function toggleTag(tag: Tag) {
+    if (!asset || tagsBusy) return;
+    const has = assetTags.some((t) => t.id === tag.id);
+    const next = has ? assetTags.filter((t) => t.id !== tag.id) : [...assetTags, tag];
+    tagsBusy = true;
+    const before = assetTags;
+    assetTags = next; // optimistic
+    try {
+      const res = await api.setAssetTags(asset.id, next.map((t) => t.id));
+      assetTags = res.tags;
+    } catch {
+      assetTags = before;
+    } finally {
+      tagsBusy = false;
+    }
   }
 
   const SLIDE_MS = 240; // --t-settle
@@ -292,6 +357,45 @@
             <div><dt>GPS</dt><dd>{asset.gps_lat.toFixed(5)}, {asset.gps_lon.toFixed(5)}</dd></div>
           {/if}
         </dl>
+
+        <section class="tags">
+          <div class="tags-head">
+            <h3>Tags</h3>
+            {#if editable && !trashMode}
+              <button type="button" class="add" on:click={openTagPicker} aria-expanded={tagPickerOpen}>
+                <Plus size={14} /> {tagPickerOpen ? 'Done' : 'Edit'}
+              </button>
+            {/if}
+          </div>
+          {#if assetTags.length}
+            <div class="chips">
+              {#each assetTags as tag (tag.id)}
+                <a class="chip" href="/tags/{tag.id}?name={encodeURIComponent(tag.name)}">{tag.name}</a>
+              {/each}
+            </div>
+          {:else if !tagPickerOpen}
+            <p class="none">No tags yet.</p>
+          {/if}
+          {#if tagPickerOpen}
+            <div class="picker">
+              {#if allTags.length === 0}
+                <p class="none">No tags exist yet — create one on the Tags page.</p>
+              {:else}
+                {#each allTags as tag (tag.id)}
+                  <button
+                    type="button"
+                    class="pick"
+                    class:on={assetTags.some((t) => t.id === tag.id)}
+                    disabled={tagsBusy}
+                    on:click={() => toggleTag(tag)}
+                  >
+                    {tag.name}
+                  </button>
+                {/each}
+              {/if}
+            </div>
+          {/if}
+        </section>
       {/if}
       <a class="download" href={asset.original_url} download>
         <Download size={18} /> Download
@@ -301,6 +405,75 @@
 {/if}
 
 <style>
+  .tags {
+    padding-top: 4px;
+  }
+  .tags-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .tags h3 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+  .add {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border: 1px solid #ffffff2e;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .chips,
+  .picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .chip {
+    padding: 3px 10px;
+    border: 1px solid #ffffff2e;
+    border-radius: 999px;
+    font-size: 12px;
+    color: inherit;
+    text-decoration: none;
+  }
+  .chip:hover {
+    background: #ffffff1a;
+  }
+  .pick {
+    padding: 3px 10px;
+    border: 1px dashed #ffffff3d;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .pick.on {
+    border-style: solid;
+    background: #ffffff26;
+  }
+  .pick:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .none {
+    margin: 6px 0 0;
+    font-size: 12px;
+    opacity: 0.6;
+  }
   .viewer {
     position: fixed;
     inset: 0;
