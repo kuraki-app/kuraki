@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { Alert, Platform, StyleSheet, View, type AlertButton } from 'react-native';
 
 import PhotoGrid from '@/components/photo-grid';
+import SelectionHeader from '@/components/selection-header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import TrashSelectionBar from '@/components/trash-selection-bar';
 import { Spacing } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { deleteCachedAsset, setTrashed } from '@/lib/cache/albums';
@@ -84,6 +84,20 @@ export default function TrashScreen() {
   function cancelSelection() {
     setSelected(new Set());
   }
+
+  // Trash groups by date like every other grid, so it gets the same per-group
+  // control. It matters more here than anywhere: emptying a month of trash is
+  // exactly the bulk act this screen exists for.
+  const selectSection = useCallback((ids: string[], allSelected: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (allSelected) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  }, []);
 
   // Restore: optimistic removal from the visible list + cache untrash, then
   // the same send-if-online / leave-queued-on-fail shape as library.tsx's
@@ -168,6 +182,27 @@ export default function TrashScreen() {
 
   return (
     <ThemedView style={styles.fill}>
+      {selected.size > 0 && (
+        <SelectionHeader
+          count={selected.size}
+          onCancel={cancelSelection}
+          actions={[
+            {
+              key: 'restore',
+              label: 'Restore',
+              icon: 'arrow.uturn.backward',
+              onPress: () => void restoreSelected(),
+            },
+            {
+              key: 'purge',
+              label: 'Delete forever',
+              icon: 'trash.slash',
+              destructive: true,
+              onPress: confirmDeleteForever,
+            },
+          ]}
+        />
+      )}
       {/* Title, top inset and back button all come from the settings stack's
           native header now. What is left is the one line of guidance the
           screen actually needs. */}
@@ -188,15 +223,8 @@ export default function TrashScreen() {
           selectedIds={selected}
           onToggleSelect={toggleSelect}
           onLongPressItem={startSelection}
+          onSelectSection={selectSection}
           emptyMessage="Trash is empty."
-        />
-      )}
-      {selected.size > 0 && (
-        <TrashSelectionBar
-          count={selected.size}
-          onRestore={() => void restoreSelected()}
-          onDeleteForever={confirmDeleteForever}
-          onCancel={cancelSelection}
         />
       )}
     </ThemedView>

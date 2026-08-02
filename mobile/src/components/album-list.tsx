@@ -1,9 +1,9 @@
-import BottomSheet, { BottomSheetTextInput, BottomSheetView } from '@gorhom/bottom-sheet';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import Dialog from '@/components/dialog';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing, useTokens } from '@/constants/theme';
@@ -27,7 +27,7 @@ function coverAsset(id: string): LibraryAsset {
 
 type Props = {
   /**
-   * Whether the create-album sheet is open. Owned by the screen rather than
+   * Whether the create-album dialog is open. Owned by the screen rather than
    * here, because the button that opens it lives in the native header.
    */
   creating: boolean;
@@ -47,7 +47,6 @@ export default function AlbumList({ creating, onCreatingChange }: Props) {
   const [error, setError] = useState('');
   const [name, setName] = useState('');
   const [createError, setCreateError] = useState('');
-  const snapPoints = useMemo(() => ['34%'], []);
 
   const refresh = useCallback(async (active: CaptureSettings) => {
     setLoading(true);
@@ -136,46 +135,30 @@ export default function AlbumList({ creating, onCreatingChange }: Props) {
         />
       )}
 
-      {/*
-        A sheet, not a centred transparent Modal. Naming a new album is the same
-        small dismissible task as picking a tag, and every other one of those in
-        this app is a bottom sheet -- so this gets the same handle, the same
-        pan-down-to-close and the same keyboard behaviour, instead of a dialog
-        whose only exit was its own Cancel button.
-      */}
-      {creating && (
-        <BottomSheet
-          index={0}
-          snapPoints={snapPoints}
-          onClose={closeCreate}
-          enablePanDownToClose
-          backgroundStyle={{ backgroundColor: tokens.card }}
-          handleIndicatorStyle={{ backgroundColor: tokens.mutedForeground }}>
-          <BottomSheetView style={styles.sheet}>
-            <ThemedText type="subtitle" style={heading}>New album</ThemedText>
-            <BottomSheetTextInput
-              placeholder="Album name"
-              placeholderTextColor={tokens.textFaint}
-              value={name}
-              onChangeText={setName}
-              autoFocus
-              autoCapitalize="words"
-              returnKeyType="done"
-              onSubmitEditing={() => void submitCreate()}
-              style={[styles.input, { borderColor: tokens.input, color: tokens.foreground }]}
-            />
-            {createError ? (
-              <ThemedText type="small" style={{ color: tokens.destructive }} selectable>{createError}</ThemedText>
-            ) : null}
-            <Pressable
-              style={[styles.button, { backgroundColor: tokens.primary }, !name.trim() && styles.disabled]}
-              disabled={!name.trim()}
-              onPress={() => void submitCreate()}>
-              <ThemedText type="smallBold" themeColor="primaryForeground">Create</ThemedText>
-            </Pressable>
-          </BottomSheetView>
-        </BottomSheet>
-      )}
+      <Dialog visible={creating} title="New album" register="kura" onClose={closeCreate}>
+        <View style={styles.form}>
+          <TextInput
+            placeholder="Album name"
+            placeholderTextColor={tokens.textFaint}
+            value={name}
+            onChangeText={setName}
+            autoFocus
+            autoCapitalize="words"
+            returnKeyType="done"
+            onSubmitEditing={() => void submitCreate()}
+            style={[styles.input, { borderColor: tokens.input, color: tokens.foreground }]}
+          />
+          {createError ? (
+            <ThemedText type="small" style={{ color: tokens.destructive }} selectable>{createError}</ThemedText>
+          ) : null}
+          <Pressable
+            style={[styles.button, { backgroundColor: tokens.primary }, !name.trim() && styles.disabled]}
+            disabled={!name.trim()}
+            onPress={() => void submitCreate()}>
+            <ThemedText type="smallBold" themeColor="primaryForeground">Create</ThemedText>
+          </Pressable>
+        </View>
+      </Dialog>
     </ThemedView>
   );
 }
@@ -188,7 +171,7 @@ const styles = StyleSheet.create({
   coverImage: { width: '100%', height: '100%' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24, minHeight: 200 },
   msg: { textAlign: 'center' },
-  sheet: { paddingHorizontal: Spacing.three, paddingTop: Spacing.one, gap: Spacing.two },
+  form: { padding: Spacing.three, gap: Spacing.two },
   input: {
     borderRadius: Spacing.two,
     borderWidth: 1,

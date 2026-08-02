@@ -1,7 +1,7 @@
-import BottomSheet, { BottomSheetFlatList, BottomSheetTextInput } from '@gorhom/bottom-sheet';
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import Dialog from '@/components/dialog';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
@@ -13,7 +13,7 @@ import type { CaptureSettings } from '@/lib/settings';
 const reg = registerStyle('vault');
 const heading = { fontFamily: reg.heading };
 
-// TagEditor is the per-asset tag sheet opened from the viewer. It shows every
+// TagEditor is the per-asset tag dialog opened from the viewer. It shows every
 // tag with a checkbox, seeded from the asset's current tags. "Done" writes the
 // full desired set (the server has no add/remove) — online it PUTs immediately,
 // offline it queues a set_tags mutation. Creating a new tag is online-only.
@@ -27,7 +27,6 @@ export default function TagEditor({
   onClose: () => void;
 }) {
   const tokens = useTokens();
-  const snapPoints = useMemo(() => ['45%', '85%'], []);
   const [all, setAll] = useState<Tag[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [draft, setDraft] = useState('');
@@ -80,22 +79,14 @@ export default function TagEditor({
   }
 
   return (
-    <BottomSheet
-      index={0}
-      snapPoints={snapPoints}
-      onClose={onClose}
-      enablePanDownToClose
-      backgroundStyle={{ backgroundColor: tokens.card }}
-      handleIndicatorStyle={{ backgroundColor: tokens.mutedForeground }}>
-      <View style={styles.header}>
-        <ThemedText type="subtitle" style={heading}>Tags</ThemedText>
-        <Pressable onPress={() => void apply()} hitSlop={8}>
-          <ThemedText type="smallBold" themeColor="primary" style={heading}>Done</ThemedText>
-        </Pressable>
-      </View>
+    // Done is the header action rather than a row inside the body: it commits
+    // the whole set, so it belongs beside the title and not below a list that
+    // scrolls it out of reach.
+    <Dialog visible title="Tags" onClose={onClose} action={{ label: 'Done', onPress: () => void apply() }}>
       <View style={styles.createRow}>
-        <BottomSheetTextInput
+        <TextInput
           placeholder="New tag"
+          placeholderTextColor={tokens.textFaint}
           value={draft}
           onChangeText={setDraft}
           onSubmitEditing={() => void addNew()}
@@ -106,9 +97,10 @@ export default function TagEditor({
       {error ? (
         <ThemedText type="small" themeColor="mutedForeground" style={styles.err}>{error}</ThemedText>
       ) : null}
-      <BottomSheetFlatList
+      <FlatList
         data={all}
         keyExtractor={(t) => t.id}
+        keyboardShouldPersistTaps="handled"
         renderItem={({ item }) => {
           const on = selected.has(item.id);
           return (
@@ -123,20 +115,19 @@ export default function TagEditor({
           </ThemedText>
         }
       />
-    </BottomSheet>
+    </Dialog>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  createRow: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two, paddingBottom: Spacing.one },
+  input: {
+    borderWidth: 1,
+    borderRadius: Spacing.two,
+    fontSize: 16,
+    minHeight: 44,
     paddingHorizontal: Spacing.two,
-    paddingBottom: Spacing.one,
   },
-  createRow: { paddingHorizontal: Spacing.two, paddingBottom: Spacing.one },
-  input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: Spacing.two, paddingVertical: Spacing.one },
-  row: { paddingHorizontal: Spacing.two, paddingVertical: Spacing.one },
-  err: { paddingHorizontal: Spacing.two, paddingVertical: Spacing.half },
+  row: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
+  err: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.half },
 });

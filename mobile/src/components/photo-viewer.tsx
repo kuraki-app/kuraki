@@ -1,8 +1,7 @@
-import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import { Image } from 'expo-image';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   Dimensions,
@@ -15,9 +14,9 @@ import {
   type AlertButton,
   type ViewToken,
 } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import Dialog from '@/components/dialog';
 import TagEditor from '@/components/tag-editor';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing, useTokens } from '@/constants/theme';
@@ -62,9 +61,10 @@ type Props = {
  *
  * Now: a tap toggles everything. Chrome up means two icons in the corners --
  * close at the top left, favourite at the top right, both far from the middle
- * of the image -- and a details sheet at the bottom carrying the filename in
- * full, along with everything else that was previously nowhere to be found
- * (capture date, size, place, tags). Chrome down means the photograph alone.
+ * of the image -- and an info button opening a details dialog that carries the
+ * filename in full, along with everything else that was previously nowhere to
+ * be found (capture date, size, place, tags). Chrome down means the photograph
+ * alone.
  */
 export default function PhotoViewer({
   assets,
@@ -82,7 +82,6 @@ export default function PhotoViewer({
   const [info, setInfo] = useState(false);
   const [editingTags, setEditingTags] = useState(false);
   const [tags, setTags] = useState<Tag[]>([]);
-  const snapPoints = useMemo(() => ['22%', '52%'], []);
 
   const onViewable = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const first = viewableItems[0];
@@ -153,16 +152,14 @@ export default function PhotoViewer({
   return (
     <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       {/*
-        A second GestureHandlerRootView, inside the Modal.
-
-        react-native-gesture-handler ships platform variants: on iOS the root is
-        a plain View, but GestureHandlerRootView.android.tsx renders a native
-        RNGestureHandlerRootView that gesture handlers must live under. An RN
-        Modal is a separate native window, so the app-level root in _layout.tsx
-        does not cover this subtree -- which left the tag sheet's drag and
-        pan-down-to-close dead on Android while working fine on iOS.
+        A plain View. This used to be a second GestureHandlerRootView, because
+        an RN Modal is its own native window that the app-level root in
+        _layout.tsx does not reach, and the details sheet's drag needed one on
+        Android. Nothing under here uses a gesture handler now that the sheets
+        are dialogs -- the pager is a plain FlatList -- so the extra native root
+        would only be a thing to explain.
       */}
-      <GestureHandlerRootView style={styles.fill}>
+      <View style={styles.fill}>
         <FlatList
           data={assets}
           keyExtractor={(a) => a.id}
@@ -238,23 +235,17 @@ export default function PhotoViewer({
         )}
 
         {/*
-          The info dialog, opened from the info button rather than shown with
-          the chrome. The tag editor takes over the bottom of the screen when it
-          opens, because two sheets stacked on one another fight over the same
-          drag gestures.
+          The details dialog, opened from the info button rather than shown with
+          the chrome. Still hidden while the tag editor is up: one dialog at a
+          time reads as a step, two stacked cards as a mistake.
         */}
-        {info && current && !editingTags && (
-          <BottomSheet
-            index={0}
-            snapPoints={snapPoints}
-            onClose={() => setInfo(false)}
-            enablePanDownToClose
-            backgroundStyle={{ backgroundColor: tokens.card }}
-            handleIndicatorStyle={{ backgroundColor: tokens.mutedForeground }}>
-            <BottomSheetView style={styles.sheet}>
-              <ThemedText type="subtitle" style={heading} numberOfLines={2}>
-                {current.filename}
-              </ThemedText>
+        {current && (
+          <Dialog
+            visible={info && !editingTags}
+            title={current.filename}
+            register="kura"
+            onClose={() => setInfo(false)}>
+            <View style={styles.details}>
               {takenAt ? (
                 <ThemedText type="small" themeColor="mutedForeground">
                   {takenAt}
@@ -286,14 +277,14 @@ export default function PhotoViewer({
                   </ThemedText>
                 </Pressable>
               </View>
-            </BottomSheetView>
-          </BottomSheet>
+            </View>
+          </Dialog>
         )}
 
         {editingTags && current && (
           <TagEditor asset={current} settings={settings} onClose={() => setEditingTags(false)} />
         )}
-      </GestureHandlerRootView>
+      </View>
     </Modal>
   );
 }
@@ -440,7 +431,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.55)',
   },
   chromeGlyph: { color: '#fff' },
-  sheet: { paddingHorizontal: Spacing.three, paddingTop: Spacing.one, gap: Spacing.half },
+  details: { padding: Spacing.three, gap: Spacing.half },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.one, paddingTop: Spacing.two },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: Spacing.two, paddingVertical: Spacing.half },
   chipAction: { borderStyle: 'dashed' },

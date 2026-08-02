@@ -3,12 +3,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, View } from 'react-native';
 
 import AlbumTargetPicker from '@/components/album-target-picker';
-import GalleryMenu from '@/components/gallery-menu';
 import PhotoGrid from '@/components/photo-grid';
-import { usePrefs } from '@/hooks/use-prefs';
 import PlacesScreen from '@/components/places-screen';
 import { headerOptions } from '@/components/screen-header';
-import SelectionBar from '@/components/selection-bar';
+import GalleryHeader from '@/components/gallery-header';
+import ProfileDialog from '@/components/profile-dialog';
+import SelectionHeader from '@/components/selection-header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing, useTokens } from '@/constants/theme';
@@ -22,15 +22,17 @@ import {
   fetchLibrary,
   fetchMemories,
   flushFavorites,
+  setArchived,
   setFavorite,
   syncChanges,
   trashAsset,
   type LibraryAsset,
   type LibraryFilters,
 } from '@/lib/library-api';
+import { backupEngine, type BackupProgress } from '@/lib/backup-engine';
+import { allFavorite } from '@/lib/selection';
 import { isAuthLost, onAuthLost } from '@/lib/session';
-import { galleryTitle, type GalleryView } from '@/lib/gallery';
-import { savePrefs } from '@/lib/prefs';
+import type { GalleryView } from '@/lib/gallery';
 import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
 
 const reg = registerStyle('kura');
@@ -39,7 +41,6 @@ const heading = { fontFamily: reg.heading };
 export default function LibraryScreen() {
   const tokens = useTokens();
   const [segment, setSegment] = useState<GalleryView>('timeline');
-  const { groupBy } = usePrefs();
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
@@ -68,6 +69,27 @@ export default function LibraryScreen() {
   // undiscoverable.
   const [selectionMode, setSelectionMode] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  // Archived has its own state for the same reason On-this-day does: it is a
+  // different page of the library, and letting it share `assets` would put it
+  // at the mercy of syncAndRefresh, which repaints from the unfiltered filter.
+  const [archived, setArchivedAssets] = useState<LibraryAsset[]>([]);
+  const [archivedCursor, setArchivedCursor] = useState<string | undefined>(undefined);
+  const [archivedLoading, setArchivedLoading] = useState(false);
+  const [archivedError, setArchivedError] = useState('');
+  // Null until the engine's first snapshot lands; the header item stays hidden.
+  const [progress, setProgress] = useState<BackupProgress | null>(null);
+  // Timeline and Archived select. On-this-day is a resurfacing view and Places
+  // is a map — neither has a grid the bulk actions could apply to.
+  const selectable = segment === 'timeline' || segment === 'archived';
+  const selecting = selectable && (selectionMode || selected.size > 0);
+  // Whichever grid is on screen. The selection actions read this, so they act
+  // on what the user can actually see rather than always on the timeline.
+  const visible = segment === 'archived' ? archived : assets;
+
+  // The header's backup item is a pure reader of the engine; subscribing here
+  // rather than inside the header keeps the header a function of its props.
+  useEffect(() => backupEngine.subscribe(setProgress), []);
 
   // probe feeds a reachability check through the machine. It can never clear a
   // revoke (nextConnectionState guards that), only move online<->unreachable.
@@ -120,6 +142,24 @@ export default function LibraryScreen() {
       }
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  // Archived is fetched, never cached: isUnfiltered() excludes it precisely so
+  // an archived page cannot overwrite the timeline's offline mirror, which
+  // means there is no mirror to fall back on here either.
+  const loadArchived = useCallback(async (active: CaptureSettings) => {
+    setArchivedLoading(true);
+    setArchivedError('');
+    try {
+      const page = await fetchLibrary(active, { archived: true });
+      setArchivedAssets(page.assets);
+      setArchivedCursor(page.next_cursor);
+    } catch (cause) {
+      setArchivedAssets([]);
+      setArchivedError(cause instanceof Error ? cause.message : 'Could not load archived photos.');
+    } finally {
+      setArchivedLoading(false);
     }
   }, []);
 
@@ -215,10 +255,61 @@ export default function LibraryScreen() {
     setSelectionMode(false);
   }
 
-  // One control for both directions: once everything is chosen it clears.
-  function selectAll() {
-    setSelected((prev) => (prev.size >= assets.length ? new Set() : new Set(assets.map((a) => a.id))));
-  }
+  /**
+   * Select or clear one date group from its heading.
+   *
+   * A whole-library "select all" is deliberately not offered any more: on a
+   * library of any size it selects tens of thousands of photos, which is not
+   * something anyone means to do, and every bulk action behind it is
+   * irreversible or nearly so. Per-group is the unit people actually want.
+   */
+  const selectSection = useCallback((ids: string[], allSelected: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (allSelected) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // Favourite the whole selection, or unfavourite it when every one already is.
+  const favoriteSelected = useCallback(async () => {
+    const ids = [...selected];
+    const next = !allFavorite(visible, selected);
+    for (const id of ids) await toggleFavorite(id, next);
+  }, [selected, visible, toggleFavorite]);
+
+  /**
+   * Archive the selection, or restore it when looking at the archive.
+   *
+   * Online-only, and it says so rather than queueing: archiving is a library
+   * state the offline mirror does not model, so a queued archive would leave
+   * the grid claiming something that had not happened.
+   */
+  const archiveSelected = useCallback(async () => {
+    const ids = [...selected];
+    const goingIn = segment !== 'archived';
+    setSelected(new Set());
+    setSelectionMode(false);
+    if (!settings || disconnected) {
+      setError('Connect to your server to archive photos.');
+      return;
+    }
+    const drop = (prev: LibraryAsset[]) => prev.filter((a) => !ids.includes(a.id));
+    if (goingIn) setAssets(drop);
+    else setArchivedAssets(drop);
+    try {
+      await setArchived(settings, ids, goingIn);
+    } catch {
+      // Put them back: a failed archive that left them hidden would misreport
+      // the library, and there is no queue to reconcile it later.
+      setError('Could not archive. Your photos are unchanged.');
+      if (goingIn) await load(settings, {});
+      else await loadArchived(settings);
+    }
+  }, [selected, segment, settings, disconnected, load, loadArchived]);
 
   // Add-to-album: same optimistic+queue shape as toggleFavorite above — try
   // the batched online send first and return early on success (nothing to
@@ -250,6 +341,7 @@ export default function LibraryScreen() {
     async (id: string) => {
       setAssets((prev) => prev.filter((a) => a.id !== id));
       setMemories((prev) => prev.filter((a) => a.id !== id));
+      setArchivedAssets((prev) => prev.filter((a) => a.id !== id));
       await setTrashed(id, true);
       if (settings && !disconnected) {
         try {
@@ -318,6 +410,26 @@ export default function LibraryScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [segment, settings]);
 
+  // Reloaded on every switch into the view rather than cached: archiving from
+  // the timeline changes what belongs here, and a stale page would omit what
+  // the user just archived.
+  useEffect(() => {
+    if (segment !== 'archived' || !settings) return;
+    const timer = setTimeout(() => void loadArchived(settings), 0);
+    return () => clearTimeout(timer);
+  }, [segment, settings, loadArchived]);
+
+  async function loadMoreArchived() {
+    if (!settings || !archivedCursor) return;
+    try {
+      const page = await fetchLibrary(settings, { archived: true }, archivedCursor);
+      setArchivedAssets((prev) => [...prev, ...page.assets]);
+      setArchivedCursor(page.next_cursor);
+    } catch {
+      /* keep what we have */
+    }
+  }
+
   async function loadMoreMemories() {
     if (!settings || !memoriesCursor) return;
     try {
@@ -331,23 +443,47 @@ export default function LibraryScreen() {
 
   return (
     <ThemedView style={styles.fill}>
-      {/* The title follows the segment ("Photos" / "On this day" / "Places"),
-          so the header is declared here rather than in the layout. */}
-      <Stack.Screen options={headerOptions({ title: galleryTitle(segment) })} />
-      {/* A sibling, not a `headerRight`: Stack.Toolbar declares real bar button
-          items, which is what stops iOS 26 wrapping the control in the glass
-          disc it gives arbitrary custom header views. */}
-      <GalleryMenu
-        view={segment}
-        groupBy={groupBy}
-        selecting={selectionMode || selected.size > 0}
-        onToggleSelecting={() => (selectionMode || selected.size > 0 ? cancelSelection() : setSelectionMode(true))}
-        onChangeView={(v) => {
-          cancelSelection();
-          setSegment(v);
-        }}
-        onChangeGroupBy={(g) => void savePrefs({ groupBy: g })}
-      />
+      {/* No title. The view's name is a toolbar item on the left (it doubles
+          as the view switcher), so leaving the native centred title on would
+          render it twice. */}
+      <Stack.Screen options={{ ...headerOptions({ title: '' }), headerTitle: '' }} />
+      {/* One or the other, never both. expo-router's toolbars are last-one-wins
+          per placement, so a ternary is what actually guarantees the two header
+          states cannot collide — render order would only appear to. */}
+      {selecting ? (
+        <SelectionHeader
+          count={selected.size}
+          onCancel={cancelSelection}
+          onFavorite={() => void favoriteSelected()}
+          allFavorite={allFavorite(visible, selected)}
+          onTrash={() => void trashSelected()}
+          actions={[
+            {
+              key: 'album',
+              label: 'Add to album',
+              icon: 'rectangle.stack.badge.plus',
+              onPress: () => setPickerOpen(true),
+            },
+            {
+              key: 'archive',
+              label: segment === 'archived' ? 'Move back to library' : 'Archive',
+              icon: segment === 'archived' ? 'tray.and.arrow.up' : 'archivebox',
+              onPress: () => void archiveSelected(),
+            },
+          ]}
+        />
+      ) : (
+        <GalleryHeader
+          view={segment}
+          progress={progress}
+          onPressSync={() => router.push('/(app)/settings/backup')}
+          onPressProfile={() => setProfileOpen(true)}
+          onChangeView={(v) => {
+            cancelSelection();
+            setSegment(v);
+          }}
+        />
+      )}
       {disconnected && !dismissed && (
         <View style={[styles.banner, { backgroundColor: tokens.destructiveBg }]}>
           <ThemedText type="small" style={[styles.bannerText, { color: tokens.destructive }]}>
@@ -402,6 +538,7 @@ export default function LibraryScreen() {
               setSelectionMode(true);
               startSelection(id);
             }}
+            onSelectSection={selectSection}
             emptyMessage="No photos here yet."
           />
         )
@@ -425,23 +562,45 @@ export default function LibraryScreen() {
         )
       )}
 
+      {segment === 'archived' && (
+        archivedError ? (
+          <View style={styles.center}>
+            <ThemedText type="subtitle" style={heading}>Nothing to show</ThemedText>
+            <ThemedText themeColor="mutedForeground" style={styles.msg} selectable>{archivedError}</ThemedText>
+          </View>
+        ) : (
+          <PhotoGrid
+            assets={archived}
+            settings={settings}
+            loading={archivedLoading}
+            onEndReached={() => void loadMoreArchived()}
+            onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
+            onDelete={(id) => void trashOne(id)}
+            selectedIds={selected}
+            selectionMode={selectionMode}
+            onToggleSelect={toggleSelect}
+            onLongPressItem={(id) => {
+              setSelectionMode(true);
+              startSelection(id);
+            }}
+            onSelectSection={selectSection}
+            emptyMessage="Nothing archived. Archiving hides photos from the timeline without deleting them."
+          />
+        )
+      )}
+
       {segment === 'places' && settings && <PlacesScreen settings={settings} />}
 
-      {segment === 'timeline' && (selectionMode || selected.size > 0) && (
-        <SelectionBar
-          count={selected.size}
-          total={assets.length}
-          onSelectAll={selectAll}
-          onAddToAlbum={() => setPickerOpen(true)}
-          onTrash={() => void trashSelected()}
-          onCancel={cancelSelection}
-        />
-      )}
       <AlbumTargetPicker
         visible={pickerOpen}
         settings={settings}
         onPick={(albumId) => void addSelectedToAlbum(albumId)}
         onClose={() => setPickerOpen(false)}
+      />
+      <ProfileDialog
+        visible={profileOpen}
+        settings={settings}
+        onClose={() => setProfileOpen(false)}
       />
     </ThemedView>
   );

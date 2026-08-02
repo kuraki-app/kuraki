@@ -1,9 +1,9 @@
-import BottomSheet, { BottomSheetFlatList } from '@gorhom/bottom-sheet';
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { FlatList, Pressable, StyleSheet } from 'react-native';
 
+import Dialog from '@/components/dialog';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { fetchTags, type Tag } from '@/lib/library-api';
 import type { CaptureSettings } from '@/lib/settings';
@@ -11,8 +11,9 @@ import type { CaptureSettings } from '@/lib/settings';
 const reg = registerStyle('vault');
 const heading = { fontFamily: reg.heading };
 
-// TagList is the browse sheet opened from the Library header. Flat, name-ordered
-// (hierarchy deferred); tapping a tag hands it back for navigation to its grid.
+// TagList is the browse dialog opened from the Library header. Flat,
+// name-ordered (hierarchy deferred); tapping a tag hands it back for navigation
+// to its grid.
 export default function TagList({
   settings,
   onPressTag,
@@ -22,8 +23,6 @@ export default function TagList({
   onPressTag: (tag: Tag) => void;
   onClose: () => void;
 }) {
-  const tokens = useTokens();
-  const snapPoints = useMemo(() => ['40%', '80%'], []);
   const [tags, setTags] = useState<Tag[]>([]);
 
   useEffect(() => {
@@ -39,15 +38,8 @@ export default function TagList({
   }, [settings]);
 
   return (
-    <BottomSheet
-      index={0}
-      snapPoints={snapPoints}
-      onClose={onClose}
-      enablePanDownToClose
-      backgroundStyle={{ backgroundColor: tokens.card }}
-      handleIndicatorStyle={{ backgroundColor: tokens.mutedForeground }}>
-      <ThemedText type="subtitle" style={[heading, styles.header]}>Tags</ThemedText>
-      <BottomSheetFlatList
+    <Dialog visible title="Tags" onClose={onClose}>
+      <FlatList
         data={tags}
         keyExtractor={(t) => t.id}
         renderItem={({ item }) => (
@@ -59,11 +51,10 @@ export default function TagList({
           <ThemedText type="small" themeColor="mutedForeground" style={styles.row}>No tags yet.</ThemedText>
         }
       />
-    </BottomSheet>
+    </Dialog>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { paddingHorizontal: Spacing.two, paddingBottom: Spacing.one },
-  row: { paddingHorizontal: Spacing.two, paddingVertical: Spacing.one },
+  row: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
 });

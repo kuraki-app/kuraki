@@ -101,3 +101,13 @@ describe('groupAssets', () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 });
+
+describe('the Archived view', () => {
+  it('names itself in the header', () => {
+    expect(galleryTitle('archived')).toBe('Archived');
+  });
+
+  it('is offered alongside the other views', () => {
+    expect(GALLERY_VIEWS.map((v) => v.key)).toEqual(['timeline', 'memories', 'places', 'archived']);
+  });
+});
