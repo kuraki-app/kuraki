@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native
 import PairSheet from '@/components/pair-sheet';
 import { SettingsRow, SettingsSection } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { nextConnectionState, probeServer, type ConnectionState } from '@/lib/connection';
 import { connectionView, showsCodeInput } from '@/lib/connection-view';
 import { flushFavorites } from '@/lib/library-api';
@@ -172,12 +172,12 @@ const styles = StyleSheet.create({
   content: { paddingBottom: Spacing.five },
   field: { paddingVertical: Spacing.two, gap: Spacing.two },
   input: {
-    borderRadius: Spacing.two,
+    borderRadius: Radius.sm,
     borderWidth: 1,
     fontSize: 16,
     minHeight: 48,
     paddingHorizontal: Spacing.two,
   },
-  button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
+  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three },
   statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.two },
 });

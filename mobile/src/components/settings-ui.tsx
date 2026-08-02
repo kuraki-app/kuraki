@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 
 // The shared vocabulary of the settings tree: a titled section, a grouped card,
 // a row that pushes to a subpage, and a row carrying a switch. Every settings
@@ -109,8 +109,8 @@ export function SettingsSwitch({
 const styles = StyleSheet.create({
   section: { paddingHorizontal: Spacing.three, paddingTop: Spacing.three, gap: Spacing.one },
   sectionTitle: { paddingHorizontal: Spacing.one, fontSize: 12, letterSpacing: 0.5 },
-  card: { borderRadius: Spacing.three, paddingHorizontal: Spacing.three, overflow: 'hidden' },
-  footer: { paddingHorizontal: Spacing.one, paddingTop: Spacing.half },
+  card: { borderRadius: Radius.lg, paddingHorizontal: Spacing.three, overflow: 'hidden' },
+  footer: { paddingHorizontal: Spacing.one, paddingTop: Spacing.one },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

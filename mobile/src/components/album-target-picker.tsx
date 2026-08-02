@@ -3,7 +3,7 @@ import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import Dialog from '@/components/dialog';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 import type { CachedAlbum } from '@/lib/cache/albums';
 import { createAlbum, fetchAlbums } from '@/lib/library-api';
 import type { CaptureSettings } from '@/lib/settings';
@@ -99,6 +99,7 @@ export default function AlbumTargetPicker({ visible, settings, onPick, onClose }
         data={albums}
         keyExtractor={(a) => a.id}
         keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.list}
         renderItem={({ item }) => (
           <Pressable style={[styles.row, { borderBottomColor: tokens.border }]} onPress={() => onPick(item.id)}>
             <ThemedText>{item.name}</ThemedText>
@@ -120,10 +121,17 @@ export default function AlbumTargetPicker({ visible, settings, onPick, onClose }
 }
 
 const styles = StyleSheet.create({
-  pad: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.half },
-  createRow: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.two, gap: Spacing.two },
-  input: { borderRadius: Spacing.two, borderWidth: 1, fontSize: 16, minHeight: 44, paddingHorizontal: Spacing.two },
-  button: { alignItems: 'center', borderRadius: Spacing.two, paddingVertical: Spacing.two, paddingHorizontal: Spacing.three },
+  pad: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.one },
+  list: { paddingBottom: Spacing.one },
+  // paddingTop was missing, so the input sat hard against the header's divider.
+  createRow: {
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.two,
+    gap: Spacing.two,
+  },
+  input: { borderRadius: Radius.sm, borderWidth: 1, fontSize: 16, minHeight: 44, paddingHorizontal: Spacing.two },
+  button: { alignItems: 'center', borderRadius: Radius.sm, paddingVertical: Spacing.two, paddingHorizontal: Spacing.three },
   disabled: { opacity: 0.5 },
   row: {
     paddingHorizontal: Spacing.three,

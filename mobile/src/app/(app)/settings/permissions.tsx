@@ -4,7 +4,7 @@ import { AppState, Linking, Pressable, ScrollView, StyleSheet, View } from 'reac
 
 import { SettingsSection } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { backgroundAvailable } from '@/lib/background';
 import { ensureNotificationPermission, notificationsAvailable } from '@/lib/notifications';
 import {
@@ -197,10 +197,10 @@ const styles = StyleSheet.create({
   row: { paddingVertical: Spacing.two, gap: Spacing.half },
   head: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   rowLabel: { flex: 1 },
-  button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.two, marginTop: Spacing.one },
+  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.two, marginTop: Spacing.one },
   buttonGhost: {
     alignItems: 'center',
-    borderRadius: Spacing.two,
+    borderRadius: Radius.sm,
     padding: Spacing.two,
     marginTop: Spacing.one,
     borderWidth: 1,

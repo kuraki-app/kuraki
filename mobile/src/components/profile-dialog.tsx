@@ -140,7 +140,7 @@ export default function ProfileDialog({ visible, settings, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
-  body: { padding: Spacing.three, gap: Spacing.half },
+  body: { padding: Spacing.three, gap: Spacing.one },
   sectionTitle: { paddingBottom: Spacing.half },
   figure: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   bar: { height: 8, borderRadius: 999, overflow: 'hidden', marginBottom: Spacing.one },

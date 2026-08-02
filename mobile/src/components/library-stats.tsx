@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { formatBytes, formatCount } from '@/lib/format';
 import { fetchStats, type LibraryStats } from '@/lib/library-api';
@@ -71,7 +71,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 
 const styles = StyleSheet.create({
   wrap: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two },
-  card: { borderRadius: Spacing.three, padding: Spacing.three, gap: Spacing.half },
+  card: { borderRadius: Radius.lg, padding: Spacing.three, gap: Spacing.half },
   size: { fontSize: 32, lineHeight: 38 },
   counts: { flexDirection: 'row', gap: Spacing.four, paddingTop: Spacing.two },
   stat: { gap: 2 },

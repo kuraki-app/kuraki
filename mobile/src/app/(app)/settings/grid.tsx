@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { SettingsSection, SettingsSwitch } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { GROUP_OPTIONS, type GroupBy } from '@/lib/gallery';
 import { DEFAULT_PREFS, GRID_COLUMNS, GRID_GAP, loadPrefs, savePrefs, type Prefs } from '@/lib/prefs';
 
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingVertical: Spacing.two,
-    borderRadius: Spacing.two,
+    borderRadius: Radius.sm,
     borderWidth: 1,
   },
 });
