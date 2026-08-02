@@ -2,13 +2,16 @@
   import { createEventDispatcher, onDestroy } from 'svelte';
   import { Star, Play, Check, Layers } from '@lucide/svelte';
   import type { Asset } from '$lib/types';
-  import { groupByDay, labelDate } from '$lib/format';
+  import { groupAssets, type Grouping } from '$lib/format';
   import { MORPH_NAME } from '$lib/motion';
 
   export let assets: Asset[] = [];
   export let selectMode = false;
   export let selected: Set<string> = new Set();
   export let grouped = true;
+  /** How headed sections are cut. `grouped={false}` (album and trash views)
+   *  overrides it to a single unheaded section. */
+  export let grouping: Grouping = 'day';
   export let density: 'compact' | 'comfortable' | 'large' = 'comfortable';
 
   /**
@@ -19,7 +22,8 @@
   export let morphId: string | null = null;
 
   const dispatch = createEventDispatcher<{ open: Asset; toggle: string }>();
-  $: groups = grouped ? groupByDay(assets) : [{ day: '', items: assets }];
+  $: effectiveGrouping = grouped ? grouping : 'off';
+  $: groups = groupAssets(assets, effectiveGrouping);
 
   // ---- Virtualization (day-group windowing) --------------------------------
   //
@@ -43,18 +47,25 @@
 
   // Clear cached heights when density changes — the tile size (and thus every
   // section's height) changes, so old measurements would misreserve space.
+  // Grouping does the same for a different reason: it redraws the section
+  // boundaries entirely, so a height measured for "2026-08-02" says nothing
+  // about the "2026-08" that replaces it, and reusing it would misreserve
+  // every spacer on the page.
   let lastDensity = density;
-  $: if (density !== lastDensity) {
+  let lastGrouping = effectiveGrouping;
+  $: if (density !== lastDensity || effectiveGrouping !== lastGrouping) {
     lastDensity = density;
+    lastGrouping = effectiveGrouping;
     heights = new Map();
+    visible = new Set();
   }
 
   // The section holding the morph target must stay materialized through the
   // transition even if the observer would drop it; a morph into a spacer has no
   // tile. Only computed while a morph is active (rare), so the scan is cheap.
-  $: morphDay =
-    morphId != null ? (groups.find((g) => g.items.some((a) => a.id === morphId))?.day ?? null) : null;
-  $: isLive = (day: string) => visible.has(day) || day === morphDay;
+  $: morphGroup =
+    morphId != null ? (groups.find((g) => g.items.some((a) => a.id === morphId))?.key ?? null) : null;
+  $: isLive = (key: string) => visible.has(key) || key === morphGroup;
 
   // Minimum tile width per density, mirroring the grid-template-columns below.
   // These MUST track the CSS: the estimate decides how tall a spacer reserves
@@ -76,8 +87,8 @@
   // dependency analysis, so a rotation would otherwise leave stale spacers.
   $: reserved = new Map(
     groups.map((g) => {
-      const measured = heights.get(g.day);
-      if (measured != null) return [g.day, measured] as const;
+      const measured = heights.get(g.key);
+      if (measured != null) return [g.key, measured] as const;
       const min = (viewportWidth && viewportWidth <= NARROW_MAX ? TILE_MIN_NARROW : TILE_MIN)[
         density
       ];
@@ -85,8 +96,8 @@
       const cols = Math.max(1, Math.floor(w / min));
       const tile = w / cols; // tiles are square (aspect-ratio: 1)
       const rows = Math.ceil(g.items.length / cols);
-      const header = grouped && g.day ? 35 : 0; // h2 line + its gap
-      return [g.day, rows * tile + header] as const;
+      const header = g.label ? 35 : 0; // h2 line + its gap
+      return [g.key, rows * tile + header] as const;
     }),
   );
 
@@ -96,14 +107,14 @@
       (entries) => {
         let changed = false;
         for (const e of entries) {
-          const day = (e.target as HTMLElement).dataset.day ?? '';
+          const key = (e.target as HTMLElement).dataset.group ?? '';
           if (e.isIntersecting) {
-            if (!visible.has(day)) {
-              visible.add(day);
+            if (!visible.has(key)) {
+              visible.add(key);
               changed = true;
             }
-          } else if (visible.has(day)) {
-            visible.delete(day);
+          } else if (visible.has(key)) {
+            visible.delete(key);
             changed = true;
           }
         }
@@ -125,11 +136,11 @@
   // measure: records a materialized section's real height so its spacer reserves
   // the same space later. Reassigns the map so a re-measure (e.g. after images
   // change intrinsic layout) is picked up by heightFor.
-  function measure(el: HTMLElement, day: string) {
+  function measure(el: HTMLElement, key: string) {
     const record = () => {
       const h = el.offsetHeight;
-      if (h > 0 && heights.get(day) !== h) {
-        heights.set(day, h);
+      if (h > 0 && heights.get(key) !== h) {
+        heights.set(key, h);
         heights = heights;
       }
     };
@@ -150,19 +161,19 @@
 <svelte:window bind:innerWidth={viewportWidth} />
 
 <div class="timeline" bind:clientWidth={containerWidth}>
-  {#each groups as group (group.day)}
+  {#each groups as group (group.key)}
     <!-- Each section is always in the DOM (so the observer can watch it and the
          spacer holds scroll height); its contents materialize only when live. -->
     <section
       class="day"
-      data-day={group.day}
+      data-group={group.key}
       use:observe
-      style:min-height={isLive(group.day) ? undefined : `${reserved.get(group.day) ?? 0}px`}
+      style:min-height={isLive(group.key) ? undefined : `${reserved.get(group.key) ?? 0}px`}
     >
-      {#if isLive(group.day)}
-        <div class="day-inner" use:measure={group.day}>
-          {#if grouped && group.day}
-            <h2>{labelDate(group.day)}</h2>
+      {#if isLive(group.key)}
+        <div class="day-inner" use:measure={group.key}>
+          {#if group.label}
+            <h2>{group.label}</h2>
           {/if}
           <div class="grid {density}">
             {#each group.items as asset (asset.id)}

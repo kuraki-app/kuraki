@@ -168,6 +168,14 @@ type DeviceResponse struct {
 type CaptureStartRequest struct {
 	Filename  string `json:"filename"`
 	SizeBytes int64  `json:"size_bytes"`
+	// TakenAt is when the client says the item was captured, RFC3339.
+	//
+	// Optional, and only a fallback: EXIF still wins, because it travels with
+	// the file and the client's value is an assertion. It exists because a
+	// phone knows its camera roll's creation times exactly while screenshots
+	// and similar EXIF-less media carry none, and those imported with no date
+	// at all — grouping under "Undated" in every client.
+	TakenAt string `json:"taken_at,omitempty"`
 }
 
 // CaptureSessionResponse is the wire representation of a capture upload session.

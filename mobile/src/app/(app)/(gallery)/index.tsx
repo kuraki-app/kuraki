@@ -63,6 +63,10 @@ export default function LibraryScreen() {
   // owned here so the bulk actions below can mutate `assets` directly.
   // Selection is "active" whenever the set is non-empty (see PhotoGrid).
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Separate from "the set is non-empty" so Select can be entered from the
+  // toolbar before anything is chosen — long-press alone left multi-select
+  // undiscoverable.
+  const [selectionMode, setSelectionMode] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   // probe feeds a reachability check through the machine. It can never clear a
@@ -208,6 +212,12 @@ export default function LibraryScreen() {
 
   function cancelSelection() {
     setSelected(new Set());
+    setSelectionMode(false);
+  }
+
+  // One control for both directions: once everything is chosen it clears.
+  function selectAll() {
+    setSelected((prev) => (prev.size >= assets.length ? new Set() : new Set(assets.map((a) => a.id))));
   }
 
   // Add-to-album: same optimistic+queue shape as toggleFavorite above — try
@@ -233,25 +243,32 @@ export default function LibraryScreen() {
   );
 
   // Move to trash: optimistic removal from both visible lists + cache, then
-  // the same send-if-online / leave-queued-on-fail shape per id.
-  const trashSelected = useCallback(async () => {
-    const ids = [...selected];
-    setSelected(new Set());
-    for (const id of ids) {
+  // the same send-if-online / leave-queued-on-fail shape. Extracted per-asset
+  // so the viewer's delete button and the selection bar's bulk action are the
+  // same code path rather than two that can drift.
+  const trashOne = useCallback(
+    async (id: string) => {
       setAssets((prev) => prev.filter((a) => a.id !== id));
       setMemories((prev) => prev.filter((a) => a.id !== id));
       await setTrashed(id, true);
       if (settings && !disconnected) {
         try {
           await trashAsset(settings, id);
-          continue; // synced online — nothing to queue
+          return; // synced online — nothing to queue
         } catch {
           // fall through: queue for the next reconnect flush
         }
       }
       await enqueueTrash(id);
-    }
-  }, [selected, settings, disconnected]);
+    },
+    [settings, disconnected],
+  );
+
+  const trashSelected = useCallback(async () => {
+    const ids = [...selected];
+    setSelected(new Set());
+    for (const id of ids) await trashOne(id);
+  }, [selected, trashOne]);
 
   async function loadMore() {
     if (loadingMore || !cursor || !settings) return;
@@ -314,27 +331,22 @@ export default function LibraryScreen() {
 
   return (
     <ThemedView style={styles.fill}>
-      {/*
-        The title follows the segment ("Photos" / "On this day" / "Places"), so
-        the header is declared here rather than in the layout. The view/group
-        menu rides along as the header's right accessory.
-      */}
-      <Stack.Screen
-        options={headerOptions({
-          title: galleryTitle(segment),
-          register: 'kura',
-          right: () => (
-            <GalleryMenu
-              view={segment}
-              groupBy={groupBy}
-              onChangeView={(v) => {
-                cancelSelection();
-                setSegment(v);
-              }}
-              onChangeGroupBy={(g) => void savePrefs({ groupBy: g })}
-            />
-          ),
-        })}
+      {/* The title follows the segment ("Photos" / "On this day" / "Places"),
+          so the header is declared here rather than in the layout. */}
+      <Stack.Screen options={headerOptions({ title: galleryTitle(segment) })} />
+      {/* A sibling, not a `headerRight`: Stack.Toolbar declares real bar button
+          items, which is what stops iOS 26 wrapping the control in the glass
+          disc it gives arbitrary custom header views. */}
+      <GalleryMenu
+        view={segment}
+        groupBy={groupBy}
+        selecting={selectionMode || selected.size > 0}
+        onToggleSelecting={() => (selectionMode || selected.size > 0 ? cancelSelection() : setSelectionMode(true))}
+        onChangeView={(v) => {
+          cancelSelection();
+          setSegment(v);
+        }}
+        onChangeGroupBy={(g) => void savePrefs({ groupBy: g })}
       />
       {disconnected && !dismissed && (
         <View style={[styles.banner, { backgroundColor: tokens.destructiveBg }]}>
@@ -382,9 +394,14 @@ export default function LibraryScreen() {
             loading={loading}
             onEndReached={() => void loadMore()}
             onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
+            onDelete={(id) => void trashOne(id)}
             selectedIds={selected}
+            selectionMode={selectionMode}
             onToggleSelect={toggleSelect}
-            onLongPressItem={startSelection}
+            onLongPressItem={(id) => {
+              setSelectionMode(true);
+              startSelection(id);
+            }}
             emptyMessage="No photos here yet."
           />
         )
@@ -410,9 +427,11 @@ export default function LibraryScreen() {
 
       {segment === 'places' && settings && <PlacesScreen settings={settings} />}
 
-      {segment === 'timeline' && selected.size > 0 && (
+      {segment === 'timeline' && (selectionMode || selected.size > 0) && (
         <SelectionBar
           count={selected.size}
+          total={assets.length}
+          onSelectAll={selectAll}
           onAddToAlbum={() => setPickerOpen(true)}
           onTrash={() => void trashSelected()}
           onCancel={cancelSelection}

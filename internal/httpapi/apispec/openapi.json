@@ -3874,6 +3874,10 @@
                     },
                     "size_bytes": {
                         "type": "integer"
+                    },
+                    "taken_at": {
+                        "description": "TakenAt is when the client says the item was captured, RFC3339.\n\nOptional, and only a fallback: EXIF still wins, because it travels with\nthe file and the client's value is an assertion. It exists because a\nphone knows its camera roll's creation times exactly while screenshots\nand similar EXIF-less media carry none, and those imported with no date\nat all — grouping under \"Undated\" in every client.",
+                        "type": "string"
                     }
                 }
             },

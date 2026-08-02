@@ -298,6 +298,24 @@ func (i *Importer) importFile(ctx context.Context, ownerID, path string, kind do
 		rating = clampRating(sc.Rating)
 	}
 
+	// Last resort: the file's own modification time.
+	//
+	// Nothing else supplies a date for media that carries no EXIF capture time
+	// and has no sidecar -- screenshots, exported renders, most things a screen
+	// recorder or a messaging app writes. Those imported with `taken_at` NULL,
+	// which is not "unknown" to a client so much as unusable: they collapsed
+	// into a single "Undated" bucket at the top of the timeline, in an order
+	// nobody chose, and no date filter could reach them.
+	//
+	// An mtime is a weaker claim than EXIF and is deliberately ranked below it
+	// (and below a Takeout/migration sidecar). It is, however, the time the
+	// bytes were last written, which for a phone upload is the capture time the
+	// client stamped on the staged file -- see the capture complete handler.
+	if takenAt == nil && !mtime.IsZero() {
+		fallback := mtime.UTC()
+		takenAt = &fallback
+	}
+
 	storageDate := mtime
 	if takenAt != nil {
 		storageDate = takenAt.UTC()

@@ -1,6 +1,7 @@
-import { Button, Host, Menu, Section } from '@expo/ui/swift-ui';
-import { StyleSheet } from 'react-native';
+import { Stack } from 'expo-router';
 
+import { toolbarGlyph } from '@/components/screen-header';
+import { useTokens } from '@/constants/theme';
 import {
   GALLERY_VIEWS,
   GROUP_OPTIONS,
@@ -11,53 +12,90 @@ import {
 type Props = {
   view: GalleryView;
   groupBy: GroupBy;
+  selecting: boolean;
+  onToggleSelecting: () => void;
   onChangeView: (view: GalleryView) => void;
   onChangeGroupBy: (groupBy: GroupBy) => void;
 };
 
 /**
- * GalleryMenu is the Gallery header's right-hand accessory: view switching and
- * grouping, in a real SwiftUI `Menu` (@expo/ui) rather than a hand-rolled
- * popover -- it gets the system's own presentation, dismissal, haptics and
- * accessibility for free. A tap opens it because `onPrimaryAction` is left
- * unset; supplying one would demote opening to a long-press.
+ * GalleryMenu is the Gallery header's filter control: view switching and
+ * grouping.
  *
- * This used to be a whole header: a row that also drew the screen title and
- * carried its own `insets.top` padding. The title and the inset now belong to
- * the native stack header, which this mounts into as `headerRight`, so all
- * that is left is the control itself.
+ * It is a real navigation-bar item (`Stack.Toolbar`), not a SwiftUI view
+ * embedded into `headerRight`.
+ *
+ * The embedded version was the bug: a `Host` containing an `@expo/ui` Menu is,
+ * to the navigation bar, an arbitrary custom view — so iOS 26 wrapped it in the
+ * shared glass background it gives bar items, and the result was a large white
+ * disc floating in the corner, sized to the host rather than to a control.
+ * Fighting it with a smaller host only shrank the icon inside the same disc.
+ * A toolbar item *is* a bar button item, so the system sizes and places it
+ * exactly like the back chevron opposite, and `hidesSharedBackground` opts out
+ * of the glass so the glyph sits on the header the way this flat palette wants.
+ *
+ * The checkmarks are the system's own (`isOn`), rather than a `checkmark`
+ * symbol placed in the icon slot by hand.
  */
-export default function GalleryMenu({ view, groupBy, onChangeView, onChangeGroupBy }: Props) {
+export default function GalleryMenu({
+  view,
+  groupBy,
+  selecting,
+  onToggleSelecting,
+  onChangeView,
+  onChangeGroupBy,
+}: Props) {
+  const tokens = useTokens();
+  // Timeline with no grouping is the resting state; anything else is a filter
+  // worth marking, and the outline `.circle` variant marks it at the same
+  // weight rather than switching to a heavy fill.
+  const filtered = view !== 'timeline' || groupBy !== 'off';
+
   return (
-    <Host matchContents style={styles.menu}>
-      <Menu
-        label=""
-        systemImage={groupBy === 'off' ? 'line.3.horizontal.decrease' : 'line.3.horizontal.decrease.circle.fill'}>
-        <Section title="View">
+    <Stack.Toolbar placement="right">
+      {/* Multi-select had no entry point but a long-press on a tile, which
+          nothing on screen hinted at. */}
+      <Stack.Toolbar.Button
+        {...toolbarGlyph(selecting ? 'checkmark.circle.fill' : 'checkmark.circle', selecting ? 'Done' : 'Select')}
+        accessibilityLabel={selecting ? 'Stop selecting' : 'Select photos'}
+        tintColor={tokens.foreground}
+        hidesSharedBackground
+        onPress={onToggleSelecting}
+      />
+      <Stack.Toolbar.Menu
+        {...toolbarGlyph(
+          filtered ? 'line.3.horizontal.decrease.circle' : 'line.3.horizontal.decrease',
+          'View',
+        )}
+        accessibilityLabel="View and grouping options"
+        tintColor={tokens.foreground}
+        hidesSharedBackground
+      >
+        {/* `inline` keeps each set as a titled block in one menu instead of a
+            submenu the user has to open. */}
+        <Stack.Toolbar.Menu title="View" inline>
           {GALLERY_VIEWS.map((v) => (
-            <Button
+            <Stack.Toolbar.MenuAction
               key={v.key}
-              label={v.label}
-              systemImage={v.key === view ? 'checkmark' : undefined}
+              isOn={v.key === view}
               onPress={() => onChangeView(v.key)}
-            />
+            >
+              {v.label}
+            </Stack.Toolbar.MenuAction>
           ))}
-        </Section>
-        <Section title="Group by">
+        </Stack.Toolbar.Menu>
+        <Stack.Toolbar.Menu title="Group by" inline>
           {GROUP_OPTIONS.map((g) => (
-            <Button
+            <Stack.Toolbar.MenuAction
               key={g.key}
-              label={g.label}
-              systemImage={g.key === groupBy ? 'checkmark' : undefined}
+              isOn={g.key === groupBy}
               onPress={() => onChangeGroupBy(g.key)}
-            />
+            >
+              {g.label}
+            </Stack.Toolbar.MenuAction>
           ))}
-        </Section>
-      </Menu>
-    </Host>
+        </Stack.Toolbar.Menu>
+      </Stack.Toolbar.Menu>
+    </Stack.Toolbar>
   );
 }
-
-const styles = StyleSheet.create({
-  menu: { width: 44, height: 44, alignItems: 'flex-end', justifyContent: 'center' },
-});

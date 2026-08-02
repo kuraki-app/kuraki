@@ -4,7 +4,7 @@
 </script>
 
 <LibraryView
-  load={() => api.memories()}
+  load={(cursor) => api.memories(cursor)}
   title="On this day"
   subtitle="Photos from this day in past years"
   emptyText="Nothing from this day yet"

@@ -33,6 +33,30 @@ export function formatCount(count: number): string {
 }
 
 /**
+ * captureTimestamp turns a camera-roll asset's `creationTime` into the RFC3339
+ * string the capture upload sends as `taken_at`.
+ *
+ * Two things it has to survive. `creationTime` is documented as epoch
+ * milliseconds, but Android media stores have historically reported epoch
+ * *seconds* for some entries — taken at face value that lands the photo in
+ * 1970, which is worse than having no date at all. Anything below the
+ * milliseconds threshold is therefore read as seconds. And an asset with no
+ * usable creation time returns undefined, so the upload simply omits the field
+ * rather than asserting a wrong date.
+ */
+const MS_THRESHOLD = 1e11; // ~1973 in ms; any smaller value is seconds
+
+export function captureTimestamp(creationTime: number | undefined): string | undefined {
+  if (typeof creationTime !== 'number' || !Number.isFinite(creationTime) || creationTime <= 0) {
+    return undefined;
+  }
+  const ms = creationTime < MS_THRESHOLD ? creationTime * 1000 : creationTime;
+  const at = new Date(ms);
+  if (Number.isNaN(at.getTime())) return undefined;
+  return at.toISOString();
+}
+
+/**
  * formatTakenAt renders an asset's capture time for the viewer's details
  * sheet: "2 August 2026 at 14:32".
  *

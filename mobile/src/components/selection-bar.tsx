@@ -9,17 +9,33 @@ const heading = { fontFamily: reg.heading };
 
 type Props = {
   count: number;
+  /** How many are selectable in total, so Select all can flip to Select none
+   *  once everything is already chosen. */
+  total?: number;
   onAddToAlbum: () => void;
   onTrash: () => void;
   onCancel: () => void;
+  onSelectAll?: () => void;
+  /** Only inside an album: unlink the selection from *this* album. A different
+   *  act from moving it to trash, and deliberately labelled so. */
+  onRemoveFromAlbum?: () => void;
 };
 
 // SelectionBar is the bottom action bar shown while a photo grid is in
-// selection mode (Task 7): cancel + count on the left, the two bulk actions
-// on the right. It floats above the native tab bar (BottomTabInset) so it
-// never gets hidden behind it.
-export default function SelectionBar({ count, onAddToAlbum, onTrash, onCancel }: Props) {
+// selection mode: cancel + count on the left, the bulk actions on the right.
+// It floats above the native tab bar (BottomTabInset) so it never gets hidden
+// behind it.
+export default function SelectionBar({
+  count,
+  total,
+  onAddToAlbum,
+  onTrash,
+  onCancel,
+  onSelectAll,
+  onRemoveFromAlbum,
+}: Props) {
   const tokens = useTokens();
+  const allChosen = total != null && total > 0 && count >= total;
 
   return (
     <View
@@ -28,17 +44,31 @@ export default function SelectionBar({ count, onAddToAlbum, onTrash, onCancel }:
         { backgroundColor: tokens.card, borderTopColor: tokens.border, paddingBottom: Spacing.two + BottomTabInset },
       ]}>
       <View style={styles.left}>
-        <Pressable onPress={onCancel} hitSlop={8} style={styles.cancel}>
+        <Pressable onPress={onCancel} hitSlop={8} style={styles.cancel} accessibilityRole="button">
           <ThemedText type="smallBold">✕</ThemedText>
         </Pressable>
         <ThemedText type="smallBold" style={heading}>{count} selected</ThemedText>
       </View>
       <View style={styles.actions}>
-        <Pressable onPress={onAddToAlbum} hitSlop={8} style={styles.action}>
-          <ThemedText type="smallBold">Add to album</ThemedText>
+        {onSelectAll ? (
+          <Pressable onPress={onSelectAll} hitSlop={8} style={styles.action} accessibilityRole="button">
+            <ThemedText type="smallBold">{allChosen ? 'None' : 'All'}</ThemedText>
+          </Pressable>
+        ) : null}
+        <Pressable onPress={onAddToAlbum} hitSlop={8} style={styles.action} accessibilityRole="button">
+          <ThemedText type="smallBold">Album</ThemedText>
         </Pressable>
-        <Pressable onPress={onTrash} hitSlop={8} style={styles.action}>
-          <ThemedText type="smallBold" style={{ color: tokens.destructive }}>Move to trash</ThemedText>
+        {onRemoveFromAlbum ? (
+          <Pressable
+            onPress={onRemoveFromAlbum}
+            hitSlop={8}
+            style={styles.action}
+            accessibilityRole="button">
+            <ThemedText type="smallBold">Remove</ThemedText>
+          </Pressable>
+        ) : null}
+        <Pressable onPress={onTrash} hitSlop={8} style={styles.action} accessibilityRole="button">
+          <ThemedText type="smallBold" style={{ color: tokens.destructive }}>Trash</ThemedText>
         </Pressable>
       </View>
     </View>
@@ -61,6 +91,9 @@ const styles = StyleSheet.create({
   },
   left: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   cancel: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  // Labels are single words ("Album", "Remove", "Trash") rather than the old
+  // "Add to album" / "Move to trash": with up to four actions plus the count,
+  // the longer wording wrapped on a narrow phone.
   actions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   action: { paddingVertical: Spacing.one },
 });

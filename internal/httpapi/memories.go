@@ -32,11 +32,17 @@ func (d Deps) onThisDay(w http.ResponseWriter, r *http.Request) {
 	}
 	limit := parseLimit(r.URL.Query().Get("limit"))
 
+	cursor, cursorArgs, ok := requestCursor(w, r)
+	if !ok {
+		return
+	}
+	args := append([]any{owner, md}, cursorArgs...)
+	args = append(args, limit+1)
 	rows, err := d.DB.QueryContext(r.Context(),
 		assetSelectSQL(
 			"WHERE a.deleted_at IS NULL AND a.owner_id = ? AND a.taken_at IS NOT NULL "+
-				"AND strftime('%m-%d', a.taken_at) = ?")+" LIMIT ?",
-		owner, md, limit+1)
+				"AND strftime('%m-%d', a.taken_at) = ?"+cursor)+" LIMIT ?",
+		args...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_memories_failed")
 		return

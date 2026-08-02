@@ -42,7 +42,19 @@ export type SearchParams = {
   album?: string;
   archived?: string;
   hidden?: string;
+  tag?: string;
 };
+
+// One page size for every list, and the cursor when there is one. 100 matches
+// what /assets and /search already used; the 500s elsewhere were a way of
+// avoiding pagination rather than a considered page size.
+const PAGE_LIMIT = 100;
+
+function pageParams(cursor: string): string {
+  const p = new URLSearchParams({ limit: String(PAGE_LIMIT) });
+  if (cursor) p.set('cursor', cursor);
+  return p.toString();
+}
 
 export const api = {
   setupStatus: () => req<SetupStatus>('/api/setup'),
@@ -71,12 +83,15 @@ export const api = {
     if (cursor) p.set('cursor', cursor);
     return req<AssetList>(`/api/search?${p.toString()}`);
   },
-  favorites: () => req<AssetList>('/api/favorites?limit=500'),
-  memories: (date = '') =>
-    req<AssetList>(`/api/memories?limit=500${date ? `&date=${date}` : ''}`),
-  trash: () => req<AssetList>('/api/trash?limit=500'),
-  archived: () => req<AssetList>('/api/assets?archived=1&limit=500'),
-  hidden: () => req<AssetList>('/api/assets?hidden=1&limit=500'),
+  // These all page. They used to ask for `limit=500` and ignore the
+  // `next_cursor` that came back, so a library past 500 items simply stopped —
+  // silently, with no "load more" and nothing to say the list was partial.
+  favorites: (cursor = '') => req<AssetList>(`/api/favorites?${pageParams(cursor)}`),
+  memories: (cursor = '', date = '') =>
+    req<AssetList>(`/api/memories?${pageParams(cursor)}${date ? `&date=${date}` : ''}`),
+  trash: (cursor = '') => req<AssetList>(`/api/trash?${pageParams(cursor)}`),
+  archived: (cursor = '') => req<AssetList>(`/api/assets?archived=1&${pageParams(cursor)}`),
+  hidden: (cursor = '') => req<AssetList>(`/api/assets?hidden=1&${pageParams(cursor)}`),
 
   setFavorite: (id: string, favorite: boolean) =>
     req<void>(`/api/assets/${id}/favorite`, jsonBody({ favorite })),
@@ -89,7 +104,7 @@ export const api = {
     req<{ succeeded: number }>('/api/assets/batch', jsonBody({ op, ids })),
 
   albums: () => req<{ albums: Album[] }>('/api/albums'),
-  album: (id: string) => req<AssetList>(`/api/albums/${id}?limit=500`),
+  album: (id: string, cursor = '') => req<AssetList>(`/api/albums/${id}?${pageParams(cursor)}`),
   stack: (id: string) => req<AssetList>(`/api/assets/${id}/stack`),
   createAlbum: (name: string) => req<Album>('/api/albums', jsonBody({ name })),
   renameAlbum: (id: string, name: string) =>

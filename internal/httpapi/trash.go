@@ -121,8 +121,14 @@ func (d Deps) listTrash(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	limit := parseLimit(r.URL.Query().Get("limit"))
+	cursor, cursorArgs, ok := requestCursor(w, r)
+	if !ok {
+		return
+	}
+	args := append([]any{owner}, cursorArgs...)
+	args = append(args, limit+1)
 	rows, err := d.DB.QueryContext(r.Context(),
-		assetSelectSQL("WHERE a.deleted_at IS NOT NULL AND a.owner_id = ?")+" LIMIT ?", owner, limit+1)
+		assetSelectSQL("WHERE a.deleted_at IS NOT NULL AND a.owner_id = ?"+cursor)+" LIMIT ?", args...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_trash_failed")
 		return

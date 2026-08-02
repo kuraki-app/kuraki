@@ -1,12 +1,14 @@
 import { router } from 'expo-router';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { AppState, ScrollView, StyleSheet, View } from 'react-native';
 
 import LibraryStatsCard from '@/components/library-stats';
 import { SettingsRow, SettingsSection } from '@/components/settings-ui';
 import { Spacing, useTokens } from '@/constants/theme';
 import { clearMutations } from '@/lib/cache/mutations';
 import { connectionView } from '@/lib/connection-view';
+import { classifyPermission, type PermissionStatus } from '@/lib/permissions';
 import { isAuthLost } from '@/lib/session';
 import { clearDeviceToken, clearSetupComplete, loadCaptureSettings } from '@/lib/settings';
 
@@ -18,23 +20,37 @@ export default function SettingsIndex() {
   const tokens = useTokens();
   const [host, setHost] = useState('');
   const [hasToken, setHasToken] = useState(false);
+  // Photo access is carried as a row detail for the same reason the connection
+  // state is: a device that cannot read the camera roll backs up nothing, and
+  // that has to be visible without opening anything.
+  const [photos, setPhotos] = useState<PermissionStatus>('granted');
 
   const reload = useCallback(async () => {
     const s = await loadCaptureSettings();
     setHost(s.baseURL.replace(/^https?:\/\//i, '').replace(/\/+$/, ''));
     setHasToken(Boolean(s.deviceToken));
+    setPhotos(classifyPermission(await MediaLibrary.getPermissionsAsync()));
   }, []);
 
   // Deferred a tick so the first setState does not fire synchronously inside
-  // the effect, matching the pattern used across the app.
+  // the effect, matching the pattern used across the app. Re-read on foreground
+  // so a permission changed in the Settings app is reflected on return.
   useEffect(() => {
     const timer = setTimeout(() => void reload(), 0);
-    return () => clearTimeout(timer);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void reload();
+    });
+    return () => {
+      clearTimeout(timer);
+      sub.remove();
+    };
   }, [reload]);
 
   const view = connectionView({ hasToken, connection: isAuthLost() ? 'disconnected' : 'online' });
   const connectionDetail =
     view === 'unpaired' ? 'Not paired' : view === 'disconnected' ? 'Disconnected' : host;
+  const permissionsDetail =
+    photos === 'granted' ? undefined : photos === 'limited' ? 'Limited' : 'Photo access off';
 
   async function disconnect() {
     await clearDeviceToken();
@@ -64,6 +80,12 @@ export default function SettingsIndex() {
           href="/(app)/settings/connection"
         />
         <SettingsRow label="Activity" icon="waveform.path.ecg" href="/(app)/settings/activity" />
+        <SettingsRow
+          label="Permissions"
+          icon="lock.shield"
+          detail={permissionsDetail}
+          href="/(app)/settings/permissions"
+        />
         <SettingsRow label="Notifications" icon="bell" href="/(app)/settings/notifications" />
         <SettingsRow label="Photo Grid" icon="square.grid.3x3" href="/(app)/settings/grid" />
       </SettingsSection>

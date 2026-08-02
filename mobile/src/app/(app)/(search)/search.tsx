@@ -121,7 +121,7 @@ export default function SearchScreen() {
     <ThemedView style={styles.fill}>
       {/* Title and top inset come from the stack header; what stays here is
           only the search controls themselves. */}
-      <Stack.Screen options={headerOptions({ title: 'Search', register: 'kura' })} />
+      <Stack.Screen options={headerOptions({ title: 'Search' })} />
       <View style={styles.header}>
         <Host matchContents style={styles.field}>
           <TextField

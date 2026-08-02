@@ -61,7 +61,6 @@ export default function PlaceScreen() {
       <Stack.Screen
         options={headerOptions({
           title: title ?? place_city ?? 'Place',
-          register: 'vault',
         })}
       />
       <PhotoGrid

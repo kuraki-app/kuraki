@@ -2,12 +2,15 @@
   import { createEventDispatcher } from 'svelte';
   import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
-  import { Star, Trash2, Download, FolderPlus, FolderMinus, RotateCcw, X, Archive, EyeOff } from '@lucide/svelte';
+  import { Star, Trash2, Download, FolderPlus, FolderMinus, RotateCcw, X, Archive, EyeOff, CheckCheck } from '@lucide/svelte';
   import { prefersReducedMotion } from '$lib/motion';
 
   export let count = 0;
   export let trashMode = false;
   export let albumMode = false;
+  /** How many are selectable in total, so Select all can flip to Clear once
+   *  everything is already chosen. Omitted where the total is unknown. */
+  export let total = 0;
 
   const dispatch = createEventDispatcher();
 
@@ -26,6 +29,11 @@
     </button>
     <span class="count">{count} selected</span>
     <div class="acts">
+      {#if total > 0}
+        <button type="button" on:click={() => dispatch(count >= total ? 'clear' : 'selectAll')}>
+          <CheckCheck size={16} /> {count >= total ? 'Clear' : 'Select all'}
+        </button>
+      {/if}
       {#if trashMode}
         <button type="button" on:click={() => dispatch('restore')}><RotateCcw size={16} /> Restore</button>
       {:else}

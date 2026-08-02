@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -220,9 +221,15 @@ func (d Deps) captureStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	expires := time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339Nano)
+	// An unparseable or absent taken_at is simply not recorded: the client's
+	// capture time is a nice-to-have fallback, never a reason to fail an upload.
+	var takenAt any
+	if parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(req.TakenAt)); err == nil {
+		takenAt = parsed.UTC().Format(time.RFC3339Nano)
+	}
 	if _, err := d.DB.ExecContext(r.Context(), `
-		INSERT INTO upload_sessions (id, device_id, owner_id, source_dir, filename, size_bytes, expires_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, id.String(), device.ID, device.OwnerID, dir, req.Filename, req.SizeBytes, expires, nowCaptureText()); err != nil {
+		INSERT INTO upload_sessions (id, device_id, owner_id, source_dir, filename, size_bytes, expires_at, updated_at, taken_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, id.String(), device.ID, device.OwnerID, dir, req.Filename, req.SizeBytes, expires, nowCaptureText(), takenAt); err != nil {
 		os.RemoveAll(dir)
 		writeError(w, http.StatusInternalServerError, "upload_create_failed")
 		return
@@ -343,6 +350,19 @@ func (d Deps) captureComplete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "upload_completing")
 		return
 	}
+	// Stamp the client's capture time onto the staged file before the importer
+	// ever sees it. The importer already resolves a date from the file's mtime
+	// when the media carries no EXIF, so this hands the value over through a
+	// channel that exists rather than teaching the queue and the job payload
+	// about a field only capture uploads have. Best-effort on purpose: a
+	// filesystem that refuses the change costs this item its date fallback,
+	// which must not fail an upload that has already been fully received.
+	if !session.takenAt.IsZero() {
+		staged := filepath.Join(session.SourceDir, session.Filename)
+		if err := os.Chtimes(staged, session.takenAt, session.takenAt); err != nil {
+			slog.Warn("capture: stamp staged mtime", "session", session.ID, "error", err)
+		}
+	}
 	jobID, err := d.Queue.EnqueueStagedDirectory(r.Context(), device.OwnerID, session.SourceDir, 1)
 	if err != nil {
 		_, _ = d.DB.ExecContext(r.Context(), `UPDATE upload_sessions SET status = 'receiving', error = ?, updated_at = ? WHERE id = ?`, err.Error(), nowCaptureText(), session.ID)
@@ -408,21 +428,30 @@ type captureSession struct {
 	ID, SourceDir, Filename, Status, JobID, Error string
 	SizeBytes, ReceivedBytes                      int64
 	expiresAt                                     time.Time
+	takenAt                                       time.Time
 }
 
 func (d Deps) captureSession(ctx context.Context, id string, device captureDevice) (captureSession, error) {
 	var session captureSession
 	var expires string
+	var taken sql.NullString
 	err := d.DB.QueryRowContext(ctx, `
-		SELECT id, source_dir, filename, size_bytes, received_bytes, status, COALESCE(job_id, ''), error, expires_at
+		SELECT id, source_dir, filename, size_bytes, received_bytes, status, COALESCE(job_id, ''), error, expires_at, taken_at
 		FROM upload_sessions WHERE id = ? AND device_id = ? AND owner_id = ?`, id, device.ID, device.OwnerID).
-		Scan(&session.ID, &session.SourceDir, &session.Filename, &session.SizeBytes, &session.ReceivedBytes, &session.Status, &session.JobID, &session.Error, &expires)
+		Scan(&session.ID, &session.SourceDir, &session.Filename, &session.SizeBytes, &session.ReceivedBytes, &session.Status, &session.JobID, &session.Error, &expires, &taken)
 	if err != nil {
 		return captureSession{}, err
 	}
 	session.expiresAt, err = time.Parse(time.RFC3339Nano, expires)
 	if err != nil {
 		return captureSession{}, fmt.Errorf("capture: parse expiry: %w", err)
+	}
+	// A bad stored value is ignored rather than failing the lookup: it would
+	// only cost this upload its date fallback, and the row is otherwise fine.
+	if taken.Valid {
+		if parsed, err := time.Parse(time.RFC3339Nano, taken.String); err == nil {
+			session.takenAt = parsed
+		}
 	}
 	return session, nil
 }

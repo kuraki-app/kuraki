@@ -29,6 +29,10 @@ type Props = {
   emptyMessage?: string;
   onEndReached?: () => void;
   onToggleFavorite?: (id: string, next: boolean) => void;
+  /** Move a single asset to trash from inside the viewer. Surfaces the delete
+   *  icon only where a caller supplies it — the Trash grid and the Places
+   *  viewer deliberately do not. */
+  onDelete?: (id: string) => void;
   // Selection mode: the owning screen holds the Set<string> of selected ids so
   // bulk actions (add to album, trash) can mutate its own asset list.
   // Selection is "active" whenever the set is non-empty — a tap toggles
@@ -37,6 +41,16 @@ type Props = {
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
   onLongPressItem?: (id: string) => void;
+  /**
+   * Force selection behaviour on even with nothing selected yet.
+   *
+   * Selection used to be inferred purely from "the set is non-empty", which
+   * works for long-press (the gesture selects the tile that starts it) but
+   * cannot express "the user pressed Select and has chosen nothing yet" — in
+   * that state a tap would have opened the viewer instead of selecting. The
+   * album picker needs the same thing permanently.
+   */
+  selectionMode?: boolean;
 };
 
 // PhotoGrid is the tile grid + full-screen viewer shared by every photo surface
@@ -50,9 +64,11 @@ export default function PhotoGrid({
   emptyMessage,
   onEndReached,
   onToggleFavorite,
+  onDelete,
   selectedIds,
   onToggleSelect,
   onLongPressItem,
+  selectionMode = false,
 }: Props) {
   const tokens = useTokens();
   // Layout and grouping are preferences, read here rather than threaded through
@@ -60,7 +76,7 @@ export default function PhotoGrid({
   // source of truth.
   const { gridColumns: columns, gridGap: gap, groupBy, showGroupHeaders, showSizeBadge } = usePrefs();
   const [viewerIndex, setViewerIndex] = useState(-1);
-  const selectionActive = !!selectedIds && selectedIds.size > 0;
+  const selectionActive = selectionMode || (!!selectedIds && selectedIds.size > 0);
 
   const listRef = useRef<SectionList<PhotoRow>>(null);
   const metrics = useRef({ offsetY: 0, contentHeight: 0, layoutHeight: 0 });
@@ -247,6 +263,16 @@ export default function PhotoGrid({
           settings={settings}
           onClose={() => setViewerIndex(-1)}
           onToggleFavorite={onToggleFavorite}
+          onDelete={
+            onDelete
+              ? (id) => {
+                  // Close first: the asset is about to leave the list, and a
+                  // pager still pointing at it would render an empty page.
+                  setViewerIndex(-1);
+                  onDelete(id);
+                }
+              : undefined
+          }
         />
       )}
     </View>

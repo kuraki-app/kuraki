@@ -4,12 +4,15 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Dimensions,
   FlatList,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   View,
+  type AlertButton,
   type ViewToken,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -38,6 +41,9 @@ type Props = {
   settings: CaptureSettings;
   onClose: () => void;
   onToggleFavorite?: (id: string, next: boolean) => void;
+  /** Move this asset to trash. Omitted where deleting makes no sense — the
+   *  Trash screen's own grid, and the Places viewer. */
+  onDelete?: (id: string) => void;
 };
 
 /**
@@ -60,12 +66,20 @@ type Props = {
  * full, along with everything else that was previously nowhere to be found
  * (capture date, size, place, tags). Chrome down means the photograph alone.
  */
-export default function PhotoViewer({ assets, initialIndex, settings, onClose, onToggleFavorite }: Props) {
+export default function PhotoViewer({
+  assets,
+  initialIndex,
+  settings,
+  onClose,
+  onToggleFavorite,
+  onDelete,
+}: Props) {
   const tokens = useTokens();
   const insets = useSafeAreaInsets();
   const width = Dimensions.get('window').width;
   const [active, setActive] = useState(initialIndex);
   const [chrome, setChrome] = useState(true);
+  const [info, setInfo] = useState(false);
   const [editingTags, setEditingTags] = useState(false);
   const [tags, setTags] = useState<Tag[]>([]);
   const snapPoints = useMemo(() => ['22%', '52%'], []);
@@ -103,6 +117,27 @@ export default function PhotoViewer({ assets, initialIndex, settings, onClose, o
       clearTimeout(timer);
     };
   }, [settings, currentId, editingTags]);
+
+  /**
+   * Deleting is irreversible-looking to the user even though it is a move to
+   * trash, and the button sits one thumb-width from the favourite. Android's
+   * Alert ignores `style` and assigns roles by position -- the LAST button is
+   * the emphasised one -- so Cancel goes last there and first on iOS, leaving
+   * the destructive action de-emphasised on both.
+   */
+  function confirmDelete(asset: LibraryAsset) {
+    const buttons: AlertButton[] =
+      Platform.OS === 'android'
+        ? [
+            { text: 'Move to trash', style: 'destructive', onPress: () => onDelete?.(asset.id) },
+            { text: 'Cancel', style: 'cancel' },
+          ]
+        : [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Move to trash', style: 'destructive', onPress: () => onDelete?.(asset.id) },
+          ];
+    Alert.alert('Move to trash?', asset.filename, buttons);
+  }
 
   const place = current
     ? [current.place_city, current.place_country].filter(Boolean).join(', ')
@@ -152,33 +187,68 @@ export default function PhotoViewer({ assets, initialIndex, settings, onClose, o
         {chrome && (
           <View style={[styles.top, { top: insets.top + Spacing.one }]} pointerEvents="box-none">
             <ChromeButton symbol="xmark" glyph="✕" label="Close" onPress={onClose} />
-            {current && onToggleFavorite ? (
-              <ChromeButton
-                symbol={current.favorite ? 'heart.fill' : 'heart'}
-                glyph={current.favorite ? '♥' : '♡'}
-                label={current.favorite ? 'Remove from favourites' : 'Add to favourites'}
-                tint={current.favorite ? tokens.destructive : undefined}
-                onPress={() => onToggleFavorite(current.id, !current.favorite)}
-              />
-            ) : (
-              // Keeps the close button in its corner when there is no
-              // favourite action (the Places viewer passes no handler).
-              <View style={styles.chromeSpacer} />
-            )}
+            <View style={styles.topActions}>
+              {current && onToggleFavorite ? (
+                <ChromeButton
+                  symbol={current.favorite ? 'heart.fill' : 'heart'}
+                  glyph={current.favorite ? '♥' : '♡'}
+                  label={current.favorite ? 'Remove from favourites' : 'Add to favourites'}
+                  tint={current.favorite ? tokens.destructive : undefined}
+                  onPress={() => onToggleFavorite(current.id, !current.favorite)}
+                />
+              ) : null}
+              {current ? (
+                <ChromeButton
+                  symbol="info.circle"
+                  glyph="ⓘ"
+                  label="Photo details"
+                  onPress={() => setInfo(true)}
+                />
+              ) : null}
+              {current && onDelete ? (
+                <ChromeButton
+                  symbol="trash"
+                  // U+FE0E forces text presentation: the bare code point renders
+                  // as a colour emoji on Android, noticeably heavier than the
+                  // outline glyphs beside it.
+                  glyph={'\u{1F5D1}\uFE0E'}
+                  label="Move to trash"
+                  onPress={() => confirmDelete(current)}
+                />
+              ) : null}
+            </View>
           </View>
         )}
 
         {/*
-          The details sheet. Mounted only while the chrome is up and the tag
-          editor is closed -- two sheets stacked on one another would fight
-          over the same gestures, so the editor takes over the bottom of the
-          screen while it is open.
+          The caption. Deliberately only the two things worth reading over a
+          photograph -- what it is and when it was taken. Everything else moved
+          behind the info button, because a panel of metadata permanently
+          covering the bottom fifth of the image is not what a viewer is for.
         */}
-        {chrome && current && !editingTags && (
+        {chrome && current && !info && !editingTags && (
+          <View
+            style={[styles.caption, { paddingBottom: insets.bottom + Spacing.four }]}
+            pointerEvents="none">
+            <ThemedText style={[heading, styles.captionName]} numberOfLines={2}>
+              {current.filename}
+            </ThemedText>
+            {takenAt ? <ThemedText style={styles.captionMeta}>{takenAt}</ThemedText> : null}
+          </View>
+        )}
+
+        {/*
+          The info dialog, opened from the info button rather than shown with
+          the chrome. The tag editor takes over the bottom of the screen when it
+          opens, because two sheets stacked on one another fight over the same
+          drag gestures.
+        */}
+        {info && current && !editingTags && (
           <BottomSheet
             index={0}
             snapPoints={snapPoints}
-            enablePanDownToClose={false}
+            onClose={() => setInfo(false)}
+            enablePanDownToClose
             backgroundStyle={{ backgroundColor: tokens.card }}
             handleIndicatorStyle={{ backgroundColor: tokens.mutedForeground }}>
             <BottomSheetView style={styles.sheet}>
@@ -333,6 +403,34 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.three,
   },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  caption: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: Spacing.three,
+    gap: 2,
+  },
+  // Fixed light-on-dark rather than themed, and shadowed rather than boxed: it
+  // is drawn over a photograph whose brightness is unknown, and a solid plate
+  // behind two lines of text would cover more of the image than the text does.
+  captionName: {
+    color: '#fff',
+    fontSize: 15,
+    lineHeight: 20,
+    textShadowColor: 'rgba(0,0,0,0.65)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  captionMeta: {
+    color: '#e6e2da',
+    fontSize: 13,
+    lineHeight: 18,
+    textShadowColor: 'rgba(0,0,0,0.65)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
   chromeButton: {
     width: 36,
     height: 36,
@@ -341,7 +439,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.55)',
   },
-  chromeSpacer: { width: 36, height: 36 },
   chromeGlyph: { color: '#fff' },
   sheet: { paddingHorizontal: Spacing.three, paddingTop: Spacing.one, gap: Spacing.half },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.one, paddingTop: Spacing.two },

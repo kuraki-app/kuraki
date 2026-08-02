@@ -3,7 +3,8 @@
   import { Sun, Moon, Monitor } from '@lucide/svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import SettingRow from '$lib/components/SettingRow.svelte';
-  import { gridDensity, defaultView, type GridDensity } from '$lib/prefs';
+  import { gridDensity, defaultView, grouping, type GridDensity } from '$lib/prefs';
+  import { GROUPINGS } from '$lib/format';
   const themes = [
     { value: 'light', label: 'Light', icon: Sun },
     { value: 'dark', label: 'Dark', icon: Moon },
@@ -42,6 +43,20 @@
       {#each densities as d (d.value)}
         <button type="button" class:on={$gridDensity === d.value} onclick={() => gridDensity.set(d.value)}>
           {d.label}
+        </button>
+      {/each}
+    </div>
+  </SettingRow>
+
+  <SettingRow
+    id="grouping"
+    label="Group timeline by"
+    description="How the timeline splits into headed sections."
+  >
+    <div class="seg">
+      {#each GROUPINGS as g (g.value)}
+        <button type="button" class:on={$grouping === g.value} onclick={() => grouping.set(g.value)}>
+          {g.label}
         </button>
       {/each}
     </div>
