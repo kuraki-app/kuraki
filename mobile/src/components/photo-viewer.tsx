@@ -1,13 +1,36 @@
+import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet';
 import { Image } from 'expo-image';
+import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useCallback, useState } from 'react';
-import { Dimensions, FlatList, Modal, Pressable, StyleSheet, View, type ViewToken } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Dimensions,
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  View,
+  type ViewToken,
+} from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import TagEditor from '@/components/tag-editor';
 import { ThemedText } from '@/components/themed-text';
-import { fullImageSource, videoSource, type LibraryAsset } from '@/lib/library-api';
+import { Spacing, useTokens } from '@/constants/theme';
+import { registerStyle } from '@/design/registers';
+import { formatBytes, formatTakenAt } from '@/lib/format';
+import {
+  fetchAssetTags,
+  fullImageSource,
+  videoSource,
+  type LibraryAsset,
+  type Tag,
+} from '@/lib/library-api';
 import type { CaptureSettings } from '@/lib/settings';
+
+const reg = registerStyle('vault');
+const heading = { fontFamily: reg.heading };
 
 type Props = {
   assets: LibraryAsset[];
@@ -17,19 +40,80 @@ type Props = {
   onToggleFavorite?: (id: string, next: boolean) => void;
 };
 
-// PhotoViewer is a full-screen, swipeable pager over the library grid. Images
-// use the best browser-safe source; videos play the original through
-// expo-video. Only the active video plays, so scrolling does not stack players.
+/**
+ * PhotoViewer is a full-screen, swipeable pager over the library grid. Images
+ * use the best browser-safe source; videos play the original through
+ * expo-video. Only the active video plays, so scrolling does not stack players.
+ *
+ * The chrome is a tap away and nothing else.
+ *
+ * It used to be a single row pinned to the top holding four text pills --
+ * `Close`, the filename, `♡ Favorite`, `⊕ Tags` -- competing for a phone's
+ * width. The filename sat between them with `flex: 1`, so it was always the
+ * thing that lost, truncating to "Screensh…" while the buttons it was squeezed
+ * between stayed at full width. It was also permanently on screen, over the
+ * photo, whether or not it was wanted.
+ *
+ * Now: a tap toggles everything. Chrome up means two icons in the corners --
+ * close at the top left, favourite at the top right, both far from the middle
+ * of the image -- and a details sheet at the bottom carrying the filename in
+ * full, along with everything else that was previously nowhere to be found
+ * (capture date, size, place, tags). Chrome down means the photograph alone.
+ */
 export default function PhotoViewer({ assets, initialIndex, settings, onClose, onToggleFavorite }: Props) {
+  const tokens = useTokens();
+  const insets = useSafeAreaInsets();
   const width = Dimensions.get('window').width;
   const [active, setActive] = useState(initialIndex);
+  const [chrome, setChrome] = useState(true);
   const [editingTags, setEditingTags] = useState(false);
+  const [tags, setTags] = useState<Tag[]>([]);
+  const snapPoints = useMemo(() => ['22%', '52%'], []);
+
   const onViewable = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const first = viewableItems[0];
     if (first?.index != null) setActive(first.index);
   }, []);
 
   const current = assets[active];
+
+  // Tags are per-asset and not carried on LibraryAsset, so they are fetched as
+  // the pager settles, and again when the tag editor closes. Failures are
+  // silent: a tag list that will not load must not take down the photo it
+  // belongs to, and the row simply stays empty.
+  //
+  // Keyed on the id rather than the asset object: toggling a favourite replaces
+  // that object, which would otherwise refetch the tags on every heart tap.
+  // Deferred a tick so the first setState does not fire synchronously inside
+  // the effect, matching the pattern used across the app.
+  const currentId = current?.id;
+  useEffect(() => {
+    if (!currentId) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      setTags([]);
+      fetchAssetTags(settings, currentId)
+        .then((next) => {
+          if (!cancelled) setTags(next);
+        })
+        .catch(() => {});
+    }, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [settings, currentId, editingTags]);
+
+  const place = current
+    ? [current.place_city, current.place_country].filter(Boolean).join(', ')
+    : '';
+  const takenAt = formatTakenAt(current?.taken_at);
+  const facts = [
+    current?.size_bytes ? formatBytes(current.size_bytes) : '',
+    current?.media_type === 'video' ? 'Video' : 'Photo',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
@@ -55,37 +139,87 @@ export default function PhotoViewer({ assets, initialIndex, settings, onClose, o
           onViewableItemsChanged={onViewable}
           viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
           renderItem={({ item, index }) => (
-            <ViewerCell asset={item} settings={settings} width={width} active={index === active} />
+            <ViewerCell
+              asset={item}
+              settings={settings}
+              width={width}
+              active={index === active}
+              onPress={() => setChrome((on) => !on)}
+            />
           )}
         />
-        <View style={styles.top} pointerEvents="box-none">
-          <Pressable style={styles.close} onPress={onClose} hitSlop={12}>
-            <ThemedText type="smallBold" style={styles.closeText}>Close</ThemedText>
-          </Pressable>
-          {current && (
-            <View style={styles.caption} pointerEvents="none">
-              <ThemedText style={styles.captionText} numberOfLines={1}>{current.filename}</ThemedText>
-              {current.taken_at ? (
-                <ThemedText style={styles.captionSub}>{current.taken_at.slice(0, 10)}</ThemedText>
-              ) : null}
-            </View>
-          )}
-          {current && onToggleFavorite && (
-            <Pressable
-              style={styles.favorite}
-              onPress={() => onToggleFavorite(current.id, !current.favorite)}
-              hitSlop={12}>
-              <ThemedText type="smallBold" style={styles.closeText}>
-                {current.favorite ? '♥ Favorited' : '♡ Favorite'}
+
+        {chrome && (
+          <View style={[styles.top, { top: insets.top + Spacing.one }]} pointerEvents="box-none">
+            <ChromeButton symbol="xmark" glyph="✕" label="Close" onPress={onClose} />
+            {current && onToggleFavorite ? (
+              <ChromeButton
+                symbol={current.favorite ? 'heart.fill' : 'heart'}
+                glyph={current.favorite ? '♥' : '♡'}
+                label={current.favorite ? 'Remove from favourites' : 'Add to favourites'}
+                tint={current.favorite ? tokens.destructive : undefined}
+                onPress={() => onToggleFavorite(current.id, !current.favorite)}
+              />
+            ) : (
+              // Keeps the close button in its corner when there is no
+              // favourite action (the Places viewer passes no handler).
+              <View style={styles.chromeSpacer} />
+            )}
+          </View>
+        )}
+
+        {/*
+          The details sheet. Mounted only while the chrome is up and the tag
+          editor is closed -- two sheets stacked on one another would fight
+          over the same gestures, so the editor takes over the bottom of the
+          screen while it is open.
+        */}
+        {chrome && current && !editingTags && (
+          <BottomSheet
+            index={0}
+            snapPoints={snapPoints}
+            enablePanDownToClose={false}
+            backgroundStyle={{ backgroundColor: tokens.card }}
+            handleIndicatorStyle={{ backgroundColor: tokens.mutedForeground }}>
+            <BottomSheetView style={styles.sheet}>
+              <ThemedText type="subtitle" style={heading} numberOfLines={2}>
+                {current.filename}
               </ThemedText>
-            </Pressable>
-          )}
-          {current && (
-            <Pressable style={styles.favorite} onPress={() => setEditingTags(true)} hitSlop={12}>
-              <ThemedText type="smallBold" style={styles.closeText}>⊕ Tags</ThemedText>
-            </Pressable>
-          )}
-        </View>
+              {takenAt ? (
+                <ThemedText type="small" themeColor="mutedForeground">
+                  {takenAt}
+                </ThemedText>
+              ) : null}
+              {facts ? (
+                <ThemedText type="small" themeColor="mutedForeground">
+                  {facts}
+                </ThemedText>
+              ) : null}
+              {place ? (
+                <ThemedText type="small" themeColor="mutedForeground">
+                  {place}
+                </ThemedText>
+              ) : null}
+
+              <View style={styles.tagRow}>
+                {tags.map((t) => (
+                  <View key={t.id} style={[styles.chip, { borderColor: tokens.border }]}>
+                    <ThemedText type="small">{t.name}</ThemedText>
+                  </View>
+                ))}
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setEditingTags(true)}
+                  style={[styles.chip, styles.chipAction, { borderColor: tokens.input }]}>
+                  <ThemedText type="small" themeColor="mutedForeground">
+                    {tags.length ? 'Edit tags' : '＋ Tag'}
+                  </ThemedText>
+                </Pressable>
+              </View>
+            </BottomSheetView>
+          </BottomSheet>
+        )}
+
         {editingTags && current && (
           <TagEditor asset={current} settings={settings} onClose={() => setEditingTags(false)} />
         )}
@@ -94,29 +228,69 @@ export default function PhotoViewer({ assets, initialIndex, settings, onClose, o
   );
 }
 
+/**
+ * ChromeButton is one of the two corner controls. Fixed light-on-dark inside a
+ * translucent circle rather than themed, because it is drawn over a photograph
+ * and not over the app's background — the same reasoning as the grid's size
+ * badge.
+ */
+function ChromeButton({
+  symbol,
+  glyph,
+  label,
+  tint,
+  onPress,
+}: {
+  symbol: SFSymbol;
+  glyph: string;
+  label: string;
+  tint?: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      hitSlop={12}
+      style={styles.chromeButton}>
+      <SymbolView
+        name={symbol}
+        size={20}
+        tintColor={tint ?? '#fff'}
+        fallback={<ThemedText style={[styles.chromeGlyph, tint ? { color: tint } : null]}>{glyph}</ThemedText>}
+      />
+    </Pressable>
+  );
+}
+
 function ViewerCell({
   asset,
   settings,
   width,
   active,
+  onPress,
 }: {
   asset: LibraryAsset;
   settings: CaptureSettings;
   width: number;
   active: boolean;
+  onPress: () => void;
 }) {
   if (asset.media_type === 'video') {
+    // No press-to-toggle wrapper on a video: the chrome would fight the
+    // native transport controls for the same taps.
     return <VideoCell asset={asset} settings={settings} width={width} active={active} />;
   }
   const source = fullImageSource(settings, asset);
   return (
-    <View style={[styles.cell, { width }]}>
+    <Pressable style={[styles.cell, { width }]} onPress={onPress}>
       {source ? (
         <Image source={source} style={styles.media} contentFit="contain" transition={150} cachePolicy="disk" />
       ) : (
-        <ThemedText style={styles.captionText}>Preview unavailable</ThemedText>
+        <ThemedText style={styles.chromeGlyph}>Preview unavailable</ThemedText>
       )}
-    </View>
+    </Pressable>
   );
 }
 
@@ -150,11 +324,27 @@ const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: '#000' },
   cell: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000' },
   media: { width: '100%', height: '100%' },
-  top: { position: 'absolute', top: 48, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 12 },
-  close: { backgroundColor: '#00000088', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14 },
-  closeText: { color: '#fff' },
-  favorite: { backgroundColor: '#00000088', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 14 },
-  caption: { flex: 1 },
-  captionText: { color: '#fff' },
-  captionSub: { color: '#cfcfcf', fontSize: 12 },
+  top: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.three,
+  },
+  chromeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  chromeSpacer: { width: 36, height: 36 },
+  chromeGlyph: { color: '#fff' },
+  sheet: { paddingHorizontal: Spacing.three, paddingTop: Spacing.one, gap: Spacing.half },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.one, paddingTop: Spacing.two },
+  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: Spacing.two, paddingVertical: Spacing.half },
+  chipAction: { borderStyle: 'dashed' },
 });

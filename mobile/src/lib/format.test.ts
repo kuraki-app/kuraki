@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatBytes, formatCount } from '@/lib/format';
+import { formatBytes, formatCount, formatTakenAt } from '@/lib/format';
 
 describe('formatBytes', () => {
   it('shows plain bytes below a kilobyte', () => {
@@ -49,5 +49,25 @@ describe('formatCount', () => {
   it('tolerates junk', () => {
     expect(formatCount(Number.NaN)).toBe('0');
     expect(formatCount(-5)).toBe('0');
+  });
+});
+
+describe('formatTakenAt', () => {
+  it('renders a date and a time', () => {
+    // Locale-dependent, so assert the parts rather than an exact string.
+    const text = formatTakenAt('2026-08-02T14:32:00Z');
+    expect(text).toMatch(/2026/);
+    expect(text).toContain(' at ');
+  });
+
+  it('is empty for an asset with no capture date', () => {
+    // The details sheet omits the row entirely rather than showing a
+    // placeholder, so a missing date has to come back as an empty string.
+    expect(formatTakenAt(undefined)).toBe('');
+    expect(formatTakenAt('')).toBe('');
+  });
+
+  it('is empty rather than "Invalid Date" for junk', () => {
+    expect(formatTakenAt('not-a-date')).toBe('');
   });
 });

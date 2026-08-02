@@ -1,13 +1,13 @@
-import { router } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AlbumTargetPicker from '@/components/album-target-picker';
-import GalleryHeader from '@/components/gallery-header';
+import GalleryMenu from '@/components/gallery-menu';
 import PhotoGrid from '@/components/photo-grid';
 import { usePrefs } from '@/hooks/use-prefs';
 import PlacesScreen from '@/components/places-screen';
+import { headerOptions } from '@/components/screen-header';
 import SelectionBar from '@/components/selection-bar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -29,7 +29,7 @@ import {
   type LibraryFilters,
 } from '@/lib/library-api';
 import { isAuthLost, onAuthLost } from '@/lib/session';
-import { type GalleryView } from '@/lib/gallery';
+import { galleryTitle, type GalleryView } from '@/lib/gallery';
 import { savePrefs } from '@/lib/prefs';
 import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
 
@@ -38,7 +38,6 @@ const heading = { fontFamily: reg.heading };
 
 export default function LibraryScreen() {
   const tokens = useTokens();
-  const insets = useSafeAreaInsets();
   const [segment, setSegment] = useState<GalleryView>('timeline');
   const { groupBy } = usePrefs();
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
@@ -315,6 +314,28 @@ export default function LibraryScreen() {
 
   return (
     <ThemedView style={styles.fill}>
+      {/*
+        The title follows the segment ("Photos" / "On this day" / "Places"), so
+        the header is declared here rather than in the layout. The view/group
+        menu rides along as the header's right accessory.
+      */}
+      <Stack.Screen
+        options={headerOptions({
+          title: galleryTitle(segment),
+          register: 'kura',
+          right: () => (
+            <GalleryMenu
+              view={segment}
+              groupBy={groupBy}
+              onChangeView={(v) => {
+                cancelSelection();
+                setSegment(v);
+              }}
+              onChangeGroupBy={(g) => void savePrefs({ groupBy: g })}
+            />
+          ),
+        })}
+      />
       {disconnected && !dismissed && (
         <View style={[styles.banner, { backgroundColor: tokens.destructiveBg }]}>
           <ThemedText type="small" style={[styles.bannerText, { color: tokens.destructive }]}>
@@ -348,18 +369,6 @@ export default function LibraryScreen() {
           </View>
         </View>
       )}
-      <View style={{ paddingTop: insets.top + Spacing.two }}>
-        <GalleryHeader
-          view={segment}
-          groupBy={groupBy}
-          onChangeView={(v) => {
-            cancelSelection();
-            setSegment(v);
-          }}
-          onChangeGroupBy={(g) => void savePrefs({ groupBy: g })}
-        />
-      </View>
-
       {segment === 'timeline' && (
         error ? (
           <View style={styles.center}>

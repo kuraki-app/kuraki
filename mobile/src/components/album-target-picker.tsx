@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import BottomSheet, { BottomSheetFlatList, BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import type { CachedAlbum } from '@/lib/cache/albums';
@@ -23,7 +23,12 @@ type Props = {
 // create) the server album selected photos get added to. This is distinct
 // from AlbumPicker (Backup tab), which picks *device* albums to source
 // backups from — this one picks a *server* album, via the same
-// fetchAlbums/createAlbum calls AlbumList uses to render the Albums segment.
+// fetchAlbums/createAlbum calls AlbumList uses to render the Albums tab.
+//
+// A bottom sheet, matching every other pick-one-thing surface in the app. It
+// was a centred transparent Modal with its own hand-drawn Cancel button, which
+// meant a list of albums capped at 80% of the screen in a floating card that
+// could not be dragged, flicked away or resized.
 export default function AlbumTargetPicker({ visible, settings, onPick, onClose }: Props) {
   const tokens = useTokens();
   const [albums, setAlbums] = useState<CachedAlbum[]>([]);
@@ -31,6 +36,7 @@ export default function AlbumTargetPicker({ visible, settings, onPick, onClose }
   const [error, setError] = useState('');
   const [name, setName] = useState('');
   const [creating, setCreating] = useState(false);
+  const snapPoints = useMemo(() => ['50%', '85%'], []);
 
   const refresh = useCallback(async (active: CaptureSettings) => {
     setLoading(true);
@@ -69,76 +75,76 @@ export default function AlbumTargetPicker({ visible, settings, onPick, onClose }
     }
   }
 
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <ThemedView type="card" style={styles.card}>
-          <ThemedText type="subtitle" style={heading}>Add to album</ThemedText>
-          {error ? (
-            <ThemedText type="small" style={{ color: tokens.destructive }} selectable>{error}</ThemedText>
-          ) : null}
-          <FlatList
-            data={albums}
-            keyExtractor={(a) => a.id}
-            style={styles.list}
-            renderItem={({ item }) => (
-              <Pressable style={[styles.row, { borderBottomColor: tokens.input }]} onPress={() => onPick(item.id)}>
-                <ThemedText selectable>{item.name}</ThemedText>
-                <ThemedText type="small" themeColor="mutedForeground">
-                  {item.count} item{item.count === 1 ? '' : 's'}
-                </ThemedText>
-              </Pressable>
-            )}
-            ListEmptyComponent={
-              loading ? null : <ThemedText themeColor="mutedForeground">No albums yet. Create one below.</ThemedText>
-            }
-          />
-          <View style={styles.createRow}>
-            <TextInput
-              placeholder="New album name"
-              value={name}
-              onChangeText={setName}
-              autoCapitalize="words"
-              returnKeyType="done"
-              onSubmitEditing={() => void submitCreate()}
-              style={[styles.input, { borderColor: tokens.input, color: tokens.foreground }]}
-            />
-            <Pressable
-              style={[styles.button, { backgroundColor: tokens.primary }, (!name.trim() || creating) && styles.disabled]}
-              disabled={!name.trim() || creating}
-              onPress={() => void submitCreate()}>
-              <ThemedText type="smallBold" themeColor="primaryForeground">Create &amp; add</ThemedText>
-            </Pressable>
-          </View>
-          <Pressable style={[styles.ghost, { borderColor: tokens.input }]} onPress={onClose}>
-            <ThemedText type="smallBold">Cancel</ThemedText>
-          </Pressable>
-        </ThemedView>
+    <BottomSheet
+      index={0}
+      snapPoints={snapPoints}
+      onClose={onClose}
+      enablePanDownToClose
+      backgroundStyle={{ backgroundColor: tokens.card }}
+      handleIndicatorStyle={{ backgroundColor: tokens.mutedForeground }}>
+      <View style={styles.header}>
+        <ThemedText type="subtitle" style={heading}>Add to album</ThemedText>
       </View>
-    </Modal>
+      {error ? (
+        <ThemedText type="small" style={[styles.pad, { color: tokens.destructive }]} selectable>
+          {error}
+        </ThemedText>
+      ) : null}
+      <View style={styles.createRow}>
+        <BottomSheetTextInput
+          placeholder="New album name"
+          placeholderTextColor={tokens.textFaint}
+          value={name}
+          onChangeText={setName}
+          autoCapitalize="words"
+          returnKeyType="done"
+          onSubmitEditing={() => void submitCreate()}
+          style={[styles.input, { borderColor: tokens.input, color: tokens.foreground }]}
+        />
+        <Pressable
+          style={[styles.button, { backgroundColor: tokens.primary }, (!name.trim() || creating) && styles.disabled]}
+          disabled={!name.trim() || creating}
+          onPress={() => void submitCreate()}>
+          <ThemedText type="smallBold" themeColor="primaryForeground">Create &amp; add</ThemedText>
+        </Pressable>
+      </View>
+      <BottomSheetFlatList
+        data={albums}
+        keyExtractor={(a) => a.id}
+        renderItem={({ item }) => (
+          <Pressable style={[styles.row, { borderBottomColor: tokens.border }]} onPress={() => onPick(item.id)}>
+            <ThemedText>{item.name}</ThemedText>
+            <ThemedText type="small" themeColor="mutedForeground">
+              {item.count} item{item.count === 1 ? '' : 's'}
+            </ThemedText>
+          </Pressable>
+        )}
+        ListEmptyComponent={
+          loading ? null : (
+            <ThemedText themeColor="mutedForeground" style={styles.pad}>
+              No albums yet. Create one above.
+            </ThemedText>
+          )
+        }
+      />
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.four,
-  },
-  card: { width: '100%', maxHeight: '80%', borderRadius: Spacing.three, padding: Spacing.three, gap: Spacing.two },
-  list: { flexGrow: 0 },
-  row: { paddingVertical: Spacing.two, borderBottomWidth: StyleSheet.hairlineWidth, gap: Spacing.half },
-  createRow: { gap: Spacing.two },
+  header: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.one },
+  pad: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.half },
+  createRow: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.two, gap: Spacing.two },
   input: { borderRadius: Spacing.two, borderWidth: 1, fontSize: 16, minHeight: 44, paddingHorizontal: Spacing.two },
   button: { alignItems: 'center', borderRadius: Spacing.two, paddingVertical: Spacing.two, paddingHorizontal: Spacing.three },
   disabled: { opacity: 0.5 },
-  ghost: {
-    alignItems: 'center',
-    borderRadius: Spacing.two,
-    paddingVertical: Spacing.two,
+  row: {
     paddingHorizontal: Spacing.three,
-    borderWidth: 1,
+    paddingVertical: Spacing.two,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: Spacing.half,
   },
 });

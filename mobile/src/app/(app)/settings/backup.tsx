@@ -7,7 +7,6 @@ import { uploadPhoto } from '@/lib/capture-api';
 import { loadCaptureSettings } from '@/lib/settings';
 import { SettingsRow, SettingsSection, SettingsSwitch } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { Spacing, useTokens } from '@/constants/theme';
 import {
   disableBackgroundBackup,
@@ -102,8 +101,11 @@ export default function BackupSettings() {
   const nothingSelected = !prefs.backupPhotos && !prefs.backupVideos;
 
   return (
-    <ThemedView style={styles.fill}>
-      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
+    <>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        style={[styles.fill, { backgroundColor: tokens.background }]}
+        contentContainerStyle={styles.content}>
         <SettingsSection
           title="What to back up"
           footer={
@@ -209,7 +211,7 @@ export default function BackupSettings() {
       <Modal visible={pickingAlbums} animationType="slide" onRequestClose={() => setPickingAlbums(false)}>
         <AlbumPicker selected={progress?.albumIds ?? []} onClose={() => setPickingAlbums(false)} />
       </Modal>
-    </ThemedView>
+    </>
   );
 }
 

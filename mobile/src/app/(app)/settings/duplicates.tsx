@@ -1,9 +1,7 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -24,7 +22,6 @@ const reg = registerStyle('vault');
 const heading = { fontFamily: reg.heading };
 
 export default function DuplicatesScreen() {
-  const insets = useSafeAreaInsets();
   const tokens = useTokens();
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
   const [groups, setGroups] = useState<DupAsset[][]>([]);
@@ -130,20 +127,6 @@ export default function DuplicatesScreen() {
 
   return (
     <ThemedView style={styles.screen}>
-      <View style={[styles.bar, { paddingTop: insets.top }]}>
-        <Pressable onPress={() => router.back()} hitSlop={8} style={styles.back}>
-          <SymbolView
-            name="chevron.left"
-            size={18}
-            tintColor={tokens.foreground}
-            fallback={<ThemedText style={heading}>‹</ThemedText>}
-          />
-          <ThemedText style={heading}>Back</ThemedText>
-        </Pressable>
-        <ThemedText type="subtitle" style={heading}>Duplicates</ThemedText>
-        <View style={styles.spacer} />
-      </View>
-
       {loading ? (
         <Center text="Finding duplicates…" />
       ) : error ? (
@@ -197,15 +180,6 @@ function Center({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.two,
-  },
-  back: { flexDirection: 'row', alignItems: 'center', gap: Spacing.half },
-  spacer: { width: 60 },
   list: { padding: Spacing.two, gap: Spacing.two },
   card: { borderWidth: 1, borderRadius: 12, padding: Spacing.two, marginBottom: Spacing.two },
   cardHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, paddingBottom: Spacing.one },

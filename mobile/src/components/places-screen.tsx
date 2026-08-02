@@ -106,7 +106,7 @@ export default function PlacesScreen({ settings }: { settings: CaptureSettings }
         totalLocated={points.length}
         onPressPlace={(g) =>
           router.push({
-            pathname: '/(app)/place',
+            pathname: '/(app)/(gallery)/place',
             params: { place_city: g.city, place_country: g.country, title: g.city },
           })
         }

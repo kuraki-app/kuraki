@@ -1,13 +1,11 @@
-import { router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, View, type AlertButton } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, Platform, StyleSheet, View, type AlertButton } from 'react-native';
 
 import PhotoGrid from '@/components/photo-grid';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import TrashSelectionBar from '@/components/trash-selection-bar';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { deleteCachedAsset, setTrashed } from '@/lib/cache/albums';
 import { enqueuePurge, enqueueRestore } from '@/lib/cache/mutations';
@@ -27,8 +25,6 @@ const reg = registerStyle('vault');
 const heading = { fontFamily: reg.heading };
 
 export default function TrashScreen() {
-  const insets = useSafeAreaInsets();
-  const tokens = useTokens();
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
   // Seed disconnected from the process-wide auth-lost signal (set on a 401
   // from any endpoint) and keep it live — a recovery/re-pair clears it.
@@ -172,15 +168,12 @@ export default function TrashScreen() {
 
   return (
     <ThemedView style={styles.fill}>
-      <View style={[styles.header, { paddingTop: insets.top }]}>
-        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace('/(app)/settings'))} hitSlop={8}>
-          <ThemedText type="smallBold" style={{ color: tokens.mutedForeground }}>Close</ThemedText>
-        </Pressable>
-        <ThemedText type="title" style={[styles.title, heading]}>Trash</ThemedText>
-        <ThemedText type="small" themeColor="mutedForeground">
-          Restore items or delete them forever.
-        </ThemedText>
-      </View>
+      {/* Title, top inset and back button all come from the settings stack's
+          native header now. What is left is the one line of guidance the
+          screen actually needs. */}
+      <ThemedText type="small" themeColor="mutedForeground" style={styles.hint}>
+        Restore items or delete them forever.
+      </ThemedText>
       {error ? (
         <View style={styles.center}>
           <ThemedText type="subtitle" style={heading}>Nothing to show</ThemedText>
@@ -212,8 +205,7 @@ export default function TrashScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  header: { padding: Spacing.three, gap: Spacing.one },
-  title: { fontSize: 32, lineHeight: 38 },
+  hint: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.two },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24, minHeight: 200 },
   msg: { textAlign: 'center' },
 });

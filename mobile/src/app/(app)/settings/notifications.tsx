@@ -2,12 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { SettingsSection, SettingsSwitch } from '@/components/settings-ui';
-import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { Spacing, useTokens } from '@/constants/theme';
 import { ensureNotificationPermission, notificationsAvailable } from '@/lib/notifications';
 import { DEFAULT_PREFS, loadPrefs, savePrefs, type Prefs } from '@/lib/prefs';
 
 export default function NotificationSettings() {
+  const tokens = useTokens();
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
 
   useEffect(() => {
@@ -29,51 +29,52 @@ export default function NotificationSettings() {
   }, [available]);
 
   return (
-    <ThemedView style={styles.fill}>
-      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
-        {!available ? (
-          <SettingsSection
-            title="Unavailable"
-            footer="This build does not include notification support. Install a development or release build to receive them." >
-            <View />
-          </SettingsSection>
-        ) : !granted ? (
-          <SettingsSection
-            title="Permission needed"
-            footer="Notifications are switched on here but blocked by the system. Enable them for Kuraki in your device settings." >
-            <View />
-          </SettingsSection>
-        ) : null}
-
+    <ScrollView
+      contentInsetAdjustmentBehavior="automatic"
+      style={[styles.fill, { backgroundColor: tokens.background }]}
+      contentContainerStyle={styles.content}>
+      {!available ? (
         <SettingsSection
-          title="Backup"
-          footer="Kuraki only notifies you about this device’s own backup. Nothing is sent anywhere.">
-          <SettingsSwitch
-            label="Backup finished"
-            help="When a run finishes uploading everything waiting."
-            value={prefs.notifyBackupComplete}
-            onValueChange={(v) => void patch({ notifyBackupComplete: v })}
-          />
-          <SettingsSwitch
-            label="Backup failed"
-            help="When an item could not be uploaded after retrying."
-            value={prefs.notifyBackupFailed}
-            onValueChange={(v) => void patch({ notifyBackupFailed: v })}
-          />
+          title="Unavailable"
+          footer="This build does not include notification support. Install a development or release build to receive them." >
+          <View />
         </SettingsSection>
-
+      ) : !granted ? (
         <SettingsSection
-          title="Connection"
-          footer="A disconnected device stops backing up silently, so this one is worth leaving on.">
-          <SettingsSwitch
-            label="Device disconnected"
-            help="When the server revokes this device’s access."
-            value={prefs.notifyDisconnected}
-            onValueChange={(v) => void patch({ notifyDisconnected: v })}
-          />
+          title="Permission needed"
+          footer="Notifications are switched on here but blocked by the system. Enable them for Kuraki in your device settings." >
+          <View />
         </SettingsSection>
-      </ScrollView>
-    </ThemedView>
+      ) : null}
+
+      <SettingsSection
+        title="Backup"
+        footer="Kuraki only notifies you about this device’s own backup. Nothing is sent anywhere.">
+        <SettingsSwitch
+          label="Backup finished"
+          help="When a run finishes uploading everything waiting."
+          value={prefs.notifyBackupComplete}
+          onValueChange={(v) => void patch({ notifyBackupComplete: v })}
+        />
+        <SettingsSwitch
+          label="Backup failed"
+          help="When an item could not be uploaded after retrying."
+          value={prefs.notifyBackupFailed}
+          onValueChange={(v) => void patch({ notifyBackupFailed: v })}
+        />
+      </SettingsSection>
+
+      <SettingsSection
+        title="Connection"
+        footer="A disconnected device stops backing up silently, so this one is worth leaving on.">
+        <SettingsSwitch
+          label="Device disconnected"
+          help="When the server revokes this device’s access."
+          value={prefs.notifyDisconnected}
+          onValueChange={(v) => void patch({ notifyDisconnected: v })}
+        />
+      </SettingsSection>
+    </ScrollView>
   );
 }
 

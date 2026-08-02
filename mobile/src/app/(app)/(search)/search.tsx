@@ -1,24 +1,20 @@
 import { Button, Host, Picker, Text, TextField } from '@expo/ui/swift-ui';
 import { pickerStyle, tag } from '@expo/ui/swift-ui/modifiers';
-import { router } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import PhotoGrid from '@/components/photo-grid';
+import { headerOptions } from '@/components/screen-header';
 import TagList from '@/components/tag-list';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Spacing } from '@/constants/theme';
-import { registerStyle } from '@/design/registers';
 import { setCachedFavorite } from '@/lib/cache/assets';
 import { enqueueFavorite, pendingFavorites } from '@/lib/cache/mutations';
 import { fetchLibrary, setFavorite, type LibraryAsset } from '@/lib/library-api';
 import { SEARCH_CHIPS, searchFilters } from '@/lib/search';
 import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
-
-const reg = registerStyle('kura');
-const heading = { fontFamily: reg.heading };
 
 // The native TextField has no submit callback, so search runs on a debounce
 // rather than a return key. That suits search better anyway — results narrow as
@@ -26,7 +22,6 @@ const heading = { fontFamily: reg.heading };
 const DEBOUNCE_MS = 300;
 
 export default function SearchScreen() {
-  const insets = useSafeAreaInsets();
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
   const [query, setQuery] = useState('');
   const [chip, setChip] = useState(0);
@@ -123,12 +118,11 @@ export default function SearchScreen() {
   );
 
   return (
-    <ThemedView style={[styles.fill, { paddingTop: insets.top }]}>
+    <ThemedView style={styles.fill}>
+      {/* Title and top inset come from the stack header; what stays here is
+          only the search controls themselves. */}
+      <Stack.Screen options={headerOptions({ title: 'Search', register: 'kura' })} />
       <View style={styles.header}>
-        <ThemedText type="title" style={heading}>
-          Search
-        </ThemedText>
-
         <Host matchContents style={styles.field}>
           <TextField
             autoFocus
@@ -178,7 +172,7 @@ export default function SearchScreen() {
           onClose={() => setTagSheet(false)}
           onPressTag={(t) => {
             setTagSheet(false);
-            router.push({ pathname: '/(app)/tag', params: { tag: t.id, title: t.name } });
+            router.push({ pathname: '/(app)/(search)/tag', params: { tag: t.id, title: t.name } });
           }}
         />
       )}

@@ -1,11 +1,13 @@
 import { DarkTheme, DefaultTheme, Redirect, Slot, ThemeProvider, useSegments } from 'expo-router';
 import { Image } from 'expo-image';
-import { Platform, useColorScheme, View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
+import { useTokens } from '@/constants/theme';
 import { useAppFonts } from '@/design/fonts';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { isSetupComplete, migrateSecretsForBackgroundAccess, onSetupChange, setupCompleteSnapshot } from '@/lib/settings';
 // Importing this at the root defines the background backup task before the OS
 // can relaunch the app headlessly to run it. Defining the task is a module
@@ -31,9 +33,34 @@ configureNotifications();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const tokens = useTokens();
   const fontsLoaded = useAppFonts();
   const [ready, setReady] = useState<boolean | null>(setupCompleteSnapshot());
   const segments = useSegments();
+
+  // The navigation theme has to be built from the Kuraki tokens, not taken
+  // from react-navigation's stock DefaultTheme/DarkTheme.
+  //
+  // Everything the OS draws for us -- native headers, the screen background
+  // behind a push transition, the tab bar -- reads its colours from here. With
+  // the stock themes those surfaces were plain #fff/#000 while every view the
+  // app itself painted used the warm paper palette, so any native chrome
+  // arrived in the wrong colour and each screen had to paint over it by hand.
+  const navigationTheme = useMemo(() => {
+    const base = colorScheme === 'dark' ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        primary: tokens.primary,
+        background: tokens.background,
+        card: tokens.card,
+        text: tokens.foreground,
+        border: tokens.border,
+        notification: tokens.destructive,
+      },
+    };
+  }, [colorScheme, tokens]);
 
   useEffect(() => {
     void isSetupComplete().then(setReady);
@@ -68,7 +95,7 @@ export default function RootLayout() {
   const inSetup = segments[0] === '(setup)';
   // The gate's authority is the persisted flag, NEVER token presence — a 401
   // clears the token but must never eject a set-up user to onboarding.
-  const redirect = !ready && !inSetup ? '/(setup)/welcome' : ready && inSetup ? '/(app)' : null;
+  const redirect = !ready && !inSetup ? '/(setup)/welcome' : ready && inSetup ? '/(app)/(gallery)' : null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -77,7 +104,7 @@ export default function RootLayout() {
           natively. The custom tab bar makes both insets ours to handle, so the
           provider has to exist app-wide. */}
       <SafeAreaProvider>
-        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <ThemeProvider value={navigationTheme}>
           {redirect ? <Redirect href={redirect} /> : <Slot />}
         </ThemeProvider>
       </SafeAreaProvider>

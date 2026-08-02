@@ -4,7 +4,6 @@ import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native
 import PairSheet from '@/components/pair-sheet';
 import { SettingsRow, SettingsSection } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { Spacing, useTokens } from '@/constants/theme';
 import { nextConnectionState, probeServer, type ConnectionState } from '@/lib/connection';
 import { connectionView, showsCodeInput } from '@/lib/connection-view';
@@ -94,8 +93,11 @@ export default function ConnectionSettings() {
           : 'Not paired';
 
   return (
-    <ThemedView style={styles.fill}>
-      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.content}>
+    <>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        style={[styles.fill, { backgroundColor: tokens.background }]}
+        contentContainerStyle={styles.content}>
         <SettingsSection
           title="Server address"
           footer="Change this if your server moved to a new address. Use its address on your network, not localhost.">
@@ -161,7 +163,7 @@ export default function ConnectionSettings() {
         onClose={() => setPairing(false)}
         onPaired={(url) => void onPaired(url)}
       />
-    </ThemedView>
+    </>
   );
 }
 

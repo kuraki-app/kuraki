@@ -2,6 +2,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Device from 'expo-device';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { useTokens } from '@/constants/theme';
@@ -20,6 +21,8 @@ type Props = {
 // token and stores the connection, so the owner never types a token by hand.
 export default function PairScanner({ onPaired, onClose }: Props) {
   const tokens = useTokens();
+  // This renders inside a full-screen Modal, so the insets are the window's.
+  const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('Point the camera at the QR code in Kuraki › Devices.');
@@ -74,7 +77,10 @@ export default function PairScanner({ onPaired, onClose }: Props) {
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
         onBarcodeScanned={busy ? undefined : ({ data }) => void handleScan(data)}
       />
-      <View style={styles.overlay}>
+      {/* Sat at a hardcoded `bottom: 40`, which lands on the home indicator on
+          a gesture-nav phone and floats well clear of the edge on one with
+          buttons. */}
+      <View style={[styles.overlay, { bottom: insets.bottom + 24 }]}>
         <ThemedText style={styles.msg} selectable>{busy ? 'Pairing…' : message}</ThemedText>
         <Pressable style={[styles.ghost, { backgroundColor: tokens.scrim }]} onPress={onClose}>
           <ThemedText type="smallBold">Cancel</ThemedText>
@@ -87,7 +93,7 @@ export default function PairScanner({ onPaired, onClose }: Props) {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
-  overlay: { position: 'absolute', left: 0, right: 0, bottom: 40, alignItems: 'center', gap: 12, paddingHorizontal: 24 },
+  overlay: { position: 'absolute', left: 0, right: 0, alignItems: 'center', gap: 12, paddingHorizontal: 24 },
   msg: { textAlign: 'center' },
   button: { alignItems: 'center', borderRadius: 8, padding: 14, minWidth: 180 },
   ghost: { alignItems: 'center', borderRadius: 8, paddingVertical: 12, paddingHorizontal: 24, minWidth: 140 },

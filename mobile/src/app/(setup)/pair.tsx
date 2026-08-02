@@ -5,7 +5,7 @@ import { Modal, Pressable, StyleSheet, TextInput } from 'react-native';
 
 import PairScanner from '@/components/pair-scanner';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import SetupStep from '@/components/setup-step';
 import { Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { claimPairing } from '@/lib/capture-api';
@@ -66,7 +66,7 @@ export default function PairStep() {
   }
 
   return (
-    <ThemedView style={styles.content}>
+    <SetupStep>
       <ThemedText type="title" style={heading}>
         Pair this phone
       </ThemedText>
@@ -115,12 +115,11 @@ export default function PairStep() {
       <Modal visible={scanning} animationType="slide" onRequestClose={() => setScanning(false)}>
         <PairScanner onPaired={onPaired} onClose={() => setScanning(false)} />
       </Modal>
-    </ThemedView>
+    </SetupStep>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, padding: Spacing.three, gap: Spacing.three, justifyContent: 'center' },
   input: { borderWidth: 1, borderRadius: Spacing.two, minHeight: 48, paddingHorizontal: Spacing.two, fontSize: 16 },
   button: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three },
   buttonGhost: { alignItems: 'center', borderRadius: Spacing.two, padding: Spacing.three, borderWidth: 1 },
