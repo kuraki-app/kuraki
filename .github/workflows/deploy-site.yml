@@ -1,0 +1,65 @@
+name: Deploy site
+
+# The marketing site was deployed by hand (`wrangler pages deploy site`), which
+# meant it drifted from the repository between deploys and that only one machine
+# could publish it.
+#
+# ⚠️ REQUIRES TWO REPOSITORY SECRETS THAT DO NOT EXIST YET:
+#     CLOUDFLARE_API_TOKEN    — a scoped token with "Cloudflare Pages: Edit"
+#     CLOUDFLARE_ACCOUNT_ID
+# The wrangler OAuth login used locally provides neither, so a human has to mint
+# the token in the Cloudflare dashboard once. Until then this workflow builds and
+# checks the site on every push (which is worth having on its own) and skips only
+# the publish step.
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", ".github/workflows/deploy-site.yml"]
+  pull_request:
+    paths: ["site/**", ".github/workflows/deploy-site.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  site:
+    name: Build & deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: cd site && npm ci
+
+      # The site re-declares the app's palette under marketing names rather than
+      # importing web/src/app.css (which is Tailwind v4 + shadcn token names and
+      # has no business on a static page). That is a silent drift risk, so it is
+      # gated — the same relationship the mobile client has, which generates its
+      # tokens from app.css and fails CI on drift.
+      - run: cd site && npm run check-tokens
+
+      # The vendored woff2 files must stay byte-identical to the ones web/ uses,
+      # or the site advertises the app in a different cut of the same typeface.
+      # Needs web/node_modules, which is why it installs them.
+      - run: cd web && npm ci
+      - run: cd site && npm run check-fonts
+
+      - run: cd site && npm run build
+
+      # Publishing is guarded on the secret existing so forks and secret-less
+      # checkouts still get the build and the gates above.
+      - name: Publish to Cloudflare Pages
+        if: github.ref == 'refs/heads/main' && env.CLOUDFLARE_API_TOKEN != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=kuraki
+          workingDirectory: site

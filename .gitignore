@@ -1,5 +1,11 @@
 # Docs (kept local, not published to the public repo)
 docs/
+# …but `docs/` matches a directory of that name at ANY depth, which silently
+# swallowed the marketing site's documentation pages — they were written, built
+# into the site, and then quietly left out of the commit. The site's docs ARE
+# published; that is the entire point of them.
+!site/src/content/docs/
+!site/src/pages/docs/
 
 # macOS
 .DS_Store
@@ -28,6 +34,11 @@ web/dist/
 web/e2e/.tmp/
 web/playwright-report/
 web/test-results/
+
+# Marketing site (Astro). Only src/, public/ and the config are source.
+site/node_modules/
+site/dist/
+site/.astro/
 
 # Built app packages. The Android APK is operator-supplied and built out of
 # band (see README "Android app download") — it is a 51MB artifact, not source.

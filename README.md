@@ -231,7 +231,7 @@ kuraki/
 ├── web/                    # SvelteKit source, built into internal/httpapi/assets (see web/README.md)
 ├── mobile/                 # Expo/React Native app (iOS + Android): camera-roll backup + library browsing
 ├── scripts/                # start.sh (one production-like process) + dev.sh (hot-reload)
-├── site/                   # self-contained marketing landing page (static, host anywhere)
+├── site/                   # marketing site + docs (Astro, static output, host anywhere)
 ├── deploy/                 # production compose: Caddy (auto-HTTPS) + Caddyfile
 ├── Dockerfile              # runtime bundles libvips + ffmpeg
 ├── docker-compose.yml      # simple one-command local host

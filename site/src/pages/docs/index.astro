@@ -1,0 +1,28 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+
+const docs = (await getCollection('docs')).sort((a, b) => a.data.order - b.data.order);
+---
+
+<Base
+  title="Kuraki documentation — install, migrate, configure"
+  description="How to install Kuraki, bring an existing library across from Google Takeout or Immich, configure it, and back it up."
+>
+  <main class="wrap sec">
+    <span class="tag">Documentation</span>
+    <h1 class="h2">Everything needed to run it.</h1>
+    <p class="lede">
+      Short pages. The long-form reference lives in the repository and is linked from each one, so
+      there is one copy of every instruction rather than two that drift.
+    </p>
+    <div class="cards">
+      {docs.map((d) => (
+        <a class="card" href={`/docs/${d.id}`}>
+          <h2 class="h4">{d.data.title}</h2>
+          <p>{d.data.description}</p>
+        </a>
+      ))}
+    </div>
+  </main>
+</Base>

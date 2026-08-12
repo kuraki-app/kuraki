@@ -1,0 +1,80 @@
+---
+// The landing page had no download link of any kind: every CTA went to GitHub,
+// so "how do I actually run this" was left to the reader.
+import Base from '../layouts/Base.astro';
+
+const REPO = 'https://github.com/kuraki-app/kuraki';
+const IMAGE = 'ghcr.io/kuraki-app/kuraki:latest';
+
+// Named exactly as release.yml publishes them.
+const binaries = [
+  { os: 'Linux', arch: 'x86-64', file: 'kuraki-linux-amd64' },
+  { os: 'Linux', arch: 'ARM64 (Raspberry Pi 4/5)', file: 'kuraki-linux-arm64' },
+  { os: 'macOS', arch: 'Apple Silicon', file: 'kuraki-darwin-arm64' },
+  { os: 'Windows', arch: 'x86-64', file: 'kuraki-windows-amd64.exe' }
+];
+---
+
+<Base
+  title="Download Kuraki — Docker image, binaries, and the Android app"
+  description="Run Kuraki on your own server: a multi-architecture Docker image, single-file binaries for Linux, macOS and Windows, and the Android backup app."
+>
+  <main>
+    <section class="wrap sec">
+      <span class="tag">Download</span>
+      <h1 class="h2">Run it on your own hardware.</h1>
+      <p class="lede">
+        One binary and a data directory. No account, no cloud dependency, nothing phoning home.
+      </p>
+
+      <h2 class="h3" id="docker">Docker — the recommended way</h2>
+      <p>
+        The image bundles libvips, ffmpeg and tesseract, so HEIC, video posters and optional OCR all
+        work out of the box. It runs a single process on port 3000 which serves the API, the media
+        and the web UI from one origin.
+      </p>
+      <pre class="code"><code>docker run -d -p 3000:3000 -v "$PWD/kuraki-data:/data" {IMAGE}</code></pre>
+      <p class="small">
+        Multi-architecture (amd64 and arm64), built on native runners rather than emulated.
+        Then open <code>http://localhost:3000</code> and create the owner account.
+      </p>
+
+      <h2 class="h3" id="binaries">Single-file binaries</h2>
+      <p>
+        Pure-Go builds with no runtime dependencies. Image format support is narrower than the
+        Docker image's, because libvips is not linked in — see
+        <a href={`${REPO}/blob/main/MEDIA_SUPPORT.md`} rel="noopener">the media support matrix</a>.
+      </p>
+      <div class="tbl">
+        {binaries.map((b) => (
+          <div class="tr">
+            <div><b>{b.os}</b> <span class="small">{b.arch}</span></div>
+            <div><code>{b.file}</code></div>
+            <div><a class="lnk" href={`${REPO}/releases/latest`} rel="noopener">Latest release →</a></div>
+          </div>
+        ))}
+      </div>
+
+      <h2 class="h3" id="android">Android app</h2>
+      <p>
+        Background camera-roll backup, library browsing and an offline cache. The APK is served by
+        your own server at <code>/download/android</code> once you place it there — it is
+        operator-supplied and built out of band, so it is not distributed from this site.
+      </p>
+
+      <h2 class="h3" id="verify">Verify what you downloaded</h2>
+      <p>
+        Every release publishes checksums alongside the binaries. Checking them is the whole point of
+        running your own infrastructure.
+      </p>
+      <pre class="code"><code>shasum -a 256 -c kuraki-checksums.txt</code></pre>
+
+      <p class="small" style="margin-top:2rem">
+        Kuraki is <b>alpha</b>. It is used daily against real libraries and takes durability seriously —
+        write-once originals, pre-migration snapshots, <code>kuraki verify</code> — but it has not had a
+        1.0 shakedown. Keep a second copy of anything irreplaceable, which is true of any backup system
+        you have not yet tested a restore from.
+      </p>
+    </section>
+  </main>
+</Base>

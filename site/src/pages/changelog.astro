@@ -1,0 +1,31 @@
+---
+// Rendered from the repository's own CHANGELOG.md at build time. Deliberately
+// not a copy: a changelog that has to be updated in two places is a changelog
+// that is wrong in one of them.
+import { marked } from 'marked';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import Base from '../layouts/Base.astro';
+
+const source = await fs.readFile(path.resolve('../CHANGELOG.md'), 'utf8');
+// Drop the leading H1 — the page supplies its own heading.
+const body = source.replace(/^#\s+.*\n/, '');
+const html = marked.parse(body);
+---
+
+<Base
+  title="Kuraki changelog"
+  description="What changed in each release of Kuraki, straight from the repository's CHANGELOG."
+>
+  <main class="wrap sec docs">
+    <article class="docs-body" style="grid-column: 1 / -1">
+      <span class="tag">Changelog</span>
+      <h1 class="h2">What changed.</h1>
+      <p class="lede">
+        Generated from <a href="https://github.com/kuraki-app/kuraki/blob/main/CHANGELOG.md" rel="noopener">CHANGELOG.md</a>
+        at build time, so it cannot drift from the repository.
+      </p>
+      <Fragment set:html={html} />
+    </article>
+  </main>
+</Base>
