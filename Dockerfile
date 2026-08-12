@@ -1,11 +1,18 @@
 # syntax=docker/dockerfile:1
 #
-# Kuraki container — the primary "just works" install path. The current image
-# builds the default CGO-free binary: ffmpeg provides video posters, while wider
-# libvips image-format support remains a separately certified `-tags vips` path.
+# Kuraki container — the primary "just works" install path.
 #
-# M1 compiles the SvelteKit UI into internal/httpapi/assets before the Go build
-# embeds it. The default binary stays pure-Go.
+# This image is the `-tags vips` profile: the build stage below compiles with
+# CGO_ENABLED=1 against libvips-dev, so the container decodes the wider image
+# formats (HEIC/AVIF/TIFF and friends) that the pure-Go fallback cannot, and
+# ffmpeg provides video posters and playback derivatives.
+#
+# That is a deliberate difference from every other build. `go build ./...` with
+# no tags stays pure-Go and CGO-free (invariant 5 in CLAUDE.md); only this image
+# and the `media-vips` CI job exercise the tagged path.
+#
+# The web stage compiles the SvelteKit UI into internal/httpapi/assets before the
+# Go build embeds it.
 #
 # The runtime image runs ONE process — `kuraki serve` on :3000 — which serves
 # the API, media, AND the embedded SvelteKit UI (including first-run setup) from
@@ -44,9 +51,10 @@ LABEL org.opencontainers.image.title="Kuraki" \
       org.opencontainers.image.source="https://github.com/kuraki-app/kuraki" \
       org.opencontainers.image.licenses="AGPL-3.0"
 
-# ffmpeg powers video posters; tesseract (with the English model) enables the
-# opt-in local OCR worker when KURAKI_OCR=1. libvips is installed for the future
-# tagged image profile but is not linked by this default binary.
+# libvips42 is the runtime half of the `-tags vips` build above — the binary is
+# dynamically linked against it and will not start without it. ffmpeg powers
+# video posters and playback derivatives; tesseract (with the English model)
+# enables the opt-in local OCR worker when KURAKI_OCR=1.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libvips42 ffmpeg tesseract-ocr tesseract-ocr-eng ca-certificates \
     && rm -rf /var/lib/apt/lists/*

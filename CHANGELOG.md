@@ -9,8 +9,19 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ## [Unreleased]
 
-The initial development version — a self-hosted photo & video backup with a
-Docker-first deployment and a full browser experience over an embedded web UI.
+Nothing yet.
+
+## [0.1.0] - 2026-08-12
+
+The first tagged release — a self-hosted photo & video backup with a
+Docker-first deployment and a full browser experience over an embedded web UI,
+plus an Expo client for iOS and Android.
+
+This release is what makes Kuraki obtainable: before it there was no tag, so no
+published image and no downloadable binary. `ghcr.io/kuraki-app/kuraki:latest`
+and the archives attached below are new. The mobile apps are **not** in any app
+store; they are built from `mobile/` and are not release-certified on physical
+hardware.
 
 ### Added
 
@@ -264,4 +275,5 @@ Docker-first deployment and a full browser experience over an embedded web UI.
 - Positioned as a Docker-first, self-hosted application built around a libvips +
   ffmpeg media pipeline.
 
-[Unreleased]: https://github.com/kuraki-app/kuraki/commits/main
+[Unreleased]: https://github.com/kuraki-app/kuraki/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/kuraki-app/kuraki/releases/tag/v0.1.0
