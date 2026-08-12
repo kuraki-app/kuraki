@@ -126,29 +126,23 @@ jobs:
     needs: test
     permissions:
       contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - name: Log in to GHCR
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build (and push on tags)
+      # Build only — this job proves the image still builds. Publishing moved to
+      # release.yml so exactly one workflow produces artifacts people can run.
+      # It previously pushed on tags, which is why nothing here ever created the
+      # `:latest` tag the README advertises.
+      - name: Build
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          push: false
           # On PRs github.ref_name is "<n>/merge" — the slash is an invalid
-          # Docker tag and fails the build even though PR builds never push. Use
-          # the version tag only on releases (the sole case that pushes) and a
-          # static, always-valid tag for PR/branch validation builds.
-          tags: ghcr.io/${{ github.repository }}:${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'ci' }}
+          # Docker tag and fails the build even though nothing is pushed.
+          tags: ghcr.io/${{ github.repository }}:ci
           build-args: |
-            VERSION=${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('ci-{0}', github.sha) }}
+            VERSION=ci-${{ github.sha }}
 
   media-vips:
     name: Media contract (libvips build)

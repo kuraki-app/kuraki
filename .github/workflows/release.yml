@@ -1,0 +1,242 @@
+name: Release
+
+# The only workflow that publishes anything.
+#
+# Before this existed, `ci.yml` pushed an image on tags and uploaded the
+# cross-compiled binaries as CI artifacts — which live behind a login and expire.
+# So the README's `docker run ghcr.io/kuraki-app/kuraki:latest` named a tag that
+# was never created, and there was no way at all to obtain a binary. Publishing
+# now happens here and nowhere else; `ci.yml` builds the image only to prove it
+# still builds.
+#
+# Trigger with a tag (`git tag v0.1.0 && git push origin v0.1.0`). The manual
+# trigger runs the identical build path without publishing, so the workflow can
+# be proven before a tag makes its output permanent.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # create the release
+  packages: write   # push to ghcr
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Binaries. Same targets and flags as ci.yml's cross-compile job, but archived
+  # and attached to the release instead of expiring as CI artifacts.
+  # ---------------------------------------------------------------------------
+  binaries:
+    name: Binary (${{ matrix.goos }}/${{ matrix.goarch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux,   goarch: amd64 }
+          - { goos: linux,   goarch: arm64 }
+          - { goos: darwin,  goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # The binary embeds the SvelteKit UI through go:embed, so the web build
+      # must run first or the release ships a server with no interface. ci.yml
+      # never needed this because it only type-checks that the Go code compiles.
+      - name: Build web UI
+        run: cd web && npm ci && npm run build
+
+      - name: Build
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('v0.0.0-dev.{0}', github.sha) }}
+        run: |
+          set -euo pipefail
+          name="kuraki-${GOOS}-${GOARCH}"
+          bin="kuraki"; [ "$GOOS" = "windows" ] && bin="kuraki.exe"
+          mkdir -p "dist/${name}"
+          go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" \
+            -o "dist/${name}/${bin}" ./cmd/kuraki
+          cp README.md LICENSE "dist/${name}/"
+          cd dist
+          if [ "$GOOS" = "windows" ]; then zip -qr "${name}.zip" "${name}"
+          else tar -czf "${name}.tar.gz" "${name}"; fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archive-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Image, one native runner per architecture.
+  #
+  # The Dockerfile builds with CGO and `-tags vips`, so emulating arm64 under
+  # QEMU would mean a slow cross-compiled cgo build for every release. Public
+  # repositories get free arm64 runners, so each architecture builds on its own
+  # hardware and the two are joined into one manifest below.
+  # ---------------------------------------------------------------------------
+  image:
+    name: Image (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { platform: linux/amd64, arch: amd64, runner: ubuntu-latest }
+          - { platform: linux/arm64, arch: arm64, runner: ubuntu-24.04-arm }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        if: github.ref_type == 'tag'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Pushed by digest, without a tag: a tag can only point at one manifest,
+      # so tagging here would leave whichever architecture finished last as the
+      # published image rather than both.
+      - name: Build
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          push: ${{ github.ref_type == 'tag' }}
+          outputs: ${{ github.ref_type == 'tag' && format('type=image,name={0},push-by-digest=true,name-canonical=true,push=true', env.IMAGE) || 'type=cacheonly' }}
+          build-args: |
+            VERSION=${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,scope=${{ matrix.arch }},mode=max
+
+      - name: Export digest
+        if: github.ref_type == 'tag'
+        run: |
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${{ steps.build.outputs.digest }}"
+      - uses: actions/upload-artifact@v4
+        if: github.ref_type == 'tag'
+        with:
+          name: digest-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # Join the per-architecture digests into one manifest carrying BOTH tags.
+  # `:latest` is the tag the README tells people to run and the one that never
+  # existed.
+  # ---------------------------------------------------------------------------
+  manifest:
+    name: Publish image manifest
+    needs: image
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create and push manifest
+        working-directory: /tmp/digests
+        run: |
+          set -euo pipefail
+          docker buildx imagetools create \
+            --tag "${IMAGE}:${GITHUB_REF_NAME}" \
+            --tag "${IMAGE}:latest" \
+            $(printf "${IMAGE}@sha256:%s " *)
+          docker buildx imagetools inspect "${IMAGE}:${GITHUB_REF_NAME}"
+
+  # ---------------------------------------------------------------------------
+  # The release itself: archives, checksums, and notes taken from CHANGELOG.md.
+  # ---------------------------------------------------------------------------
+  release:
+    name: Publish release
+    needs: [binaries, manifest]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: archive-*
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      # Prefer the hand-written CHANGELOG section for this version; fall back to
+      # GitHub's generated notes if the version has no section yet, so a release
+      # is never published with an empty body.
+      - name: Assemble notes
+        id: notes
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          # Stop at the next version heading, and also at the block of link
+          # reference definitions that closes the file — the last section has no
+          # heading after it, so without that second guard the notes trail off
+          # into "[0.1.0]: https://…" lines.
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]"  { found = 1; next }
+            found && /^## \[/        { exit }
+            found && /^\[[^]]+\]: /  { exit }
+            found                    { print }
+          ' CHANGELOG.md > notes.md
+          if [ -s notes.md ]; then
+            echo "generate=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "generate=true" >> "$GITHUB_OUTPUT"
+          fi
+          {
+            echo
+            echo '## Install'
+            echo
+            echo '```sh'
+            echo "docker run -d -p 3000:3000 -v \"\$PWD/kuraki-data:/data\" ${IMAGE}:${GITHUB_REF_NAME}"
+            echo '```'
+            echo
+            echo 'Or download a binary below and verify it against `SHA256SUMS`.'
+          } >> notes.md
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            ${{ steps.notes.outputs.generate == 'true' && '--generate-notes' || '' }} \
+            dist/*
