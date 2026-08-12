@@ -54,10 +54,27 @@
   let lastDensity = density;
   let lastGrouping = effectiveGrouping;
   $: if (density !== lastDensity || effectiveGrouping !== lastGrouping) {
+    const groupingChanged = effectiveGrouping !== lastGrouping;
     lastDensity = density;
     lastGrouping = effectiveGrouping;
     heights = new Map();
-    visible = new Set();
+    // `visible` is cleared ONLY when the grouping changed, and the distinction is
+    // load-bearing: IntersectionObserver reports CHANGES in intersection, never
+    // the current state on demand.
+    //
+    // A grouping change rewrites every section key, so the keyed {#each} destroys
+    // and recreates the section elements; the new nodes are observed fresh and
+    // the observer reports them on the next frame. Clearing is safe, and drops
+    // keys that no longer exist.
+    //
+    // A density change does neither — same keys, same DOM nodes, already
+    // intersecting. Clearing `visible` there unmaterialized every section and
+    // nothing ever refilled it, because no intersection had changed: the whole
+    // timeline went blank and STAYED blank (scrolling did not recover it) until a
+    // full page reload. Density does not affect which sections are near the
+    // viewport, so the set is still correct — only the measured heights are
+    // stale, and those are cleared above.
+    if (groupingChanged) visible = new Set();
   }
 
   // The section holding the morph target must stay materialized through the

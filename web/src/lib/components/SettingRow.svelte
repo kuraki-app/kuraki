@@ -9,11 +9,30 @@
   // A unique id for the Label/control pairing; callers pass the same value
   // as the control's own id (e.g. <Input id={id} ...>).
   export let id: string;
+  /** What sits in the control slot, which decides how the label attaches:
+   *
+   *  - 'control' (default): ONE labelable element carrying `id={id}`.
+   *  - 'group':   several controls (a segmented button set). `for` can only
+   *               point at one element, so the slot becomes a labelled group.
+   *  - 'static':  a rendered value, not a control. A `for` here can never
+   *               resolve, so no association is claimed at all.
+   *
+   *  This distinction is not cosmetic: every caller but one used to render a
+   *  `<label for>` that matched no element in the document, so clicking the
+   *  label did nothing and assistive technology announced an unlabelled
+   *  control. `e2e/a11y.spec.ts` now fails on any dangling `label[for]`. */
+  export let kind: 'control' | 'group' | 'static' = 'control';
+
+  $: labelId = `${id}-label`;
 </script>
 
 <div class="row" class:disabled>
   <div class="text">
-    <Label for={id}>{label}</Label>
+    {#if kind === 'control'}
+      <Label for={id}>{label}</Label>
+    {:else}
+      <Label id={labelId}>{label}</Label>
+    {/if}
     {#if description}<p class="desc">{description}</p>{/if}
     {#if status === 'applied'}
       <p class="status ok">✓ applied</p>
@@ -23,7 +42,11 @@
       <p class="status pinned">🔒 set by environment{#if envVar} · <code>{envVar}</code>{/if}</p>
     {/if}
   </div>
-  <div class="control">
+  <div
+    class="control"
+    role={kind === 'group' ? 'group' : undefined}
+    aria-labelledby={kind === 'group' ? labelId : undefined}
+  >
     <slot />
   </div>
 </div>

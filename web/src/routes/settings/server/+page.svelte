@@ -146,7 +146,7 @@
 {:else}
   <section class="group">
     <h2>About</h2>
-    <SettingRow id="version" label="Version" status="none">
+    <SettingRow id="version" kind="static" label="Version" status="none">
       <code>{version}</code>
     </SettingRow>
   </section>
@@ -174,6 +174,7 @@
       >
         <div class="num">
           <Input
+            id={s.key}
             type={s.secret ? 'password' : s.type === 'int' ? 'number' : 'text'}
             placeholder={s.secret && s.is_set ? '••••••••' : ''}
             disabled={s.pinned_by_env}

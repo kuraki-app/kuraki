@@ -23,6 +23,12 @@ web/.svelte-kit/
 web/build/
 web/dist/
 
+# End-to-end run state: the throwaway library the suite seeds, the signed-in
+# storage state, traces and reports. All regenerated on every run.
+web/e2e/.tmp/
+web/playwright-report/
+web/test-results/
+
 # Built app packages. The Android APK is operator-supplied and built out of
 # band (see README "Android app download") — it is a 51MB artifact, not source.
 /prod-builds/
