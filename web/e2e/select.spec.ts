@@ -1,5 +1,4 @@
 import { test, expect, gotoApp } from './support/fixtures';
-import { EXPECTED_ASSETS } from './fixtures.mjs';
 
 // Selection and batch actions mutate the ONE library this suite shares, so each
 // test here undoes what it did. Where the UI has no undo — archive and hidden
@@ -20,8 +19,16 @@ test.describe('selection', () => {
     await expect(bar).toBeVisible();
     await expect(bar).toContainText('1 selected');
 
+    // Read the total from the view rather than from the fixture constant.
+    // `capabilities.spec` permanently deletes an asset (that is the point of the
+    // Empty-trash test) and a purge cannot be undone, so the library is smaller
+    // by then and a hardcoded count makes this spec fail depending on run order.
+    const header = await page.locator('main#main').getByText(/^\d+ items?$/).first().textContent();
+    const total = Number(/(\d+)/.exec(header ?? '')?.[1]);
+    expect(total).toBeGreaterThan(1);
+
     await page.getByRole('button', { name: 'Select all' }).click();
-    await expect(bar).toContainText(`${EXPECTED_ASSETS} selected`);
+    await expect(bar).toContainText(`${total} selected`);
 
     // Select all flips to Clear once everything is chosen.
     await page.getByRole('button', { name: 'Clear', exact: true }).click();

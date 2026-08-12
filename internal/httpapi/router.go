@@ -175,6 +175,7 @@ func NewRouter(d Deps) http.Handler {
 				r.Get("/external-libraries", d.listExternalLibraries)
 				r.Post("/external-libraries", d.createExternalLibrary)
 				r.Post("/external-libraries/{id}/scan", d.scanExternalLibrary)
+				r.Delete("/external-libraries/{id}", d.deleteExternalLibrary)
 			})
 
 			// --- DEVICE-ONLY (capture ingest) ---

@@ -1,5 +1,5 @@
 import { session } from './stores';
-import type { Album, Asset, AssetList, BackupStatus, ChangesResponse, DeviceInfo, DupAsset, ExternalLibrary, IntegrityRun, Job, JobDetail, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SettingsPatchResponse, SettingsResponse, SetupStatus, Tag, UserCreate, UserList, UserPatch, UserSummary } from './types';
+import type { Album, Asset, AssetList, BackupStatus, ChangesResponse, DeviceInfo, DupAsset, DuplicateRun, ExternalLibrary, IntegrityRun, Job, JobDetail, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SettingsPatchResponse, SettingsResponse, SetupStatus, Tag, UserCreate, UserList, UserPatch, UserSummary } from './types';
 
 export type AssetPatch = {
   taken_at?: string;
@@ -7,6 +7,8 @@ export type AssetPatch = {
   gps_lat?: number;
   gps_lon?: number;
   clear_gps?: boolean;
+  /** 0-5, where 0 is unrated. */
+  rating?: number;
 };
 
 function jsonBody(obj: unknown, method = 'POST'): RequestInit {
@@ -100,8 +102,22 @@ export const api = {
     req<{ updated: number }>('/api/assets/shift-time', jsonBody({ ids, minutes })),
   remove: (id: string) => req<void>(`/api/assets/${id}`, { method: 'DELETE' }),
   restore: (id: string) => req<void>(`/api/assets/${id}/restore`, { method: 'POST' }),
-  batch: (op: 'delete' | 'restore' | 'favorite' | 'unfavorite' | 'archive' | 'unarchive' | 'hide' | 'unhide', ids: string[]) =>
-    req<{ succeeded: number }>('/api/assets/batch', jsonBody({ op, ids })),
+  /** Permanently deletes one trashed asset — the original leaves the disk. */
+  purge: (id: string) => req<void>(`/api/trash/${id}`, { method: 'DELETE' }),
+  batch: (
+    op:
+      | 'delete'
+      | 'restore'
+      // Permanent and irreversible; every other op here can be undone.
+      | 'purge'
+      | 'favorite'
+      | 'unfavorite'
+      | 'archive'
+      | 'unarchive'
+      | 'hide'
+      | 'unhide',
+    ids: string[]
+  ) => req<{ succeeded: number }>('/api/assets/batch', jsonBody({ op, ids })),
 
   albums: () => req<{ albums: Album[] }>('/api/albums'),
   album: (id: string, cursor = '') => req<AssetList>(`/api/albums/${id}?${pageParams(cursor)}`),
@@ -122,7 +138,10 @@ export const api = {
   job: (id: string) => req<JobDetail>(`/api/jobs/${id}`),
   mediaIssues: () => req<{ issues: MediaIssue[] }>('/api/media/issues'),
   rebuildAsset: (id: string) => req<{ status: string }>(`/api/assets/${id}/rebuild`, { method: 'POST' }),
-  duplicates: () => req<{ groups: DupAsset[][] }>('/api/duplicates'),
+  // The endpoint has always returned `run` alongside the groups; the client
+  // typed it away, so an empty Duplicates page could not tell "never scanned"
+  // from "scan running" from "no duplicates found".
+  duplicates: () => req<{ groups: DupAsset[][]; run: DuplicateRun | null }>('/api/duplicates'),
   integrity: () => req<{ last: IntegrityRun | null }>('/api/integrity'),
   runIntegrity: () => req<{ status: string }>('/api/integrity/run', { method: 'POST' }),
   backup: () => req<BackupStatus>('/api/backup'),
@@ -152,6 +171,10 @@ export const api = {
     ),
   scanExternalLibrary: (id: string) =>
     req<{ scanned: number; indexed: number }>(`/api/external-libraries/${id}/scan`, { method: 'POST' }),
+  // Forgets the library and its indexed rows. Never touches the files: Kuraki
+  // does not own them and never copied them.
+  deleteExternalLibrary: (id: string) =>
+    req<{ removed: number }>(`/api/external-libraries/${id}`, { method: 'DELETE' }),
   runDuplicatesScan: () => req<void>('/api/duplicates/run', { method: 'POST' })
 };
 

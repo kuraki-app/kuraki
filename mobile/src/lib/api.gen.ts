@@ -2206,6 +2206,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/external-libraries/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove external library */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description external library id */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            [key: string]: unknown;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["apitypes.Error"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["apitypes.Error"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/external-libraries/{id}/scan": {
         parameters: {
             query?: never;
@@ -3914,6 +3973,11 @@ export interface components {
             /** @description set with GPSLon */
             gps_lat?: number;
             gps_lon?: number;
+            /** @description Rating is 0-5, where 0 means unrated. It was filterable and returned on
+             *     every asset long before anything could set it: only the importer and the
+             *     Immich migration ever wrote the column, so a rating could be searched for
+             *     but never given. */
+            rating?: number;
             /** @description RFC3339; empty string clears */
             taken_at?: string;
         };
@@ -3922,7 +3986,8 @@ export interface components {
         };
         "apitypes.BatchRequest": {
             ids?: string[];
-            /** @description delete | restore | favorite | unfavorite | archive | unarchive | hide | unhide */
+            /** @description purge is permanent: it deletes the original from disk and the row from the
+             *     database. Every other op is reversible. */
             op?: string;
         };
         "apitypes.BatchResponse": {

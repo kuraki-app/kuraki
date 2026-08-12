@@ -30,6 +30,17 @@ export type UserDeleteBlocked = S['apitypes.UserDeleteBlocked'];
 export type ExternalLibrary = S['apitypes.ExternalLibrary'];
 
 // not in contract: /api/duplicates returns an untyped map (domain-package struct, kept out of swag scope)
+export type DuplicateRun = {
+  id: string;
+  /** queued | running | done | error (duplicates.Run) */
+  status: string;
+  error?: string;
+  total: number;
+  processed: number;
+  group_count: number;
+};
+
+// not in contract: /api/duplicates returns an untyped map (domain-package struct, kept out of swag scope)
 export type DupAsset = {
   id: string;
   filename: string;

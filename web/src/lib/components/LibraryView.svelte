@@ -17,7 +17,10 @@
   import PageHeader from './PageHeader.svelte';
   import EmptyState from './EmptyState.svelte';
   import SkeletonGrid from './SkeletonGrid.svelte';
+  import ConfirmDialog from './ConfirmDialog.svelte';
   import { Button } from '$lib/components/ui/button';
+  import { Input } from '$lib/components/ui/input';
+  import { Label } from '$lib/components/ui/label';
 
   export let load: (cursor?: string) => Promise<AssetList>;
   export let title = '';
@@ -25,6 +28,9 @@
   export let trashMode = false;
   export let albumId: string | null = null;
   export let favoritesMode = false;
+  /** Passed through to BatchBar so Archive/Hidden offer the way back out. */
+  export let archiveMode = false;
+  export let hiddenMode = false;
   export let emptyText = 'Nothing here yet';
 
   let assets: Asset[] = [];
@@ -303,6 +309,62 @@
     batch(() => api.batch('archive', [...selected]), () => removeMany([...selected]), 'Archived {n}');
   const batchHide = () =>
     batch(() => api.batch('hide', [...selected]), () => removeMany([...selected]), 'Hidden {n}');
+  // The way back out of Archive and Hidden. Both server ops have existed since
+  // batch operations were added and had no caller on web, which made putting a
+  // photo into either a one-way door.
+  const batchUnarchive = () =>
+    batch(() => api.batch('unarchive', [...selected]), () => removeMany([...selected]), 'Unarchived {n}');
+  const batchUnhide = () =>
+    batch(() => api.batch('unhide', [...selected]), () => removeMany([...selected]), 'Unhidden {n}');
+
+  // Permanent deletion, behind a real confirmation. `purge` is the only batch op
+  // that cannot be undone, so it is the only one that asks first.
+  let confirmPurgeOpen = false;
+  let purgeBusy = false;
+  async function confirmPurge() {
+    purgeBusy = true;
+    const ids = [...selected];
+    try {
+      await api.batch('purge', ids);
+      removeMany(ids);
+      clearSel();
+      showToast(`Permanently deleted ${ids.length}`);
+      confirmPurgeOpen = false;
+    } catch (e) {
+      showToast(msg(e));
+    } finally {
+      purgeBusy = false;
+    }
+  }
+
+  // Batch time shift. `api.shiftTime` had been in this file's API module since
+  // R2 with zero callers, while AGENTS.md listed it as implemented and verified.
+  let shiftOpen = false;
+  let shiftHours = 0;
+  let shiftMinutes = 0;
+  let shiftBusy = false;
+  async function applyShift() {
+    const total = Math.round(shiftHours) * 60 + Math.round(shiftMinutes);
+    if (!total) {
+      showToast('Choose an offset first');
+      return;
+    }
+    shiftBusy = true;
+    const ids = [...selected];
+    try {
+      const { updated } = await api.shiftTime(ids, total);
+      shiftOpen = false;
+      clearSel();
+      showToast(`Shifted ${updated} ${updated === 1 ? 'photo' : 'photos'}`);
+      // The capture date IS the sort key and the grouping key, so a shift can
+      // move photos between day sections. Reload rather than patch in place.
+      await reload();
+    } catch (e) {
+      showToast(msg(e));
+    } finally {
+      shiftBusy = false;
+    }
+  }
   const batchRemoveFromAlbum = () =>
     albumId &&
     batch(() => api.removeFromAlbum(albumId!, [...selected]), () => removeMany([...selected]), 'Removed {n}');
@@ -418,14 +480,20 @@
   count={selected.size}
   total={assets.length}
   {trashMode}
+  {archiveMode}
+  {hiddenMode}
   albumMode={!!albumId}
   on:clear={clearSel}
   on:selectAll={selectAll}
   on:favorite={batchFavorite}
   on:delete={batchDelete}
   on:restore={batchRestore}
+  on:purge={() => (confirmPurgeOpen = true)}
   on:archive={batchArchive}
+  on:unarchive={batchUnarchive}
   on:hide={batchHide}
+  on:unhide={batchUnhide}
+  on:shiftTime={() => ((shiftHours = 0), (shiftMinutes = 0), (shiftOpen = true))}
   on:download={batchDownload}
   on:album={openPicker}
   on:albumRemove={batchRemoveFromAlbum}
@@ -440,7 +508,47 @@
   />
 {/if}
 
+<ConfirmDialog
+  bind:open={confirmPurgeOpen}
+  title="Delete {selected.size} {selected.size === 1 ? 'item' : 'items'} forever?"
+  body="The original files are removed from disk. This cannot be undone."
+  confirmLabel="Delete forever"
+  destructive
+  busy={purgeBusy}
+  onconfirm={confirmPurge}
+/>
+
+<ConfirmDialog
+  bind:open={shiftOpen}
+  title="Shift capture time"
+  body="Moves the capture date of {selected.size} selected {selected.size === 1 ? 'item' : 'items'}. Use a negative value to shift earlier — a camera left on the wrong timezone is the usual reason."
+  confirmLabel="Shift"
+  busy={shiftBusy}
+  onconfirm={applyShift}
+>
+  <div class="shift">
+    <div>
+      <Label for="shift-hours">Hours</Label>
+      <Input id="shift-hours" type="number" bind:value={shiftHours} />
+    </div>
+    <div>
+      <Label for="shift-minutes">Minutes</Label>
+      <Input id="shift-minutes" type="number" bind:value={shiftMinutes} />
+    </div>
+  </div>
+</ConfirmDialog>
+
 <style>
+  .shift {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: calc(var(--space-step) * 2);
+  }
+  .shift div {
+    display: grid;
+    gap: 6px;
+  }
+
   /* Mobile header order: the title and Select share row one (both keep the
    * default order 0), the page's own filter block takes row two via order 1,
    * and the density toggle follows on row three. Without an explicit order the

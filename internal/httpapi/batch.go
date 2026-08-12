@@ -66,6 +66,19 @@ func (d Deps) batchAssets(w http.ResponseWriter, r *http.Request) {
 			}
 			return trash.Restore(ctx, d.DB, d.Store, id)
 		}
+	// purge is permanent and irreversible. It exists as a batch op rather than
+	// only as DELETE /api/trash/{id} because emptying a trash of 500 items
+	// through the single-asset route means 500 requests; trash.Purge already
+	// logs its own change_log row, like delete and restore.
+	case "purge":
+		apply = func(ctx context.Context, id string) error {
+			if ok, err := d.ownsAssetCtx(ctx, owner, id); err != nil {
+				return err
+			} else if !ok {
+				return trash.ErrNotFound
+			}
+			return trash.Purge(ctx, d.DB, d.Store, id)
+		}
 	case "favorite":
 		apply = func(ctx context.Context, id string) error { return d.updateFavorite(ctx, id, true, owner) }
 		logsHere = true

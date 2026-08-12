@@ -68,6 +68,10 @@ func (d Deps) patchAsset(w http.ResponseWriter, r *http.Request) {
 	if p.Description != nil {
 		description = sql.NullString{String: *p.Description, Valid: *p.Description != ""}
 	}
+	if p.Rating != nil && (*p.Rating < 0 || *p.Rating > 5) {
+		writeError(w, http.StatusBadRequest, "invalid_rating")
+		return
+	}
 
 	gpsChanged := false
 	placeCity, placeCountry := "", ""
@@ -105,6 +109,16 @@ func (d Deps) patchAsset(w http.ResponseWriter, r *http.Request) {
 		if _, err := tx.ExecContext(r.Context(),
 			`UPDATE assets SET gps_lat = ?, gps_lon = ?, place_city = ?, place_country = ? WHERE id = ? AND owner_id = ?`,
 			nfAny(lat), nfAny(lon), emptyToNil(placeCity), emptyToNil(placeCountry), id, owner); err != nil {
+			writeError(w, http.StatusInternalServerError, "update_failed")
+			return
+		}
+	}
+	// Separate statement rather than another column on the UPDATE above, so an
+	// omitted rating stays omitted: the patch is sparse, and folding it in would
+	// need the current value read back and rewritten on every unrelated edit.
+	if p.Rating != nil {
+		if _, err := tx.ExecContext(r.Context(),
+			`UPDATE assets SET rating = ? WHERE id = ? AND owner_id = ?`, *p.Rating, id, owner); err != nil {
 			writeError(w, http.StatusInternalServerError, "update_failed")
 			return
 		}

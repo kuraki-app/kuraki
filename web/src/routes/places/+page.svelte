@@ -85,13 +85,25 @@
 {#if !loading && places.length > 0}
   <div class="places">
     {#each places as p (p.country + p.city)}
-      <button type="button" class="place" on:click={() => focusPlace(p)}>
-        <img src={p.cover_thumb_url} alt="" loading="lazy" />
-        <div>
-          <strong>{p.city}</strong>
-          <span>{p.country} · {p.count}</span>
-        </div>
-      </button>
+      <!-- Two actions, because tapping a place means two different things: the
+           tile pans the map to it, and "View photos" opens the filtered grid.
+           Only the map half existed, so a place could be located but its photos
+           could never be listed — the mobile client has always done both. -->
+      <div class="place-row">
+        <button type="button" class="place" on:click={() => focusPlace(p)}>
+          <img src={p.cover_thumb_url} alt="" loading="lazy" />
+          <div>
+            <strong>{p.city}</strong>
+            <span>{p.country} · {p.count}</span>
+          </div>
+        </button>
+        <a
+          class="view"
+          href={`/?place_city=${encodeURIComponent(p.city)}&place_country=${encodeURIComponent(p.country)}`}
+        >
+          View photos
+        </a>
+      </div>
     {/each}
   </div>
 {:else if !loading}
@@ -122,16 +134,41 @@
     gap: 10px;
     margin-top: 16px;
   }
-  .place {
+  /* The card is the frame; the tile and the link sit inside it, so the two
+   * actions read as one place rather than two unrelated controls. */
+  .place-row {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
     padding: 8px;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: var(--card);
+  }
+  .place {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
     cursor: pointer;
     text-align: left;
+  }
+  .view {
+    flex: none;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: var(--muted);
+    color: var(--foreground);
+    font-size: 13px;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .view:hover {
+    background: var(--accent);
   }
   .place img {
     width: 52px;
