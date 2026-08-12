@@ -1,0 +1,33 @@
+---
+// The site header. `anchorNav` picks between the landing page's in-page anchors
+// and the cross-page links every other page needs — a docs page linking to
+// "#features" would jump nowhere.
+interface Props {
+  anchorNav?: boolean;
+}
+const { anchorNav = false } = Astro.props;
+const home = anchorNav ? '#top' : '/';
+---
+
+<header class="nav" id="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href={home} aria-label="Kuraki home">
+      <span class="seal"><svg viewBox="0 0 40 40" style="color:var(--stamp)"><use href="#stamp"/></svg></span>
+      Kuraki
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      {anchorNav ? (
+        <>
+          <a class="lnk" href="#features">Features</a>
+          <a class="lnk" href="#how">How it works</a>
+          <a class="lnk" href="#own">Own it</a>
+        </>
+      ) : (
+        <a class="lnk" href="/#features">Features</a>
+      )}
+      <a class="lnk" href="/docs">Docs</a>
+      <a class="lnk" href="/download">Download</a>
+      <a class="btn btn-ghost" href="https://github.com/kuraki-app/kuraki" rel="noopener">★ GitHub</a>
+    </nav>
+  </div>
+</header>

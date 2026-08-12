@@ -90,6 +90,54 @@ while IFS= read -r md; do
 done < <(tracked | grep -E '\.md$')
 note "$checked relative link(s) checked"
 
+# ---------------------------------------------------------------------------
+# 4. Every internal link on the marketing site resolves to a real page.
+#
+#    Check 3 only reads Markdown, so site/ was unguarded by the very script that
+#    exists to stop dead links — and the site is the first thing a stranger sees.
+#    Routes come from the filesystem: an Astro page at src/pages/download.astro
+#    serves /download, and src/content/docs/install.md serves /docs/install via
+#    the [...slug] route.
+# ---------------------------------------------------------------------------
+printf '==> site internal links\n'
+if [ -d site/src/pages ]; then
+  routes=$(
+    {
+      # Pages. index.astro is the directory itself; [...slug] is dynamic and is
+      # enumerated from the content collection below instead.
+      find site/src/pages -name '*.astro' ! -name '*[*' |
+        sed -E 's#^site/src/pages##; s#/index\.astro$#/#; s#\.astro$##'
+      # Docs entries, served under /docs/<name>.
+      find site/src/content/docs -name '*.md' 2>/dev/null |
+        sed -E 's#^site/src/content/docs/#/docs/#; s#\.md$##'
+      # Static files served from public/ at the root.
+      find site/public -type f 2>/dev/null | sed -E 's#^site/public##'
+    } | sed -E 's#^$#/#' | sort -u
+  )
+
+  site_checked=0
+  while IFS= read -r page; do
+    [ -f "$page" ] || continue
+    while IFS= read -r target; do
+      [ -n "$target" ] || continue
+      case "$target" in
+        http://*|https://*|mailto:*|tel:*|'#'*|'data:'*|'{'*) continue ;;
+      esac
+      path=${target%%#*}
+      path=${path%/}
+      [ -n "$path" ] || continue
+      site_checked=$((site_checked + 1))
+      # A trailing-slash and a bare form are the same route here.
+      if ! printf '%s\n' "$routes" | grep -qxE "${path}/?"; then
+        problem "$page → $target (no such page; routes come from site/src/pages and site/src/content/docs)"
+      fi
+    done < <(grep -oE 'href="/[^"]*"' "$page" | sed -E 's/^href="//; s/"$//')
+  done < <(tracked | grep -E '^site/src/.*\.(astro|md)$')
+  note "$site_checked internal site link(s) checked"
+else
+  note "no site/ directory — skipped"
+fi
+
 printf '\n'
 if [ "$fail" -eq 0 ]; then
   printf 'check-docs-links: OK\n'
