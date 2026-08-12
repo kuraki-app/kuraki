@@ -1,4 +1,4 @@
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Redirect, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet } from 'react-native';
 
@@ -55,6 +55,14 @@ export default function PlaceScreen() {
     setAssets((prev) => [...prev, ...page.assets]);
     setCursor(page.next_cursor);
   }
+
+  // The same guard tag.tsx carries: `place_city` is a query param, so a restored
+  // navigation state can land here without one, and `load` bails out without
+  // ever clearing the initial `loading` — a spinner under the header "Place"
+  // that resolves to nothing. It sits below the hooks rather than at the top of
+  // the component because returning before the useState calls would make the
+  // hook order conditional; the effects above already no-op without a city.
+  if (!place_city) return <Redirect href="/(app)/(gallery)" />;
 
   return (
     <ThemedView style={styles.screen}>
