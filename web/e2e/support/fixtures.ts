@@ -52,6 +52,18 @@ export const test = base.extend<{ consoleGuard: ConsoleGuard }>({
         problems.push(`uncaught: ${error.message}`);
       });
 
+      // Native alert/confirm/prompt. The app replaced all of them with real
+      // dialogs (ConfirmDialog/PromptDialog) — unstylable, unthemable and
+      // main-thread-blocking is the least of it; a native confirm cannot say
+      // which of "Delete" and "Delete forever" it means. Playwright
+      // auto-dismisses these, so without this listener a reintroduced
+      // `confirm()` would not fail a test, it would silently make the action
+      // never happen and the assertion after it would report the mystery.
+      page.on('dialog', (dialog) => {
+        problems.push(`native ${dialog.type()}(): ${dialog.message()}`);
+        void dialog.dismiss();
+      });
+
       await use({ allow: (pattern) => expected.push(pattern) });
 
       // Filter again at the end: `allow()` is usually called after the listeners

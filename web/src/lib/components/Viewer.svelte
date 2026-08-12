@@ -18,6 +18,7 @@
   import { api } from '$lib/api';
   import { fileSize, placeLabel } from '$lib/format';
   import { MORPH_NAME, viewerShowsImage, prefersReducedMotion } from '$lib/motion';
+  import { trapFocus } from '$lib/focus';
 
   export let assets: Asset[] = [];
   export let index = 0;
@@ -243,7 +244,9 @@
 <svelte:window on:keydown={key} />
 
 {#if asset}
-  <div class="viewer" role="dialog" aria-modal="true">
+  <!-- tabindex allows the container itself to hold focus if a photo-only
+       viewer ever has no focusable control inside it. -->
+  <div class="viewer" role="dialog" aria-modal="true" aria-label="Photo viewer" tabindex="-1" use:trapFocus>
     <button class="icon close" type="button" on:click={() => dispatch('close')} aria-label="Close">
       <X size={22} />
     </button>

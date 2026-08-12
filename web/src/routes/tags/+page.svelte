@@ -5,6 +5,7 @@
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
   import { Button } from '$lib/components/ui/button';
 
@@ -48,17 +49,28 @@
     }
   }
 
-  async function remove(tag: Tag) {
-    // Deleting a tag unfiles every photo carrying it, which is not obvious from
-    // a row with a bin icon on it.
-    if (!confirm(`Delete the tag “${tag.name}”? Photos keep their files; they just lose this tag.`)) {
-      return;
-    }
+  // Deleting a tag unfiles every photo carrying it, which is not obvious from a
+  // row with a bin icon on it — so the dialog says so rather than a one-line
+  // native confirm() that cannot be styled or read at leisure.
+  let removeTarget: Tag | null = null;
+  let removeOpen = false;
+  let removing = false;
+  function askRemove(tag: Tag) {
+    removeTarget = tag;
+    removeOpen = true;
+  }
+  async function remove() {
+    if (!removeTarget) return;
+    removing = true;
     try {
-      await api.deleteTag(tag.id);
+      await api.deleteTag(removeTarget.id);
+      removeOpen = false;
+      removeTarget = null;
       await load();
     } catch (cause) {
       showToast(cause instanceof Error ? cause.message : 'Could not delete that tag.');
+    } finally {
+      removing = false;
     }
   }
 </script>
@@ -98,7 +110,7 @@
           <TagIcon size={16} aria-hidden="true" />
           <span class="name">{tag.name}</span>
         </a>
-        <button type="button" class="del" aria-label="Delete {tag.name}" on:click={() => remove(tag)}>
+        <button type="button" class="del" aria-label="Delete {tag.name}" on:click={() => askRemove(tag)}>
           <Trash2 size={15} />
         </button>
       </li>
@@ -171,3 +183,13 @@
     color: var(--destructive);
   }
 </style>
+
+<ConfirmDialog
+  bind:open={removeOpen}
+  title={`Delete the tag “${removeTarget?.name ?? ''}”?`}
+  body="Photos keep their files and stay in your library; they just lose this tag."
+  confirmLabel="Delete tag"
+  destructive
+  busy={removing}
+  onconfirm={remove}
+/>

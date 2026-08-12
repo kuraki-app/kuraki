@@ -1,0 +1,1 @@
+import"./BOkvs-TI.js";import{s,r as p}from"./7Adr9IWM.js";import{I as n}from"./BFZxO0gS.js";var a=new Set(["$$slots","$$events","$$legacy"]);function i(e,o){let r=p(o,a);const t=[["path",{d:"M18 6 6 18"}],["path",{d:"m6 6 12 12"}]];n(e,s({name:"x"},()=>r,{get iconNode(){return t}}))}export{i as X};
