@@ -25,7 +25,7 @@ export default function AlbumRoute() {
   // asked for `/api/albums/undefined` and showed the server's 404 under the
   // fallback title "Album", which reads as "your album is broken" rather than
   // "there is no album here". The album list is the only sensible place to be.
-  if (!id) return <Redirect href="/(app)/(albums)/albums" />;
+  if (!id) return <Redirect href="/(app)/(albums)" />;
 
   return (
     <>

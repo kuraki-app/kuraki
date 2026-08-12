@@ -41,7 +41,13 @@ Phase 1 = single-owner personal backup.
   in the Settings stack. Backup is a **page of Settings**, not a tab. Device tokens and pairing codes
   are never rendered once paired — see `lib/connection-view.ts`. Header actions are `Stack.Toolbar`
   items, never `headerRight` — see §11 (2026-08-02, fifth pass) for why. **All of this is code-complete
-  but device-unverified**; there is no simulator here.
+  but device-unverified.** Each tab group's list screen must be named `index.tsx`: a tab trigger names
+  the *group*, so the Stack picks its own root, and expo-router's last sort tiebreaker is filename
+  length — `search.tsx`/`albums.tsx` lost it to `tag.tsx`/`album.tsx` and both tabs opened a detail
+  screen with no params. `lib/navigation.test.ts` pins this (see §11, 2026-08-12).
+- **A simulator IS available (2026-08-12).** Earlier entries below say "there is no simulator here";
+  that was true when written. The current dev machine has Xcode and eight iOS simulators, so mobile
+  work can finally be rendered. There is still no Android emulator, and no physical device.
 - **Cursor pagination is now real on every list endpoint (2026-08-02).** `getAlbum`, `listFavorites`,
   `listTrash` and `onThisDay` each returned a `next_cursor` they never applied, so following it
   re-served page one. `cursorPredicate` (assets.go) is the shared keyset condition and must stay in
@@ -321,6 +327,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | **Immich migration** (`feat/immich-migration`): source-agnostic `internal/migrate` engine + `internal/migrate/immich` REST client; `kuraki migrate immich` / `migrate status`; migration 00021 (`migration_runs`, `migration_map`, `albums.description`, `assets.stack_locked`); `importer.MetadataProvider` seam. Verified end-to-end against a real Immich v3.0.3 in Docker | ✅ done |
 | **Settings consolidation** (`feat/settings-consolidation`): one `/settings` shell for overview/account/appearance/library/devices/activity/server; live DB-backed settings store with env/CLI precedence; owner settings + device-list APIs; migration 00022 | ✅ done |
 | **Mobile web overflow** (`fix/mobile-responsive`): wrapped timeline controls/batch actions, zero-minimum app track, responsive virtualization spacer estimates | ✅ done; browser-smoked at 390×844 |
+| **Mobile tab landing routes** (`fix/mobile-tab-landing-routes`): Search and Albums landed on their *detail* screens because expo-router's last sort tiebreaker is filename length; both list screens renamed to `index.tsx`, missing-param redirect guards on all four detail routes, `navigation.test.ts` pins the invariant using `sortRoutes` itself | ✅ done; not device-verified |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
@@ -348,6 +355,13 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `fix/mobile-tab-landing-routes` (2026-08-12) — **Two tabs opened a detail screen instead of their list, because a tab trigger names a group and the group's Stack picks its own root by filename length.**
+  - **`NativeTabs.Trigger name="(search)"` points at the group, not at a screen.** With no `initialRouteName`, which route becomes the stack root is decided by expo-router's own `sortRoutes`, and its last tiebreaker is filename **length**. `(search)` held `search.tsx` and `tag.tsx`, so the shorter `tag` won: pressing Search opened the tag grid with no `tag` param — the header read "Tag" over a spinner that never resolved, because `TagGrid` bails out of its fetch without clearing its initial `loading`. `(albums)` had the identical shape (`albums.tsx` vs `album.tsx`) and landed on album detail with no `id`; that one only *looked* fine because `album.tsx` redirects when `id` is missing, so the tab worked by bouncing off a guard written for hand-typed links. Verified against `sortRoutes` directly: `['search','tag'] → tag`, `['albums','album'] → album`, and `['index',…] → index` in both cases.
+  - **The fix is `index.tsx`, and the test is the interesting part.** `navigation.test.ts` imports **expo-router's own comparator** rather than re-implementing the sort, so it asserts what the router will actually do. It reads the route names off the filesystem, **including subdirectories** — `sortRoutes` treats a *group* route as index-equivalent (`route === 'index' || matchGroupName(route) != null`) and then falls back to length, so a nested `(x)/` would take the root back from `index` and a five-character group would tie and fall to readdir order. A test that only looked at `.tsx` files would be blind to the one thing that can still break this.
+  - **`index` is therefore not an unconditional guarantee.** If any tab group ever needs a nested group directory, declare the root with `unstable_settings.initialRouteName` — `sortRoutesWithInitial` matches the name before any group or length comparison. The filename convention is enough only while every route in a group is a plain file, which is what the test enforces.
+  - **Four detail routes gained missing-param redirects** (`(gallery)/tag`, `(gallery)/place`, `(search)/tag`, and `(albums)/album` already had one). Restored navigation state can land on any of them without its query param, and each would otherwise sit on a spinner forever. In `place.tsx` the guard sits **below** the hooks deliberately — returning before the `useState` calls would make hook order conditional, and the effects above already no-op without a city.
+  - **Verification ceiling, unchanged.** `make check`, `tsc --noEmit`, `expo lint`, 188 vitest tests, `check-tokens`. **Nothing rendered** — but note that this claim is now stale in a way worth acting on: Xcode and eight iOS simulators (iPhone 17 Pro through iPad mini) *are* available on the current dev machine. Every "there is no simulator here" line in the entries below was true when written and is not true now.
 
 - `feat/mobile-web-albums-and-pagination` (2026-08-02, fifth pass) — **Four list endpoints returned a cursor they ignored. Album membership writes were unbounded and untransacted. Tags had no web UI at all. Nothing device-verified.**
   - **The pagination bug is the one to remember.** `getAlbum`, `listFavorites`, `listTrash` and `onThisDay` each computed a `next_cursor` from the last row and sent it, then never put it in the WHERE clause — only `/search` and `/assets` (via `respondFiltered`) did. Following the cursor re-served page one. Mobile *does* page Trash and On-this-day and appends each response, so scrolling produced an endless run of duplicate rows with duplicate React keys; every other surface silently stopped at one page. `cursorPredicate` is now shared and lives beside `encodeCursor`, because it has to stay in step with `assetSelectSQLWithJoin`'s ORDER BY or paging skips or repeats rows. `pagination_test.go` walks each endpoint to exhaustion and asserts the pages are disjoint and complete; it was confirmed to fail against the old code (`page 1 re-served asset …`).
