@@ -22,6 +22,16 @@ jobs:
       - run: go vet ./...
       - run: go test -race ./...
 
+  links:
+    name: Docs links resolve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Every advertised install path was broken at once — the clone URL, the
+      # CI badge, and the image path — and nothing caught it, because none of
+      # them is type-checked or exercised by a test. This job is the check.
+      - run: scripts/check-docs-links.sh
+
   contract:
     name: API contract up to date
     runs-on: ubuntu-latest

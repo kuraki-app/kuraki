@@ -1,0 +1,14 @@
+# Canonical authorship. Maps the identities this repository was committed under
+# onto one name and address, so `git shortlog`, `git log`, and GitHub's own
+# attribution show a single author instead of four.
+#
+# This changes how history is *displayed*, not history itself — no commit is
+# rewritten and no SHA moves. Added when the repository went public, at which
+# point the machine-hostname address below would otherwise have been visible on
+# every commit that carried it.
+#
+# Format: Canonical Name <canonical@email> [Commit Name] <commit@email>
+
+Saransh Hardaha <saranshhardaha05@gmail.com> Saransh <saranshhardaha05@gmail.com>
+Saransh Hardaha <saranshhardaha05@gmail.com> <saranshh@MAM5.local>
+Saransh Hardaha <saranshhardaha05@gmail.com> <hellosaranshh@gmail.com>
