@@ -15,9 +15,20 @@ import (
 const AlgorithmVersion = 1
 const Threshold = 8
 
+// Run is the state of one library-wide duplicate scan. It is serialized
+// directly onto /api/duplicates and /api/duplicates/run.
+//
+// The json tags are explicit because without them Go emits the FIELD names —
+// `ID`, `Status`, `Groups` — which is the only DTO in the API that would not be
+// snake_case. Nothing consumed this until the Duplicates page started reporting
+// scan state, so naming it consistently now costs nothing.
 type Run struct {
-	ID, Status, Error        string
-	Total, Processed, Groups int
+	ID        string `json:"id"`
+	Status    string `json:"status"`
+	Error     string `json:"error,omitempty"`
+	Total     int    `json:"total"`
+	Processed int    `json:"processed"`
+	Groups    int    `json:"group_count"`
 }
 
 // Enqueue creates a persistent run. Start owns execution and recovers queued

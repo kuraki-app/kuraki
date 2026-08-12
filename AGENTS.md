@@ -29,7 +29,8 @@ Phase 1 = single-owner personal backup.
   **Google Takeout** sidecar import; libvips/pure-Go thumbnails + ffmpeg posters + EXIF; timeline,
   viewer (with in-browser video), FTS5 search, favorites, albums, "on this day", **Places** map +
   offline reverse geocoding, multi-select batch + zip export, **metadata editing** (date/GPS/caption
-  with re-geocode, batch timezone shift), a library **stats** dashboard; trash + retention + `verify`;
+  with re-geocode, batch timezone shift — the shift had no web caller until 2026-08-12, see §11),
+  a library **stats** dashboard; trash + retention + `verify`;
   argon2id auth + login rate-limit; safe-upgrade snapshots; and serving perf (cache headers, gzip,
   SQLite tuning). See [CHANGELOG.md](./CHANGELOG.md) for the full list.
 - **Mobile chrome is the platform's, not ours (2026-08-02).** `(app)/_layout.tsx` renders `NativeTabs`
@@ -262,7 +263,8 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Import queue + Activity + per-file errors, metadata editing, config options, serving perf | ✅ done |
 | R1 media compatibility: explicit view state, safe preview/transcode fallback, media-health rebuild | ✅ done |
 | R1 content-aware admission for standard media signatures | ✅ done (RAW extension exception) |
-| R2: tags/hierarchical tags, saved searches, ratings, archive/hidden, external libraries, backup/restore | ✅ done |
+| R2: tags/hierarchical tags, saved searches, archive/hidden, external libraries, backup/restore | ✅ done |
+| R2 ratings: filterable and on the DTO since R2, but **no HTTP write path existed** until 2026-08-12 — only the importer and the Immich migration ever set the column | ✅ done (write path + star control added) |
 | R2: duplicate review (exact + near-duplicate by hamming), stacks (RAW+JPEG / Live-Motion), whole-library export, scheduled integrity verification | ✅ done |
 | Import/export safety: duplicate upload basenames preserved; live backup snapshot; restore staged and manifest-validated; ZIP exports preflighted and unbounded | ✅ done |
 | Capture foundation: device tokens, resumable server sessions, React Native status/manual-upload client | ✅ initial slice |
@@ -301,7 +303,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | libvips-default Docker image / HEIC verified, low-resource benchmark | ⬜ env-gated |
 | QR device pairing: web mints code + QR, mobile scans to claim its own token | ✅ done |
 | Per-album backup selection (choose device albums; default whole library) | ✅ done |
-| Find: one filter language (q/date/type/camera/favorite/rating/place/album) on paginated /api/search | ✅ done |
+| Find: one filter language (q/date/type/camera/favorite/rating/place/album) on paginated /api/search | ✅ done (server); the **web filter bar reached only q/type/favorite/from/to** until 2026-08-12 |
 | Find: device-authenticated library read + mobile Library tab (grid, filters, offline cache) | ✅ done |
 | Find: web timeline filter bar aligned to mobile | ✅ done |
 | Find: opt-in local OCR (tesseract) indexes screenshot/document text into FTS | ✅ done |
@@ -368,6 +370,18 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `feat/web-capability-gaps` (2026-08-12) — **The server could already do most of this; the web UI just had no way to ask.**
+  - **Archive and Hidden were one-way doors.** `unarchive`/`unhide` have been implemented in `batch.go` since batch ops existed, and were even typed in `web/src/lib/api.ts` — with zero callers. So a photo sent to either place could not be brought back from the web at all. The mobile client shipped `unarchive` deliberately "because shipping it without unarchive would make the action a one-way door"; web simply never did. `BatchBar` now takes `archiveMode`/`hiddenMode` alongside the existing `trashMode`/`albumMode`, and offers the way out instead of the way further in.
+  - **The trash could not be emptied.** `DELETE /api/trash/{id}` existed and only the phone app called it, so a web user could never reclaim disk space before the retention window elapsed. Added a **batch `purge` op** rather than looping the single-asset route — emptying a 500-item trash would otherwise be 500 requests. `trash.Purge` already logs its own `change_log` row, so `logsHere` stays false for it; the test counts delete rows *before and after* the purge, because trashing an asset also logs a delete and a naive total would read 4 where 2 is correct.
+  - **The trash page lied about its own retention.** The subtitle hardcoded "permanently removed after 30 days" while `trash_retention_days` is live and owner-editable, so it was wrong the moment anyone changed it. It now reads the setting.
+  - **Ratings were readable, filterable, and unwritable.** `rating` was on the DTO and in `parseAssetFilters` from the start, but nothing except the importer and the Immich migration ever wrote the column — there was no PATCH field. Added `Rating *int` (0–5, rejected outside that range rather than clamped: a 9-star photo is invisible to every "n and up" filter), written by its **own statement** so a rating-only patch cannot blank a caption or capture date the caller never mentioned. The star control lives beside Favorite in the viewer, not inside the edit form — a rating is a one-click judgement. Clicking the current rating clears it, or 1 star would be its own one-way door.
+  - **Most of the filter language was unreachable.** The panel exposed `q/type/favorite/from/to`; the server accepted camera, rating, place_city, place_country, tag and album too, and a saved search could carry filters the UI could neither display nor clear. All of them now have controls, the timeline reads filters from the **query string** (so Places tiles link into a filtered grid, which is what mobile has always done — `focusPlace` only panned the map), and the summary line names every active filter.
+  - **Explicit `for`/`id` on every filter control, and the reason is not style.** A `<label>` that *wraps* a `<select>` takes the option text into its own accessible name, so "Rating" was announced as "Rating Any 1★ and up 2★ and up …". `getByLabel('Rating', {exact: true})` failing is what surfaced it.
+  - **External libraries could be added but never removed**, so a mistyped root path was permanent. New `DELETE /api/external-libraries/{id}` removes the library and its indexed rows — **never the files**, which Kuraki does not own and never copied. The rows must go explicitly: `assets.external_library_id` is `ON DELETE SET NULL`, so leaving them would produce orphans indistinguishable from ordinary imports pointing under an untracked root.
+  - **`duplicates.Run` had no json tags**, so it serialized as `ID`/`Status`/`Groups` — the only non-snake_case DTO in the API. Nothing consumed it (the web client typed `run` away entirely, which is why an empty Duplicates page could not distinguish "never scanned" from "scan running" from "none found"), so naming it properly cost nothing.
+  - **A permanent delete in the test suite is a permanent delete.** The Empty-trash e2e test purges a fixture asset, so the library is smaller for every spec that runs after it — `select.spec` asserting a hardcoded 36 passed alone and failed in the full run. Count assertions now read the total off the page. Worth remembering for any future spec: this suite shares one library and runs serially, and only irreversible operations can actually strand it.
+  - **Verified:** `make check` (6 new Go tests), `make check-gen`, `npm run check`, 13 Vitest, **58 Playwright** (1 fixme). **Not done here:** `POST /api/backup/run` and the Places `truncated` flag, both still open from the plan; backup *restore* stays CLI-only by decision — a one-click path that swaps the live data directory does not belong behind a session cookie.
 
 - `test/web-e2e` (2026-08-12) — **A browser rendered this UI for the first time, and it found four real defects in the first hour.**
   - **The suite drives the Go binary, not `vite dev`.** The SPA is served by `internal/httpapi` under a strict CSP with a per-request script nonce, and that is the document production ships; Vite's dev server would exercise a page nobody is served. `web/e2e/server.mjs` seeds a throwaway library and `exec`s `kuraki serve`. Seeding order is load-bearing: `kuraki import` creates the placeholder owner row, and `POST /api/setup` *claims* that row, so importing first and running first-run setup through the UI afterwards leaves the assets owned by the account the tests sign in as. Reversed, you sign in to an empty library.

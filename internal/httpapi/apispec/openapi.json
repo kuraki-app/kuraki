@@ -2098,6 +2098,58 @@
                 }
             }
         },
+        "/api/external-libraries/{id}": {
+            "delete": {
+                "tags": [
+                    "external"
+                ],
+                "summary": "Remove external library",
+                "parameters": [
+                    {
+                        "description": "external library id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/external-libraries/{id}/scan": {
             "post": {
                 "tags": [
@@ -3784,6 +3836,10 @@
                     "gps_lon": {
                         "type": "number"
                     },
+                    "rating": {
+                        "description": "Rating is 0-5, where 0 means unrated. It was filterable and returned on\nevery asset long before anything could set it: only the importer and the\nImmich migration ever wrote the column, so a rating could be searched for\nbut never given.",
+                        "type": "integer"
+                    },
                     "taken_at": {
                         "description": "RFC3339; empty string clears",
                         "type": "string"
@@ -3811,7 +3867,7 @@
                         }
                     },
                     "op": {
-                        "description": "delete | restore | favorite | unfavorite | archive | unarchive | hide | unhide",
+                        "description": "purge is permanent: it deletes the original from disk and the row from the\ndatabase. Every other op is reversible.",
                         "type": "string"
                     }
                 }

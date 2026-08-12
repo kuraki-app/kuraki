@@ -204,6 +204,12 @@
     editLon = asset.gps_lon != null ? String(asset.gps_lon) : '';
     editing = true;
   }
+  /** Clicking the star you are already on clears the rating — otherwise a
+   *  1-star rating would be impossible to undo without an extra control. */
+  function setRating(n: number) {
+    dispatch('patch', { id: asset.id, rating: (asset.rating ?? 0) === n ? 0 : n });
+  }
+
   function saveEdit() {
     const patch: Record<string, unknown> = { id: asset.id, description: editCaption };
     patch.taken_at = editDate ? new Date(editDate).toISOString() : '';
@@ -309,6 +315,27 @@
         <p>{fileSize(asset.size_bytes)} · {asset.width}×{asset.height}</p>
         {#if asset.description}<p class="caption">{asset.description}</p>{/if}
       </div>
+      {#if editable && !trashMode}
+        <!-- Rating was filterable and displayed long before anything could set
+             it — only the importer and the Immich migration ever wrote the
+             column. It lives here rather than inside the edit form because a
+             rating is a one-click judgement, not a field you open a form to
+             change. Clicking the current rating clears it. -->
+        <div class="rating" role="group" aria-label="Rating">
+          {#each [1, 2, 3, 4, 5] as n (n)}
+            <button
+              type="button"
+              class="star"
+              class:on={(asset.rating ?? 0) >= n}
+              aria-label={n === 1 ? '1 star' : `${n} stars`}
+              aria-pressed={(asset.rating ?? 0) === n}
+              on:click={() => setRating(n)}
+            >
+              <Star size={16} fill={(asset.rating ?? 0) >= n ? 'currentColor' : 'none'} />
+            </button>
+          {/each}
+        </div>
+      {/if}
       <div class="actions">
         <button class="act" class:on={asset.favorite} type="button" on:click={() => dispatch('favorite', asset)}>
           <span class="star-icon" class:pop={popStar}>
@@ -596,6 +623,33 @@
     margin-top: 8px;
     color: #e7e0d6;
     font-size: 15px;
+  }
+  .rating {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 10px;
+  }
+  .star {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    /* This panel sits on the constant-in-both-themes --chrome surface, so it
+     * uses the chrome tokens rather than --foreground, like every other control
+     * in the viewer. Unrated stars are --chrome-muted; a set star goes to full
+     * --chrome-text. Deliberately NOT --stamp-foreground, which is the colour of
+     * text ON the stamp fill and is near-black in dark mode — invisible here. */
+    color: var(--chrome-muted);
+    cursor: pointer;
+  }
+  .star:hover {
+    background: var(--chrome-fill);
+  }
+  .star.on {
+    color: var(--chrome-text);
   }
   .actions {
     display: flex;

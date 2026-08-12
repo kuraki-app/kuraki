@@ -1,27 +1,76 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Check, Trash2 } from '@lucide/svelte';
+  import { Check, RefreshCw, Trash2 } from '@lucide/svelte';
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
   import { fileSize } from '$lib/format';
-  import type { DupAsset } from '$lib/types';
+  import type { DupAsset, DuplicateRun } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
+  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+  import { Button } from '$lib/components/ui/button';
 
   let groups: DupAsset[][] = [];
+  let run: DuplicateRun | null = null;
   let loading = true;
+  let scanning = false;
   let selected = new Set<string>();
+  let poll: ReturnType<typeof setInterval> | null = null;
 
-  onMount(load);
+  onMount(() => {
+    load();
+    return () => poll && clearInterval(poll);
+  });
+
   async function load() {
     loading = true;
     selected = new Set();
     try {
-      groups = (await api.duplicates()).groups;
+      const res = await api.duplicates();
+      groups = res.groups;
+      run = res.run;
+      watchRun();
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Failed to load duplicates');
     } finally {
       loading = false;
+    }
+  }
+
+  /** A scan is a background job, so the page follows it rather than showing a
+   *  stale "no duplicates" until the user thinks to reload. */
+  function watchRun() {
+    const active = run?.status === 'queued' || run?.status === 'running';
+    if (active && !poll) {
+      poll = setInterval(async () => {
+        try {
+          const res = await api.duplicates();
+          groups = res.groups;
+          run = res.run;
+          if (run?.status !== 'queued' && run?.status !== 'running') {
+            if (poll) clearInterval(poll);
+            poll = null;
+          }
+        } catch {
+          /* transient: the next tick tries again */
+        }
+      }, 2000);
+    } else if (!active && poll) {
+      clearInterval(poll);
+      poll = null;
+    }
+  }
+
+  async function startScan() {
+    scanning = true;
+    try {
+      await api.runDuplicatesScan();
+      showToast('Duplicate scan started');
+      await load();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Could not start the scan');
+    } finally {
+      scanning = false;
     }
   }
   function toggle(id: string) {
@@ -29,28 +78,54 @@
     next.has(id) ? next.delete(id) : next.add(id);
     selected = next;
   }
+  let confirmOpen = false;
+  let removing = false;
   async function remove() {
-    if (selected.size === 0) return;
-    if (!confirm(`Move ${selected.size} selected ${selected.size === 1 ? 'copy' : 'copies'} to trash?`)) return;
+    removing = true;
     try {
       await api.batch('delete', [...selected]);
       showToast(`Moved ${selected.size} to trash`);
+      confirmOpen = false;
       await load();
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Delete failed');
+    } finally {
+      removing = false;
     }
   }
 
   $: total = groups.reduce((n, g) => n + g.length, 0);
+  $: scanRunning = run?.status === 'queued' || run?.status === 'running';
 </script>
 
 <PageHeader
   title="Duplicates"
   subtitle="Visually identical copies — nothing is removed until you choose. The largest is listed first."
-/>
+>
+  <Button variant="outline" disabled={scanning || scanRunning} onclick={startScan}>
+    <RefreshCw size={16} aria-hidden="true" />
+    {scanRunning ? 'Scanning' : 'Run scan'}
+  </Button>
+</PageHeader>
 
 {#if loading}
   <p class="muted">Loading…</p>
+{:else if scanRunning}
+  <!-- An empty page during a scan used to be indistinguishable from an empty
+       page after one. The run has always been in the response; the client
+       typed it away. -->
+  <p class="summary" role="status">
+    Scanning the library… {run?.processed ?? 0} of {run?.total ?? 0} checked
+    {#if (run?.group_count ?? 0) > 0}· {run?.group_count} groups so far{/if}
+  </p>
+{:else if run?.status === 'error'}
+  <EmptyState title="The last duplicate scan failed">
+    <p>{run.error || 'No further detail was recorded.'}</p>
+  </EmptyState>
+{:else if !run}
+  <EmptyState title="No duplicate scan has run yet">
+    <p>Scanning compares every photo in the library, so it is a deliberate step rather than something that happens on import.</p>
+  </EmptyState>
 {:else if groups.length === 0}
   <EmptyState title="No duplicates found" />
 {:else}
@@ -73,12 +148,23 @@
 {/if}
 
 {#if selected.size > 0}
-  <div class="bar" role="toolbar">
+  <div class="bar" role="toolbar" aria-label="Duplicate actions">
     <span>{selected.size} selected</span>
-    <button type="button" class="del" on:click={remove}><Trash2 size={16} /> Move to trash</button>
+    <button type="button" class="del" on:click={() => (confirmOpen = true)}>
+      <Trash2 size={16} /> Move to trash
+    </button>
     <button type="button" class="clear" on:click={() => (selected = new Set())}>Clear</button>
   </div>
 {/if}
+
+<ConfirmDialog
+  bind:open={confirmOpen}
+  title="Move {selected.size} {selected.size === 1 ? 'copy' : 'copies'} to trash?"
+  body="They stay recoverable in the trash until the retention window elapses."
+  confirmLabel="Move to trash"
+  busy={removing}
+  onconfirm={remove}
+/>
 
 <style>
   .muted {
