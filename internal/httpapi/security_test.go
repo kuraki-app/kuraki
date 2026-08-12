@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -82,5 +83,51 @@ func TestSameOriginWrites(t *testing.T) {
 	h.ServeHTTP(allowedRec, allowed)
 	if allowedRec.Code != http.StatusNoContent {
 		t.Fatalf("same-origin status = %d, want 204", allowedRec.Code)
+	}
+}
+
+// TestMapTileHostIsPermitted proves the CSP admits whatever tile host the web
+// client actually asks for.
+//
+// This is checked against the web source rather than against a constant, because
+// the failure it guards is a *disagreement* between two files that nothing
+// otherwise connects. Places shipped requesting tiles from openstreetmap.org
+// while img-src was 'self' data: blob:, so the browser blocked every tile and
+// the map rendered as bare grey with clusters floating on it — for every user,
+// from the day it shipped. Neither `go test` nor `svelte-check` nor a clean
+// `npm run build` can see that; only a browser can, and the project had none.
+//
+// Changing the tile provider in the Svelte file without widening the CSP now
+// fails here instead of silently blanking the map.
+func TestMapTileHostIsPermitted(t *testing.T) {
+	const places = "../../web/src/routes/places/+page.svelte"
+	src, err := os.ReadFile(places)
+	if err != nil {
+		t.Skipf("web source not available: %v", err)
+	}
+
+	m := regexp.MustCompile(`L\.tileLayer\(\s*'https://([^/']+)`).FindSubmatch(src)
+	if m == nil {
+		// The map may have been rewritten (see the leaflet/MapLibre split noted
+		// in the audit). Failing loudly is right: this test's premise is gone.
+		t.Fatalf("no L.tileLayer('https://…') found in %s — update this test alongside the map", places)
+	}
+
+	// Leaflet's {s} placeholder expands to per-subdomain hosts, so compare on the
+	// registrable part rather than the literal template.
+	host := strings.TrimPrefix(string(m[1]), "{s}.")
+	csp := contentSecurityPolicy("")
+
+	imgSrc := ""
+	for _, directive := range strings.Split(csp, ";") {
+		if d := strings.TrimSpace(directive); strings.HasPrefix(d, "img-src ") {
+			imgSrc = d
+		}
+	}
+	if imgSrc == "" {
+		t.Fatalf("CSP has no img-src directive: %q", csp)
+	}
+	if !strings.Contains(imgSrc, host) {
+		t.Fatalf("map requests tiles from %q but img-src does not permit it: %q", host, imgSrc)
 	}
 }

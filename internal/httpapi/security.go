@@ -8,6 +8,22 @@ import (
 	"strings"
 )
 
+// mapTileHost is the only third-party origin the app is permitted to load from.
+//
+// The Places map draws its basemap from OpenStreetMap's tile servers (see
+// web/src/routes/places/+page.svelte), which the `{s}` placeholder spreads over
+// a.*, b.* and c.*. Without this in img-src the browser blocks every tile and
+// the map renders as bare grey with the clusters floating on it — which is what
+// it did, for every user, from the day Places shipped.
+//
+// This is a deliberate and narrow exception to an otherwise self-only policy: a
+// single host, images only. It does mean a browser viewing Places reveals the
+// approximate area being looked at to openstreetmap.org. The project already
+// accepts that trade on mobile, where the map draws from OpenFreeMap. Serving
+// tiles from the Kuraki host instead would remove the exception entirely and is
+// the better long-term answer.
+const mapTileHost = "https://*.tile.openstreetmap.org"
+
 // contentSecurityPolicy returns the app's CSP. With an empty nonce the script
 // source is the plain `script-src 'self'` used for every response. The SPA
 // document (see spaHandler) passes a per-request nonce so SvelteKit's inline
@@ -19,7 +35,7 @@ func contentSecurityPolicy(scriptNonce string) string {
 		script = "script-src 'self' 'nonce-" + scriptNonce + "'"
 	}
 	return "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'; " +
-		"img-src 'self' data: blob:; media-src 'self' blob:; object-src 'none'; " +
+		"img-src 'self' data: blob: " + mapTileHost + "; media-src 'self' blob:; object-src 'none'; " +
 		"style-src 'self' 'unsafe-inline'; " + script
 }
 
