@@ -3,6 +3,7 @@
   import { Search, X, SlidersHorizontal, CalendarDays, Bookmark, Trash2 } from '@lucide/svelte';
   import LibraryView from '$lib/components/LibraryView.svelte';
   import FilterChip from '$lib/components/FilterChip.svelte';
+  import SegmentedControl from '$lib/components/SegmentedControl.svelte';
   import IconButton from '$lib/components/IconButton.svelte';
   import { api, type SearchParams } from '$lib/api';
   import { showToast } from '$lib/stores';
@@ -14,6 +15,12 @@
   let favorite = false;
   let from = '';
   let to = '';
+  const MEDIA_TYPES = [
+    { value: '' as const, label: 'All' },
+    { value: 'image' as const, label: 'Photos' },
+    { value: 'video' as const, label: 'Videos' }
+  ];
+
   let showFilters = false;
   let jumpDate = '';
   // The rest of the server's filter language. `parseAssetFilters` has always
@@ -291,10 +298,17 @@
 
 {#if showFilters}
   <div class="panel">
+    <!-- Media type is three mutually exclusive options, so it is a segmented
+         control. Favorites is an independent toggle and stays a chip — the two
+         were built from the same pill and read as one row of four equal
+         choices, which is not what they are. -->
+    <SegmentedControl
+      label="Media type"
+      options={MEDIA_TYPES}
+      value={type}
+      onchange={(v) => { type = v; apply(); }}
+    />
     <div class="chips">
-      <FilterChip active={type === ''} onclick={() => { type = ''; apply(); }}>All</FilterChip>
-      <FilterChip active={type === 'image'} onclick={() => { type = 'image'; apply(); }}>Photos</FilterChip>
-      <FilterChip active={type === 'video'} onclick={() => { type = 'video'; apply(); }}>Videos</FilterChip>
       <FilterChip active={favorite} onclick={() => { favorite = !favorite; apply(); }}>Favorites</FilterChip>
     </div>
     <!-- Explicit for/id throughout rather than wrapping labels. A <label> that

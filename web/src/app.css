@@ -91,6 +91,30 @@
   --shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
   --shadow-strong: 0 12px 34px rgba(0, 0, 0, 0.26);
 
+  /* ---- Breakpoints ------------------------------------------------------
+   *
+   * ONE seam: 820px. Below it the sidebar is replaced by MobileNav's tab bar,
+   * and every component that reflows does so at the same width.
+   *
+   * This is a comment and not a custom property because a media query cannot
+   * read one — `@media (max-width: var(--bp-mobile))` is not valid CSS. Each
+   * component therefore writes `820px` literally, and this block is where the
+   * number is agreed.
+   *
+   *   820px  the seam. Sidebar ↔ tab bar, PageHeader, LibraryView, BatchBar,
+   *          ScrollScrubber, AssetGrid tile sizing, the Viewer panel, and the
+   *          settings rail. MobileNav hides itself with `min-width: 821px`.
+   *   640px  a second, narrower reflow for the two places a single column is
+   *          not enough on its own: SettingRow and the users table.
+   *   320px  the floor (`body { min-width }`).
+   *
+   * AssetGrid used to retile at 780 while its own header, scrubber and batch
+   * bar moved at 820, so 780–820px rendered a page that was half mobile: the
+   * tiles had already narrowed and nothing around them had. AssetGrid also
+   * mirrors the seam in JS as NARROW_MAX, because its spacer height estimate
+   * has to know which tile size the CSS is about to use.
+   */
+
   /* Motion scale. Kura settles; Vault is crisp. Durations scale with how far
    * and how large the thing that moves is. These live in plain :root (not
    * @theme inline) because component <style> blocks read them via var() —

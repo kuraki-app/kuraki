@@ -66,7 +66,7 @@
     background: var(--accent);
     color: var(--foreground);
   }
-  @media (max-width: 780px) {
+  @media (max-width: 820px) {
     .settings-shell {
       grid-template-columns: 1fr;
     }

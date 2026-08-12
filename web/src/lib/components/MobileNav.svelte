@@ -4,6 +4,7 @@
   import { Menu, Upload, LogOut, Monitor, Sun, Moon } from '@lucide/svelte';
   import { setMode, userPrefersMode } from 'mode-watcher';
   import { MOBILE_TABS, NAV_GROUPS, isActive } from '$lib/nav';
+  import SegmentedControl from './SegmentedControl.svelte';
 
   // The sidebar is hidden below 820px, so the sheet is the only place Upload,
   // theme and sign-out remain reachable on mobile. The layout owns the file
@@ -107,19 +108,13 @@
         <Upload size={18} aria-hidden="true" />
         <span>Upload</span>
       </button>
-      <div class="theme" role="group" aria-label="Theme">
-        {#each modes as mode (mode.value)}
-          <button
-            type="button"
-            class:on={userPrefersMode.current === mode.value}
-            aria-pressed={userPrefersMode.current === mode.value}
-            on:click={() => setMode(mode.value)}
-          >
-            <svelte:component this={mode.icon} size={16} aria-hidden="true" />
-            <span>{mode.label}</span>
-          </button>
-        {/each}
-      </div>
+      <SegmentedControl
+        label="Theme"
+        options={modes}
+        fill
+        value={userPrefersMode.current}
+        onchange={(v) => setMode(v)}
+      />
       <button
         type="button"
         class="sheet-action"
@@ -202,33 +197,6 @@
     font-weight: 500;
     text-align: left;
     cursor: pointer;
-  }
-  .theme {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
-    gap: 4px;
-    margin: 4px 0;
-  }
-  .theme button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 9px 6px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: none;
-    color: var(--text-dim);
-    font: inherit;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-  }
-  .theme button.on {
-    border-color: var(--stamp);
-    background: var(--accent);
-    color: var(--foreground);
   }
 
   /* Mirror of the layout's 820px breakpoint, inverted: above it the sidebar is
