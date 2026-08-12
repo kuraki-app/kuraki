@@ -6,6 +6,7 @@
   import { showToast } from '$lib/stores';
   import type { Album } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import PromptDialog from '$lib/components/PromptDialog.svelte';
   import EmptyState from '$lib/components/EmptyState.svelte';
   import { Button } from '$lib/components/ui/button';
 
@@ -23,20 +24,28 @@
       loading = false;
     }
   }
-  async function create() {
-    const name = prompt('Album name');
-    if (!name || !name.trim()) return;
+  let createOpen = false;
+  let newName = '';
+  let creating = false;
+  async function create(name: string) {
+    creating = true;
     try {
-      const album = await api.createAlbum(name.trim());
+      const album = await api.createAlbum(name);
+      createOpen = false;
+      newName = '';
       goto(`/albums/${album.id}`);
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Create failed');
+    } finally {
+      creating = false;
     }
   }
 </script>
 
 <PageHeader title="Albums" subtitle={`${albums.length} ${albums.length === 1 ? 'album' : 'albums'}`}>
-  <Button onclick={create}><Plus size={16} aria-hidden="true" /> New album</Button>
+  <Button onclick={() => ((newName = ''), (createOpen = true))}>
+    <Plus size={16} aria-hidden="true" /> New album
+  </Button>
 </PageHeader>
 
 {#if loading}
@@ -90,3 +99,14 @@
     font-size: 13px;
   }
 </style>
+
+<PromptDialog
+  bind:open={createOpen}
+  bind:value={newName}
+  title="New album"
+  label="Album name"
+  placeholder="e.g. Kyoto, spring"
+  confirmLabel="Create"
+  busy={creating}
+  onsubmit={create}
+/>

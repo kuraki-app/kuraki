@@ -2,12 +2,18 @@
   import { createEventDispatcher } from 'svelte';
   import { fly } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
-  import { Star, Trash2, Download, FolderPlus, FolderMinus, RotateCcw, X, Archive, EyeOff, CheckCheck } from '@lucide/svelte';
+  import { Star, Trash2, Download, FolderPlus, FolderMinus, RotateCcw, X, Archive, ArchiveRestore, Eye, EyeOff, CheckCheck, Clock, Flame } from '@lucide/svelte';
   import { prefersReducedMotion } from '$lib/motion';
 
   export let count = 0;
   export let trashMode = false;
   export let albumMode = false;
+  /** Viewing the archive: offer the way back out, not the way further in.
+   *  Archive and Hidden were one-way doors on web — the server has supported
+   *  `unarchive`/`unhide` since batch ops existed and nothing ever called them,
+   *  so a photo put here from the timeline could not be got back. */
+  export let archiveMode = false;
+  export let hiddenMode = false;
   /** How many are selectable in total, so Select all can flip to Clear once
    *  everything is already chosen. Omitted where the total is unknown. */
   export let total = 0;
@@ -36,10 +42,25 @@
       {/if}
       {#if trashMode}
         <button type="button" on:click={() => dispatch('restore')}><RotateCcw size={16} /> Restore</button>
+        <!-- The trash had no way to empty itself: `DELETE /api/trash/{id}` has
+             always existed and only the phone app called it, so a web user could
+             never reclaim disk space before the retention window elapsed. -->
+        <button class="danger" type="button" on:click={() => dispatch('purge')}>
+          <Flame size={16} /> Delete forever
+        </button>
       {:else}
         <button type="button" on:click={() => dispatch('favorite')}><Star size={16} /> Favorite</button>
-        <button type="button" on:click={() => dispatch('archive')}><Archive size={16} /> Archive</button>
-        <button type="button" on:click={() => dispatch('hide')}><EyeOff size={16} /> Hide</button>
+        {#if archiveMode}
+          <button type="button" on:click={() => dispatch('unarchive')}><ArchiveRestore size={16} /> Unarchive</button>
+        {:else if !hiddenMode}
+          <button type="button" on:click={() => dispatch('archive')}><Archive size={16} /> Archive</button>
+        {/if}
+        {#if hiddenMode}
+          <button type="button" on:click={() => dispatch('unhide')}><Eye size={16} /> Unhide</button>
+        {:else if !archiveMode}
+          <button type="button" on:click={() => dispatch('hide')}><EyeOff size={16} /> Hide</button>
+        {/if}
+        <button type="button" on:click={() => dispatch('shiftTime')}><Clock size={16} /> Shift time</button>
         {#if albumMode}
           <button type="button" on:click={() => dispatch('albumRemove')}><FolderMinus size={16} /> Remove</button>
         {:else}
@@ -116,7 +137,7 @@
   @media (max-width: 820px) {
     .bar {
       bottom: calc(70px + env(safe-area-inset-bottom, 0));
-      /* Six actions need ~733px; a phone gives ~366. `overflow-x: auto` alone
+      /* Seven actions need well over 733px; a phone gives ~366. `overflow-x: auto` alone
        * left half of them — Download and Delete included — behind a horizontal
        * scroll with no visible affordance, so on a phone they may as well not
        * exist. Wrap to as many rows as it takes instead: the bar is transient

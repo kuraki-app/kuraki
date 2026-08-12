@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
-  import { showToast } from '$lib/stores';
+  import { bumpLibrary, showToast } from '$lib/stores';
   import type { SettingInfo, ExternalLibrary } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import SettingRow from '$lib/components/SettingRow.svelte';
+  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
   import { Input } from '$lib/components/ui/input';
   import { Button } from '$lib/components/ui/button';
 
@@ -95,6 +96,34 @@
     }
   }
 
+  let removeTarget: ExternalLibrary | null = null;
+  let removeOpen = false;
+  let removingLibrary = false;
+
+  function askRemove(lib: ExternalLibrary) {
+    removeTarget = lib;
+    removeOpen = true;
+  }
+
+  async function removeLibrary() {
+    if (!removeTarget) return;
+    removingLibrary = true;
+    try {
+      const { removed } = await api.deleteExternalLibrary(removeTarget.id);
+      showToast(`Removed ${removeTarget.name} · ${removed} indexed items forgotten`);
+      removeOpen = false;
+      removeTarget = null;
+      await loadLibraries();
+      // The library's assets are gone from the timeline too, so anything showing
+      // a list needs to reload rather than keep rows that no longer exist.
+      bumpLibrary();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Could not remove the library');
+    } finally {
+      removingLibrary = false;
+    }
+  }
+
   async function scanDuplicates() {
     scanningDuplicates = true;
     try {
@@ -146,7 +175,7 @@
 {:else}
   <section class="group">
     <h2>About</h2>
-    <SettingRow id="version" label="Version" status="none">
+    <SettingRow id="version" kind="static" label="Version" status="none">
       <code>{version}</code>
     </SettingRow>
   </section>
@@ -174,6 +203,7 @@
       >
         <div class="num">
           <Input
+            id={s.key}
             type={s.secret ? 'password' : s.type === 'int' ? 'number' : 'text'}
             placeholder={s.secret && s.is_set ? '••••••••' : ''}
             disabled={s.pinned_by_env}
@@ -222,6 +252,9 @@
             <Button variant="outline" size="sm" disabled={scanningLibrary[lib.id]} onclick={() => rescan(lib)}>
               {scanningLibrary[lib.id] ? 'Scanning…' : 'Rescan'}
             </Button>
+            <!-- There was no DELETE route at all, so a mistyped root path was
+                 permanent from the UI. -->
+            <Button variant="outline" size="sm" onclick={() => askRemove(lib)}>Remove</Button>
           </li>
         {/each}
       </ul>
@@ -235,6 +268,16 @@
     </div>
   </section>
 {/if}
+
+<ConfirmDialog
+  bind:open={removeOpen}
+  title="Remove {removeTarget?.name ?? ''}?"
+  body="Kuraki forgets this library and its {removeTarget?.asset_count ?? 0} indexed items. The files themselves are never touched — Kuraki does not own them and never copied them, so nothing is deleted from {removeTarget?.root_path ?? 'disk'}."
+  confirmLabel="Remove library"
+  destructive
+  busy={removingLibrary}
+  onconfirm={removeLibrary}
+/>
 
 <style>
   .muted {

@@ -3,6 +3,8 @@
   import { goto } from '$app/navigation';
   import { Pencil, Trash2, ArrowLeft, ImagePlus } from '@lucide/svelte';
   import LibraryView from '$lib/components/LibraryView.svelte';
+  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+  import PromptDialog from '$lib/components/PromptDialog.svelte';
   import AlbumPhotoPicker from '$lib/components/AlbumPhotoPicker.svelte';
   import { Button } from '$lib/components/ui/button';
   import { api } from '$lib/api';
@@ -66,23 +68,37 @@
       name = 'Album';
     }
   }
-  async function rename() {
-    const next = prompt('Album name', name);
-    if (!next || !next.trim()) return;
+  let renameOpen = false;
+  let renameValue = '';
+  let renaming = false;
+  function askRename() {
+    renameValue = name;
+    renameOpen = true;
+  }
+  async function rename(next: string) {
+    renaming = true;
     try {
-      await api.renameAlbum(id, next.trim());
-      name = next.trim();
+      await api.renameAlbum(id, next);
+      name = next;
+      renameOpen = false;
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Rename failed');
+    } finally {
+      renaming = false;
     }
   }
+
+  let removeOpen = false;
+  let removing = false;
   async function remove() {
-    if (!confirm('Delete this album? Your photos are not deleted.')) return;
+    removing = true;
     try {
       await api.deleteAlbum(id);
       goto('/albums');
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Delete failed');
+    } finally {
+      removing = false;
     }
   }
 </script>
@@ -101,8 +117,8 @@
       <Button variant="outline" onclick={openPicker}>
         <ImagePlus size={15} aria-hidden="true" /> Add photos
       </Button>
-      <Button variant="outline" onclick={rename}><Pencil size={15} aria-hidden="true" /> Rename</Button>
-      <Button variant="outline" class="text-destructive hover:text-destructive" onclick={remove}>
+      <Button variant="outline" onclick={askRename}><Pencil size={15} aria-hidden="true" /> Rename</Button>
+      <Button variant="outline" class="text-destructive hover:text-destructive" onclick={() => (removeOpen = true)}>
         <Trash2 size={15} aria-hidden="true" /> Delete
       </Button>
     </div>
@@ -116,3 +132,23 @@
     on:add={(e) => addPhotos(e.detail)}
   />
 {/if}
+
+<PromptDialog
+  bind:open={renameOpen}
+  bind:value={renameValue}
+  title="Rename album"
+  label="Album name"
+  confirmLabel="Rename"
+  busy={renaming}
+  onsubmit={rename}
+/>
+
+<ConfirmDialog
+  bind:open={removeOpen}
+  title="Delete this album?"
+  body="The album is removed. Your photos stay in the library — an album is only a grouping."
+  confirmLabel="Delete album"
+  destructive
+  busy={removing}
+  onconfirm={remove}
+/>

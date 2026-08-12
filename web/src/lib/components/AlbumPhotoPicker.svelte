@@ -4,6 +4,7 @@
   import type { Asset } from '$lib/types';
   import { api } from '$lib/api';
   import { Button } from '$lib/components/ui/button';
+  import { trapFocus } from '$lib/focus';
 
   /**
    * AlbumPhotoPicker adds photos to an album from inside the album.
@@ -82,7 +83,7 @@
 <svelte:window on:keydown={onKeydown} />
 
 <div class="backdrop" role="presentation" on:click|self={() => dispatch('close')}>
-  <div class="panel" role="dialog" aria-modal="true" aria-label="Add photos to album">
+  <div class="panel" role="dialog" aria-modal="true" aria-label="Add photos to album" tabindex="-1" use:trapFocus>
     <header>
       <button class="icon" type="button" on:click={() => dispatch('close')} aria-label="Close">
         <X size={18} />

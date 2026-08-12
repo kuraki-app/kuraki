@@ -3,4 +3,10 @@
   import { api } from '$lib/api';
 </script>
 
-<LibraryView load={(cursor) => api.archived(cursor)} title="Archive" subtitle="Archived items stay private and out of your timeline" emptyText="Your archive is empty" />
+<LibraryView
+  load={(cursor) => api.archived(cursor)}
+  title="Archive"
+  subtitle="Archived items stay private and out of your timeline"
+  archiveMode
+  emptyText="Your archive is empty"
+/>

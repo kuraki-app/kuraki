@@ -1,0 +1,20 @@
+{
+  "name": "kuraki-site",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "check-tokens": "node scripts/check-tokens.mjs",
+    "check-fonts": "node scripts/check-fonts.mjs"
+  },
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "dependencies": {
+    "@astrojs/sitemap": "^3.7.3",
+    "astro": "^7.2.1",
+    "marked": "^18.0.9"
+  },
+  "private": true
+}

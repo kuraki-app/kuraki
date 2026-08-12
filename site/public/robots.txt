@@ -1,0 +1,26 @@
+# Kuraki — https://github.com/kuraki-app/kuraki
+#
+# Crawling is closed on purpose while the site is served from its temporary
+# *.pages.dev address.
+#
+# The canonical origin now comes from ONE place: `site` in astro.config.mjs
+# (overridable at build time with SITE_URL). Every canonical link, og:url,
+# og:image and the generated sitemap derive from it, so the mismatch this file
+# used to describe — a page declaring an unregistered kuraki.app as canonical
+# while served from pages.dev — can no longer happen by editing one page and
+# forgetting another.
+#
+# WHEN kuraki.app IS REGISTERED AND BOUND TO THIS PAGES PROJECT:
+#
+#   1. Set SITE_URL=https://kuraki.app for the production build (or change the
+#      default in astro.config.mjs).
+#   2. Replace the two lines below with:
+#
+#          Allow: /
+#          Sitemap: https://kuraki.app/sitemap-index.xml
+#
+# The sitemap is already generated on every build by @astrojs/sitemap; it is
+# simply not advertised while crawling is closed.
+
+User-agent: *
+Disallow: /

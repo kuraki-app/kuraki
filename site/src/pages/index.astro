@@ -1,0 +1,220 @@
+---
+// The landing page. Markup and copy carried over from the hand-written
+// index.html unchanged — this conversion is about giving the site a second page,
+// not about rewriting the argument it makes.
+import Base from '../layouts/Base.astro';
+---
+
+<Base
+  title="Kuraki — Self-hosted photo & video backup you own"
+  ogTitle="Kuraki — Bring your memories home"
+  description="Bring your memories home. Kuraki is an open-source, self-hosted photo & video backup with a Google-Photos-style library — a fast timeline, search, places, and albums — over originals kept intact on your own server, in plain folders, with zero lock-in."
+  anchorNav
+>
+<main id="top">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="tag">蔵 · Kura — a storehouse for memories</span>
+        <h1>Bring your <span class="warm">memories</span> home.</h1>
+        <p class="lede">The photos you love, on a server you own — kept intact, filed in plain folders, and yours to keep forever. A beautiful library, zero lock-in.</p>
+        <div class="hero-cta">
+          <a class="btn btn-stamp" href="#how">Deploy in minutes →</a>
+          <a class="btn btn-ghost" href="https://github.com/kuraki-app/kuraki" rel="noopener">★ Star on GitHub</a>
+        </div>
+        <p class="hero-trust"><b>Open source</b> · Self-hosted · <b>AGPL-3.0</b> · one small binary</p>
+      </div>
+
+      <div class="sheet reveal" aria-hidden="true">
+        <div class="tile t1"><span class="cap">2019 · Kyoto</span></div>
+        <div class="tile t2"><span class="cap">2021 · home</span></div>
+        <div class="tile t3"><span class="cap">2018 · coast</span><svg class="stamp-seal" style="color:#fff"><use href="#stamp"/></svg></div>
+        <div class="tile t4"><span class="cap">2020 · rain</span></div>
+        <div class="tile t5"><span class="cap">2022 · trip</span></div>
+        <div class="tile t6"><span class="cap">2017 · dusk</span></div>
+        <div class="tile t7"><span class="cap">2023 · garden</span></div>
+        <div class="tile t8"><span class="cap">2016 · gold</span></div>
+        <div class="tile t9"><span class="cap">2024 · you</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- THE TURN: anxiety → relief -->
+  <section class="turn">
+    <div class="wrap">
+      <p>
+        <span class="muted">Right now, your whole life in photographs lives on someone else's computer — scanned, rented, one policy change from gone.</span>
+        <span class="relief">Kuraki brings it <b>home.</b></span>
+      </p>
+    </div>
+  </section>
+
+  <!-- THE PRODUCT, ACTUALLY SHOWN -->
+  <section class="band" id="screens">
+    <div class="wrap">
+      <div class="band-head">
+        <span class="tag">The real thing</span>
+        <h2>This is the whole app.</h2>
+        <p>Not a mockup — Kuraki running against a library, in a browser and on a phone.</p>
+      </div>
+      <div class="screens">
+        <figure class="screen-desk">
+          <img src="/shots/timeline.webp" width="2200" height="1375" loading="lazy" decoding="async"
+               alt="Kuraki's web timeline: photographs grouped by day in a gapless grid, with a sidebar for Favorites, Albums, On this day, Places and Tags." />
+        </figure>
+        <figure class="screen-phone">
+          <img src="/shots/phone.webp" width="700" height="1515" loading="lazy" decoding="async"
+               alt="Kuraki on a phone: the same day-grouped timeline in three columns, with a bottom tab bar." />
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- PILLARS -->
+  <section class="band">
+    <div class="wrap">
+      <div class="band-head">
+        <span class="tag">Why Kuraki</span>
+        <h2>Own it. Find it. Keep it forever.</h2>
+        <p>The comfort of a modern photo app, without handing your memories to a company that can lose them, mine them, or lock you out.</p>
+      </div>
+      <div class="pillars">
+        <div class="pillar rise">
+          <svg class="glyph" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 4l14 6v9c0 9-6 15-14 17C12 34 6 28 6 19v-9z"/><path d="M14 20l4 4 8-8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <h3>Own it</h3>
+          <p>Your originals are written once and never touched again, filed under a plain <code>originals/YYYY/MM/</code> tree you can open in any file browser. No database prison. Walk away with everything, anytime.</p>
+        </div>
+        <div class="pillar rise">
+          <svg class="glyph" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="18" cy="18" r="12"/><path d="M27 27l8 8" stroke-linecap="round"/></svg>
+          <h3>Find it</h3>
+          <p>A fast, day-grouped timeline that stays smooth at tens of thousands of photos. Search by place, date, camera, or tag. Wander a map of where you've been. Rediscover today, years ago.</p>
+        </div>
+        <div class="pillar rise">
+          <svg class="glyph" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="6" y="8" width="28" height="24" rx="3"/><path d="M6 27l7-7 5 5 8-9 8 8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="15" cy="16" r="2.2"/></svg>
+          <h3>Keep it forever</h3>
+          <p>Boring on purpose. Every upgrade snapshots your database first, duplicates are caught automatically, and <code>verify</code> re-checks every file for rot. Memories deserve boring.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="band" id="features">
+    <div class="wrap">
+      <div class="band-head">
+        <span class="tag">The library</span>
+        <h2>Everything a photo app should do — quietly.</h2>
+        <p>A Google-Photos-style experience over a library that answers to no one but you.</p>
+      </div>
+      <div class="shelf">
+        <article class="feat rise"><span class="tag">Timeline</span><h3>A smooth, endless scroll</h3><p>Day- and month-grouped, virtualized so it stays fluid whether you have 500 photos or 500,000.</p></article>
+        <article class="feat rise"><span class="tag">Viewer</span><h3>Full-screen, keyboard-fast</h3><p>An EXIF panel, in-browser video with seek, and one-click download of the untouched original.</p></article>
+        <article class="feat rise"><span class="tag">Search</span><h3>Find any moment</h3><p>Filename, date range, media type, camera, place, and tags — full-text and instant. Save a search you run often.</p></article>
+        <article class="feat rise"><span class="tag">Places</span><h3>A map of where you've been</h3><p>Geotagged photos clustered on a map, with reverse-geocoding done <em>offline</em> — no location ever leaves your server.</p></article>
+        <article class="feat rise"><span class="tag">Albums · Memories</span><h3>Gather &amp; resurface</h3><p>Hand-made albums, plus an "on this day" view that quietly brings back the moments you'd forgotten.</p></article>
+        <article class="feat rise"><span class="tag">Tags · Ratings</span><h3>Shape your library</h3><p>Tag and rate photos, archive the clutter, and hide what you don't want in the timeline.</p></article>
+        <article class="feat wide rise">
+          <div>
+            <span class="tag">iOS &amp; Android</span>
+            <h3 style="font-size:23px">Camera-roll backup, from your pocket</h3>
+            <p>Pair the app to your server with a revocable token and every new photo backs itself up automatically — restart- and network-safe, resumable, and honest about anything that still needs attention. Browse, tag, and tidy your whole library on the phone, even offline.</p>
+          </div>
+          <div class="phone" aria-hidden="true"><div class="pg">
+            <span class="t1"></span><span class="t4"></span><span class="t2"></span><span class="t8"></span><span class="t3"></span><span class="t6"></span><span class="t5"></span><span class="t7"></span><span class="t9"></span>
+          </div></div>
+        </article>
+        <article class="feat rise"><span class="tag">Duplicates</span><h3>Tidy, never destructive</h3><p>A resumable, whole-library scan groups near-identical copies for you to resolve. Nothing is ever deleted on its own.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW -->
+  <section class="band" id="how">
+    <div class="wrap">
+      <div class="band-head">
+        <span class="tag">Get running</span>
+        <h2>Home in three steps.</h2>
+        <p>One process, one port. Point a domain at it when you're ready to reach it from anywhere.</p>
+      </div>
+      <div class="steps">
+        <div class="step rise"><div class="n">STEP 01</div><h3>Run the server</h3><p>One container (ffmpeg and image decoding bundled) or a single static binary. Zero config to start.</p></div>
+        <div class="step rise"><div class="n">STEP 02</div><h3>Point your phone</h3><p>Scan the pairing QR from the Devices page. Automatic camera-roll backup begins in the background.</p></div>
+        <div class="step rise"><div class="n">STEP 03</div><h3>Your memories, home</h3><p>Import old libraries and Google Takeout too — capture dates, places, and captions all survive the move.</p></div>
+      </div>
+      <div class="code rise" role="img" aria-label="Docker run command to start Kuraki on port 3000">
+        <span class="c"># bring it up on :3000 — API, media, and web UI from one origin</span><br/>
+        <span class="k">docker</span> run -d -p 3000:3000 -v <span class="k">kuraki-data</span>:/data ghcr.io/kuraki-app/kuraki
+      </div>
+    </div>
+  </section>
+
+  <!-- OWN IT (vault) -->
+  <section class="wrap" id="own">
+    <div class="vault">
+      <div class="vault-grid">
+        <div>
+          <span class="tag">No lock-in</span>
+          <h2>The exit is always open.</h2>
+          <p>Lock-in is how the cloud keeps you. Kuraki is built to be left — because a home you can't leave isn't really yours.</p>
+          <ul>
+            <li><svg><use href="#check"/></svg><span>Originals are byte-for-byte the files you imported — no re-encoding, no proprietary blobs.</span></li>
+            <li><svg><use href="#check"/></svg><span>The database stores <em>pointers</em>, never your photos. Delete Kuraki and your originals are still right there.</span></li>
+            <li><svg><use href="#check"/></svg><span>AGPL-3.0, open source. Read every line, run it forever, fork it if we ever disappear.</span></li>
+          </ul>
+        </div>
+        <div class="tree" aria-hidden="true">
+          <b>kuraki-data/</b><br/>
+          ├─ <b>originals/</b><br/>
+          │&nbsp;&nbsp;└─ <b>2024/</b><br/>
+          │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ <b>07/</b><br/>
+          │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├─ IMG_4821.jpg&nbsp;&nbsp;<span class="stamp-w">✦ yours</span><br/>
+          │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ IMG_4822.heic<br/>
+          ├─ derivatives/&nbsp;&nbsp;thumbnails<br/>
+          └─ kuraki.db&nbsp;&nbsp;pointers only
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VERSUS -->
+  <section class="band">
+    <div class="wrap">
+      <div class="band-head">
+        <span class="tag">The honest comparison</span>
+        <h2>The warmth of the cloud, without the leash.</h2>
+      </div>
+      <div class="versus">
+        <div class="vcard them rise">
+          <h3>The big-cloud way</h3>
+          <div class="vrow"><svg style="color:var(--ink-3)"><use href="#x"/></svg>Your photos live on their servers, under their rules.</div>
+          <div class="vrow"><svg style="color:var(--ink-3)"><use href="#x"/></svg>Scanned for ads and AI; an account lock can erase years.</div>
+          <div class="vrow"><svg style="color:var(--ink-3)"><use href="#x"/></svg>"Storage full." Prices rise. Free tiers vanish.</div>
+          <div class="vrow"><svg style="color:var(--ink-3)"><use href="#x"/></svg>Export is an afterthought, if it exists at all.</div>
+        </div>
+        <div class="vcard us rise">
+          <h3>The Kuraki way</h3>
+          <div class="vrow"><svg style="color:var(--stamp)"><use href="#check"/></svg>Your photos live on hardware you own and control.</div>
+          <div class="vrow"><svg style="color:var(--stamp)"><use href="#check"/></svg>Nothing leaves your server. No scanning, ever.</div>
+          <div class="vrow"><svg style="color:var(--stamp)"><use href="#check"/></svg>Storage is your disk. Grow it whenever you like.</div>
+          <div class="vrow"><svg style="color:var(--stamp)"><use href="#check"/></svg>Your originals are always right there, in plain folders.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="final">
+    <div class="wrap">
+      <svg class="bigseal"><use href="#stamp"/></svg>
+      <h2>Your memories deserve a home you own.</h2>
+      <p class="lede">Free, open source, and yours. Bring them home this weekend.</p>
+      <div class="final-cta">
+        <a class="btn btn-stamp" href="https://github.com/kuraki-app/kuraki" rel="noopener">Get started on GitHub →</a>
+        <a class="btn btn-ghost" href="#features">See the features</a>
+      </div>
+    </div>
+  </section>
+</main>
+</Base>

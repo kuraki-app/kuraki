@@ -42,6 +42,10 @@ dev: ## Run API (:3000) + Vite UI (:5173) separately with hot reload (scripts/de
 web: ## Build SvelteKit UI into embedded assets
 	cd web && npm run build
 
+.PHONY: e2e
+e2e: web build ## Browser end-to-end suite (Playwright) against a real seeded server
+	cd web && npm run test:e2e
+
 .PHONY: test
 test: ## Run tests with the race detector
 	go test -race $(GO_PACKAGES)

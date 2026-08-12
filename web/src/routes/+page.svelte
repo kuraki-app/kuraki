@@ -3,25 +3,51 @@
   import { Search, X, SlidersHorizontal, CalendarDays, Bookmark, Trash2 } from '@lucide/svelte';
   import LibraryView from '$lib/components/LibraryView.svelte';
   import FilterChip from '$lib/components/FilterChip.svelte';
+  import SegmentedControl from '$lib/components/SegmentedControl.svelte';
   import IconButton from '$lib/components/IconButton.svelte';
   import { api, type SearchParams } from '$lib/api';
   import { showToast } from '$lib/stores';
-  import type { SavedSearch } from '$lib/types';
+  import type { Album, SavedSearch, Tag } from '$lib/types';
+  import { page } from '$app/stores';
 
   let query = '';
   let type: '' | 'image' | 'video' = '';
   let favorite = false;
   let from = '';
   let to = '';
+  const MEDIA_TYPES = [
+    { value: '' as const, label: 'All' },
+    { value: 'image' as const, label: 'Photos' },
+    { value: 'video' as const, label: 'Videos' }
+  ];
+
   let showFilters = false;
   let jumpDate = '';
+  // The rest of the server's filter language. `parseAssetFilters` has always
+  // accepted these; the form exposed q/type/favorite/from/to and nothing else,
+  // so a saved search could carry a filter the UI could neither show nor build.
+  let camera = '';
+  let rating = '';
+  let placeCity = '';
+  let placeCountry = '';
+  let tagId = '';
+  let albumId = '';
+
+  // Populated for the tag and album pickers. Both endpoints are already used
+  // elsewhere in the app; failing to load them must not break the filter panel.
+  let tags: Tag[] = [];
+  let albumList: Album[] = [];
 
   // Saved searches: the API (list/create/delete) already exists; this is its UI.
   let saved: SavedSearch[] = [];
   let showSaved = false;
   let saveName = '';
 
-  onMount(loadSaved);
+  onMount(() => {
+    loadSaved();
+    loadFilterSources();
+    applyURLFilters();
+  });
 
   async function loadSaved() {
     try {
@@ -29,6 +55,56 @@
     } catch {
       /* non-fatal: the timeline still works without the saved list */
     }
+  }
+
+  async function loadFilterSources() {
+    try {
+      [tags, albumList] = await Promise.all([
+        api.tags().then((r) => r.tags),
+        api.albums().then((r) => r.albums)
+      ]);
+    } catch {
+      /* non-fatal: the other filters still work without these two pickers */
+    }
+  }
+
+  /** Reads filters out of the query string so other pages can link INTO a
+   *  filtered timeline — Places sends `?place_city=…&place_country=…`, which is
+   *  what the mobile client has always done by tapping a place. */
+  function applyURLFilters() {
+    const params = $page.url.searchParams;
+    const incoming: SearchParams = {};
+    for (const key of [
+      'q',
+      'type',
+      'favorite',
+      'from',
+      'to',
+      'camera',
+      'rating',
+      'place_city',
+      'place_country',
+      'tag',
+      'album'
+    ] as const) {
+      const value = params.get(key);
+      if (value) incoming[key] = value;
+    }
+    if (Object.keys(incoming).length === 0) return;
+
+    query = incoming.q ?? '';
+    type = (incoming.type as '' | 'image' | 'video') ?? '';
+    favorite = incoming.favorite === '1';
+    from = incoming.from ?? '';
+    to = incoming.to ?? '';
+    camera = incoming.camera ?? '';
+    rating = incoming.rating ?? '';
+    placeCity = incoming.place_city ?? '';
+    placeCountry = incoming.place_country ?? '';
+    tagId = incoming.tag ?? '';
+    albumId = incoming.album ?? '';
+    applied = incoming;
+    showFilters = true;
   }
 
   // The applied filter set as a plain string record — the shape the server
@@ -62,8 +138,15 @@
     favorite = p.favorite === '1';
     from = p.from ?? '';
     to = p.to ?? '';
-    // …but apply the FULL saved query, including filters the form doesn't expose
-    // (place_city, camera, rating, tag), so nothing is silently dropped.
+    camera = p.camera ?? '';
+    rating = p.rating ?? '';
+    placeCity = p.place_city ?? '';
+    placeCountry = p.place_country ?? '';
+    tagId = p.tag ?? '';
+    albumId = p.album ?? '';
+    // The form now shows every filter the server understands, so a saved search
+    // no longer carries anything the panel cannot display or clear. The full
+    // query is still applied wholesale rather than rebuilt from the fields.
     applied = { ...p };
     showSaved = false;
   }
@@ -93,7 +176,13 @@
       type: type || undefined,
       favorite: favorite ? '1' : undefined,
       from: from || undefined,
-      to: to || undefined
+      to: to || undefined,
+      camera: camera.trim() || undefined,
+      rating: rating || undefined,
+      place_city: placeCity.trim() || undefined,
+      place_country: placeCountry.trim() || undefined,
+      tag: tagId || undefined,
+      album: albumId || undefined
     };
   }
   function clearAll() {
@@ -102,6 +191,12 @@
     favorite = false;
     from = '';
     to = '';
+    camera = '';
+    rating = '';
+    placeCity = '';
+    placeCountry = '';
+    tagId = '';
+    albumId = '';
     applied = {};
   }
   function jumpToDate() {
@@ -118,6 +213,13 @@
     if (p.type) parts.push(p.type === 'image' ? 'photos' : 'videos');
     if (p.favorite === '1') parts.push('favorites');
     if (p.from || p.to) parts.push(`${p.from ?? '…'} – ${p.to ?? '…'}`);
+    if (p.camera) parts.push(p.camera);
+    if (p.rating) parts.push(`${p.rating}★ and up`);
+    if (p.place_city || p.place_country) {
+      parts.push([p.place_city, p.place_country].filter(Boolean).join(', '));
+    }
+    if (p.tag) parts.push(tags.find((t) => t.id === p.tag)?.name ?? 'tag');
+    if (p.album) parts.push(albumList.find((a) => a.id === p.album)?.name ?? 'album');
     return parts.length ? `Filtered by ${parts.join(', ')}` : 'All results';
   }
 
@@ -196,14 +298,63 @@
 
 {#if showFilters}
   <div class="panel">
+    <!-- Media type is three mutually exclusive options, so it is a segmented
+         control. Favorites is an independent toggle and stays a chip — the two
+         were built from the same pill and read as one row of four equal
+         choices, which is not what they are. -->
+    <SegmentedControl
+      label="Media type"
+      options={MEDIA_TYPES}
+      value={type}
+      onchange={(v) => { type = v; apply(); }}
+    />
     <div class="chips">
-      <FilterChip active={type === ''} onclick={() => { type = ''; apply(); }}>All</FilterChip>
-      <FilterChip active={type === 'image'} onclick={() => { type = 'image'; apply(); }}>Photos</FilterChip>
-      <FilterChip active={type === 'video'} onclick={() => { type = 'video'; apply(); }}>Videos</FilterChip>
       <FilterChip active={favorite} onclick={() => { favorite = !favorite; apply(); }}>Favorites</FilterChip>
     </div>
-    <label>From <input type="date" bind:value={from} on:change={apply} /></label>
-    <label>To <input type="date" bind:value={to} on:change={apply} /></label>
+    <!-- Explicit for/id throughout rather than wrapping labels. A <label> that
+         wraps a <select> takes the option text into its own accessible name, so
+         "Rating" ends up announced as "Rating Any 1★ and up 2★ and up …" — the
+         control is labelled, but not with anything a person would recognise. -->
+    <label for="filter-from">From</label>
+    <input id="filter-from" type="date" bind:value={from} on:change={apply} />
+    <label for="filter-to">To</label>
+    <input id="filter-to" type="date" bind:value={to} on:change={apply} />
+
+    <!-- Everything below reaches filters the server has always accepted through
+         `parseAssetFilters` and that the timeline had no way to express. -->
+    <label for="filter-rating">Rating</label>
+    <select id="filter-rating" bind:value={rating} on:change={apply}>
+      <option value="">Any</option>
+      <option value="1">1★ and up</option>
+      <option value="2">2★ and up</option>
+      <option value="3">3★ and up</option>
+      <option value="4">4★ and up</option>
+      <option value="5">5★</option>
+    </select>
+
+    <label for="filter-camera">Camera</label>
+    <input id="filter-camera" type="text" bind:value={camera} placeholder="e.g. iPhone 15" on:change={apply} />
+
+    <label for="filter-city">City</label>
+    <input id="filter-city" type="text" bind:value={placeCity} placeholder="e.g. Kyoto" on:change={apply} />
+
+    <label for="filter-country">Country</label>
+    <input id="filter-country" type="text" bind:value={placeCountry} placeholder="e.g. Japan" on:change={apply} />
+
+    {#if tags.length}
+      <label for="filter-tag">Tag</label>
+      <select id="filter-tag" bind:value={tagId} on:change={apply}>
+        <option value="">Any</option>
+        {#each tags as t (t.id)}<option value={t.id}>{t.name}</option>{/each}
+      </select>
+    {/if}
+    {#if albumList.length}
+      <label for="filter-album">Album</label>
+      <select id="filter-album" bind:value={albumId} on:change={apply}>
+        <option value="">Any</option>
+        {#each albumList as a (a.id)}<option value={a.id}>{a.name}</option>{/each}
+      </select>
+    {/if}
   </div>
 {/if}
 
@@ -283,17 +434,27 @@
   .panel label {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    /* The control is now a sibling rather than a child, so the gap that used to
+     * separate them inside the label lives on the flex row instead. */
     font-size: 13px;
     color: var(--muted-foreground);
+    margin-left: 4px;
   }
-  .panel input[type='date'] {
+  /* One control treatment for every filter input, so the panel reads as one
+   * row of controls rather than dates styled apart from the rest. */
+  .panel input[type='date'],
+  .panel input[type='text'],
+  .panel select {
     height: 32px;
     padding: 0 8px;
     border: 1px solid var(--input);
     border-radius: 8px;
     background: var(--card);
     color: var(--foreground);
+    font: inherit;
+  }
+  .panel input[type='text'] {
+    width: 140px;
   }
   .saved {
     flex-direction: column;

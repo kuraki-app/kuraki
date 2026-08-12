@@ -54,10 +54,27 @@
   let lastDensity = density;
   let lastGrouping = effectiveGrouping;
   $: if (density !== lastDensity || effectiveGrouping !== lastGrouping) {
+    const groupingChanged = effectiveGrouping !== lastGrouping;
     lastDensity = density;
     lastGrouping = effectiveGrouping;
     heights = new Map();
-    visible = new Set();
+    // `visible` is cleared ONLY when the grouping changed, and the distinction is
+    // load-bearing: IntersectionObserver reports CHANGES in intersection, never
+    // the current state on demand.
+    //
+    // A grouping change rewrites every section key, so the keyed {#each} destroys
+    // and recreates the section elements; the new nodes are observed fresh and
+    // the observer reports them on the next frame. Clearing is safe, and drops
+    // keys that no longer exist.
+    //
+    // A density change does neither — same keys, same DOM nodes, already
+    // intersecting. Clearing `visible` there unmaterialized every section and
+    // nothing ever refilled it, because no intersection had changed: the whole
+    // timeline went blank and STAYED blank (scrolling did not recover it) until a
+    // full page reload. Density does not affect which sections are near the
+    // viewport, so the set is still correct — only the measured heights are
+    // stale, and those are cleared above.
+    if (groupingChanged) visible = new Set();
   }
 
   // The section holding the morph target must stay materialized through the
@@ -73,7 +90,11 @@
   // dead space or a scroll jump — and only on the viewports whose values drifted.
   const TILE_MIN = { compact: 96, comfortable: 132, large: 188 };
   const TILE_MIN_NARROW = { compact: 96, comfortable: 104, large: 144 };
-  const NARROW_MAX = 780; // keep in sync with the @media query in this file
+  // 820, the app's single breakpoint — see the Breakpoints block in app.css.
+  // It was 780 while this grid's own header, scroll scrubber and batch bar all
+  // reflowed at 820, so between those two widths the page rendered half mobile:
+  // the tiles had already narrowed and nothing around them had moved.
+  const NARROW_MAX = 820; // keep in sync with the @media query in this file
 
   // Bound, not read once: rotating a phone crosses the breakpoint, and a stale
   // estimate would misreserve every spacer until each section is re-measured.
@@ -377,7 +398,7 @@
     background: var(--stamp);
     color: var(--stamp-foreground);
   }
-  @media (max-width: 780px) {
+  @media (max-width: 820px) {
     .grid {
       grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
     }

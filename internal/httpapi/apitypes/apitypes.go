@@ -143,7 +143,9 @@ type AlbumList struct {
 // BatchRequest is the request body for the multi-select batch-op endpoint.
 type BatchRequest struct {
 	IDs []string `json:"ids"`
-	Op  string   `json:"op"` // delete | restore | favorite | unfavorite | archive | unarchive | hide | unhide
+	// purge is permanent: it deletes the original from disk and the row from the
+	// database. Every other op is reversible.
+	Op string `json:"op"` // delete | restore | purge | favorite | unfavorite | archive | unarchive | hide | unhide
 }
 
 // BatchResponse reports the outcome of a batch operation.
@@ -238,13 +240,18 @@ type DupAsset struct {
 }
 
 // AssetPatch is the request body for editing an asset's capture date,
-// location, or caption.
+// location, caption, or rating.
 type AssetPatch struct {
 	TakenAt     *string  `json:"taken_at"` // RFC3339; empty string clears
 	GPSLat      *float64 `json:"gps_lat"`  // set with GPSLon
 	GPSLon      *float64 `json:"gps_lon"`
 	ClearGPS    bool     `json:"clear_gps"` // remove location
 	Description *string  `json:"description"`
+	// Rating is 0-5, where 0 means unrated. It was filterable and returned on
+	// every asset long before anything could set it: only the importer and the
+	// Immich migration ever wrote the column, so a rating could be searched for
+	// but never given.
+	Rating *int `json:"rating"`
 }
 
 // ShiftRequest is the request body for shifting many assets' capture time by
