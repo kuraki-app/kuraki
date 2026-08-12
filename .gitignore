@@ -44,3 +44,6 @@ __pycache__/
 # swag intermediate (only apispec/openapi.json is committed)
 internal/httpapi/apispec/swagger.json
 .worktrees/
+
+# Wrangler local cache (account id, project bindings) — machine state, not repo state.
+.wrangler/
