@@ -125,6 +125,14 @@
     // so the track has to re-measure rather than read the height once.
     resizeObserver = new ResizeObserver(() => {
       measure();
+      // Re-read the label here too, not just on scroll. The onMount call above
+      // runs before the first section has materialized, so there is no <h2> to
+      // read yet and `label` stays empty — leaving the slider with no
+      // aria-valuetext until the user happens to scroll. A screen reader then
+      // announces a bare "0" instead of the date the thumb is sitting on. This
+      // observer already fires when sections materialize and change the content
+      // height, which is exactly the moment the heading becomes readable.
+      readLabel();
       if (!dragging && scrollable > 0) progress = window.scrollY / scrollable;
     });
     resizeObserver.observe(document.documentElement);

@@ -28,7 +28,7 @@
 <PageHeader title="Appearance" subtitle="Theme, density, and where the app opens." />
 
 <section class="group">
-  <SettingRow id="theme" label="Theme" description="Also available from the sidebar.">
+  <SettingRow id="theme" kind="group" label="Theme" description="Also available from the sidebar.">
     <div class="seg">
       {#each themes as t (t.value)}
         <button type="button" class:on={userPrefersMode.current === t.value} onclick={() => setMode(t.value)}>
@@ -38,7 +38,7 @@
     </div>
   </SettingRow>
 
-  <SettingRow id="density" label="Grid density" description="Also available above the timeline.">
+  <SettingRow id="density" kind="group" label="Grid density" description="Also available above the timeline.">
     <div class="seg">
       {#each densities as d (d.value)}
         <button type="button" class:on={$gridDensity === d.value} onclick={() => gridDensity.set(d.value)}>
@@ -50,6 +50,7 @@
 
   <SettingRow
     id="grouping"
+    kind="group"
     label="Group timeline by"
     description="How the timeline splits into headed sections."
   >
@@ -62,7 +63,7 @@
     </div>
   </SettingRow>
 
-  <SettingRow id="default-view" label="Default view" description="Where the app opens after you sign in.">
+  <SettingRow id="default-view" kind="group" label="Default view" description="Where the app opens after you sign in.">
     <div class="seg">
       {#each views as v (v.value)}
         <button type="button" class:on={$defaultView === v.value} onclick={() => defaultView.set(v.value)}>

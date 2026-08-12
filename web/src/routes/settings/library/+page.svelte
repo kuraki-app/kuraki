@@ -94,6 +94,7 @@
       >
         {#if s.type === 'bool'}
           <Button
+            id={s.key}
             variant="outline"
             size="sm"
             disabled={s.pinned_by_env || saving[s.key]}
@@ -104,6 +105,7 @@
         {:else}
           <div class="num">
             <Input
+              id={s.key}
               type="number"
               min={s.min || undefined}
               max={s.max || undefined}

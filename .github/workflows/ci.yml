@@ -63,7 +63,60 @@ jobs:
       # `npm run build` does NOT typecheck (Vite strips types; plain tsc skips
       # .svelte files), so svelte-check is the only real type gate for web.
       - run: cd web && npm run check
+      # Pure-logic unit tests (date grouping, the taken_day timezone fix, file
+      # sizes). They run in America/Los_Angeles — see vitest.config.ts — because
+      # the timezone bug they pin is invisible at UTC or any positive offset.
+      - run: cd web && npm run test
       - run: cd web && npm run build
+
+  e2e:
+    name: Web end-to-end (browser)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: cd web && npm ci
+      - run: cd web && npx playwright install --with-deps chromium
+      # `make e2e` is `web` + `build` + the suite, in that order, so the binary
+      # under test embeds the UI built from THIS commit rather than the assets
+      # that happen to be committed. e2e/server.mjs refuses to run if web/src is
+      # newer than the binary, which is what keeps that ordering honest.
+      - run: make e2e
+      # `internal/httpapi/assets` is COMMITTED (go:embed needs it in the tree)
+      # and nothing checked it against a fresh build: `make check-gen` covers the
+      # OpenAPI contract and client types, not the embedded UI. So the committed
+      # UI could drift from web/ silently, and a `go build` with no `make web`
+      # would embed whatever was last committed. `make e2e` has just rebuilt it,
+      # so any diff here means the commit carries a stale UI.
+      #
+      # Node is pinned to 24 across every web job (and .nvmrc) so this compares
+      # like with like — Vite's content hashes are deterministic for identical
+      # inputs, but "identical" includes the toolchain that produced them.
+      - name: Embedded UI matches web/
+        run: |
+          git diff --exit-code -- internal/httpapi/assets || {
+            echo
+            echo "ERROR: internal/httpapi/assets is stale."
+            echo "The committed UI does not match a fresh build of web/."
+            echo "Run 'make web' and commit the result."
+            exit 1
+          }
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            web/playwright-report
+            web/e2e/.tmp/results
+          retention-days: 7
 
   mobile:
     name: Mobile typecheck & lint
