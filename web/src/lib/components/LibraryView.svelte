@@ -4,6 +4,14 @@
   import { cubicOut } from 'svelte/easing';
   import { get } from 'svelte/store';
   import { CheckSquare, Grid2X2, Grid3X3, Grid } from '@lucide/svelte';
+
+  // Icon-only, because the toolbar sits above the photographs and three words
+  // there would compete with them. The labels are still the accessible names.
+  const DENSITIES = [
+    { value: 'compact' as const, label: 'Compact grid', icon: Grid2X2 },
+    { value: 'comfortable' as const, label: 'Comfortable grid', icon: Grid3X3 },
+    { value: 'large' as const, label: 'Large grid', icon: Grid }
+  ];
   import type { Album, Asset, AssetList } from '$lib/types';
   import { api, downloadZip } from '$lib/api';
   import { canMorph, morph } from '$lib/motion';
@@ -18,6 +26,7 @@
   import EmptyState from './EmptyState.svelte';
   import SkeletonGrid from './SkeletonGrid.svelte';
   import ConfirmDialog from './ConfirmDialog.svelte';
+  import SegmentedControl from './SegmentedControl.svelte';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
@@ -408,10 +417,17 @@
 <PageHeader {title} subtitle={subtitle || `${assets.length} ${assets.length === 1 ? 'item' : 'items'}`}>
   <slot name="actions" />
   {#if assets.length > 0}
-    <div class="density inline-flex rounded-md border border-border" aria-label="Grid density">
-      <Button size="icon" variant={density === 'compact' ? 'secondary' : 'ghost'} onclick={() => setDensity('compact')} aria-label="Compact grid"><Grid2X2 size={16} /></Button>
-      <Button size="icon" variant={density === 'comfortable' ? 'secondary' : 'ghost'} onclick={() => setDensity('comfortable')} aria-label="Comfortable grid"><Grid3X3 size={16} /></Button>
-      <Button size="icon" variant={density === 'large' ? 'secondary' : 'ghost'} onclick={() => setDensity('large')} aria-label="Large grid"><Grid size={16} /></Button>
+    <!-- Wrapped rather than styled directly: the mobile header ordering below
+         targets this element, and a parent's scoped CSS does not reach a child
+         component's root without :global. -->
+    <div class="density">
+      <SegmentedControl
+        label="Grid density"
+        iconOnly
+        options={DENSITIES}
+        value={density}
+        onchange={setDensity}
+      />
     </div>
     <Button
       variant={selectMode ? 'default' : 'outline'}

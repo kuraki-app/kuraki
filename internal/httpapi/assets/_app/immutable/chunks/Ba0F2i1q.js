@@ -1,1 +1,0 @@
-import"./BOkvs-TI.js";import{s as t,r as p}from"./7Adr9IWM.js";import{I as a}from"./BFZxO0gS.js";var n=new Set(["$$slots","$$events","$$legacy"]);function l(s,e){let o=p(e,n);const r=[["path",{d:"M5 12h14"}],["path",{d:"M12 5v14"}]];a(s,t({name:"plus"},()=>o,{get iconNode(){return r}}))}export{l as P};

@@ -90,7 +90,11 @@
   // dead space or a scroll jump — and only on the viewports whose values drifted.
   const TILE_MIN = { compact: 96, comfortable: 132, large: 188 };
   const TILE_MIN_NARROW = { compact: 96, comfortable: 104, large: 144 };
-  const NARROW_MAX = 780; // keep in sync with the @media query in this file
+  // 820, the app's single breakpoint — see the Breakpoints block in app.css.
+  // It was 780 while this grid's own header, scroll scrubber and batch bar all
+  // reflowed at 820, so between those two widths the page rendered half mobile:
+  // the tiles had already narrowed and nothing around them had moved.
+  const NARROW_MAX = 820; // keep in sync with the @media query in this file
 
   // Bound, not read once: rotating a phone crosses the breakpoint, and a stale
   // estimate would misreserve every spacer until each section is re-measured.
@@ -394,7 +398,7 @@
     background: var(--stamp);
     color: var(--stamp-foreground);
   }
-  @media (max-width: 780px) {
+  @media (max-width: 820px) {
     .grid {
       grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
     }

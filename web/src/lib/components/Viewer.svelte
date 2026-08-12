@@ -780,7 +780,7 @@
     text-decoration: none;
     font-weight: 700;
   }
-  @media (max-width: 780px) {
+  @media (max-width: 820px) {
     .viewer {
       grid-template-columns: 1fr;
       grid-template-rows: minmax(0, 1fr) auto;
