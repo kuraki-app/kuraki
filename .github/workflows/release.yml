@@ -128,11 +128,18 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.arch }}
           cache-to: type=gha,scope=${{ matrix.arch }},mode=max
 
+      # The digest arrives as "sha256:<hex>", and upload-artifact rejects a colon
+      # in a path — so the marker file is named with the bare hex and the
+      # manifest step below puts the "sha256:" back. Naming it verbatim fails
+      # only on a tag, because that is the only time this step runs at all.
       - name: Export digest
         if: github.ref_type == 'tag'
         run: |
+          set -euo pipefail
+          digest='${{ steps.build.outputs.digest }}'
+          test -n "$digest"
           mkdir -p /tmp/digests
-          touch "/tmp/digests/${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
       - uses: actions/upload-artifact@v4
         if: github.ref_type == 'tag'
         with:
