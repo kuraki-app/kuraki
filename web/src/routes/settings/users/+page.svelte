@@ -5,6 +5,7 @@
   import { showToast } from '$lib/stores';
   import type { UserSummary } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
   import { Button } from '$lib/components/ui/button';
 
   let users: UserSummary[] = [];
@@ -87,25 +88,35 @@
     } catch (e) {
       const message = e instanceof Error ? e.message : '';
       if (message.includes('user_has_assets')) {
-        const ok = confirm(
-          `${u.username} still has ${u.asset_count} photo${u.asset_count === 1 ? '' : 's'}.\n\n` +
-            `Deleting the account will permanently destroy them, including the original files. ` +
-            `This cannot be undone.\n\nDelete ${u.username} and their entire library?`
-        );
-        if (ok) {
-          try {
-            await api.deleteUser(u.id, true);
-            showToast(`Deleted ${u.username} and their library`);
-            await load();
-          } catch (err) {
-            showToast(friendly(err, 'Could not delete the account'));
-          }
-        }
+        // The server refused because the account still owns photos. Ask, rather
+        // than purging on the first click: this is the single most destructive
+        // action in the product and the only one that destroys originals.
+        purgeTarget = u;
+        purgeOpen = true;
       } else {
         showToast(friendly(e, 'Could not delete the account'));
       }
     } finally {
       busy = { ...busy, [u.id]: false };
+    }
+  }
+
+  let purgeTarget: UserSummary | null = null;
+  let purgeOpen = false;
+  let purging = false;
+  async function confirmPurge() {
+    if (!purgeTarget) return;
+    purging = true;
+    try {
+      await api.deleteUser(purgeTarget.id, true);
+      showToast(`Deleted ${purgeTarget.username} and their library`);
+      purgeOpen = false;
+      purgeTarget = null;
+      await load();
+    } catch (err) {
+      showToast(friendly(err, 'Could not delete the account'));
+    } finally {
+      purging = false;
     }
   }
 
@@ -298,3 +309,13 @@
     }
   }
 </style>
+
+<ConfirmDialog
+  bind:open={purgeOpen}
+  title="Delete {purgeTarget?.username ?? ''} and their entire library?"
+  body="{purgeTarget?.username ?? 'This account'} still has {purgeTarget?.asset_count ?? 0} {(purgeTarget?.asset_count ?? 0) === 1 ? 'photo' : 'photos'}. Deleting the account permanently destroys them, original files included. This cannot be undone."
+  confirmLabel="Delete account and library"
+  destructive
+  busy={purging}
+  onconfirm={confirmPurge}
+/>

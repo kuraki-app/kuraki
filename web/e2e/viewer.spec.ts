@@ -29,24 +29,15 @@ test.describe('viewer', () => {
     await expect(viewer).toBeHidden();
   });
 
-  // KNOWN DEFECT — the viewer does no focus management whatsoever.
+  // All three conditions, because asserting only the last one certifies a
+  // component that does nothing at all.
   //
-  // Measured, not inferred: with the dialog open and 7 tabbable controls inside
-  // it, document.activeElement is still the grid tile BEHIND the overlay
-  // (`{tag: BUTTON, class: "tile", insideDialog: false}`). Three consequences:
-  //
-  //   1. Opening the viewer does not move focus into it, so a keyboard user has
-  //      to Tab forward through the rest of the page to reach Close/Next/Edit.
-  //   2. Focus is not trapped, so Tab walks out of the dialog into the grid
-  //      underneath — reachable by keyboard, hidden from the eye.
-  //   3. "Restore focus on close" therefore passes VACUOUSLY: focus returns to
-  //      the tile only because it never left it. Asserting restore alone would
-  //      have reported this component as correct.
-  //
-  // `AlbumPicker` gets all three free from bits-ui `ui/dialog`, and MobileNav
-  // implements them by hand correctly. Fixed in the Phase 2 dialog unification;
-  // un-fixme these then.
-  test.fixme('moves focus into the dialog, traps it, and restores it on close', async ({ page }) => {
+  // As originally measured: with the dialog open and 7 tabbable controls inside
+  // it, document.activeElement was still the grid tile BEHIND the overlay. Focus
+  // never entered the dialog, Tab walked out into the hidden grid, and "restore
+  // focus on close" passed VACUOUSLY — focus came back to the tile only because
+  // it had never left. Closed by the `trapFocus` action in $lib/focus.
+  test('moves focus into the dialog, traps it, and restores it on close', async ({ page }) => {
     await gotoApp(page, '/');
 
     const tile = page.locator('button.tile').first();
@@ -64,8 +55,10 @@ test.describe('viewer', () => {
         return !!d && !!document.activeElement && d.contains(document.activeElement);
       });
 
-    // 1. focus enters the dialog
-    expect(await inside()).toBe(true);
+    // 1. focus enters the dialog. Polled, not read once: `trapFocus` defers the
+    // move by one animation frame on purpose, because the dialog's children
+    // mount with it and on the first tick there is nothing focusable to find.
+    await expect.poll(inside).toBe(true);
 
     // 2. and stays there, however far you tab
     for (let i = 0; i < 25; i++) await page.keyboard.press('Tab');
