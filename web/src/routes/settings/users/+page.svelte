@@ -254,8 +254,10 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
+    /* Denser than it was: a Vault list of accounts is a table, and the 4px
+       rhythm is what makes it read as one. */
+    gap: calc(var(--space-step) * 3);
+    padding: calc(var(--space-step) * 2) calc(var(--space-step) * 3);
     border-radius: var(--frame-radius);
     border: 1px solid var(--border);
   }
@@ -291,6 +293,8 @@
   }
   .count {
     color: var(--text-dim);
+    /* A per-account photo count is a readout, and this page is Vault. */
+    font-family: var(--frame-data-font);
     font-size: 12px;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;

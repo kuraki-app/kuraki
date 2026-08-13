@@ -186,22 +186,26 @@
     font-size: 13px;
   }
   .media-health .rebuild:disabled { opacity: 0.6; cursor: default; }
+  /* An import job is an operational record, so the row is a Vault panel: 4px
+     rhythm, hairline border, flat. It was a 12px-radius lifted card, which is
+     the Kura treatment on the most operator-facing page in the app. */
   .job {
     display: grid;
-    grid-template-columns: 40px 1fr;
+    grid-template-columns: 36px 1fr;
     align-items: start;
-    gap: 12px;
-    padding: 14px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
+    gap: calc(var(--space-step) * 3);
+    padding: calc(var(--space-step) * 3);
+    border: 1px solid var(--frame-border-color, var(--border));
+    border-radius: var(--frame-radius);
+    box-shadow: var(--frame-shadow);
     background: var(--card);
   }
   .icon {
     display: grid;
     place-items: center;
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--frame-radius);
     background: var(--accent);
     color: var(--muted-foreground);
   }
@@ -230,13 +234,17 @@
   .row1 strong {
     color: var(--foreground);
   }
+  /* A status is a label, not prose: micro-caps in the Vault, and squared off
+     to match the panel it sits in rather than a pill from the photo side. */
   .pill {
-    padding: 2px 8px;
-    border-radius: 999px;
+    padding: 2px calc(var(--space-step) * 2);
+    border-radius: var(--frame-radius);
     background: var(--muted);
     color: var(--text-dim);
-    font-size: 12px;
-    text-transform: capitalize;
+    font-family: var(--frame-label-font);
+    font-size: var(--frame-label-size);
+    letter-spacing: var(--frame-label-tracking);
+    text-transform: var(--frame-label-transform);
   }
   .pill.succeeded {
     background: var(--ok-bg);
@@ -253,12 +261,18 @@
   .time {
     margin-left: auto;
     color: var(--text-faint);
-    font-size: 13px;
+    font-family: var(--frame-data-font);
+    font-size: 12px;
     white-space: nowrap;
   }
+  /* Counts, ratios and retry numbers — the line that answers "what did this
+     job actually do". Mono and tabular so 0/O and 1/l cannot be misread and
+     the figures line up down the list. */
   .row2 {
     color: var(--text-dim);
-    font-size: 14px;
+    font-family: var(--frame-data-font);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
   }
   .err {

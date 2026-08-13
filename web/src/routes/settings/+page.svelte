@@ -5,6 +5,7 @@
   import { fileSize, relativeTime } from '$lib/format';
   import type { BackupStatus, IntegrityRun, LibraryStats } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import SectionHeading from '$lib/components/SectionHeading.svelte';
   import StatCard from '$lib/components/StatCard.svelte';
   import { Button } from '$lib/components/ui/button';
 
@@ -94,7 +95,7 @@
       {#if integrity}
         <span>{integrityLabel(integrity.status)} · {integrity.checked.toLocaleString()} checked{#if integrity.problems}, {integrity.problems} problem{integrity.problems === 1 ? '' : 's'}{/if}{#if integrity.finished_at} · {relativeTime(integrity.finished_at)}{/if}</span>
       {:else}
-        <span>Not verified yet</span>
+        <span class="prose">Not verified yet</span>
       {/if}
     </div>
   </section>
@@ -104,20 +105,20 @@
     <div class="int-text">
       <strong>Backup</strong>
       {#if !backup?.enabled}
-        <span>Automatic backup is off. Set a backup directory in <a href="/settings/server">Settings → Server</a> to keep scheduled copies, or run <code>kuraki backup</code> by hand.</span>
+        <span class="prose">Automatic backup is off. Set a backup directory in <a href="/settings/server">Settings → Server</a> to keep scheduled copies, or run <code>kuraki backup</code> by hand.</span>
       {:else if backup.last?.status === 'error'}
         <span>Last automatic backup failed{#if backup.last.finished_at} · {relativeTime(backup.last.finished_at)}{/if}{#if backup.last.error} · {backup.last.error}{/if}</span>
       {:else if backup.last}
         <span>Last backup {fileSize(backup.last.bytes)}{#if backup.last.finished_at} · {relativeTime(backup.last.finished_at)}{/if}{#if backupStale} · overdue{/if}</span>
       {:else}
-        <span>Automatic backup is on; no backup has run yet.</span>
+        <span class="prose">Automatic backup is on; no backup has run yet.</span>
       {/if}
     </div>
   </section>
 
   {#if stats.by_year.length > 0}
     <section class="years">
-      <h2>By year</h2>
+      <SectionHeading>By year</SectionHeading>
       <div class="bars">
         {#each stats.by_year as y (y.year)}
           <div class="row">
@@ -140,15 +141,19 @@
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 12px;
   }
+  /* Spacing comes from --space-step throughout, so the same expressions land
+   * on a 4px rhythm here and would land on 8px if this page were ever Kura.
+   * They were hardcoded, which is why the Vault register only reached the page
+   * frame and stopped at its contents. */
   .disk {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    margin-top: 16px;
+    gap: calc(var(--space-step) * 2);
+    margin-top: calc(var(--space-step) * 4);
   }
   .disk-bar {
     height: 8px;
-    border-radius: 999px;
+    border-radius: var(--frame-radius);
     background: var(--muted);
     overflow: hidden;
   }
@@ -160,11 +165,14 @@
   .integrity {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-top: 16px;
-    padding: 14px 16px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
+    gap: calc(var(--space-step) * 3);
+    margin-top: calc(var(--space-step) * 4);
+    padding: calc(var(--space-step) * 3) calc(var(--space-step) * 4);
+    border: 1px solid var(--frame-border-color, var(--border));
+    /* 4px in the Vault: a panel, not a card. The shadow token is `0 0 #0000`
+     * here, so the hairline does the work instead of a lift. */
+    border-radius: var(--frame-radius);
+    box-shadow: var(--frame-shadow);
     background: var(--card);
   }
   .integrity.problems,
@@ -178,12 +186,34 @@
     margin-right: auto;
     min-width: 0;
   }
+  /* "Integrity" and "Backup" name a readout, so they take the label treatment
+   * — micro-caps mono in the Vault — and the readout itself takes the data
+   * face. 0/O and 1/l must not be ambiguous in a status line about whether the
+   * backup ran. */
   .int-text strong {
-    color: var(--foreground);
+    color: var(--text-dim);
+    font-family: var(--frame-label-font);
+    font-size: var(--frame-label-size);
+    font-weight: 600;
+    letter-spacing: var(--frame-label-tracking);
+    text-transform: var(--frame-label-transform);
   }
   .int-text span {
     color: var(--muted-foreground);
+    font-family: var(--frame-data-font);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Mono is for counts, sizes, paths and timestamps — the spec's "hashes,
+   * paths, counts, IDs". A full sentence explaining how to turn backups on is
+   * prose, and setting it in the data face makes it harder to read while
+   * saying nothing true about it. Same panel, two jobs. */
+  .int-text span.prose {
+    font-family: var(--font-sans);
     font-size: 13px;
+  }
+  .int-text span.prose code {
+    font-family: var(--font-mono);
   }
   .int-text span a {
     color: var(--foreground);
@@ -200,17 +230,11 @@
     color: var(--foreground);
   }
   .years {
-    margin-top: 28px;
-  }
-  .years h2 {
-    margin: 0 0 12px;
-    font-size: 16px;
-    font-weight: 700;
-    color: var(--text-dim);
+    margin-top: calc(var(--space-step) * 7);
   }
   .bars {
     display: grid;
-    gap: 8px;
+    gap: calc(var(--space-step) * 2);
   }
   .row {
     display: grid;
@@ -218,24 +242,30 @@
     align-items: center;
     gap: 10px;
   }
+  /* Year and count are figures in a column: mono and tabular, so the digits
+   * line up and the rows do not jitter as the numbers change. */
   .yr {
     color: var(--muted-foreground);
-    font-size: 14px;
+    font-family: var(--frame-data-font);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
   }
   .track {
-    height: 12px;
-    border-radius: 6px;
+    height: 10px;
+    border-radius: var(--frame-radius);
     background: var(--muted);
     overflow: hidden;
   }
   .fill {
     height: 100%;
-    border-radius: 6px;
+    border-radius: var(--frame-radius);
     background: var(--primary);
   }
   .n {
     text-align: right;
     color: var(--text-dim);
-    font-size: 14px;
+    font-family: var(--frame-data-font);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
   }
 </style>
