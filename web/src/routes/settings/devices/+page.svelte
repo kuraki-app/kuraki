@@ -7,6 +7,7 @@
   import { relativeTime } from '$lib/format';
   import type { DeviceInfo } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import SectionHeading from '$lib/components/SectionHeading.svelte';
   import { Button } from '$lib/components/ui/button';
 
   let qrSvg = '';
@@ -110,7 +111,7 @@
 
 {#if !devicesLoading && devices.length > 0}
   <section class="card">
-    <h2><Smartphone size={18} aria-hidden="true" /> Paired devices</h2>
+    <SectionHeading><Smartphone size={14} aria-hidden="true" /> Paired devices</SectionHeading>
     <ul class="devices">
       {#each devices as d (d.id)}
         <li>
@@ -128,7 +129,7 @@
 {/if}
 
 <section class="card">
-  <h2><Smartphone size={18} aria-hidden="true" /> Pair a phone</h2>
+  <SectionHeading><Smartphone size={14} aria-hidden="true" /> Pair a phone</SectionHeading>
   <ol>
     <li>Install the Kuraki app and open <strong>Settings → Scan QR to pair</strong>.</li>
     <li>Generate a code below, then either scan the QR or type the code into the app.</li>
@@ -184,14 +185,6 @@
     background: var(--card);
     margin-bottom: 16px;
   }
-  .card h2 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 0 12px;
-    font-size: 16px;
-    font-weight: 700;
-  }
   .devices {
     list-style: none;
     margin: 0;
@@ -217,6 +210,9 @@
   }
   .d-text span {
     color: var(--muted-foreground);
+    /* Pairing and last-seen times are machine facts about a device, which is
+       what the Vault data face is for. */
+    font-family: var(--frame-data-font);
     font-size: 12px;
   }
   ol {

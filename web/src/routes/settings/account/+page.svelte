@@ -3,6 +3,7 @@
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import SectionHeading from '$lib/components/SectionHeading.svelte';
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
@@ -36,7 +37,7 @@
 <PageHeader title="Account" subtitle="Manage your sign-in." />
 
 <section class="card">
-  <h2><KeyRound size={18} aria-hidden="true" /> Change password</h2>
+  <SectionHeading><KeyRound size={14} aria-hidden="true" /> Change password</SectionHeading>
   <p class="hint">
     Changing your password signs out every other browser and device session. Your
     paired phones keep their own device tokens and are unaffected.
@@ -67,14 +68,6 @@
     border: 1px solid var(--border);
     border-radius: 12px;
     background: var(--card);
-  }
-  .card h2 {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 0 8px;
-    font-size: 16px;
-    font-weight: 700;
   }
   .hint {
     color: var(--muted-foreground);

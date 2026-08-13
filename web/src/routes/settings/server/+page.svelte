@@ -4,6 +4,7 @@
   import { bumpLibrary, showToast } from '$lib/stores';
   import type { SettingInfo, ExternalLibrary } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
+  import SectionHeading from '$lib/components/SectionHeading.svelte';
   import SettingRow from '$lib/components/SettingRow.svelte';
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
   import { Input } from '$lib/components/ui/input';
@@ -174,14 +175,14 @@
   <p class="muted">Loading…</p>
 {:else}
   <section class="group">
-    <h2>About</h2>
+    <SectionHeading>About</SectionHeading>
     <SettingRow id="version" kind="static" label="Version" status="none">
       <code>{version}</code>
     </SettingRow>
   </section>
 
   <section class="group">
-    <h2>Backup</h2>
+    <SectionHeading>Backup</SectionHeading>
     {#each backupSettings as s (s.key)}
       <SettingRow
         id={s.key}
@@ -227,7 +228,7 @@
   </section>
 
   <section class="group">
-    <h2>Maintenance</h2>
+    <SectionHeading>Maintenance</SectionHeading>
     <div class="actions">
       <Button variant="outline" disabled={verifying} onclick={verifyNow}>
         {verifying ? 'Verifying…' : 'Run integrity check'}
@@ -240,7 +241,7 @@
   </section>
 
   <section class="group">
-    <h2>External libraries</h2>
+    <SectionHeading>External libraries</SectionHeading>
     {#if libraries.length > 0}
       <ul class="libs">
         {#each libraries as lib (lib.id)}
@@ -286,12 +287,6 @@
   .group {
     max-width: 640px;
     margin-bottom: 28px;
-  }
-  .group h2 {
-    margin: 0 0 4px;
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--text-dim);
   }
   .num {
     display: flex;

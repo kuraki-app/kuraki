@@ -257,8 +257,18 @@
   }
   .day h2 {
     margin: 0;
-    font-size: 15px;
-    font-weight: 700;
+    /* The display face, per the design spec's type table: "Fraunces Variable —
+     * display headings, page titles, DAY HEADERS — Kura". It was rendering in
+     * the inherited sans, which the spec never called for; the gap only shows
+     * up when you put the two faces side by side in a browser.
+     *
+     * This is the Kura register asserting itself, and it must stay independent
+     * of the host page: Trash is a Vault frame, and a day header there is still
+     * a date over photographs. */
+    font-family: var(--font-heading);
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
     color: var(--text-dim);
   }
   .grid {
