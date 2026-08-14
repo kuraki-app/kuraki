@@ -115,6 +115,31 @@ describe('placeLabel', () => {
 });
 
 describe('captureTime', () => {
+  it('agrees with the day heading the photo is filed under', () => {
+    // `taken_day` is a string prefix of `taken_at` and `taken_at` is stored
+    // UTC, so the day a photo groups under is its UTC date. This suite runs in
+    // America/Los_Angeles (see vitest.config.ts), where a late-UTC instant
+    // falls on the PREVIOUS local day — exactly the case where a locally
+    // formatted viewer disagreed with the heading above it.
+    // An EARLY-UTC instant is the one that crosses the date line westward:
+    // 02:00Z is the previous evening in Los Angeles (UTC-7). A late-UTC time
+    // like 23:30Z does not cross it and would pass either way — the first
+    // version of this test used one and proved nothing.
+    const iso = '2025-07-01T02:00:00Z';
+    const day = iso.slice(0, 10); // what the server sends as taken_day
+
+    // Locale-agnostic on purpose: this suite pins the TIMEZONE, not the locale,
+    // and the environment here resolves to en-GB ("1 Jul 2025"), not the US
+    // pattern. Asserting every token of the heading appears in the viewer's
+    // string states the invariant — same day, same month, same year — without
+    // hardcoding either order or punctuation.
+    const heading = labelDate(day);
+    const shown = captureTime(iso);
+    for (const token of heading.split(/[\s,]+/).filter(Boolean)) {
+      expect(shown, `viewer shows "${shown}" under a heading of "${heading}"`).toContain(token);
+    }
+  });
+
   it('drops the seconds and uses a readable date', () => {
     // `toLocaleString()` produced "6/30/2025, 12:00:00 PM" — the default US
     // pattern with seconds, which is noise on a photograph.
