@@ -93,7 +93,7 @@
     <div class="int-text">
       <strong>Integrity</strong>
       {#if integrity}
-        <span>{integrityLabel(integrity.status)} · {integrity.checked.toLocaleString()} checked{#if integrity.problems}, {integrity.problems} problem{integrity.problems === 1 ? '' : 's'}{/if}{#if integrity.finished_at} · {relativeTime(integrity.finished_at)}{/if}</span>
+        <span>{integrityLabel(integrity.status)} · {integrity.checked.toLocaleString()} checked{#if integrity.problems}, {integrity.problems} problem{integrity.problems === 1 ? '' : 's'}{/if}{#if integrity.finished_at}{' · '}{relativeTime(integrity.finished_at)}{/if}</span>
       {:else}
         <span class="prose">Not verified yet</span>
       {/if}
@@ -107,9 +107,9 @@
       {#if !backup?.enabled}
         <span class="prose">Automatic backup is off. Set a backup directory in <a href="/settings/server">Settings → Server</a> to keep scheduled copies, or run <code>kuraki backup</code> by hand.</span>
       {:else if backup.last?.status === 'error'}
-        <span>Last automatic backup failed{#if backup.last.finished_at} · {relativeTime(backup.last.finished_at)}{/if}{#if backup.last.error} · {backup.last.error}{/if}</span>
+        <span>Last automatic backup failed{#if backup.last.finished_at}{' · '}{relativeTime(backup.last.finished_at)}{/if}{#if backup.last.error}{' · '}{backup.last.error}{/if}</span>
       {:else if backup.last}
-        <span>Last backup {fileSize(backup.last.bytes)}{#if backup.last.finished_at} · {relativeTime(backup.last.finished_at)}{/if}{#if backupStale} · overdue{/if}</span>
+        <span>Last backup {fileSize(backup.last.bytes)}{#if backup.last.finished_at}{' · '}{relativeTime(backup.last.finished_at)}{/if}{#if backupStale}{' · overdue'}{/if}</span>
       {:else}
         <span class="prose">Automatic backup is on; no backup has run yet.</span>
       {/if}
