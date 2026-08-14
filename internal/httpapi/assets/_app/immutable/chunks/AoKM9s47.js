@@ -1,0 +1,1 @@
+import"./CDcvpCic.js";import{s,r as p}from"./CO2TWCLC.js";import{I as n}from"./DrR5T-8s.js";var a=new Set(["$$slots","$$events","$$legacy"]);function i(e,o){let r=p(o,a);const t=[["path",{d:"M18 6 6 18"}],["path",{d:"m6 6 12 12"}]];n(e,s({name:"x"},()=>r,{get iconNode(){return t}}))}export{i as X};

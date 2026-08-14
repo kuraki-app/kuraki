@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Check, RefreshCw, Trash2 } from '@lucide/svelte';
+  import { Check, Copy, RefreshCw, Trash2 } from '@lucide/svelte';
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
   import { fileSize } from '$lib/format';
@@ -119,15 +119,31 @@
     {#if (run?.group_count ?? 0) > 0}· {run?.group_count} groups so far{/if}
   </p>
 {:else if run?.status === 'error'}
-  <EmptyState title="The last duplicate scan failed">
-    <p>{run.error || 'No further detail was recorded.'}</p>
+  <EmptyState
+    title="The last duplicate scan failed"
+    body={run.error || 'No further detail was recorded.'}
+  >
+    <svelte:fragment slot="action">
+      <Button variant="outline" onclick={startScan}>Try again</Button>
+    </svelte:fragment>
   </EmptyState>
 {:else if !run}
-  <EmptyState title="No duplicate scan has run yet">
-    <p>Scanning compares every photo in the library, so it is a deliberate step rather than something that happens on import.</p>
+  <EmptyState
+    title="No duplicate scan has run yet"
+    body="Scanning compares every photo in the library, so it is a deliberate step rather than something that happens on import."
+  >
+    <svelte:fragment slot="icon"><Copy size={20} aria-hidden="true" /></svelte:fragment>
+    <svelte:fragment slot="action">
+      <Button onclick={startScan}><RefreshCw size={16} aria-hidden="true" /> Run scan</Button>
+    </svelte:fragment>
   </EmptyState>
 {:else if groups.length === 0}
-  <EmptyState title="No duplicates found" />
+  <EmptyState
+    title="No duplicates found"
+    body="Every photo in the library is visually distinct. Run the scan again after your next import."
+  >
+    <svelte:fragment slot="icon"><Copy size={20} aria-hidden="true" /></svelte:fragment>
+  </EmptyState>
 {:else}
   <p class="summary">{groups.length} {groups.length === 1 ? 'group' : 'groups'} · {total} copies</p>
   {#each groups as group, gi (gi)}

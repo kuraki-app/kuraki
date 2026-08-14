@@ -97,7 +97,12 @@
   {/if}
 
   {#if jobs.length === 0}
-    {#if mediaIssues.length === 0}<EmptyState title="No recent activity" />{/if}
+    {#if mediaIssues.length === 0}
+      <EmptyState
+        title="No imports yet"
+        body="Imports appear here as they run, with per-file progress and anything that failed."
+      />
+    {/if}
   {:else}
   <div class="list">
     {#each jobs as job (job.id)}
