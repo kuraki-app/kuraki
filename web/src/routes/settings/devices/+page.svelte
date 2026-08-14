@@ -216,6 +216,13 @@
     font-size: 12px;
   }
   ol {
+    /* Tailwind's preflight sets `list-style: none` on every list, which is right
+     * for the navigation and card grids that make up most lists in this app —
+     * and wrong here. Pairing a phone is three ORDERED steps, so the numbers are
+     * information the reader needs, and they were rendering indented and
+     * invisible. This is the one place in the app where numbered markers are
+     * genuinely earned rather than decorative. */
+    list-style: decimal;
     margin: 0 0 16px;
     padding-left: 20px;
     color: var(--text-dim);

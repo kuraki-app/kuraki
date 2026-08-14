@@ -68,7 +68,11 @@
   }
   @media (max-width: 820px) {
     .settings-shell {
-      grid-template-columns: 1fr;
+      /* `1fr` has an automatic minimum of min-content, so the single column was
+       * floored by the widest thing in it — the rail's row of nowrap links —
+       * and the whole document could be dragged sideways at 320px. The same
+       * `minmax(0, 1fr)` idiom AssetGrid documents for the same reason. */
+      grid-template-columns: minmax(0, 1fr);
     }
     .rail {
       position: static;
@@ -78,6 +82,19 @@
       gap: 4px;
       padding-bottom: 4px;
       -webkit-overflow-scrolling: touch;
+      /* The rail becomes a scroller here, and the last item was cut mid-word
+       * with no cue — on a phone, Server and Users looked like they did not
+       * exist. The mask fades the trailing edge so the cut reads as "more this
+       * way" rather than as a rendering accident, and it costs no element and
+       * no scroll listener. */
+      mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+      /* The document must not be draggable sideways at the narrowest supported
+       * width: `min-width: 0` lets this grid child actually shrink instead of
+       * being floored by its content, which is what pushed 320px 3px wide. */
+      min-width: 0;
+    }
+    .rail::-webkit-scrollbar {
+      display: none;
     }
     .rail a {
       flex: none;

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { CheckCircle2, XCircle, Loader, Clock } from '@lucide/svelte';
+  import { Activity, CheckCircle2, XCircle, Loader, Clock } from '@lucide/svelte';
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
   import { relativeTime } from '$lib/format';
@@ -101,7 +101,9 @@
       <EmptyState
         title="No imports yet"
         body="Imports appear here as they run, with per-file progress and anything that failed."
-      />
+      >
+        <svelte:fragment slot="icon"><Activity size={20} aria-hidden="true" /></svelte:fragment>
+      </EmptyState>
     {/if}
   {:else}
   <div class="list">
@@ -175,6 +177,8 @@
   }
   .media-health h2 { margin: 0; font-size: 16px; }
   .media-health p { margin: 5px 0 10px; color: var(--muted-foreground); font-size: 13px; }
+  /* Deliberately markerless: these are rows with their own actions, not
+     prose bullets — the same reason the pairing steps above DO need theirs. */
   .media-health ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
   .media-health li { display: flex; align-items: center; gap: 10px; font-size: 13px; }
   .media-health .mi-text { display: grid; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
