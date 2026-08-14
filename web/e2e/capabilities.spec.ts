@@ -105,7 +105,7 @@ test('the filter panel reaches the whole filter language', async ({ page }) => {
 
   await page.getByLabel('City', { exact: true }).fill('Nowhere-at-all');
   await page.getByLabel('City', { exact: true }).blur();
-  await expect(page.getByText('No matches found')).toBeVisible();
+  await expect(page.getByText('No photos match these filters')).toBeVisible();
   // The summary must name the filter, or a filtered empty page is indis-
   // tinguishable from an empty library.
   await expect(page.getByText(/Filtered by .*Nowhere-at-all/)).toBeVisible();

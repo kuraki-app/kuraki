@@ -51,7 +51,17 @@
 {#if loading}
   <div class="grid">{#each Array(6) as _}<div class="h-40 animate-pulse rounded-xl bg-muted"></div>{/each}</div>
 {:else if albums.length === 0}
-  <EmptyState title="No albums yet" />
+  <EmptyState
+    title="Group photos into an album"
+    body="An album is only a grouping — a photo can be in as many albums as you like, and it stays in your timeline either way."
+  >
+    <svelte:fragment slot="icon"><FolderOpen size={20} aria-hidden="true" /></svelte:fragment>
+    <svelte:fragment slot="action">
+      <Button onclick={() => ((newName = ''), (createOpen = true))}>
+        <Plus size={16} aria-hidden="true" /> New album
+      </Button>
+    </svelte:fragment>
+  </EmptyState>
 {:else}
   <div class="grid">
     {#each albums as album (album.id)}

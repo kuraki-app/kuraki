@@ -101,7 +101,16 @@
 {:else if loading}
   <p class="muted">Loading tags…</p>
 {:else if tags.length === 0}
-  <EmptyState title="No tags yet" />
+  <!-- No action here on purpose: the "New tag" form is directly above, and now
+       that the empty state is anchored to its content rather than centred in
+       the viewport, a second button would be pointing at a control already in
+       view. -->
+  <EmptyState
+    title="Label photos with your own words"
+    body="A tag works across the whole library. Add one above, then apply it from any photo's details."
+  >
+    <svelte:fragment slot="icon"><TagIcon size={20} aria-hidden="true" /></svelte:fragment>
+  </EmptyState>
 {:else}
   <ul class="list">
     {#each tags as tag (tag.id)}

@@ -1,0 +1,1 @@
+import{w as v,E as y,q as o,x as f,C as l,F as m,G as p,H as i,J as T,I as A}from"./DfptlsUT.js";import{B as E}from"./CO2TWCLC.js";function x(d,_,e){var s;o&&(s=A,f());var r=new E(d);v(()=>{var a=_()??null;if(o){var h=l(s),c=h===T,u=a!==null;if(c!==u){var t=m();p(t),r.anchor=t,i(!1),r.ensure(a,a&&(n=>e(n,a))),i(!0);return}}r.ensure(a,a&&(n=>e(n,a)))},y)}export{x as c};

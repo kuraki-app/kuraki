@@ -10,7 +10,7 @@
   import { Input } from '$lib/components/ui/input';
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
   import { api, uploadFiles } from '$lib/api';
-  import { session, bumpLibrary, showToast } from '$lib/stores';
+  import { session, bumpLibrary, showToast, uploadRequest } from '$lib/stores';
   import { startSync } from '$lib/sync';
   import { defaultView } from '$lib/prefs';
   import { NAV_GROUPS, isActive, registerFor } from '$lib/nav';
@@ -139,6 +139,15 @@
       }
       await new Promise((r) => setTimeout(r, 700));
     }
+  }
+
+  // Any page can ask for the file picker (the timeline's empty state does).
+  // The first emission is the store's initial value, not a request — opening a
+  // picker on mount would be a jump-scare, so it is skipped.
+  let uploadRequests = 0;
+  $: if ($uploadRequest > uploadRequests) {
+    uploadRequests = $uploadRequest;
+    fileInput?.click();
   }
 
   function onDrop(e: DragEvent) {

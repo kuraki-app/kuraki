@@ -32,6 +32,7 @@
     title={heading}
     subtitle="Everything tagged this way."
     emptyText="Nothing carries this tag yet"
+    emptyBody="Open a photo, then add this tag in its details to file it here."
   >
     <div slot="actions" class="flex gap-1.5">
       <Button variant="outline" size="icon" href="/tags" aria-label="Back to tags">

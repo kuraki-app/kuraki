@@ -19,3 +19,13 @@ export function bumpLibrary() {
 export function showToast(message: string) {
   sonner(message);
 }
+
+// The file input and the whole upload pipeline live in the root layout, because
+// the drop target is the entire window. Any page can ask for the picker by
+// bumping this — the layout is the only subscriber. Without it, the timeline's
+// empty state could describe where the Upload button is but could not BE one,
+// which is the difference between an instruction and an invitation.
+export const uploadRequest = writable(0);
+export function requestUpload() {
+  uploadRequest.update((n) => n + 1);
+}

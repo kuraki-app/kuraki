@@ -41,6 +41,8 @@
   export let archiveMode = false;
   export let hiddenMode = false;
   export let emptyText = 'Nothing here yet';
+  /** The line under the title. A title on its own is a label, not a state. */
+  export let emptyBody = '';
 
   let assets: Asset[] = [];
   let cursor = '';
@@ -448,7 +450,10 @@
     <SkeletonGrid {density} />
   </div>
 {:else if assets.length === 0}
-  <EmptyState title={emptyText} />
+  <EmptyState title={emptyText} body={emptyBody}>
+    <svelte:fragment slot="icon"><slot name="empty-icon" /></svelte:fragment>
+    <svelte:fragment slot="action"><slot name="empty-action" /></svelte:fragment>
+  </EmptyState>
 {:else}
   <div in:fade={fadeParams()}>
     <AssetGrid

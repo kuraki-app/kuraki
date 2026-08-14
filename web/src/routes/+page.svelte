@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Search, X, SlidersHorizontal, CalendarDays, Bookmark, Trash2 } from '@lucide/svelte';
+  import { Search, X, SlidersHorizontal, CalendarDays, Bookmark, Trash2, Images, Upload } from '@lucide/svelte';
   import LibraryView from '$lib/components/LibraryView.svelte';
   import FilterChip from '$lib/components/FilterChip.svelte';
   import SegmentedControl from '$lib/components/SegmentedControl.svelte';
   import IconButton from '$lib/components/IconButton.svelte';
+  import { Button } from '$lib/components/ui/button';
   import { api, type SearchParams } from '$lib/api';
-  import { showToast } from '$lib/stores';
+  import { requestUpload, showToast } from '$lib/stores';
   import type { Album, SavedSearch, Tag } from '$lib/types';
   import { page } from '$app/stores';
 
@@ -233,8 +234,23 @@
     load={loader}
     title={filtered ? 'Search' : 'Timeline'}
     subtitle={filtered ? summary(applied) : ''}
-    emptyText={filtered ? 'No matches found' : 'No photos yet — upload to begin'}
+    emptyText={filtered ? 'No photos match these filters' : 'Bring your photos home'}
+    emptyBody={filtered
+      ? 'Try a wider date range, or clear the filters to see the whole library.'
+      : 'Drop files anywhere on this page, or choose Upload. Originals are copied in and never modified after import.'}
   >
+    <svelte:fragment slot="empty-icon">
+      {#if filtered}<Search size={20} aria-hidden="true" />{:else}<Images size={20} aria-hidden="true" />{/if}
+    </svelte:fragment>
+    <svelte:fragment slot="empty-action">
+      {#if filtered}
+        <Button variant="outline" onclick={clearAll}>Clear filters</Button>
+      {:else}
+        <Button onclick={requestUpload}>
+          <Upload size={16} aria-hidden="true" /> Upload photos
+        </Button>
+      {/if}
+    </svelte:fragment>
     <div slot="actions" class="filters">
       <form class="search" on:submit|preventDefault={apply}>
         <Search size={16} aria-hidden="true" />
@@ -315,45 +331,61 @@
          wraps a <select> takes the option text into its own accessible name, so
          "Rating" ends up announced as "Rating Any 1★ and up 2★ and up …" — the
          control is labelled, but not with anything a person would recognise. -->
-    <label for="filter-from">From</label>
-    <input id="filter-from" type="date" bind:value={from} on:change={apply} />
-    <label for="filter-to">To</label>
-    <input id="filter-to" type="date" bind:value={to} on:change={apply} />
+    <div class="field">
+      <label for="filter-from">From</label>
+      <input id="filter-from" type="date" bind:value={from} on:change={apply} />
+    </div>
+    <div class="field">
+      <label for="filter-to">To</label>
+      <input id="filter-to" type="date" bind:value={to} on:change={apply} />
+    </div>
 
     <!-- Everything below reaches filters the server has always accepted through
          `parseAssetFilters` and that the timeline had no way to express. -->
-    <label for="filter-rating">Rating</label>
-    <select id="filter-rating" bind:value={rating} on:change={apply}>
-      <option value="">Any</option>
-      <option value="1">1★ and up</option>
-      <option value="2">2★ and up</option>
-      <option value="3">3★ and up</option>
-      <option value="4">4★ and up</option>
-      <option value="5">5★</option>
-    </select>
+    <div class="field">
+      <label for="filter-rating">Rating</label>
+      <select id="filter-rating" bind:value={rating} on:change={apply}>
+        <option value="">Any</option>
+        <option value="1">1★ and up</option>
+        <option value="2">2★ and up</option>
+        <option value="3">3★ and up</option>
+        <option value="4">4★ and up</option>
+        <option value="5">5★</option>
+      </select>
+    </div>
 
-    <label for="filter-camera">Camera</label>
-    <input id="filter-camera" type="text" bind:value={camera} placeholder="e.g. iPhone 15" on:change={apply} />
+    <div class="field">
+      <label for="filter-camera">Camera</label>
+      <input id="filter-camera" type="text" bind:value={camera} placeholder="e.g. iPhone 15" on:change={apply} />
+    </div>
 
-    <label for="filter-city">City</label>
-    <input id="filter-city" type="text" bind:value={placeCity} placeholder="e.g. Kyoto" on:change={apply} />
+    <div class="field">
+      <label for="filter-city">City</label>
+      <input id="filter-city" type="text" bind:value={placeCity} placeholder="e.g. Kyoto" on:change={apply} />
+    </div>
 
-    <label for="filter-country">Country</label>
-    <input id="filter-country" type="text" bind:value={placeCountry} placeholder="e.g. Japan" on:change={apply} />
+    <div class="field">
+      <label for="filter-country">Country</label>
+      <input id="filter-country" type="text" bind:value={placeCountry} placeholder="e.g. Japan" on:change={apply} />
+    </div>
 
     {#if tags.length}
+      <div class="field">
       <label for="filter-tag">Tag</label>
-      <select id="filter-tag" bind:value={tagId} on:change={apply}>
-        <option value="">Any</option>
-        {#each tags as t (t.id)}<option value={t.id}>{t.name}</option>{/each}
-      </select>
+        <select id="filter-tag" bind:value={tagId} on:change={apply}>
+          <option value="">Any</option>
+          {#each tags as t (t.id)}<option value={t.id}>{t.name}</option>{/each}
+        </select>
+    </div>
     {/if}
     {#if albumList.length}
+      <div class="field">
       <label for="filter-album">Album</label>
-      <select id="filter-album" bind:value={albumId} on:change={apply}>
-        <option value="">Any</option>
-        {#each albumList as a (a.id)}<option value={a.id}>{a.name}</option>{/each}
-      </select>
+        <select id="filter-album" bind:value={albumId} on:change={apply}>
+          <option value="">Any</option>
+          {#each albumList as a (a.id)}<option value={a.id}>{a.name}</option>{/each}
+        </select>
+    </div>
     {/if}
   </div>
 {/if}
@@ -430,6 +462,14 @@
     display: inline-flex;
     gap: 6px;
     flex-wrap: wrap;
+  }
+  /* Label and control travel together. The panel is a wrap row, and with the
+   * label as a bare sibling a break could land between them — which is how
+   * "City" ended up at the end of one line with its input on the next. */
+  .field {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
   }
   .panel label {
     display: inline-flex;

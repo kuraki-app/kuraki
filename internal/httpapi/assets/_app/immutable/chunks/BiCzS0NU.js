@@ -1,1 +1,0 @@
-import"./OKfuOvih.js";import{s,r as p}from"./BeRRIEL2.js";import{I as n}from"./BNSI61ET.js";var a=new Set(["$$slots","$$events","$$legacy"]);function i(e,o){let r=p(o,a);const t=[["path",{d:"M18 6 6 18"}],["path",{d:"m6 6 12 12"}]];n(e,s({name:"x"},()=>r,{get iconNode(){return t}}))}export{i as X};
