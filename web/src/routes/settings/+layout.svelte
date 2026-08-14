@@ -42,8 +42,20 @@
   .settings-shell {
     display: grid;
     grid-template-columns: 180px minmax(0, 1fr);
-    gap: calc(var(--space-step) * 4);
+    gap: calc(var(--space-step) * 6);
     align-items: start;
+  }
+  /* Settings are read, not browsed. Measured at 1440 the panel ran the full
+   * ~1200px with rows whose content stops after a third of it, so a setting's
+   * label sat a long way from its control and the page filled 31-77% of the
+   * fold as a wide, sparse field.
+   *
+   * A reading measure pulls label and control back together and gives the
+   * column an edge, which is what makes the remaining space read as margin
+   * rather than as something missing. The photo surfaces are deliberately NOT
+   * capped — a timeline should use every pixel it is given. */
+  .panel {
+    max-width: 68ch;
   }
   .rail {
     display: grid;
@@ -54,8 +66,10 @@
   .rail a {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 7px 10px;
+    gap: calc(var(--space-step) * 2);
+    /* Was 7px/10px — two values on no scale at all. The Vault rhythm is 4px, so
+     * these are 2 and 3 steps. */
+    padding: calc(var(--space-step) * 2) calc(var(--space-step) * 3);
     border-radius: var(--frame-radius);
     color: var(--text-dim);
     text-decoration: none;
