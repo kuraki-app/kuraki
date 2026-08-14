@@ -38,7 +38,7 @@
   .empty-inner {
     display: grid;
     justify-items: center;
-    gap: calc(var(--space-step) * 1.5);
+    gap: calc(var(--space-step) * 2);
     max-width: 32rem;
     text-align: center;
   }
@@ -47,7 +47,7 @@
     place-items: center;
     width: calc(var(--space-step) * 6);
     height: calc(var(--space-step) * 6);
-    margin-bottom: calc(var(--space-step) * 0.5);
+    margin-bottom: var(--space-step);
     border-radius: var(--frame-radius);
     background: var(--muted);
     color: var(--text-faint);
