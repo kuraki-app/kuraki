@@ -6,6 +6,7 @@
   import type { UserSummary } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+  import SectionHeading from '$lib/components/SectionHeading.svelte';
   import { Button } from '$lib/components/ui/button';
 
   let users: UserSummary[] = [];
@@ -139,7 +140,7 @@
   <p class="empty">Loading…</p>
 {:else}
   <section class="add">
-    <h3>Add an account</h3>
+    <SectionHeading>Add an account</SectionHeading>
     <p class="hint">
       Each account gets its own private library. Admins manage accounts and server settings — they
       cannot see other people's photos.
@@ -213,11 +214,6 @@
   }
   .add {
     margin-bottom: calc(var(--space-step) * 4);
-  }
-  .add h3 {
-    font-size: 14px;
-    font-weight: 600;
-    margin: 0 0 4px;
   }
   .hint {
     color: var(--text-dim);

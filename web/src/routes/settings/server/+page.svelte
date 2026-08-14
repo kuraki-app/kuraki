@@ -302,6 +302,12 @@
   }
   .actions {
     display: flex;
+    /* "Run integrity check" and "Scan for duplicates" side by side need ~330px,
+     * and the narrowest supported width is 320 — so at 320 the second button
+     * pushed the document 3px wide and the whole page could be dragged
+     * sideways. Wrapping costs a row on the narrowest phones and nothing
+     * anywhere else. */
+    flex-wrap: wrap;
     gap: 8px;
     margin-top: 8px;
   }
