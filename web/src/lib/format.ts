@@ -28,20 +28,35 @@ export function fileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
-// A capture instant, for the viewer's detail panel. `toLocaleString()` gave
-// "6/30/2025, 12:00:00 PM" — the default US pattern with seconds, which is
-// noise on a photograph and reads as a machine timestamp.
+// A capture instant, for the viewer's detail panel.
 //
-// NOTE the deliberate difference from the formatters above: `taken_at` is a
-// true instant (stored UTC), not a calendar day, so it is formatted in the
-// VIEWER'S zone rather than pinned to UTC. That means someone in a different
-// timezone from where the photo was taken sees their own local time, which can
-// in principle disagree with the day heading `taken_day` produces. Changing
-// that is a product decision about which time a photograph "has" — it is not
-// a formatting bug, and it is left alone here on purpose.
+// `toLocaleString()` gave "6/30/2025, 12:00:00 PM" — the default US pattern
+// with seconds, which is noise on a photograph.
+//
+// timeZone: 'UTC' for the same reason the formatters above use it, and the
+// reason is not stylistic. The server derives `taken_day` as a STRING PREFIX of
+// `taken_at` (httpapi/assets.go: `row.TakenAt.String[:10]`), and `taken_at` is
+// stored UTC — so the day a photo groups under is its UTC date. Formatting the
+// same instant in the viewer's own zone made the panel disagree with the day
+// heading it sits directly under: a photo filed on "Jun 30" could read
+// "Jul 1, 1:30 AM" for anyone far enough east.
+//
+// It is also the more accurate reading of what the value holds. EXIF's
+// DateTimeOriginal carries no zone — it is the camera's wall-clock time — and
+// the importer stores it via `taken.UTC()`, so for any photo with EXIF the
+// stored instant IS the local time it was taken. Rendering that in UTC hands
+// it back unchanged, which is what every photo application shows.
+//
+// The residual limitation, stated plainly: no capture offset is stored
+// anywhere, so a photo dated from the file's modification time (the fallback
+// for media with no EXIF at all) is a true instant and will read in UTC rather
+// than in the zone it was taken in. Fixing that properly means storing the
+// offset at import, which is a schema change and a migration, not a formatting
+// choice.
 const captureFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: 'medium',
-  timeStyle: 'short'
+  timeStyle: 'short',
+  timeZone: 'UTC'
 });
 
 export function captureTime(iso: string): string {
