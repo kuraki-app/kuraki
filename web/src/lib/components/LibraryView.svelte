@@ -576,8 +576,12 @@
    * density group would land between the title and the filters and strand
    * Select on a row of its own. */
   @media (max-width: 820px) {
+    /* Off the phone entirely. Grid density is set once and then never touched,
+     * and it was claiming a whole row of a 390px screen above the photographs —
+     * with 36x28 targets, below the touch floor at that. It stays one tap away
+     * in Settings → Appearance, which is where a preference belongs. */
     .density {
-      order: 2;
+      display: none;
     }
   }
 </style>
