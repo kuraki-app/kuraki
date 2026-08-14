@@ -27,7 +27,13 @@
      * mobile breakpoint and still overflows sideways. Wrap costs nothing when
      * the row fits, which is the desktop case. */
     flex-wrap: wrap;
-    gap: calc(var(--space-step) * 1.5);
+  /* Integer multipliers only. The spec's rhythm is 8/16/24/32/48 in Kura and
+   * 4/8/12/16/24 in the Vault, and a fractional step lands between two rungs in
+   * BOTH registers — `* 1.5` renders 12px on a page whose scale has no 12 and
+   * 6px on a page whose scale has no 6. Measured across every route, these were
+   * the only two off-scale values in the shared chrome, and because PageHeader
+   * and EmptyState appear on every page they were the most-repeated ones. */
+    gap: calc(var(--space-step) * 2);
     margin-bottom: calc(var(--space-step) * 3);
     animation: kuraki-frame-enter var(--frame-duration) var(--frame-ease) both;
   }
@@ -40,7 +46,7 @@
     line-height: 1.15;
   }
   .page-subtitle {
-    margin-top: calc(var(--space-step) * 0.5);
+    margin-top: var(--space-step);
     color: var(--muted-foreground);
     font-family: var(--frame-label-font);
     font-size: var(--frame-label-size);
