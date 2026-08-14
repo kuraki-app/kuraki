@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { groupAssets, labelGroup, labelDate, fileSize, placeLabel } from './format';
+import { groupAssets, labelGroup, labelDate, fileSize, placeLabel, captureTime } from './format';
 import type { Asset } from './types';
 
 // Web had no unit test infrastructure at all, so the timezone bug these
@@ -111,5 +111,20 @@ describe('placeLabel', () => {
     expect(placeLabel({ place_city: 'Kyoto' } as Asset)).toBe('Kyoto');
     expect(placeLabel({ place_country: 'Japan' } as Asset)).toBe('Japan');
     expect(placeLabel({} as Asset)).toBe('');
+  });
+});
+
+describe('captureTime', () => {
+  it('drops the seconds and uses a readable date', () => {
+    // `toLocaleString()` produced "6/30/2025, 12:00:00 PM" — the default US
+    // pattern with seconds, which is noise on a photograph.
+    const formatted = captureTime('2025-06-30T06:30:00Z');
+    expect(formatted).not.toMatch(/:\d\d:\d\d/);
+    expect(formatted).toMatch(/Jun/);
+    expect(formatted).toContain('2025');
+  });
+
+  it('returns empty for a value it cannot parse, rather than "Invalid Date"', () => {
+    expect(captureTime('not-a-timestamp')).toBe('');
   });
 });
