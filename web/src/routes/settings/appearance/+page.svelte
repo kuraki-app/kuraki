@@ -29,7 +29,7 @@
 <PageHeader title="Appearance" subtitle="Theme, density, and where the app opens." />
 
 <section class="group">
-  <SettingRow id="theme" kind="static" label="Theme" description="Also available from the sidebar.">
+  <SettingRow id="theme" kind="static" label="Theme" description="Light, dark, or follow the system.">
     <SegmentedControl
       label="Theme"
       options={themes}
@@ -38,7 +38,7 @@
     />
   </SettingRow>
 
-  <SettingRow id="density" kind="static" label="Grid density" description="Also available above the timeline.">
+  <SettingRow id="density" kind="static" label="Grid density" description="How tightly photos pack into the grid.">
     <SegmentedControl
       label="Grid density"
       options={densities}

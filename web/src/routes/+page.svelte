@@ -400,7 +400,7 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    height: 38px;
+    height: 40px;
     padding: 0 12px;
     border: 1px solid var(--input);
     border-radius: 8px;
@@ -418,7 +418,7 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    height: 38px;
+    height: 40px;
     padding: 0 8px;
     border: 1px solid var(--input);
     border-radius: 8px;
@@ -433,19 +433,27 @@
   @media (max-width: 820px) {
     .filters {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       /* Own row, below the title/Select line (order 1 puts it after the
        * default-order Select button that shares row one with the title). */
       flex: 1 1 100%;
       order: 1;
     }
+    /* Search shares that row with the icon buttons rather than claiming one of
+     * its own. The header used to stack four control rows — title, search,
+     * filters, density — and eat ~24% of a 390x844 screen before a single
+     * photograph. */
     .search {
-      flex: 1 1 100%;
-      order: -1;
+      flex: 1 1 auto;
+      min-width: 0;
     }
     .search input { width: 100%; min-width: 0; }
-    .jump { flex: 1 1 auto; min-width: 0; }
-    .jump input { width: 100%; min-width: 0; }
+    /* Jump-to-date folds into the Filters panel on a phone, which already has
+     * From and To. A bare `dd/mm/yyyy` field reads as a form to fill in, not as
+     * a way to jump — and it was costing a full row to say so. */
+    .jump {
+      display: none;
+    }
   }
   .panel {
     display: flex;
