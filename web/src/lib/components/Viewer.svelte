@@ -16,7 +16,7 @@
   } from '@lucide/svelte';
   import type { Asset, Tag } from '$lib/types';
   import { api } from '$lib/api';
-  import { fileSize, placeLabel } from '$lib/format';
+  import { captureTime, fileSize, placeLabel } from '$lib/format';
   import { MORPH_NAME, viewerShowsImage, prefersReducedMotion } from '$lib/motion';
   import { trapFocus } from '$lib/focus';
 
@@ -324,6 +324,7 @@
              column. It lives here rather than inside the edit form because a
              rating is a one-click judgement, not a field you open a form to
              change. Clicking the current rating clears it. -->
+        <p class="field-label">Rating</p>
         <div class="rating" role="group" aria-label="Rating">
           {#each [1, 2, 3, 4, 5] as n (n)}
             <button
@@ -375,7 +376,7 @@
       {:else}
         <dl>
           {#if asset.taken_at}
-            <div><dt>Taken</dt><dd>{new Date(asset.taken_at).toLocaleString()}</dd></div>
+            <div><dt>Taken</dt><dd>{captureTime(asset.taken_at)}</dd></div>
           {/if}
           {#if asset.camera_model}
             <div><dt>Camera</dt><dd>{asset.camera_make} {asset.camera_model}</dd></div>
@@ -605,8 +606,15 @@
     text-decoration: none;
   }
   .info {
-    display: grid;
-    align-content: start;
+    /* Flex, not grid, for one reason: `margin-top: auto` on the last child.
+     * Under `display: grid; align-content: start` the rows are packed to the
+     * top and no free space is distributed, so an auto margin has nothing to
+     * consume and Download stayed floating mid-panel. Flex hands the leftover
+     * space to the auto margin, which pins it to the bottom edge and lets the
+     * metadata above read as one block. */
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
     gap: 18px;
     padding: 68px 22px 22px;
     border-left: 1px solid #ffffff1f;
@@ -626,6 +634,15 @@
     margin-top: 8px;
     color: #e7e0d6;
     font-size: 15px;
+  }
+  /* Matches `dt` and the Tags heading in the same panel — the rating was the
+   * only block in it without a label, so five outline stars read as loose
+   * decoration rather than a field with a value. */
+  .field-label {
+    margin: 0 0 4px;
+    color: #8f8579;
+    font-size: 12px;
+    text-transform: uppercase;
   }
   .rating {
     display: flex;
@@ -768,6 +785,8 @@
     gap: 5px;
   }
   .download {
+    /* The slack row: everything above keeps its natural height. */
+    margin-top: auto;
     display: inline-flex;
     align-items: center;
     justify-content: center;

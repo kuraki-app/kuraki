@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Flame } from '@lucide/svelte';
+  import { Flame, Trash2 } from '@lucide/svelte';
   import LibraryView from '$lib/components/LibraryView.svelte';
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
   import { Button } from '$lib/components/ui/button';
@@ -71,7 +71,9 @@
   subtitle="Items are permanently removed after {retentionDays} {retentionDays === 1 ? 'day' : 'days'}"
   trashMode
   emptyText="Trash is empty"
+  emptyBody="Deleted photos wait here for {retentionDays} {retentionDays === 1 ? 'day' : 'days'}, then their originals are removed from disk. Until then you can restore them."
 >
+  <svelte:fragment slot="empty-icon"><Trash2 size={20} aria-hidden="true" /></svelte:fragment>
   <svelte:fragment slot="actions">
     {#if count > 0}
       <Button variant="outline" onclick={() => (confirmOpen = true)}>

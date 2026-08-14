@@ -28,6 +28,28 @@ export function fileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
+// A capture instant, for the viewer's detail panel. `toLocaleString()` gave
+// "6/30/2025, 12:00:00 PM" — the default US pattern with seconds, which is
+// noise on a photograph and reads as a machine timestamp.
+//
+// NOTE the deliberate difference from the formatters above: `taken_at` is a
+// true instant (stored UTC), not a calendar day, so it is formatted in the
+// VIEWER'S zone rather than pinned to UTC. That means someone in a different
+// timezone from where the photo was taken sees their own local time, which can
+// in principle disagree with the day heading `taken_day` produces. Changing
+// that is a product decision about which time a photograph "has" — it is not
+// a formatting bug, and it is left alone here on purpose.
+const captureFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'medium',
+  timeStyle: 'short'
+});
+
+export function captureTime(iso: string): string {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return captureFormatter.format(parsed);
+}
+
 export function labelDate(day: string): string {
   const parsed = new Date(`${day}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return day;

@@ -8,7 +8,9 @@ import { test, expect, gotoApp } from './support/fixtures';
 test('creating and renaming an album uses a real dialog', async ({ page }) => {
   await gotoApp(page, '/albums');
 
-  await page.getByRole('button', { name: 'New album' }).click();
+  // Two "New album" buttons exist by design once the list is empty: the header
+  // action and the empty state's. Scope to the header.
+  await page.locator('header, .page-header').getByRole('button', { name: 'New album' }).first().click();
   const create = page.getByRole('dialog');
   await expect(create).toBeVisible();
 
@@ -56,7 +58,7 @@ test('deleting a tag explains what is lost', async ({ page }) => {
 test('a dialog can be dismissed with Escape and returns focus', async ({ page }) => {
   await gotoApp(page, '/albums');
 
-  const trigger = page.getByRole('button', { name: 'New album' });
+  const trigger = page.getByRole('button', { name: 'New album' }).first();
   await trigger.focus();
   await trigger.press('Enter');
   await expect(page.getByRole('dialog')).toBeVisible();

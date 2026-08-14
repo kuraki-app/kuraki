@@ -37,7 +37,14 @@ test.describe('authentication', () => {
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   });
 
-  test('an expired session drops back to the sign-in form', async ({ page }) => {
+  test('an expired session drops back to the sign-in form', async ({ page, consoleGuard }) => {
+    // This test destroys the session on purpose, so every request still in
+    // flight across the reload — thumbnails especially — answers 401. The count
+    // varies run to run because it races the reload, which is exactly why it
+    // must be declared rather than counted. Scoped to this test: a stray 401
+    // anywhere else is still a real defect.
+    consoleGuard.allow(/status of 401/);
+
     await page.goto('/');
     await page.locator('#auth-username').fill(OWNER.username);
     await page.locator('#auth-password').fill(OWNER.password);

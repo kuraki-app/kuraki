@@ -41,6 +41,8 @@
   export let archiveMode = false;
   export let hiddenMode = false;
   export let emptyText = 'Nothing here yet';
+  /** The line under the title. A title on its own is a label, not a state. */
+  export let emptyBody = '';
 
   let assets: Asset[] = [];
   let cursor = '';
@@ -448,7 +450,10 @@
     <SkeletonGrid {density} />
   </div>
 {:else if assets.length === 0}
-  <EmptyState title={emptyText} />
+  <EmptyState title={emptyText} body={emptyBody}>
+    <svelte:fragment slot="icon"><slot name="empty-icon" /></svelte:fragment>
+    <svelte:fragment slot="action"><slot name="empty-action" /></svelte:fragment>
+  </EmptyState>
 {:else}
   <div in:fade={fadeParams()}>
     <AssetGrid
@@ -571,8 +576,12 @@
    * density group would land between the title and the filters and strand
    * Select on a row of its own. */
   @media (max-width: 820px) {
+    /* Off the phone entirely. Grid density is set once and then never touched,
+     * and it was claiming a whole row of a 390px screen above the photographs —
+     * with 36x28 targets, below the touch floor at that. It stays one tap away
+     * in Settings → Appearance, which is where a preference belongs. */
     .density {
-      order: 2;
+      display: none;
     }
   }
 </style>

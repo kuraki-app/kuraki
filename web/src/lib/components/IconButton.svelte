@@ -19,6 +19,6 @@
   } = $props();
 </script>
 
-<Button {variant} size="icon" aria-label={label} title={label} {onclick} {disabled}>
+<Button {variant} size="icon" class="touch-target" aria-label={label} title={label} {onclick} {disabled}>
   {@render children()}
 </Button>

@@ -91,6 +91,13 @@
   --shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
   --shadow-strong: 0 12px 34px rgba(0, 0, 0, 0.26);
 
+  /* Touch targets. `pointer: coarse` is the honest test — it asks how the
+   * device is actually being driven rather than how wide the window is, so a
+   * touchscreen laptop gets the larger target and a narrow desktop window does
+   * not. Opt-in via .touch-target, because a blanket rule on every button would
+   * inflate the ones that are already comfortable. 44px is the Apple HIG floor
+   * and satisfies WCAG 2.5.5. */
+
   /* ---- Breakpoints ------------------------------------------------------
    *
    * ONE seam: 820px. Below it the sidebar is replaced by MobileNav's tab bar,
@@ -319,6 +326,28 @@
 /* Registers: one system, two voices. Colour is deliberately shared — only
  * density, type and surface shift. Plain CSS, never @theme inline: these must
  * be emitted as real custom properties for component <style> var() to read. */
+@media (pointer: coarse) {
+  /* On a device driven by a thumb, a control gets a thumb-sized target. The
+   * shadcn default button is 36px tall, which is comfortable with a mouse and
+   * fiddly without one.
+   *
+   * `.tile` is excluded because a grid tile is a photograph, not a control —
+   * it is already far larger than any floor, and a min-height would fight the
+   * square aspect ratio the gapless grid depends on. */
+  button:not(.tile),
+  /* Navigation links are controls too — the settings rail sat at 34px. Prose
+   * links inside a sentence are deliberately NOT included: padding a word in
+   * the middle of a paragraph into a 44px block would wreck the paragraph and
+   * help nobody. */
+  nav a,
+  .touch-target {
+    min-height: 44px;
+  }
+  .touch-target {
+    min-width: 44px;
+  }
+}
+
 [data-register='kura'] {
   /* Density: 8px rhythm — 8/16/24/32/48 as calc(var(--space-step) * n). */
   --space-step: 8px;

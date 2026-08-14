@@ -108,8 +108,13 @@
     load={(cursor) => api.album(id, cursor)}
     albumId={id}
     title={name}
-    emptyText="This album is empty — use Add photos, or add from the timeline"
+    emptyText="This album has no photos yet"
+    emptyBody="Add photos from here, or select any photos in your timeline and choose Add to album. They stay in the timeline either way."
   >
+    <svelte:fragment slot="empty-icon"><ImagePlus size={20} aria-hidden="true" /></svelte:fragment>
+    <svelte:fragment slot="empty-action">
+      <Button onclick={openPicker}><ImagePlus size={15} aria-hidden="true" /> Add photos</Button>
+    </svelte:fragment>
     <div slot="actions" class="flex gap-1.5">
       <Button variant="outline" size="icon" href="/albums" aria-label="Back to albums">
         <ArrowLeft size={16} aria-hidden="true" />

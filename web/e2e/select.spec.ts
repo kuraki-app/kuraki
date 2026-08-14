@@ -37,7 +37,7 @@ test.describe('selection', () => {
 
   test('batch favorite round-trips through the Favorites view', async ({ page }) => {
     await gotoApp(page, '/favorites');
-    await expect(page.getByText('No favorites yet', { exact: false })).toBeVisible();
+    await expect(page.getByText('Keep your best photos together')).toBeVisible();
 
     await gotoApp(page, '/');
     await page.getByRole('button', { name: 'Select', exact: true }).click();

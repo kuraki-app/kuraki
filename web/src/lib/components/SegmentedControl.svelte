@@ -72,6 +72,9 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
+    /* 28px tall was below any reasonable target floor, and the density variant
+     * of this control was the worst offender in the app at 36x28. */
+    min-height: 34px;
     padding: 6px 10px;
     border: 1px solid var(--border);
     /* --frame-radius so the control takes the register of the page it is on:
@@ -87,6 +90,12 @@
   }
   .seg button:hover {
     color: var(--foreground);
+  }
+  @media (pointer: coarse) {
+    .seg button {
+      min-height: 44px;
+      padding: 6px 14px;
+    }
   }
   .seg button.on {
     background: var(--accent);
