@@ -480,10 +480,14 @@ function ImageCell({
     [translateY, opacity, onDismiss],
   );
 
-  /* eslint-disable react-hooks/refs -- Same false positive as photo-grid.tsx:
-     the rule objects to the callbacks being handed to `.onUpdate(...)` during
-     render because they eventually touch a ref, not to any read happening then.
-     Nothing calls them until a finger does. */
+  /* eslint-disable react-hooks/refs -- Same mismatch as photo-grid.tsx, and the
+     reasoning is written out in full there: the rule objects to the callbacks
+     being handed to `.onUpdate(...)` during render because they eventually
+     touch a ref, not to any read happening then. Nothing calls them until a
+     finger does, and every alternative (state mutation, Reanimated worklets) is
+     worse for this code. Note the rule did catch a real bug in this file --
+     `useRef(new Animated.Value()).current` genuinely reads a ref during render
+     -- which is fixed above rather than suppressed. */
   const gestures = useMemo(
     () =>
       Gesture.Simultaneous(

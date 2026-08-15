@@ -121,17 +121,17 @@ export default function PhotoGrid({
   // stored preference. Never cleared back to null: clearing it before savePrefs
   // had propagated would snap the grid to the old count for a frame.
   const [previewColumns, setPreviewColumns] = useState<number | null>(null);
-  const previewRef = useRef<number | null>(null);
   const columns = previewColumns ?? savedColumns;
+  const [painting, setPainting] = useState(false);
 
-  // Tile boxes in list-content coordinates, for hit-testing a drag. Measured in
+  // Tile boxes in list-content coordinates, for hit-testing a drag: measured in
   // window coordinates on layout and normalised by the scroll offset at that
   // moment, so a tile measured while scrolled still compares correctly against a
   // finger reported later at a different offset (see tileAt).
   const frames = useRef(new Map<string, TileFrame>());
   const tileNodes = useRef(new Map<string, View>());
   const paint = useRef<{ mode: PaintMode; visited: Set<string>; set: Set<string> } | null>(null);
-  const [painting, setPainting] = useState(false);
+  const previewRef = useRef<number | null>(null);
 
   const listRef = useRef<SectionList<PhotoRow>>(null);
   const metrics = useRef({ offsetY: 0, contentHeight: 0, layoutHeight: 0 });
@@ -205,17 +205,15 @@ export default function PhotoGrid({
     [],
   );
 
-  const measureTile = useCallback((id: string) => {
-    tileNodes.current.get(id)?.measureInWindow((x, y, w, h) => {
-      frames.current.set(id, { id, x, y: y + metrics.current.offsetY, w, h });
-    });
-  }, []);
+  const measureTile = useCallback(
+    (id: string) => {
+      tileNodes.current.get(id)?.measureInWindow((x, y, w, h) => {
+        frames.current.set(id, { id, x, y: y + metrics.current.offsetY, w, h });
+      });
+    },
+    [],
+  );
 
-  // Each gesture handler is a useCallback rather than an arrow inside the
-  // useMemo below. The gesture builders run during render, and the React
-  // Compiler lint rejects reading a ref from anything created there — even
-  // though these only ever run later, from a finger. Event handlers are the
-  // sanctioned place to touch a ref, so that is what these are.
   const beginPaint = useCallback(
     (x: number, y: number) => {
       const id = tileAt({ x, y }, [...frames.current.values()], metrics.current.offsetY);
@@ -251,7 +249,10 @@ export default function PhotoGrid({
   }, []);
 
   const previewZoom = useCallback(
-    (scale: number) => setPreviewColumns(columnsForScale(previewRef.current ?? savedColumns, scale)),
+    (scale: number) => {
+      const next = columnsForScale(previewRef.current ?? savedColumns, scale);
+      setPreviewColumns(next);
+    },
     [savedColumns],
   );
 
@@ -265,47 +266,73 @@ export default function PhotoGrid({
   }, [savedColumns, previewColumns]);
 
   /**
-   * The grid's two gestures.
+   * The grid's gestures.
    *
-   * Pinch resizes: two fingers, so it never contends with the one-finger pan or
-   * the scroll, which is why these compose as simultaneous rather than racing.
-   * The preference is written once on release, not per frame.
+   * Pinch resizes. Two fingers, so it never contends with the one-finger drags
+   * or the scroll, which is why everything composes as simultaneous rather than
+   * racing. The preference is written once on release, not per frame.
    *
-   * Pan paints a selection, and `activeOffsetX` is the whole trick — it only
-   * takes over once the finger has moved sideways, so a vertical drag falls
-   * through and scrolls the list as it always did. That is how both survive on
-   * one scroll view. The price is that dragging straight down a column scrolls
-   * rather than painting.
+   * Painting a selection is *two* pans, because one cannot express it. A drag
+   * has to be able to mean "scroll" as well as "select", and the only signals
+   * available to tell them apart are direction and time:
    *
-   * `runOnJS` on both: every part of this — the frame map, the visited set, the
-   * selection callback — is ordinary JS state, and hopping to the UI thread to
-   * hit-test a Map would buy nothing.
+   *   - `swipePaint` claims sideways movement immediately. Sweeping across a row
+   *     is the common case and should not need a wait.
+   *   - `holdPaint` claims *any* direction after a short hold. This is what makes
+   *     dragging straight down a column work — the earlier version only had the
+   *     sideways rule, so a vertical drag could only ever scroll, and selecting a
+   *     column meant one tap per tile.
+   *
+   * A plain vertical drag with no hold still scrolls, which is the behaviour
+   * that has to survive: the list is long and scrolling is the thing users do
+   * most.
    */
-  /* eslint-disable react-hooks/refs -- The rule fires on handing the callbacks
-     over, not on any read: `.onUpdate(fn)` is a function call made during
-     render, and the compiler can see that `fn` eventually touches a ref, so it
-     warns the ref *might* be read during render. It cannot be — nothing calls
-     these until a finger does. The rule is written for worklet gestures, where
-     this state would be a Reanimated shared value; these run on the JS thread
-     on purpose, because a Map of frames and a Set of ids are ordinary JS that
-     gains nothing from crossing to the UI thread. */
-  const gestures = useMemo(
-    () =>
-      Gesture.Simultaneous(
-        Gesture.Pinch()
-          .runOnJS(true)
-          .onUpdate((e) => previewZoom(e.scale))
-          .onEnd(commitZoom),
-        Gesture.Pan()
-          .enabled(selectionActive && !!onReplaceSelection)
-          .activeOffsetX([-12, 12])
-          .runOnJS(true)
-          .onStart((e) => beginPaint(e.absoluteX, e.absoluteY))
-          .onUpdate((e) => extendPaint(e.absoluteX, e.absoluteY))
-          .onFinalize(endPaint),
-      ),
-    [previewZoom, commitZoom, beginPaint, extendPaint, endPaint, selectionActive, onReplaceSelection],
-  );
+  /* eslint-disable react-hooks/refs -- The rule objects to these callbacks
+     being handed to `.onUpdate(...)`, which is a call made during render, on
+     the grounds that they eventually touch a ref and so the ref *might* be read
+     during render. It cannot be: nothing invokes them until a finger does.
+
+     This is a genuine mismatch between the rule and RNGH's builder API, not
+     something to route around. Holding the mutable state in a `useState`
+     initialiser instead was tried, and the compiler rejects that harder --
+     "This value cannot be modified" -- because mutating state is worse than
+     using a ref, which is exactly what refs are for. The remaining escape would
+     be Reanimated shared values, which would make these the only worklets in
+     the codebase for no behavioural gain. */
+  const gestures = useMemo(() => {
+    const swipePaint = Gesture.Pan()
+      .enabled(selectionActive && !!onReplaceSelection)
+      .activeOffsetX([-12, 12])
+      .runOnJS(true)
+      .onStart((e) => beginPaint(e.absoluteX, e.absoluteY))
+      .onUpdate((e) => extendPaint(e.absoluteX, e.absoluteY))
+      .onFinalize(endPaint);
+
+    const holdPaint = Gesture.Pan()
+      .enabled(selectionActive && !!onReplaceSelection)
+      .activateAfterLongPress(220)
+      .runOnJS(true)
+      .onStart((e) => beginPaint(e.absoluteX, e.absoluteY))
+      .onUpdate((e) => extendPaint(e.absoluteX, e.absoluteY))
+      .onFinalize(endPaint);
+
+    const pinch = Gesture.Pinch()
+      .runOnJS(true)
+      .onUpdate((e) => previewZoom(e.scale))
+      .onEnd(commitZoom);
+
+    // The two pans race: whichever condition is met first wins, and the other
+    // never starts. They cannot both run, so the paint state has one owner.
+    return Gesture.Simultaneous(pinch, Gesture.Race(swipePaint, holdPaint));
+  }, [
+    previewZoom,
+    commitZoom,
+    beginPaint,
+    extendPaint,
+    endPaint,
+    selectionActive,
+    onReplaceSelection,
+  ]);
   /* eslint-enable react-hooks/refs */
 
   const scrubbable = groupBy !== 'off' && assets.length > columns * 12;

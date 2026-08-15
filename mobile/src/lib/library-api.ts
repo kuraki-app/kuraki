@@ -87,6 +87,21 @@ export function isUnfiltered(filters: LibraryFilters): boolean {
   );
 }
 
+/**
+ * mirror runs an offline-cache write that the caller does not wait for.
+ *
+ * The `.catch` is the point. These used to be bare `void upsertAssets(...)`,
+ * and a failing SQLite write — a locked database after an abrupt termination,
+ * say — became an *unhandled rejection*, which expo surfaces as a red error
+ * banner over the UI. A cache that cannot write is not a failure the user needs
+ * to see: the request it came from already succeeded, and the next open simply
+ * refetches. Swallowed rather than logged to match how the rest of the app
+ * treats best-effort work (see the tag fetch in photo-viewer).
+ */
+function mirror(write: Promise<unknown>): void {
+  void write.catch(() => {});
+}
+
 export async function fetchLibrary(
   settings: CaptureSettings,
   filters: LibraryFilters,
@@ -124,7 +139,7 @@ export async function fetchLibrary(
   const page = (await response.json()) as LibraryPage;
   // Feed the offline cache from the plain recent view so the grid can paint
   // instantly next open and fall back to something when the network is down.
-  if (isUnfiltered(filters)) void upsertAssets(page.assets);
+  if (isUnfiltered(filters)) mirror(upsertAssets(page.assets));
   return page;
 }
 
@@ -354,7 +369,7 @@ export async function createTag(settings: CaptureSettings, name: string): Promis
 export async function fetchMemories(settings: CaptureSettings, cursor?: string): Promise<LibraryPage> {
   const params = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
   const page = await authedGet<LibraryPage>(settings, `/api/memories${params}`);
-  void upsertAssets(page.assets);
+  mirror(upsertAssets(page.assets));
   return page;
 }
 
