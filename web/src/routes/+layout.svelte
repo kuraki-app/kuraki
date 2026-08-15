@@ -406,7 +406,15 @@
     margin-top: auto;
   }
   .content {
-    width: min(1440px, 100%);
+    /* Full width. This used to be `min(1440px, 100%)`, which capped EVERY page
+     * — including the timeline, where the whole point is to show photographs.
+     * On a 1920 screen that left ~280px of empty paper to the right of the
+     * grid and made the app look like it had failed to fill the window.
+     *
+     * Surfaces that are READ rather than browsed set their own measure instead
+     * (see `.settings-shell`): a line of prose has an ideal length, a contact
+     * sheet does not. */
+    width: 100%;
     /* This element carries data-register, so it reads its own step: the frame
      * itself tightens from 24px to 12px as you cross into the Vault. */
     padding: calc(var(--space-step) * 3);
