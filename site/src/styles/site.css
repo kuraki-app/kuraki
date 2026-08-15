@@ -462,3 +462,43 @@
     gap: 4px;
   }
 }
+
+
+/* ---------------------------------------------------------------------------
+ * Long-form pages (/download). The landing page gets its rhythm from the gaps
+ * between its own sections; a page that is mostly prose has none of that
+ * structure, so headings sat directly on the paragraph above them and lines ran
+ * the full 1090px — roughly twice a readable measure.
+ * ------------------------------------------------------------------------- */
+
+.longform {
+  max-width: 72ch;
+}
+.longform > p,
+.longform > .small {
+  margin: 0 0 1.1em;
+  line-height: 1.65;
+}
+/* Space belongs ABOVE a heading, not below it: that is what binds the heading
+ * to the text it introduces rather than to the section it just ended. */
+.longform > .h3 {
+  margin: 2.4em 0 0.6em;
+}
+.longform > .code,
+.longform > .tbl {
+  margin: 1.4em 0 1.6em;
+}
+/* The download table is a row of facts, not prose, so it gets the full column
+ * rather than the reading measure. */
+.longform .tbl {
+  max-width: none;
+}
+
+/* A shell command a reader cannot see in full is a command they cannot run.
+ * These blocks scrolled horizontally and clipped mid-token — "…kuraki:l" — so
+ * long commands now wrap instead. Breaking at word boundaries keeps flags and
+ * paths intact. */
+.docs-body pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
