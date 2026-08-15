@@ -28,6 +28,18 @@ type Props = {
   settings: CaptureSettings | null;
   loading?: boolean;
   emptyMessage?: string;
+  /**
+   * Controls pinned above the tiles, rendered *inside* the list.
+   *
+   * Inside, specifically, because `headerOptions` makes every Kuraki header
+   * transparent: content runs from the very top of the screen and only a scroll
+   * view's `contentInsetAdjustmentBehavior="automatic"` accounts for the bar. A
+   * sibling `View` above this grid gets no inset at all — that is what put
+   * Search's filter chips on top of the word "Search" and pushed its text field
+   * up behind the status bar. As a list header the controls inherit the same
+   * inset the tiles already get, with nothing to compute or hard-code.
+   */
+  listHeader?: React.ReactElement | null;
   onEndReached?: () => void;
   onToggleFavorite?: (id: string, next: boolean) => void;
   /** Move a single asset to trash from inside the viewer. Surfaces the delete
@@ -72,6 +84,7 @@ export default function PhotoGrid({
   settings,
   loading,
   emptyMessage,
+  listHeader,
   onEndReached,
   onToggleFavorite,
   onDelete,
@@ -163,13 +176,12 @@ export default function PhotoGrid({
 
   const scrubbable = groupBy !== 'off' && assets.length > columns * 12;
 
-  if (!loading && assets.length === 0) {
-    return (
-      <View style={styles.center}>
-        <ThemedText themeColor="mutedForeground">{emptyMessage ?? 'Nothing to show yet.'}</ThemedText>
-      </View>
-    );
-  }
+  // The empty state is the list's own rather than an early return, so that
+  // `listHeader` survives it. Search is why: returning early here hid the search
+  // field and the filter chips behind "Nothing matched that search." — the one
+  // screen state where the user most needs them, since the query that matched
+  // nothing is the thing they came back to edit.
+  const empty = !loading && assets.length === 0;
 
   return (
     <View style={styles.fill} onLayout={(e) => setTrackHeight(e.nativeEvent.layout.height)}>
@@ -181,7 +193,25 @@ export default function PhotoGrid({
         // the OS when this is 'automatic'; hard-coding a bottom pad instead
         // double-counts on one platform or the other.
         contentInsetAdjustmentBehavior="automatic"
-        onEndReached={onEndReached}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={
+          empty ? (
+            <View style={styles.center}>
+              <ThemedText themeColor="mutedForeground">{emptyMessage ?? 'Nothing to show yet.'}</ThemedText>
+            </View>
+          ) : null
+        }
+        // Lets the empty message centre itself in the space left below the
+        // header instead of hugging the top of an otherwise empty list.
+        contentContainerStyle={empty ? styles.emptyContent : undefined}
+        // The search field holds focus while the list is up, so a tap on a
+        // filter chip must act rather than being spent dismissing the keyboard.
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        // Only once there is something to page. An empty list still fires
+        // onEndReached, which used to be impossible here — the empty state was
+        // an early return with no list in it at all.
+        onEndReached={sections.length ? onEndReached : undefined}
         onEndReachedThreshold={0.6}
         onScroll={onScroll}
         scrollEventThrottle={16}
@@ -351,4 +381,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24, minHeight: 200 },
+  // flexGrow, not flex: the content container must be free to exceed the
+  // viewport when the header is tall, and only stretch to fill when it is not.
+  emptyContent: { flexGrow: 1 },
 });
