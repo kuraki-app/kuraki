@@ -266,6 +266,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | R2: tags/hierarchical tags, saved searches, archive/hidden, external libraries, backup/restore | ✅ done |
 | Search matches substrings (trigram index alongside prefix), all FTS writes via `internal/fts` | ✅ done |
 | Mobile gestures: drag-to-select, pinch-to-resize grid, viewer pinch-zoom + swipe-to-dismiss | ✅ done |
+| Album covers: server sends cover asset ids, mobile draws a 2x2 mosaic | ✅ done |
 | R2 ratings: filterable and on the DTO since R2, but **no HTTP write path existed** until 2026-08-12 — only the importer and the Immich migration ever set the column | ✅ done (write path + star control added) |
 | R2: duplicate review (exact + near-duplicate by hamming), stacks (RAW+JPEG / Live-Motion), whole-library export, scheduled integrity verification | ✅ done |
 | Import/export safety: duplicate upload basenames preserved; live backup snapshot; restore staged and manifest-validated; ZIP exports preflighted and unbounded | ✅ done |
@@ -377,6 +378,19 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `feat/album-cover-mosaic` (2026-08-15) — **Album covers were blank, and not for a styling reason.**
+  - **`apitypes.Album` had no cover field at all**, so `/api/albums` never sent an asset id and every album drew a grey square. Mobile's `ServerAlbum` was *hand-written* and claimed a `cover_asset_id` the server does not have, so nothing in the type system objected — the client had invented a field and been believing in it. `ServerAlbum` is derived from the generated contract now, so the next invented field will not compile.
+  - **The list endpoint sends up to four ids per album**, newest first, from one `ROW_NUMBER() OVER (PARTITION BY album_id)` query rather than an N+1. Four rather than sixteen: a cover is about half a phone's width, so a 4x4 cell lands near 40pt, where photographs read as texture instead of pictures. (The request was "4x4"; 2x2 was chosen deliberately with sign-off.)
+  - **A partly-filled mosaic is deliberately impossible.** `coverLayout` returns mosaic / single / empty, and anything under four ids falls back to one full-bleed photo — three thumbnails and a grey square reads as an image that failed to load, not as a small album.
+  - **Verified by stubbing the render, not by touching the library.** Four real asset ids were hard-coded into the cover for one screenshot, the 2x2 confirmed on the simulator, and the stub reverted. Same trick as the viewer fix below; it is the only way to look at a component in this app.
+  - **The running dev server is the old binary**, so covers stay blank until it is rebuilt and restarted. Degrades gracefully — absent ids render the same placeholder as before.
+  - **Verified:** `make check`, `make check-gen`, `tsc --noEmit`, `expo lint`, 216 mobile tests, `check-tokens`.
+
+- `fix/viewer-black-screen` (2026-08-15) — **The photo viewer drew black after the zoom gesture went in.**
+  - **Two `flex: 1` wrappers were inserted between the cell and the image** to hang the zoom transform on. The cell centres its children (`alignItems: 'center'`), which in a column flexbox means children size to their *content* across the axis rather than stretching — so both wrappers were full height and **zero width**, and the image's `width: '100%'` resolved to nothing. It had worked only because the image used to be a direct child of the cell, whose width is explicit. `alignSelf: 'stretch'` opts the wrappers back out of the centring.
+  - **Nothing static could see this.** It typechecks, it lints, no test renders a component, and the app does not crash — it just draws black. **This is the second layout regression in this work that every gate waved through**, which is the warning in CLAUDE.md ("tests catch regressions; they do not catch design problems") arriving for real.
+  - **The technique that found it is worth keeping:** temporarily force the component open on mount (`viewerIndex` to 0), screenshot the simulator, revert. `simctl` has no touch injection, `idb` is not installed, and driving clicks through System Events is blocked by accessibility permissions (`-25204`), so forcing the state is the only way to see a screen that needs a tap to reach.
 
 - `feat/gestures-and-substring-search` (2026-08-15) — **Search only matched the start of a name, and the grid had no gestures.**
   - **Searching `MG_000` or `0001` found nothing**, because FTS5's default tokenizer matches token prefixes only — useless in a library where every file is `IMG_0001.jpg` or `Screenshot 2026-07-13.png`. A second index (`assets_fts_tri`, migration `00025`, trigram tokenizer) matches anywhere inside a token. It does **not** replace the first: trigram cannot answer a query under 3 characters at all (`"sc"` returns zero rows against a row that plainly contains it), so `ftsPlan` routes each query — every term ≥3 chars goes to trigram, otherwise to prefix. One short term drops the whole query to prefix, which still finds the long terms as prefixes; joining both tables would cost more than it buys.
