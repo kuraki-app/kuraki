@@ -10,14 +10,18 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
 import PhotoViewer from '@/components/photo-viewer';
 import ScrollScrubber from '@/components/scroll-scrubber';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing, useTokens } from '@/constants/theme';
 import { usePrefs } from '@/hooks/use-prefs';
+import { applyPaint, paintMode, tileAt, type PaintMode, type TileFrame } from '@/lib/drag-select';
 import { formatBytes } from '@/lib/format';
 import { groupAssets, type PhotoRow } from '@/lib/gallery';
+import { columnsForScale } from '@/lib/grid-zoom';
+import { savePrefs } from '@/lib/prefs';
 import { sectionAllSelected, sectionIds } from '@/lib/selection';
 import { thumbSource, type LibraryAsset } from '@/lib/library-api';
 import { offsetForProgress, progressForOffset } from '@/lib/scrubber';
@@ -73,6 +77,16 @@ type Props = {
    * caller does not have to recompute what the heading already knows.
    */
   onSelectSection?: (ids: string[], allSelected: boolean) => void;
+  /**
+   * Commit a whole selection at once, for drag-painting.
+   *
+   * Separate from `onToggleSelect` because a drag produces a *set*, not a
+   * sequence of toggles: replaying it as toggles would make the result depend on
+   * the order the callbacks landed, and dragging back over a tile would undo it.
+   * Without this prop the drag gesture stays off, so callers that only support
+   * tap-selection are unaffected.
+   */
+  onReplaceSelection?: (next: Set<string>) => void;
 };
 
 // PhotoGrid is the tile grid + full-screen viewer shared by every photo surface
@@ -93,14 +107,31 @@ export default function PhotoGrid({
   onLongPressItem,
   selectionMode = false,
   onSelectSection,
+  onReplaceSelection,
 }: Props) {
   const tokens = useTokens();
   // Layout and grouping are preferences, read here rather than threaded through
   // every caller: there is one grid, and Settings > Photo Grid is its one
   // source of truth.
-  const { gridColumns: columns, gridGap: gap, groupBy, showGroupHeaders, showSizeBadge } = usePrefs();
+  const { gridColumns: savedColumns, gridGap: gap, groupBy, showGroupHeaders, showSizeBadge } = usePrefs();
   const [viewerIndex, setViewerIndex] = useState(-1);
   const selectionActive = selectionMode || (!!selectedIds && selectedIds.size > 0);
+
+  // While a pinch is in flight the grid follows the fingers rather than the
+  // stored preference. Never cleared back to null: clearing it before savePrefs
+  // had propagated would snap the grid to the old count for a frame.
+  const [previewColumns, setPreviewColumns] = useState<number | null>(null);
+  const previewRef = useRef<number | null>(null);
+  const columns = previewColumns ?? savedColumns;
+
+  // Tile boxes in list-content coordinates, for hit-testing a drag. Measured in
+  // window coordinates on layout and normalised by the scroll offset at that
+  // moment, so a tile measured while scrolled still compares correctly against a
+  // finger reported later at a different offset (see tileAt).
+  const frames = useRef(new Map<string, TileFrame>());
+  const tileNodes = useRef(new Map<string, View>());
+  const paint = useRef<{ mode: PaintMode; visited: Set<string>; set: Set<string> } | null>(null);
+  const [painting, setPainting] = useState(false);
 
   const listRef = useRef<SectionList<PhotoRow>>(null);
   const metrics = useRef({ offsetY: 0, contentHeight: 0, layoutHeight: 0 });
@@ -174,6 +205,109 @@ export default function PhotoGrid({
     [],
   );
 
+  const measureTile = useCallback((id: string) => {
+    tileNodes.current.get(id)?.measureInWindow((x, y, w, h) => {
+      frames.current.set(id, { id, x, y: y + metrics.current.offsetY, w, h });
+    });
+  }, []);
+
+  // Each gesture handler is a useCallback rather than an arrow inside the
+  // useMemo below. The gesture builders run during render, and the React
+  // Compiler lint rejects reading a ref from anything created there — even
+  // though these only ever run later, from a finger. Event handlers are the
+  // sanctioned place to touch a ref, so that is what these are.
+  const beginPaint = useCallback(
+    (x: number, y: number) => {
+      const id = tileAt({ x, y }, [...frames.current.values()], metrics.current.offsetY);
+      if (!id) return;
+      const mode = paintMode(selectedIds?.has(id) ?? false);
+      const set = applyPaint(selectedIds ?? new Set<string>(), id, mode);
+      // The running selection lives here rather than being read back off the
+      // `selectedIds` prop: the prop arrives a render after the callback that
+      // changed it, so reading it mid-drag would drop tiles.
+      paint.current = { mode, visited: new Set([id]), set };
+      setPainting(true);
+      onReplaceSelection?.(set);
+    },
+    [selectedIds, onReplaceSelection],
+  );
+
+  const extendPaint = useCallback(
+    (x: number, y: number) => {
+      const p = paint.current;
+      if (!p) return;
+      const id = tileAt({ x, y }, [...frames.current.values()], metrics.current.offsetY);
+      if (!id || p.visited.has(id)) return;
+      p.visited.add(id);
+      p.set = applyPaint(p.set, id, p.mode);
+      onReplaceSelection?.(p.set);
+    },
+    [onReplaceSelection],
+  );
+
+  const endPaint = useCallback(() => {
+    paint.current = null;
+    setPainting(false);
+  }, []);
+
+  const previewZoom = useCallback(
+    (scale: number) => setPreviewColumns(columnsForScale(previewRef.current ?? savedColumns, scale)),
+    [savedColumns],
+  );
+
+  const commitZoom = useCallback(() => {
+    if (previewColumns == null || previewColumns === savedColumns) return;
+    // previewRef advances only once the write has landed, so the next pinch
+    // starts from what is on screen rather than from the stored preference.
+    void savePrefs({ gridColumns: previewColumns }).then(() => {
+      previewRef.current = previewColumns;
+    });
+  }, [savedColumns, previewColumns]);
+
+  /**
+   * The grid's two gestures.
+   *
+   * Pinch resizes: two fingers, so it never contends with the one-finger pan or
+   * the scroll, which is why these compose as simultaneous rather than racing.
+   * The preference is written once on release, not per frame.
+   *
+   * Pan paints a selection, and `activeOffsetX` is the whole trick — it only
+   * takes over once the finger has moved sideways, so a vertical drag falls
+   * through and scrolls the list as it always did. That is how both survive on
+   * one scroll view. The price is that dragging straight down a column scrolls
+   * rather than painting.
+   *
+   * `runOnJS` on both: every part of this — the frame map, the visited set, the
+   * selection callback — is ordinary JS state, and hopping to the UI thread to
+   * hit-test a Map would buy nothing.
+   */
+  /* eslint-disable react-hooks/refs -- The rule fires on handing the callbacks
+     over, not on any read: `.onUpdate(fn)` is a function call made during
+     render, and the compiler can see that `fn` eventually touches a ref, so it
+     warns the ref *might* be read during render. It cannot be — nothing calls
+     these until a finger does. The rule is written for worklet gestures, where
+     this state would be a Reanimated shared value; these run on the JS thread
+     on purpose, because a Map of frames and a Set of ids are ordinary JS that
+     gains nothing from crossing to the UI thread. */
+  const gestures = useMemo(
+    () =>
+      Gesture.Simultaneous(
+        Gesture.Pinch()
+          .runOnJS(true)
+          .onUpdate((e) => previewZoom(e.scale))
+          .onEnd(commitZoom),
+        Gesture.Pan()
+          .enabled(selectionActive && !!onReplaceSelection)
+          .activeOffsetX([-12, 12])
+          .runOnJS(true)
+          .onStart((e) => beginPaint(e.absoluteX, e.absoluteY))
+          .onUpdate((e) => extendPaint(e.absoluteX, e.absoluteY))
+          .onFinalize(endPaint),
+      ),
+    [previewZoom, commitZoom, beginPaint, extendPaint, endPaint, selectionActive, onReplaceSelection],
+  );
+  /* eslint-enable react-hooks/refs */
+
   const scrubbable = groupBy !== 'off' && assets.length > columns * 12;
 
   // The empty state is the list's own rather than an early return, so that
@@ -184,9 +318,13 @@ export default function PhotoGrid({
   const empty = !loading && assets.length === 0;
 
   return (
-    <View style={styles.fill} onLayout={(e) => setTrackHeight(e.nativeEvent.layout.height)}>
+    <GestureDetector gesture={gestures}>
+      <View style={styles.fill} onLayout={(e) => setTrackHeight(e.nativeEvent.layout.height)}>
       <SectionList
         ref={listRef}
+        // Held still while a drag is painting, so the list cannot slide out from
+        // under the finger that is selecting on it.
+        scrollEnabled={!painting}
         sections={sections}
         keyExtractor={(row, index) => row[0]?.id ?? String(index)}
         // The native tab bar and the home indicator are both accounted for by
@@ -252,6 +390,13 @@ export default function PhotoGrid({
               return (
                 <Pressable
                   key={item.id}
+                  ref={(node) => {
+                    if (node) tileNodes.current.set(item.id, node);
+                    else tileNodes.current.delete(item.id);
+                  }}
+                  // Re-measured on every layout, which covers the column count
+                  // changing under a pinch as well as the first mount.
+                  onLayout={() => measureTile(item.id)}
                   style={[styles.tile, { width: tile, height: tile, backgroundColor: tokens.thumb }]}
                   onPress={() =>
                     selectionActive
@@ -336,7 +481,8 @@ export default function PhotoGrid({
           }
         />
       )}
-    </View>
+      </View>
+    </GestureDetector>
   );
 }
 

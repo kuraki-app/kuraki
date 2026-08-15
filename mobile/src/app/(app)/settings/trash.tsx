@@ -222,6 +222,7 @@ export default function TrashScreen() {
           onEndReached={() => void loadMore()}
           selectedIds={selected}
           onToggleSelect={toggleSelect}
+          onReplaceSelection={setSelected}
           onLongPressItem={startSelection}
           onSelectSection={selectSection}
           emptyMessage="Trash is empty."

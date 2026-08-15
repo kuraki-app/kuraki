@@ -169,6 +169,13 @@ export default function AlbumAddPicker({
             onToggleSelect={(id) => {
               if (!existing.has(id)) toggle(id);
             }}
+            // The grid paints over the *combined* set, so what comes back
+            // includes the album's existing members. They are not part of this
+            // screen's selection -- they are already in the album -- so they are
+            // filtered back out rather than being re-submitted on confirm.
+            onReplaceSelection={(next) =>
+              setSelected(new Set([...next].filter((id) => !existing.has(id))))
+            }
             emptyMessage="Nothing in your library yet."
           />
         )}

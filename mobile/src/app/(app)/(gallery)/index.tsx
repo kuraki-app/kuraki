@@ -534,6 +534,7 @@ export default function LibraryScreen() {
             selectedIds={selected}
             selectionMode={selectionMode}
             onToggleSelect={toggleSelect}
+          onReplaceSelection={setSelected}
             onLongPressItem={(id) => {
               setSelectionMode(true);
               startSelection(id);

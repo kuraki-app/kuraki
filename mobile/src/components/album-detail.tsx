@@ -253,6 +253,7 @@ export default function AlbumDetail({ albumId, adding, onAddingChange, onSelecti
           selectedIds={selected}
           selectionMode={selectionMode}
           onToggleSelect={toggleSelect}
+          onReplaceSelection={setSelected}
           onLongPressItem={(id) => {
             setSelectionMode(true);
             startSelection(id);
