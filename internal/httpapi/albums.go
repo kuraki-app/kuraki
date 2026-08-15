@@ -125,9 +125,72 @@ func (d Deps) listAlbums(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "scan_albums_failed")
 			return
 		}
+		a.CoverAssetIDs = []string{}
 		albums = append(albums, a)
 	}
+	if err := rows.Err(); err != nil {
+		writeError(w, http.StatusInternalServerError, "scan_albums_failed")
+		return
+	}
+
+	covers, err := d.albumCovers(r.Context(), owner)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "query_albums_failed")
+		return
+	}
+	for i := range albums {
+		if ids, ok := covers[albums[i].ID]; ok {
+			albums[i].CoverAssetIDs = ids
+		}
+	}
 	writeJSON(w, http.StatusOK, apitypes.AlbumList{Albums: albums})
+}
+
+// coverAssetsPerAlbum is how many assets the list endpoint sends per album, and
+// exists to match the 2x2 mosaic the clients draw. Four rather than sixteen
+// because a cover is about half a phone's width: a 4x4 cell lands near 40pt,
+// where photographs read as texture instead of pictures.
+const coverAssetsPerAlbum = 4
+
+// albumCovers returns the newest few asset ids for every album the owner has,
+// keyed by album id.
+//
+// One query for all albums rather than one per album: the list endpoint is
+// already a single round trip and an N+1 here would scale with the album count.
+// ROW_NUMBER partitions by album so each gets its own top-N, which SQLite has
+// supported since 3.25 and modernc implements.
+//
+// Ordered by COALESCE(taken_at, created_at) to match the timeline's ordering —
+// a cover made of an album's newest photographs, not of whichever rows the
+// planner happened to visit first.
+func (d Deps) albumCovers(ctx context.Context, owner string) (map[string][]string, error) {
+	rows, err := d.DB.QueryContext(ctx, `
+		SELECT album_id, asset_id FROM (
+			SELECT aa.album_id AS album_id, ast.id AS asset_id,
+			       ROW_NUMBER() OVER (
+			           PARTITION BY aa.album_id
+			           ORDER BY COALESCE(ast.taken_at, ast.created_at) DESC, ast.id DESC
+			       ) AS rn
+			FROM album_assets aa
+			JOIN albums al ON al.id = aa.album_id AND al.deleted_at IS NULL AND al.owner_id = ?
+			JOIN assets ast ON ast.id = aa.asset_id
+			WHERE ast.deleted_at IS NULL AND ast.owner_id = ?
+		) WHERE rn <= ?
+		ORDER BY album_id, rn`, owner, owner, coverAssetsPerAlbum)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	covers := make(map[string][]string)
+	for rows.Next() {
+		var albumID, assetID string
+		if err := rows.Scan(&albumID, &assetID); err != nil {
+			return nil, err
+		}
+		covers[albumID] = append(covers[albumID], assetID)
+	}
+	return covers, rows.Err()
 }
 
 // getAlbum returns the album's assets (in timeline order).

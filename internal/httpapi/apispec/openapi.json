@@ -3660,6 +3660,7 @@
                 "type": "object",
                 "required": [
                     "asset_count",
+                    "cover_asset_ids",
                     "created_at",
                     "id",
                     "name"
@@ -3667,6 +3668,13 @@
                 "properties": {
                     "asset_count": {
                         "type": "integer"
+                    },
+                    "cover_asset_ids": {
+                        "description": "CoverAssetIDs are the newest few assets in the album, for drawing a cover\nmosaic. Up to coverAssetsPerAlbum of them, newest first; empty for an\nempty album. Never null on the wire, so a client can iterate it without\na guard.\n\nA list rather than the single cover id clients previously assumed: the\nendpoint never sent one at all, so every album rendered a blank square.",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
                     },
                     "created_at": {
                         "type": "string"

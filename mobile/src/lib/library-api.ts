@@ -169,10 +169,21 @@ export async function setFavorite(settings: CaptureSettings, id: string, favorit
 // reported via reportAuthLost inside authedGet — still propagates instead of
 // silently serving stale data.
 
-type ServerAlbum = { id: string; name: string; asset_count: number; cover_asset_id?: string };
+// Derived from the contract rather than hand-declared. The hand-written version
+// claimed a `cover_asset_id` the server never sent — apitypes.Album had no cover
+// field at all — so every album in the list drew a blank square and nothing in
+// the type system objected.
+type ServerAlbum = components['schemas']['apitypes.Album'];
 
 function toCachedAlbum(a: ServerAlbum): CachedAlbum {
-  return { id: a.id, name: a.name, cover_asset_id: a.cover_asset_id ?? null, count: a.asset_count };
+  return {
+    id: a.id,
+    name: a.name,
+    // Kept for the cached rows that still carry it; the mosaic reads the list.
+    cover_asset_id: a.cover_asset_ids?.[0] ?? null,
+    cover_asset_ids: a.cover_asset_ids ?? [],
+    count: a.asset_count,
+  };
 }
 
 async function authedGet<T>(settings: CaptureSettings, path: string): Promise<T> {
