@@ -50,15 +50,32 @@ func newCSPNonce() string {
 // single-origin SPA. The app has no third-party scripts, frames, or plugins.
 // The SPA document overrides the CSP with a nonce variant (spaHandler); every
 // other response keeps the strict default set here.
-func securityHeaders(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("X-Frame-Options", "DENY")
-		w.Header().Set("Referrer-Policy", "same-origin")
-		w.Header().Set("Permissions-Policy", "camera=(self)")
-		w.Header().Set("Content-Security-Policy", contentSecurityPolicy(""))
-		next.ServeHTTP(w, r)
-	})
+func securityHeaders(secureCookies bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// HSTS is emitted ONLY when the operator has declared this server is
+			// behind HTTPS, reusing the same signal that marks the session cookie
+			// Secure. Sending it unconditionally would be worse than not sending
+			// it: a browser that sees HSTS once refuses plain HTTP for that host
+			// for the max-age, and the default deployment of a self-hosted photo
+			// server is http://a-machine-on-my-LAN:3000. That would lock people
+			// out of their own library with no way to undo it from the server
+			// side.
+			//
+			// A reverse proxy in front may also set it (deploy/ does); a
+			// duplicate header is harmless, and the app should not depend on a
+			// proxy it cannot see for a policy it can state itself.
+			if secureCookies {
+				w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+			}
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("X-Frame-Options", "DENY")
+			w.Header().Set("Referrer-Policy", "same-origin")
+			w.Header().Set("Permissions-Policy", "camera=(self)")
+			w.Header().Set("Content-Security-Policy", contentSecurityPolicy(""))
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 // sameOriginWrites rejects browser cross-origin state changes. Requests without
