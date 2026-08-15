@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/kuraki-app/kuraki/internal/external"
 	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
+	"github.com/kuraki-app/kuraki/internal/storage"
 )
 
 // @Summary List external libraries
@@ -69,6 +70,20 @@ func (d Deps) createExternalLibrary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid_external_library")
 		return
 	}
+	// Admin-only is not sufficient on its own. AGENTS.md states the invariant
+	// plainly — "an admin manages accounts, NOT photos; there is no path from
+	// one account to another's library" — and an external library rooted inside
+	// the data directory would be exactly that path: `originals/` holds every
+	// owner's files, and a scan indexes whatever it walks as assets owned by
+	// the caller.
+	//
+	// External libraries exist to index media Kuraki does not own, so the check
+	// is containment rather than an allowlist: anywhere on the machine is fine
+	// except the library's own storage.
+	if inside, err := pathWithin(d.storageBase(), root); err != nil || inside {
+		writeError(w, 400, "external_library_inside_data_dir")
+		return
+	}
 	id, err := uuid.NewV7()
 	if err != nil {
 		writeError(w, 500, "external_library_id_failed")
@@ -114,6 +129,40 @@ func (d Deps) scanExternalLibrary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, result)
+}
+
+// storageBase returns the filesystem root the library is stored under, or ""
+// when storage is not filesystem-backed (S3 later), in which case there is
+// nothing local to contain against.
+func (d Deps) storageBase() string {
+	if fs, ok := d.Store.(*storage.FS); ok && fs != nil {
+		return fs.Base
+	}
+	return ""
+}
+
+// pathWithin reports whether target is base or lives underneath it. Both sides
+// are resolved through EvalSymlinks first, so a symlink pointing back into the
+// data directory cannot walk around the check.
+func pathWithin(base, target string) (bool, error) {
+	if base == "" {
+		return false, nil
+	}
+	realBase, err := filepath.EvalSymlinks(base)
+	if err != nil {
+		realBase = base
+	}
+	realTarget, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		// A root that does not exist yet cannot be scanned anyway; judge the
+		// literal path rather than failing open.
+		realTarget = target
+	}
+	rel, err := filepath.Rel(realBase, realTarget)
+	if err != nil {
+		return false, err
+	}
+	return rel == "." || (!strings.HasPrefix(rel, ".."+string(filepath.Separator)) && rel != ".."), nil
 }
 
 // deleteExternalLibrary forgets an external library. There was no way to remove
