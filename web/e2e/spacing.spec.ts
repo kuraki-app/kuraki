@@ -44,7 +44,11 @@ for (const { path, register, step } of SHARED_CHROME) {
 }
 
 test('settings are held to a reading measure, and photos are not', async ({ page }) => {
-  await page.setViewportSize({ width: 1600, height: 900 });
+  // 1920, not 1600. The cap this guards against was 1440px, and at a 1600px
+  // viewport a capped column still clears 90% of the available width — the
+  // first version of this assertion passed with the bug reinstated and proved
+  // nothing. The viewport has to be wide enough for the cap to show.
+  await page.setViewportSize({ width: 1920, height: 900 });
 
   // Settings are read rather than browsed. Unbounded, a row's label sat a long
   // way from its control on a wide screen and the page read as a sparse field.
@@ -53,7 +57,18 @@ test('settings are held to a reading measure, and photos are not', async ({ page
   expect(panel?.width ?? 0).toBeLessThan(900);
 
   // The timeline is the opposite case and must use every pixel it is given.
+  // `.content` used to be `width: min(1440px, 100%)`, which capped EVERY page —
+  // so on a wide screen the grid stopped ~280px short and the app looked like it
+  // had failed to fill the window. Asserted as a share of the viewport rather
+  // than a pixel count, so this catches a cap at any value.
   await gotoApp(page, '/');
   const grid = await page.locator('.day-inner .grid').first().boundingBox();
-  expect(grid?.width ?? 0).toBeGreaterThan(1000);
+  const shell = await page.locator('main#main').boundingBox();
+  const sidebar = 220;
+  const available = 1920 - sidebar;
+  expect(
+    grid?.width ?? 0,
+    `grid is ${Math.round(grid?.width ?? 0)}px of ${available}px available — is .content capped again?`
+  ).toBeGreaterThan(available * 0.9);
+  expect(shell?.width ?? 0).toBeGreaterThan(available * 0.95);
 });

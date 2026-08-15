@@ -44,6 +44,10 @@
     grid-template-columns: 180px minmax(0, 1fr);
     gap: calc(var(--space-step) * 6);
     align-items: start;
+    /* The rail and the panel stay a single block. Without this the shell
+     * stretched to whatever the (now uncapped) content column offers, and the
+     * 180px rail ended up marooned a long way from the settings it labels. */
+    max-width: 1040px;
   }
   /* Settings are read, not browsed. Measured at 1440 the panel ran the full
    * ~1200px with rows whose content stops after a third of it, so a setting's
