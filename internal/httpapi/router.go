@@ -68,7 +68,7 @@ func NewRouter(d Deps) http.Handler {
 		r.Use(middleware.RealIP)
 	}
 	r.Use(middleware.Recoverer)
-	r.Use(securityHeaders)
+	r.Use(securityHeaders(d.SecureCookies))
 	r.Use(sameOriginWrites)
 	// Compress text responses (JSON API + UI bundles); media types are skipped
 	// so range requests and already-compressed images/videos pass through.

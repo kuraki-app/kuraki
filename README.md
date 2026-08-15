@@ -154,7 +154,7 @@ Sensible defaults, no config file required. Override via flags or environment
 | — | `KURAKI_CHANGELOG_KEEP` | `100000` | Newest change-log rows kept for the delta-sync feed; older rows are pruned and lagging clients are told to resync |
 | — | `KURAKI_THUMBNAIL_SIZE` | `512` | Thumbnail longest-edge size in pixels |
 | — | `KURAKI_OCR` | off | Enable the opt-in local OCR worker (needs `tesseract` on PATH) |
-| — | `KURAKI_SECURE_COOKIES` | off | Mark the session cookie `Secure` — enable behind HTTPS |
+| — | `KURAKI_SECURE_COOKIES` | off | Mark the session cookie `Secure` and send HSTS — enable behind HTTPS |
 | — | `KURAKI_TRUST_PROXY` | off | Trust `X-Forwarded-For`/`X-Real-IP` for the client IP — enable **only** behind a trusted reverse proxy |
 | — | `KURAKI_METRICS_TOKEN` | — | Bearer token that lets scrapers read `/metrics`; an owner session can always read it |
 | — | `KURAKI_BACKUP_DIR` | — | Enable unattended backups: write a SQLite-consistent archive here on an interval (keep it on a **separate disk/mount**) |
