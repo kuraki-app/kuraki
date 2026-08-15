@@ -29,9 +29,13 @@ func parseAssetFilters(r *http.Request) (assetFilters, string) {
 	f := assetFilters{where: []string{"a.deleted_at IS NULL"}}
 
 	if q := strings.TrimSpace(qv.Get("q")); q != "" {
-		f.joins = append(f.joins, "JOIN assets_fts ff ON ff.asset_id = a.id")
-		f.joinArgs = append(f.joinArgs, ftsQuery(q))
-		f.where = append(f.where, "ff.assets_fts MATCH ?")
+		// Which index answers this depends on the query -- see ftsPlan. The
+		// MATCH column of an FTS5 table is named after the table, so it moves
+		// with the join rather than being a constant.
+		table, match := ftsPlan(q)
+		f.joins = append(f.joins, "JOIN "+table+" ff ON ff.asset_id = a.id")
+		f.joinArgs = append(f.joinArgs, match)
+		f.where = append(f.where, "ff."+table+" MATCH ?")
 	}
 	if from := strings.TrimSpace(qv.Get("from")); from != "" {
 		f.where = append(f.where, "COALESCE(a.taken_at, a.created_at) >= ?")

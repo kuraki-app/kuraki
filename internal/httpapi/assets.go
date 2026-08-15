@@ -487,16 +487,51 @@ func decodeCursor(raw string) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
-func ftsQuery(q string) string {
+// trigramMin is the shortest query the trigram index can answer. Its tokens are
+// three characters long, so a one- or two-character term has nothing to match
+// there -- verified: "sc" returns zero rows against a row that plainly contains
+// it.
+const trigramMin = 3
+
+// ftsPlan picks which full-text index answers a query and builds the MATCH
+// expression for it.
+//
+// Trigram matches anywhere inside a word but needs three characters; the
+// default tokenizer needs only one but matches word starts only. So a query
+// goes to trigram when *every* term is long enough for it, and otherwise to the
+// prefix index -- which still finds the long terms, just anchored at a word
+// boundary. Routing per-term instead would mean joining both tables in one
+// query, which buys very little for the cost.
+//
+// Every term is quoted because FTS5 reads punctuation as syntax: an unquoted
+// 07-13 fails with "no such column: 13".
+func ftsPlan(q string) (table string, match string) {
 	parts := strings.Fields(q)
 	if len(parts) == 0 {
-		return `""`
+		return "assets_fts", `""`
 	}
+	trigram := true
+	for _, part := range parts {
+		if len([]rune(part)) < trigramMin {
+			trigram = false
+			break
+		}
+	}
+	terms := make([]string, len(parts))
 	for i, part := range parts {
-		// Prefix match per term so "photo" finds "photo3.jpg" (F-09 filename search).
-		parts[i] = `"` + strings.ReplaceAll(part, `"`, `""`) + `"*`
+		quoted := `"` + strings.ReplaceAll(part, `"`, `""`) + `"`
+		if !trigram {
+			// Prefix match per term so "photo" finds "photo3.jpg" (F-09 filename
+			// search). Meaningless against trigram, which is already a substring
+			// match.
+			quoted += "*"
+		}
+		terms[i] = quoted
 	}
-	return strings.Join(parts, " AND ")
+	if trigram {
+		return "assets_fts_tri", strings.Join(terms, " AND ")
+	}
+	return "assets_fts", strings.Join(terms, " AND ")
 }
 
 func sanitizeHeaderFilename(name string) string {
