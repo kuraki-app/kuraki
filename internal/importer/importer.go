@@ -19,6 +19,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/kuraki-app/kuraki/internal/domain"
+	"github.com/kuraki-app/kuraki/internal/fts"
 	"github.com/kuraki-app/kuraki/internal/geo"
 	"github.com/kuraki-app/kuraki/internal/media"
 	"github.com/kuraki-app/kuraki/internal/storage"
@@ -854,9 +855,10 @@ func (i *Importer) insertAsset(ctx context.Context, row assetRow) error {
 	if row.TakenAt != nil {
 		takenText = row.TakenAt.UTC().Format("2006-01-02")
 	}
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO assets_fts (asset_id, filename, camera_model, taken_text, description, ocr_text) VALUES (?, ?, ?, ?, ?, '')`,
-		row.ID, row.Filename, row.CameraModel, takenText, row.Description); err != nil {
+	if err := fts.Replace(ctx, tx, fts.Row{
+		AssetID: row.ID, Filename: row.Filename, CameraModel: row.CameraModel,
+		TakenText: takenText, Description: row.Description,
+	}); err != nil {
 		return fmt.Errorf("importer: insert asset fts: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx,
