@@ -52,7 +52,9 @@ func TestNonDocumentKeepsStrictCSP(t *testing.T) {
 }
 
 func TestSecurityHeaders(t *testing.T) {
-	h := securityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	// securityHeaders is now parameterised by whether the operator declared
+	// HTTPS; false is the default deployment and the case this test covers.
+	h := securityHeaders(false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 	for name, want := range map[string]string{
@@ -129,5 +131,37 @@ func TestMapTileHostIsPermitted(t *testing.T) {
 	}
 	if !strings.Contains(imgSrc, host) {
 		t.Fatalf("map requests tiles from %q but img-src does not permit it: %q", host, imgSrc)
+	}
+}
+
+// TestHSTSOnlyWhenBehindHTTPS proves the header follows the operator's own
+// declaration rather than being sent unconditionally.
+//
+// This matters more than a typical header check. A browser that sees HSTS once
+// refuses plain HTTP for that host until the max-age expires, and the default
+// deployment of a self-hosted photo server is http://a-box-on-my-LAN:3000.
+// Sending it there would lock someone out of their own library with no
+// server-side way to undo it.
+func TestHSTSOnlyWhenBehindHTTPS(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		secureCookies bool
+		want          bool
+	}{
+		{"plain http deployment", false, false},
+		{"operator declared HTTPS", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			router := NewRouter(Deps{Version: "test", SecureCookies: tc.secureCookies})
+			req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			got := rec.Header().Get("Strict-Transport-Security") != ""
+			if got != tc.want {
+				t.Fatalf("Strict-Transport-Security present = %v, want %v (header=%q)",
+					got, tc.want, rec.Header().Get("Strict-Transport-Security"))
+			}
+		})
 	}
 }
