@@ -519,10 +519,21 @@ function ImageCell({
   return (
     <GestureDetector gesture={gestures}>
       <Animated.View style={[styles.cell, { width, opacity }]}>
-        <Pressable style={styles.fill} onPress={onPress}>
+        {/*
+          `layer`, not `fill`. The cell centres its children (`alignItems:
+          'center'`), which in a column flexbox means they size to their content
+          across the axis rather than stretching — so a bare `flex: 1` wrapper
+          here is full height and ZERO WIDTH. The image asks for `width: '100%'`
+          of that, gets nothing, and the viewer is a black screen. It worked
+          before only because the image was a direct child of the cell, whose
+          width is explicit; inserting these two wrappers to hang the gesture
+          transform on is what broke it. `alignSelf: 'stretch'` opts each wrapper
+          back out of the centring.
+        */}
+        <Pressable style={styles.layer} onPress={onPress}>
           {source ? (
             <Animated.View
-              style={[styles.fill, { transform: [{ scale }, { translateX }, { translateY }] }]}>
+              style={[styles.layer, { transform: [{ scale }, { translateX }, { translateY }] }]}>
               <Image
                 source={source}
                 style={styles.media}
@@ -569,6 +580,9 @@ function VideoCell({
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: '#000' },
   cell: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000' },
+  // A full-bleed layer inside `cell`. alignSelf overrides the cell's
+  // alignItems: 'center', which would otherwise leave this zero-width.
+  layer: { flex: 1, alignSelf: 'stretch' },
   media: { width: '100%', height: '100%' },
   top: {
     position: 'absolute',
