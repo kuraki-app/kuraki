@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -718,13 +719,17 @@ func (a *App) Serve(ctx context.Context) error {
 
 	booted := a.Settings.Booted()
 	handler := httpapi.NewRouter(httpapi.Deps{
-		Version:        a.Version,
-		DB:             a.DB,
-		Store:          a.Store,
-		Media:          a.Media,
-		Queue:          a.Queue,
-		Settings:       a.Settings,
-		ThumbSize:      booted.ThumbnailSize,
+		Version:   a.Version,
+		DB:        a.DB,
+		Store:     a.Store,
+		Media:     a.Media,
+		Queue:     a.Queue,
+		Settings:  a.Settings,
+		ThumbSize: booted.ThumbnailSize,
+		// The port half of the configured listen address, so the pairing screen
+		// can offer a URL a phone can actually route to rather than whatever the
+		// browser happened to be typed with.
+		ListenPort:     listenPort(booted.Addr),
 		SecureCookies:  booted.SecureCookies,
 		TrustProxy:     booted.TrustProxy,
 		MetricsToken:   booted.MetricsToken,
@@ -765,4 +770,13 @@ func (a *App) Close() error {
 		return a.DB.Close()
 	}
 	return nil
+}
+
+// listenPort extracts the port from a listen address like ":3000" or
+// "127.0.0.1:3000", defaulting to 3000 when it cannot be parsed.
+func listenPort(addr string) string {
+	if _, port, err := net.SplitHostPort(addr); err == nil && port != "" {
+		return port
+	}
+	return "3000"
 }

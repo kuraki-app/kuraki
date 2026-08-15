@@ -2888,6 +2888,36 @@
                 }
             }
         },
+        "/api/server-addresses": {
+            "get": {
+                "tags": [
+                    "devices"
+                ],
+                "summary": "Reachable server addresses",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.ServerAddresses"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/settings": {
             "get": {
                 "tags": [
@@ -4541,6 +4571,17 @@
                     },
                     "query": {
                         "type": "object"
+                    }
+                }
+            },
+            "apitypes.ServerAddresses": {
+                "type": "object",
+                "properties": {
+                    "addresses": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 }
             },

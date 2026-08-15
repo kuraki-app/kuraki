@@ -154,6 +154,13 @@ type BatchResponse struct {
 	Failed    map[string]string `json:"failed,omitempty"`
 }
 
+// ServerAddresses lists the URLs a phone on the same network can reach this
+// server on. The browser cannot work these out — it only knows what was typed
+// into it — so the server reports them.
+type ServerAddresses struct {
+	Addresses []string `json:"addresses"`
+}
+
 // DeviceRequest is the request body for registering a device.
 type DeviceRequest struct {
 	Name string `json:"name"`
