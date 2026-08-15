@@ -27,10 +27,36 @@
   let devicesLoading = true;
   let revoking: Record<string, boolean> = {};
 
+  /** Addresses the SERVER reports for itself, which the browser cannot know. */
+  let suggested: string[] = [];
+
   onMount(() => {
     serverURL = location.origin;
     void loadDevices();
+    void loadAddresses();
   });
+
+  async function loadAddresses() {
+    try {
+      suggested = (await api.serverAddresses()).addresses;
+      // Only replace what the tab guessed when the guess is unusable. Someone
+      // who reached this page over the network already typed the right address.
+      if (suggested.length > 0 && !addressUsable) serverURL = suggested[0];
+    } catch {
+      /* non-fatal: the field is editable, and the warning still applies */
+    }
+  }
+
+  async function copyAddress() {
+    try {
+      await navigator.clipboard.writeText(serverURL);
+      copiedAddress = true;
+      setTimeout(() => (copiedAddress = false), 1600);
+    } catch {
+      showToast('Could not copy — select the address and copy it by hand');
+    }
+  }
+  let copiedAddress = false;
 
   function hostnameOf(url: string): string {
     try {
@@ -141,7 +167,23 @@
   </a>
 
   <label class="field" for="server-url">Address the phone should connect to</label>
-  <input id="server-url" class="input" bind:value={serverURL} spellcheck="false" autocomplete="off" />
+  <div class="addr">
+    <input id="server-url" class="input" bind:value={serverURL} spellcheck="false" autocomplete="off" />
+    <Button variant="outline" onclick={copyAddress}>{copiedAddress ? 'Copied' : 'Copy'}</Button>
+  </div>
+  {#if suggested.length > 0}
+    <!-- Reported by the server, which is the only party that knows its own
+         interfaces. The browser can only ever repeat the address it was typed
+         with, which is why this screen used to offer 127.0.0.1. -->
+    <p class="suggest">
+      <span>This server is reachable at</span>
+      {#each suggested as addr (addr)}
+        <button type="button" class="pick" class:on={serverURL === addr} onclick={() => (serverURL = addr)}>
+          {addr}
+        </button>
+      {/each}
+    </p>
+  {/if}
   {#if loopback}
     <p class="warn">
       <TriangleAlert size={15} aria-hidden="true" />
@@ -248,6 +290,37 @@
     color: var(--muted-foreground);
     font-size: 13px;
     margin: 0 0 14px;
+  }
+  .addr {
+    display: flex;
+    gap: calc(var(--space-step) * 2);
+    align-items: center;
+  }
+  .addr .input {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .suggest {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: calc(var(--space-step) * 2);
+    margin: calc(var(--space-step) * 2) 0 0;
+    color: var(--muted-foreground);
+    font-size: 13px;
+  }
+  .pick {
+    padding: 2px calc(var(--space-step) * 2);
+    border: 1px solid var(--border);
+    border-radius: var(--frame-radius);
+    background: var(--card);
+    color: var(--foreground);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .pick.on {
+    border-color: var(--stamp);
   }
   .field {
     display: block;

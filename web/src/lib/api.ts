@@ -162,6 +162,10 @@ export const api = {
   patchSettings: (patch: Record<string, string>) =>
     req<SettingsPatchResponse>('/api/settings', jsonBody(patch, 'PATCH')),
   devices: () => req<{ devices: DeviceInfo[] }>('/api/devices'),
+  // The browser only knows the address it was typed with; the server knows its
+  // own interfaces. This is what makes the pairing screen able to offer a URL a
+  // phone can actually route to.
+  serverAddresses: () => req<{ addresses: string[] }>('/api/server-addresses'),
   revokeDevice: (id: string) => req<void>(`/api/devices/${id}`, { method: 'DELETE' }),
   externalLibraries: () => req<{ libraries: ExternalLibrary[] }>('/api/external-libraries'),
   createExternalLibrary: (name: string, rootPath: string) =>

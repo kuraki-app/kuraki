@@ -3131,6 +3131,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/server-addresses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reachable server addresses */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["apitypes.ServerAddresses"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["apitypes.Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings": {
         parameters: {
             query?: never;
@@ -4184,6 +4229,9 @@ export interface components {
         "apitypes.SavedSearchRequest": {
             name?: string;
             query?: Record<string, never>;
+        };
+        "apitypes.ServerAddresses": {
+            addresses?: string[];
         };
         "apitypes.SettingInfo": {
             /** @enum {string} */

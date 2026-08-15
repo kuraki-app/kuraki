@@ -35,6 +35,10 @@ type Deps struct {
 	// most existing tests never set it.
 	Settings  *config.Store
 	ThumbSize int
+	// ListenPort is the port the server is bound to, used to build the
+	// pairing address a phone should connect to.
+	ListenPort string
+
 	// SecureCookies marks the session cookie Secure (HTTPS-only) in production.
 	SecureCookies bool
 	// TrustProxy derives the client IP from X-Forwarded-For / X-Real-IP. Only
@@ -160,6 +164,7 @@ func NewRouter(d Deps) http.Handler {
 				// listDevices is already owner-scoped, so every user manages
 				// their own devices and this must NOT sit behind requireOwner.
 				r.Get("/devices", d.listDevices)
+				r.Get("/server-addresses", d.serverAddresses)
 
 				// --- ADMIN (server administration: accounts + settings) ---
 				r.With(d.requireOwner).Get("/users", d.listUsers)
