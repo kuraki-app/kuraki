@@ -172,10 +172,18 @@ func NewRouter(d Deps) http.Handler {
 				r.Get("/integrity", d.integrity)
 				r.Post("/integrity/run", d.runIntegrity)
 				r.Get("/backup", d.backupStatus)
+				// Creating an external library names an absolute path on the
+				// SERVER's filesystem and indexes every media file under it as
+				// assets owned by the caller. That is server administration, not
+				// a thing you do with your own data, and it was reachable by any
+				// signed-in account regardless of role — a non-admin could point
+				// one at the data directory and index every other user's photos
+				// into their own library. Listing stays open: it only ever shows
+				// the caller's own rows.
 				r.Get("/external-libraries", d.listExternalLibraries)
-				r.Post("/external-libraries", d.createExternalLibrary)
-				r.Post("/external-libraries/{id}/scan", d.scanExternalLibrary)
-				r.Delete("/external-libraries/{id}", d.deleteExternalLibrary)
+				r.With(d.requireOwner).Post("/external-libraries", d.createExternalLibrary)
+				r.With(d.requireOwner).Post("/external-libraries/{id}/scan", d.scanExternalLibrary)
+				r.With(d.requireOwner).Delete("/external-libraries/{id}", d.deleteExternalLibrary)
 			})
 
 			// --- DEVICE-ONLY (capture ingest) ---
