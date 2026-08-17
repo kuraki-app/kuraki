@@ -35,6 +35,15 @@ export default function ServerStep() {
     }
   }
 
+  // Mirrors normalizeServerURL: a bare host gets :3000, anything with an
+  // explicit port or scheme is left alone.
+  const typedPort = /:\d+/.test(value.replace(/^\w+:\/\//, ''));
+  const portHint = value.trim() === ''
+    ? 'Port 3000 is added automatically — add your own (like :8080) if the server uses a different one.'
+    : typedPort
+      ? 'Using the port you entered.'
+      : 'Port 3000 will be added automatically.';
+
   return (
     <SetupStep>
       <ThemedText type="title">Your server</ThemedText>
@@ -47,6 +56,13 @@ export default function ServerStep() {
         value={value} onChangeText={setValue}
         style={[styles.input, { borderColor: tokens.input, color: tokens.foreground }]}
       />
+      {/* Says what normalizeServerURL is about to do, before it does it. "we
+          will add the rest" above is vague about WHICH rest — someone typing a
+          bare IP cannot tell whether they still need :3000, and someone whose
+          server is on another port needs to know their :8080 is respected. */}
+      <ThemedText type="small" themeColor="textFaint">
+        {portHint}
+      </ThemedText>
       {error ? <ThemedText themeColor="destructive">{error}</ThemedText> : null}
       <Pressable disabled={busy} onPress={() => void next()} style={[styles.button, { backgroundColor: tokens.primary }]}>
         <ThemedText type="smallBold" style={{ color: tokens.primaryForeground }}>
