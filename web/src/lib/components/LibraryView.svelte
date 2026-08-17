@@ -441,6 +441,12 @@
   {/if}
 </PageHeader>
 
+<!-- Anything a page wants between its header and its grid. The timeline's
+     filter and saved-search panels used to be rendered after </LibraryView>,
+     which put them BELOW the whole photo grid — you opened Filters and nothing
+     appeared to happen unless you scrolled past every photo. -->
+<slot name="subheader" />
+
 {#if error}
   <div class="grid min-h-[120px] place-items-center gap-3 text-destructive" role="alert"><span>{error}</span><Button variant="outline" onclick={reload}>Try again</Button></div>
 {/if}

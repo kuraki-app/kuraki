@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { Search, X, SlidersHorizontal, CalendarDays, Bookmark, Trash2, Images, Upload } from '@lucide/svelte';
+  import { Search, X, SlidersHorizontal, Bookmark, Trash2, Images, Upload } from '@lucide/svelte';
   import LibraryView from '$lib/components/LibraryView.svelte';
   import FilterChip from '$lib/components/FilterChip.svelte';
   import SegmentedControl from '$lib/components/SegmentedControl.svelte';
@@ -23,7 +23,6 @@
   ];
 
   let showFilters = false;
-  let jumpDate = '';
   // The rest of the server's filter language. `parseAssetFilters` has always
   // accepted these; the form exposed q/type/favorite/from/to and nothing else,
   // so a saved search could carry a filter the UI could neither show nor build.
@@ -200,13 +199,6 @@
     albumId = '';
     applied = {};
   }
-  function jumpToDate() {
-    if (!jumpDate) return;
-    from = jumpDate;
-    to = '';
-    showFilters = true;
-    apply();
-  }
 
   function summary(p: SearchParams): string {
     const parts: string[] = [];
@@ -263,10 +255,6 @@
       >
         <SlidersHorizontal size={16} aria-hidden="true" />
       </IconButton>
-      <label class="jump">
-        <CalendarDays size={16} aria-hidden="true" />
-        <input bind:value={jumpDate} type="date" aria-label="Jump to date" on:change={jumpToDate} />
-      </label>
       <IconButton
         label="Saved searches"
         variant={showSaved ? 'secondary' : 'outline'}
@@ -280,115 +268,116 @@
         </IconButton>
       {/if}
     </div>
+    <svelte:fragment slot="subheader">
+    {#if showSaved}
+      <div class="panel saved">
+        {#if filtered}
+          <form class="save-current" on:submit|preventDefault={saveCurrent}>
+            <input bind:value={saveName} type="text" placeholder="Name this search…" aria-label="Saved search name" />
+            <IconButton label="Save current search" variant="secondary" onclick={saveCurrent}>
+              <Bookmark size={15} aria-hidden="true" />
+            </IconButton>
+          </form>
+        {:else}
+          <p class="hint">Apply a filter or search, then save it here as a smart filter.</p>
+        {/if}
+        {#if saved.length}
+          <ul class="saved-list">
+            {#each saved as s (s.id)}
+              <li>
+                <button type="button" class="apply" on:click={() => applySaved(s)}>{s.name}</button>
+                <button type="button" class="del" aria-label={`Delete ${s.name}`} on:click={() => removeSaved(s.id)}>
+                  <Trash2 size={14} aria-hidden="true" />
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {:else}
+          <p class="hint">No saved searches yet.</p>
+        {/if}
+      </div>
+    {/if}
+
+    {#if showFilters}
+      <div class="panel">
+        <!-- Media type is three mutually exclusive options, so it is a segmented
+             control. Favorites is an independent toggle and stays a chip — the two
+             were built from the same pill and read as one row of four equal
+             choices, which is not what they are. -->
+        <SegmentedControl
+          label="Media type"
+          options={MEDIA_TYPES}
+          value={type}
+          onchange={(v) => { type = v; apply(); }}
+        />
+        <div class="chips" style="grid-column: 1 / -1">
+          <FilterChip active={favorite} onclick={() => { favorite = !favorite; apply(); }}>Favorites</FilterChip>
+        </div>
+        <!-- Explicit for/id throughout rather than wrapping labels. A <label> that
+             wraps a <select> takes the option text into its own accessible name, so
+             "Rating" ends up announced as "Rating Any 1★ and up 2★ and up …" — the
+             control is labelled, but not with anything a person would recognise. -->
+        <div class="field">
+          <label for="filter-from">From</label>
+          <input id="filter-from" type="date" bind:value={from} on:change={apply} />
+        </div>
+        <div class="field">
+          <label for="filter-to">To</label>
+          <input id="filter-to" type="date" bind:value={to} on:change={apply} />
+        </div>
+
+        <!-- Everything below reaches filters the server has always accepted through
+             `parseAssetFilters` and that the timeline had no way to express. -->
+        <div class="field">
+          <label for="filter-rating">Rating</label>
+          <select id="filter-rating" bind:value={rating} on:change={apply}>
+            <option value="">Any</option>
+            <option value="1">1★ and up</option>
+            <option value="2">2★ and up</option>
+            <option value="3">3★ and up</option>
+            <option value="4">4★ and up</option>
+            <option value="5">5★</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="filter-camera">Camera</label>
+          <input id="filter-camera" type="text" bind:value={camera} placeholder="e.g. iPhone 15" on:change={apply} />
+        </div>
+
+        <div class="field">
+          <label for="filter-city">City</label>
+          <input id="filter-city" type="text" bind:value={placeCity} placeholder="e.g. Kyoto" on:change={apply} />
+        </div>
+
+        <div class="field">
+          <label for="filter-country">Country</label>
+          <input id="filter-country" type="text" bind:value={placeCountry} placeholder="e.g. Japan" on:change={apply} />
+        </div>
+
+        {#if tags.length}
+          <div class="field">
+          <label for="filter-tag">Tag</label>
+            <select id="filter-tag" bind:value={tagId} on:change={apply}>
+              <option value="">Any</option>
+              {#each tags as t (t.id)}<option value={t.id}>{t.name}</option>{/each}
+            </select>
+        </div>
+        {/if}
+        {#if albumList.length}
+          <div class="field">
+          <label for="filter-album">Album</label>
+            <select id="filter-album" bind:value={albumId} on:change={apply}>
+              <option value="">Any</option>
+              {#each albumList as a (a.id)}<option value={a.id}>{a.name}</option>{/each}
+            </select>
+        </div>
+        {/if}
+      </div>
+    {/if}
+    </svelte:fragment>
   </LibraryView>
 {/key}
-
-{#if showSaved}
-  <div class="panel saved">
-    {#if filtered}
-      <form class="save-current" on:submit|preventDefault={saveCurrent}>
-        <input bind:value={saveName} type="text" placeholder="Name this search…" aria-label="Saved search name" />
-        <IconButton label="Save current search" variant="secondary" onclick={saveCurrent}>
-          <Bookmark size={15} aria-hidden="true" />
-        </IconButton>
-      </form>
-    {:else}
-      <p class="hint">Apply a filter or search, then save it here as a smart filter.</p>
-    {/if}
-    {#if saved.length}
-      <ul class="saved-list">
-        {#each saved as s (s.id)}
-          <li>
-            <button type="button" class="apply" on:click={() => applySaved(s)}>{s.name}</button>
-            <button type="button" class="del" aria-label={`Delete ${s.name}`} on:click={() => removeSaved(s.id)}>
-              <Trash2 size={14} aria-hidden="true" />
-            </button>
-          </li>
-        {/each}
-      </ul>
-    {:else}
-      <p class="hint">No saved searches yet.</p>
-    {/if}
-  </div>
-{/if}
-
-{#if showFilters}
-  <div class="panel">
-    <!-- Media type is three mutually exclusive options, so it is a segmented
-         control. Favorites is an independent toggle and stays a chip — the two
-         were built from the same pill and read as one row of four equal
-         choices, which is not what they are. -->
-    <SegmentedControl
-      label="Media type"
-      options={MEDIA_TYPES}
-      value={type}
-      onchange={(v) => { type = v; apply(); }}
-    />
-    <div class="chips">
-      <FilterChip active={favorite} onclick={() => { favorite = !favorite; apply(); }}>Favorites</FilterChip>
-    </div>
-    <!-- Explicit for/id throughout rather than wrapping labels. A <label> that
-         wraps a <select> takes the option text into its own accessible name, so
-         "Rating" ends up announced as "Rating Any 1★ and up 2★ and up …" — the
-         control is labelled, but not with anything a person would recognise. -->
-    <div class="field">
-      <label for="filter-from">From</label>
-      <input id="filter-from" type="date" bind:value={from} on:change={apply} />
-    </div>
-    <div class="field">
-      <label for="filter-to">To</label>
-      <input id="filter-to" type="date" bind:value={to} on:change={apply} />
-    </div>
-
-    <!-- Everything below reaches filters the server has always accepted through
-         `parseAssetFilters` and that the timeline had no way to express. -->
-    <div class="field">
-      <label for="filter-rating">Rating</label>
-      <select id="filter-rating" bind:value={rating} on:change={apply}>
-        <option value="">Any</option>
-        <option value="1">1★ and up</option>
-        <option value="2">2★ and up</option>
-        <option value="3">3★ and up</option>
-        <option value="4">4★ and up</option>
-        <option value="5">5★</option>
-      </select>
-    </div>
-
-    <div class="field">
-      <label for="filter-camera">Camera</label>
-      <input id="filter-camera" type="text" bind:value={camera} placeholder="e.g. iPhone 15" on:change={apply} />
-    </div>
-
-    <div class="field">
-      <label for="filter-city">City</label>
-      <input id="filter-city" type="text" bind:value={placeCity} placeholder="e.g. Kyoto" on:change={apply} />
-    </div>
-
-    <div class="field">
-      <label for="filter-country">Country</label>
-      <input id="filter-country" type="text" bind:value={placeCountry} placeholder="e.g. Japan" on:change={apply} />
-    </div>
-
-    {#if tags.length}
-      <div class="field">
-      <label for="filter-tag">Tag</label>
-        <select id="filter-tag" bind:value={tagId} on:change={apply}>
-          <option value="">Any</option>
-          {#each tags as t (t.id)}<option value={t.id}>{t.name}</option>{/each}
-        </select>
-    </div>
-    {/if}
-    {#if albumList.length}
-      <div class="field">
-      <label for="filter-album">Album</label>
-        <select id="filter-album" bind:value={albumId} on:change={apply}>
-          <option value="">Any</option>
-          {#each albumList as a (a.id)}<option value={a.id}>{a.name}</option>{/each}
-        </select>
-    </div>
-    {/if}
-  </div>
-{/if}
 
 <style>
   .filters {
@@ -414,18 +403,6 @@
     background: transparent;
     color: var(--foreground);
   }
-  .jump {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    height: 40px;
-    padding: 0 8px;
-    border: 1px solid var(--input);
-    border-radius: 8px;
-    color: var(--muted-foreground);
-    background: var(--card);
-  }
-  .jump input { width: 122px; border: 0; outline: 0; background: transparent; color: var(--foreground); }
   /* On a phone the search field earns its own full-width row and the icon
    * controls sit under it, rather than four controls fighting over 390px.
    * Fixed widths become flexible ones so nothing here can set a min-content
@@ -451,15 +428,17 @@
     /* Jump-to-date folds into the Filters panel on a phone, which already has
      * From and To. A bare `dd/mm/yyyy` field reads as a form to fill in, not as
      * a way to jump — and it was costing a full row to say so. */
-    .jump {
-      display: none;
-    }
   }
   .panel {
-    display: flex;
-    flex-wrap: wrap;
+    /* A wrap row put eleven controls on one cramped line that read as a single
+     * undifferentiated strip. A grid of fixed-width fields gives each one a
+     * column, wraps predictably, and stays scannable — the panel is now
+     * directly under the header where it is actually read, rather than below
+     * the whole photo grid where it used to render. */
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
     align-items: center;
-    gap: 12px;
+    gap: calc(var(--space-step) * 1) calc(var(--space-step) * 2);
     margin: -8px 0 18px;
     padding: 12px 14px;
     border: 1px solid var(--border);
@@ -475,9 +454,18 @@
    * label as a bare sibling a break could land between them — which is how
    * "City" ended up at the end of one line with its input on the next. */
   .field {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 6px;
+    gap: calc(var(--space-step) * 1);
+    min-width: 0;
+  }
+  .field label {
+    flex: none;
+  }
+  .field input,
+  .field select {
+    flex: 1 1 auto;
+    min-width: 0;
   }
   .panel label {
     display: inline-flex;
