@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/kuraki-app/kuraki/internal/external"
+	"github.com/kuraki-app/kuraki/internal/fts"
 	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 	"github.com/kuraki-app/kuraki/internal/storage"
 )
@@ -231,7 +232,7 @@ func (d Deps) deleteExternalLibrary(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, assetID := range assetIDs {
-		if _, err := tx.ExecContext(r.Context(), `DELETE FROM assets_fts WHERE asset_id = ?`, assetID); err != nil {
+		if err := fts.Delete(r.Context(), tx, assetID); err != nil {
 			writeError(w, 500, "external_library_delete_failed")
 			return
 		}

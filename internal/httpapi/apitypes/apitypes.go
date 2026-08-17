@@ -133,6 +133,14 @@ type Album struct {
 	Name       string `json:"name" validate:"required"`
 	AssetCount int    `json:"asset_count" validate:"required"`
 	CreatedAt  string `json:"created_at" validate:"required"`
+	// CoverAssetIDs are the newest few assets in the album, for drawing a cover
+	// mosaic. Up to coverAssetsPerAlbum of them, newest first; empty for an
+	// empty album. Never null on the wire, so a client can iterate it without
+	// a guard.
+	//
+	// A list rather than the single cover id clients previously assumed: the
+	// endpoint never sent one at all, so every album rendered a blank square.
+	CoverAssetIDs []string `json:"cover_asset_ids" validate:"required"`
 }
 
 // AlbumList is the envelope for the album list endpoint.

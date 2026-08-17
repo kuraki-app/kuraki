@@ -87,6 +87,21 @@ export function isUnfiltered(filters: LibraryFilters): boolean {
   );
 }
 
+/**
+ * mirror runs an offline-cache write that the caller does not wait for.
+ *
+ * The `.catch` is the point. These used to be bare `void upsertAssets(...)`,
+ * and a failing SQLite write — a locked database after an abrupt termination,
+ * say — became an *unhandled rejection*, which expo surfaces as a red error
+ * banner over the UI. A cache that cannot write is not a failure the user needs
+ * to see: the request it came from already succeeded, and the next open simply
+ * refetches. Swallowed rather than logged to match how the rest of the app
+ * treats best-effort work (see the tag fetch in photo-viewer).
+ */
+function mirror(write: Promise<unknown>): void {
+  void write.catch(() => {});
+}
+
 export async function fetchLibrary(
   settings: CaptureSettings,
   filters: LibraryFilters,
@@ -124,7 +139,7 @@ export async function fetchLibrary(
   const page = (await response.json()) as LibraryPage;
   // Feed the offline cache from the plain recent view so the grid can paint
   // instantly next open and fall back to something when the network is down.
-  if (isUnfiltered(filters)) void upsertAssets(page.assets);
+  if (isUnfiltered(filters)) mirror(upsertAssets(page.assets));
   return page;
 }
 
@@ -154,10 +169,21 @@ export async function setFavorite(settings: CaptureSettings, id: string, favorit
 // reported via reportAuthLost inside authedGet — still propagates instead of
 // silently serving stale data.
 
-type ServerAlbum = { id: string; name: string; asset_count: number; cover_asset_id?: string };
+// Derived from the contract rather than hand-declared. The hand-written version
+// claimed a `cover_asset_id` the server never sent — apitypes.Album had no cover
+// field at all — so every album in the list drew a blank square and nothing in
+// the type system objected.
+type ServerAlbum = components['schemas']['apitypes.Album'];
 
 function toCachedAlbum(a: ServerAlbum): CachedAlbum {
-  return { id: a.id, name: a.name, cover_asset_id: a.cover_asset_id ?? null, count: a.asset_count };
+  return {
+    id: a.id,
+    name: a.name,
+    // Kept for the cached rows that still carry it; the mosaic reads the list.
+    cover_asset_id: a.cover_asset_ids?.[0] ?? null,
+    cover_asset_ids: a.cover_asset_ids ?? [],
+    count: a.asset_count,
+  };
 }
 
 async function authedGet<T>(settings: CaptureSettings, path: string): Promise<T> {
@@ -354,7 +380,7 @@ export async function createTag(settings: CaptureSettings, name: string): Promis
 export async function fetchMemories(settings: CaptureSettings, cursor?: string): Promise<LibraryPage> {
   const params = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
   const page = await authedGet<LibraryPage>(settings, `/api/memories${params}`);
-  void upsertAssets(page.assets);
+  mirror(upsertAssets(page.assets));
   return page;
 }
 

@@ -108,6 +108,20 @@ export function getDB(): Promise<SQLite.SQLiteDatabase> {
           COMMIT;
         `);
       }
+      if (v < 7) {
+        // v7: the album cover's asset ids, for the 2x2 mosaic. Stored as a JSON
+        // array in one column rather than a join table — it is a fixed, tiny
+        // list that is always read and written whole, so a second table would
+        // buy nothing. The old single-cover column stays: dropping a column in
+        // SQLite means rebuilding the table, and a disused column in a cache
+        // that can be deleted wholesale is not worth that.
+        await db.execAsync(`
+          BEGIN;
+          ALTER TABLE albums ADD COLUMN cover_asset_ids TEXT;
+          PRAGMA user_version = 7;
+          COMMIT;
+        `);
+      }
       return db;
     })();
   }

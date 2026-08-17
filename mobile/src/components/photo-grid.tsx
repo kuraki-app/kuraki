@@ -10,14 +10,18 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
 import PhotoViewer from '@/components/photo-viewer';
 import ScrollScrubber from '@/components/scroll-scrubber';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing, useTokens } from '@/constants/theme';
 import { usePrefs } from '@/hooks/use-prefs';
+import { applyPaint, paintMode, tileAt, type PaintMode, type TileFrame } from '@/lib/drag-select';
 import { formatBytes } from '@/lib/format';
 import { groupAssets, type PhotoRow } from '@/lib/gallery';
+import { columnsForScale } from '@/lib/grid-zoom';
+import { savePrefs } from '@/lib/prefs';
 import { sectionAllSelected, sectionIds } from '@/lib/selection';
 import { thumbSource, type LibraryAsset } from '@/lib/library-api';
 import { offsetForProgress, progressForOffset } from '@/lib/scrubber';
@@ -28,6 +32,18 @@ type Props = {
   settings: CaptureSettings | null;
   loading?: boolean;
   emptyMessage?: string;
+  /**
+   * Controls pinned above the tiles, rendered *inside* the list.
+   *
+   * Inside, specifically, because `headerOptions` makes every Kuraki header
+   * transparent: content runs from the very top of the screen and only a scroll
+   * view's `contentInsetAdjustmentBehavior="automatic"` accounts for the bar. A
+   * sibling `View` above this grid gets no inset at all — that is what put
+   * Search's filter chips on top of the word "Search" and pushed its text field
+   * up behind the status bar. As a list header the controls inherit the same
+   * inset the tiles already get, with nothing to compute or hard-code.
+   */
+  listHeader?: React.ReactElement | null;
   onEndReached?: () => void;
   onToggleFavorite?: (id: string, next: boolean) => void;
   /** Move a single asset to trash from inside the viewer. Surfaces the delete
@@ -61,6 +77,16 @@ type Props = {
    * caller does not have to recompute what the heading already knows.
    */
   onSelectSection?: (ids: string[], allSelected: boolean) => void;
+  /**
+   * Commit a whole selection at once, for drag-painting.
+   *
+   * Separate from `onToggleSelect` because a drag produces a *set*, not a
+   * sequence of toggles: replaying it as toggles would make the result depend on
+   * the order the callbacks landed, and dragging back over a tile would undo it.
+   * Without this prop the drag gesture stays off, so callers that only support
+   * tap-selection are unaffected.
+   */
+  onReplaceSelection?: (next: Set<string>) => void;
 };
 
 // PhotoGrid is the tile grid + full-screen viewer shared by every photo surface
@@ -72,6 +98,7 @@ export default function PhotoGrid({
   settings,
   loading,
   emptyMessage,
+  listHeader,
   onEndReached,
   onToggleFavorite,
   onDelete,
@@ -80,14 +107,31 @@ export default function PhotoGrid({
   onLongPressItem,
   selectionMode = false,
   onSelectSection,
+  onReplaceSelection,
 }: Props) {
   const tokens = useTokens();
   // Layout and grouping are preferences, read here rather than threaded through
   // every caller: there is one grid, and Settings > Photo Grid is its one
   // source of truth.
-  const { gridColumns: columns, gridGap: gap, groupBy, showGroupHeaders, showSizeBadge } = usePrefs();
+  const { gridColumns: savedColumns, gridGap: gap, groupBy, showGroupHeaders, showSizeBadge } = usePrefs();
   const [viewerIndex, setViewerIndex] = useState(-1);
   const selectionActive = selectionMode || (!!selectedIds && selectedIds.size > 0);
+
+  // While a pinch is in flight the grid follows the fingers rather than the
+  // stored preference. Never cleared back to null: clearing it before savePrefs
+  // had propagated would snap the grid to the old count for a frame.
+  const [previewColumns, setPreviewColumns] = useState<number | null>(null);
+  const columns = previewColumns ?? savedColumns;
+  const [painting, setPainting] = useState(false);
+
+  // Tile boxes in list-content coordinates, for hit-testing a drag: measured in
+  // window coordinates on layout and normalised by the scroll offset at that
+  // moment, so a tile measured while scrolled still compares correctly against a
+  // finger reported later at a different offset (see tileAt).
+  const frames = useRef(new Map<string, TileFrame>());
+  const tileNodes = useRef(new Map<string, View>());
+  const paint = useRef<{ mode: PaintMode; visited: Set<string>; set: Set<string> } | null>(null);
+  const previewRef = useRef<number | null>(null);
 
   const listRef = useRef<SectionList<PhotoRow>>(null);
   const metrics = useRef({ offsetY: 0, contentHeight: 0, layoutHeight: 0 });
@@ -161,27 +205,178 @@ export default function PhotoGrid({
     [],
   );
 
+  const measureTile = useCallback(
+    (id: string) => {
+      tileNodes.current.get(id)?.measureInWindow((x, y, w, h) => {
+        frames.current.set(id, { id, x, y: y + metrics.current.offsetY, w, h });
+      });
+    },
+    [],
+  );
+
+  const beginPaint = useCallback(
+    (x: number, y: number) => {
+      const id = tileAt({ x, y }, [...frames.current.values()], metrics.current.offsetY);
+      if (!id) return;
+      const mode = paintMode(selectedIds?.has(id) ?? false);
+      const set = applyPaint(selectedIds ?? new Set<string>(), id, mode);
+      // The running selection lives here rather than being read back off the
+      // `selectedIds` prop: the prop arrives a render after the callback that
+      // changed it, so reading it mid-drag would drop tiles.
+      paint.current = { mode, visited: new Set([id]), set };
+      setPainting(true);
+      onReplaceSelection?.(set);
+    },
+    [selectedIds, onReplaceSelection],
+  );
+
+  const extendPaint = useCallback(
+    (x: number, y: number) => {
+      const p = paint.current;
+      if (!p) return;
+      const id = tileAt({ x, y }, [...frames.current.values()], metrics.current.offsetY);
+      if (!id || p.visited.has(id)) return;
+      p.visited.add(id);
+      p.set = applyPaint(p.set, id, p.mode);
+      onReplaceSelection?.(p.set);
+    },
+    [onReplaceSelection],
+  );
+
+  const endPaint = useCallback(() => {
+    paint.current = null;
+    setPainting(false);
+  }, []);
+
+  const previewZoom = useCallback(
+    (scale: number) => {
+      const next = columnsForScale(previewRef.current ?? savedColumns, scale);
+      setPreviewColumns(next);
+    },
+    [savedColumns],
+  );
+
+  const commitZoom = useCallback(() => {
+    if (previewColumns == null || previewColumns === savedColumns) return;
+    // previewRef advances only once the write has landed, so the next pinch
+    // starts from what is on screen rather than from the stored preference.
+    void savePrefs({ gridColumns: previewColumns }).then(() => {
+      previewRef.current = previewColumns;
+    });
+  }, [savedColumns, previewColumns]);
+
+  /**
+   * The grid's gestures.
+   *
+   * Pinch resizes. Two fingers, so it never contends with the one-finger drags
+   * or the scroll, which is why everything composes as simultaneous rather than
+   * racing. The preference is written once on release, not per frame.
+   *
+   * Painting a selection is *two* pans, because one cannot express it. A drag
+   * has to be able to mean "scroll" as well as "select", and the only signals
+   * available to tell them apart are direction and time:
+   *
+   *   - `swipePaint` claims sideways movement immediately. Sweeping across a row
+   *     is the common case and should not need a wait.
+   *   - `holdPaint` claims *any* direction after a short hold. This is what makes
+   *     dragging straight down a column work — the earlier version only had the
+   *     sideways rule, so a vertical drag could only ever scroll, and selecting a
+   *     column meant one tap per tile.
+   *
+   * A plain vertical drag with no hold still scrolls, which is the behaviour
+   * that has to survive: the list is long and scrolling is the thing users do
+   * most.
+   */
+  /* eslint-disable react-hooks/refs -- The rule objects to these callbacks
+     being handed to `.onUpdate(...)`, which is a call made during render, on
+     the grounds that they eventually touch a ref and so the ref *might* be read
+     during render. It cannot be: nothing invokes them until a finger does.
+
+     This is a genuine mismatch between the rule and RNGH's builder API, not
+     something to route around. Holding the mutable state in a `useState`
+     initialiser instead was tried, and the compiler rejects that harder --
+     "This value cannot be modified" -- because mutating state is worse than
+     using a ref, which is exactly what refs are for. The remaining escape would
+     be Reanimated shared values, which would make these the only worklets in
+     the codebase for no behavioural gain. */
+  const gestures = useMemo(() => {
+    const swipePaint = Gesture.Pan()
+      .enabled(selectionActive && !!onReplaceSelection)
+      .activeOffsetX([-12, 12])
+      .runOnJS(true)
+      .onStart((e) => beginPaint(e.absoluteX, e.absoluteY))
+      .onUpdate((e) => extendPaint(e.absoluteX, e.absoluteY))
+      .onFinalize(endPaint);
+
+    const holdPaint = Gesture.Pan()
+      .enabled(selectionActive && !!onReplaceSelection)
+      .activateAfterLongPress(220)
+      .runOnJS(true)
+      .onStart((e) => beginPaint(e.absoluteX, e.absoluteY))
+      .onUpdate((e) => extendPaint(e.absoluteX, e.absoluteY))
+      .onFinalize(endPaint);
+
+    const pinch = Gesture.Pinch()
+      .runOnJS(true)
+      .onUpdate((e) => previewZoom(e.scale))
+      .onEnd(commitZoom);
+
+    // The two pans race: whichever condition is met first wins, and the other
+    // never starts. They cannot both run, so the paint state has one owner.
+    return Gesture.Simultaneous(pinch, Gesture.Race(swipePaint, holdPaint));
+  }, [
+    previewZoom,
+    commitZoom,
+    beginPaint,
+    extendPaint,
+    endPaint,
+    selectionActive,
+    onReplaceSelection,
+  ]);
+  /* eslint-enable react-hooks/refs */
+
   const scrubbable = groupBy !== 'off' && assets.length > columns * 12;
 
-  if (!loading && assets.length === 0) {
-    return (
-      <View style={styles.center}>
-        <ThemedText themeColor="mutedForeground">{emptyMessage ?? 'Nothing to show yet.'}</ThemedText>
-      </View>
-    );
-  }
+  // The empty state is the list's own rather than an early return, so that
+  // `listHeader` survives it. Search is why: returning early here hid the search
+  // field and the filter chips behind "Nothing matched that search." — the one
+  // screen state where the user most needs them, since the query that matched
+  // nothing is the thing they came back to edit.
+  const empty = !loading && assets.length === 0;
 
   return (
-    <View style={styles.fill} onLayout={(e) => setTrackHeight(e.nativeEvent.layout.height)}>
+    <GestureDetector gesture={gestures}>
+      <View style={styles.fill} onLayout={(e) => setTrackHeight(e.nativeEvent.layout.height)}>
       <SectionList
         ref={listRef}
+        // Held still while a drag is painting, so the list cannot slide out from
+        // under the finger that is selecting on it.
+        scrollEnabled={!painting}
         sections={sections}
         keyExtractor={(row, index) => row[0]?.id ?? String(index)}
         // The native tab bar and the home indicator are both accounted for by
         // the OS when this is 'automatic'; hard-coding a bottom pad instead
         // double-counts on one platform or the other.
         contentInsetAdjustmentBehavior="automatic"
-        onEndReached={onEndReached}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={
+          empty ? (
+            <View style={styles.center}>
+              <ThemedText themeColor="mutedForeground">{emptyMessage ?? 'Nothing to show yet.'}</ThemedText>
+            </View>
+          ) : null
+        }
+        // Lets the empty message centre itself in the space left below the
+        // header instead of hugging the top of an otherwise empty list.
+        contentContainerStyle={empty ? styles.emptyContent : undefined}
+        // The search field holds focus while the list is up, so a tap on a
+        // filter chip must act rather than being spent dismissing the keyboard.
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        // Only once there is something to page. An empty list still fires
+        // onEndReached, which used to be impossible here — the empty state was
+        // an early return with no list in it at all.
+        onEndReached={sections.length ? onEndReached : undefined}
         onEndReachedThreshold={0.6}
         onScroll={onScroll}
         scrollEventThrottle={16}
@@ -222,6 +417,13 @@ export default function PhotoGrid({
               return (
                 <Pressable
                   key={item.id}
+                  ref={(node) => {
+                    if (node) tileNodes.current.set(item.id, node);
+                    else tileNodes.current.delete(item.id);
+                  }}
+                  // Re-measured on every layout, which covers the column count
+                  // changing under a pinch as well as the first mount.
+                  onLayout={() => measureTile(item.id)}
                   style={[styles.tile, { width: tile, height: tile, backgroundColor: tokens.thumb }]}
                   onPress={() =>
                     selectionActive
@@ -306,7 +508,8 @@ export default function PhotoGrid({
           }
         />
       )}
-    </View>
+      </View>
+    </GestureDetector>
   );
 }
 
@@ -351,4 +554,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24, minHeight: 200 },
+  // flexGrow, not flex: the content container must be free to exceed the
+  // viewport when the header is tall, and only stretch to fill when it is not.
+  emptyContent: { flexGrow: 1 },
 });

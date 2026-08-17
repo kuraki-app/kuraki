@@ -1,9 +1,10 @@
 import { Image } from 'expo-image';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   Dimensions,
   FlatList,
   Modal,
@@ -14,6 +15,7 @@ import {
   type AlertButton,
   type ViewToken,
 } from 'react-native';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import Dialog from '@/components/dialog';
@@ -22,6 +24,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { formatBytes, formatTakenAt } from '@/lib/format';
+import { backdropOpacity, clampZoom, shouldDismiss, ZOOM } from '@/lib/viewer-gestures';
 import {
   fetchAssetTags,
   fullImageSource,
@@ -81,6 +84,8 @@ export default function PhotoViewer({
   const [chrome, setChrome] = useState(true);
   const [info, setInfo] = useState(false);
   const [editingTags, setEditingTags] = useState(false);
+  // Set by whichever cell is zoomed, so the pager can stand down while it is.
+  const [zoomed, setZoomed] = useState(false);
   const [tags, setTags] = useState<Tag[]>([]);
 
   const onViewable = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
@@ -152,19 +157,22 @@ export default function PhotoViewer({
   return (
     <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       {/*
-        A plain View. This used to be a second GestureHandlerRootView, because
-        an RN Modal is its own native window that the app-level root in
-        _layout.tsx does not reach, and the details sheet's drag needed one on
-        Android. Nothing under here uses a gesture handler now that the sheets
-        are dialogs -- the pager is a plain FlatList -- so the extra native root
-        would only be a thing to explain.
+        A second GestureHandlerRootView, restored. An RN Modal is its own native
+        window, which the app-level root in _layout.tsx does not reach, so any
+        gesture in here needs its own -- it was dropped once when the details
+        sheet became a dialog and nothing under here handled gestures any more.
+        The cells pinch, pan and double-tap now, so it is load-bearing again:
+        without it they are silently dead on Android.
       */}
-      <View style={styles.fill}>
+      <GestureHandlerRootView style={styles.fill}>
         <FlatList
           data={assets}
           keyExtractor={(a) => a.id}
           horizontal
           pagingEnabled
+          // A zoomed photo owns the pan: without this, dragging to look around
+          // a magnified image would flick to the next photo instead.
+          scrollEnabled={!zoomed}
           initialScrollIndex={initialIndex}
           getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
           showsHorizontalScrollIndicator={false}
@@ -177,6 +185,8 @@ export default function PhotoViewer({
               width={width}
               active={index === active}
               onPress={() => setChrome((on) => !on)}
+              onZoomChange={setZoomed}
+              onDismiss={onClose}
             />
           )}
         />
@@ -284,7 +294,7 @@ export default function PhotoViewer({
         {editingTags && current && (
           <TagEditor asset={current} settings={settings} onClose={() => setEditingTags(false)} />
         )}
-      </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
@@ -331,27 +341,213 @@ function ViewerCell({
   width,
   active,
   onPress,
+  onZoomChange,
+  onDismiss,
 }: {
   asset: LibraryAsset;
   settings: CaptureSettings;
   width: number;
   active: boolean;
   onPress: () => void;
+  onZoomChange?: (zoomed: boolean) => void;
+  onDismiss?: () => void;
 }) {
   if (asset.media_type === 'video') {
     // No press-to-toggle wrapper on a video: the chrome would fight the
     // native transport controls for the same taps.
     return <VideoCell asset={asset} settings={settings} width={width} active={active} />;
   }
+  // Split out rather than inlined, because ImageCell holds hooks and this
+  // function returns early for video above — a hook after that would run
+  // conditionally.
+  return (
+    <ImageCell
+      asset={asset}
+      settings={settings}
+      width={width}
+      onPress={onPress}
+      onZoomChange={onZoomChange}
+      onDismiss={onDismiss}
+    />
+  );
+}
+
+/**
+ * One photo, with the viewer's three gestures on it.
+ *
+ * They have to be arranged so none of them steals another's start:
+ *
+ *   - Pinch zooms, and is the only two-finger gesture, so it never competes.
+ *   - Pan does one of two jobs depending on the zoom. Zoomed in it moves the
+ *     photo around; at rest it is the drag-to-dismiss, gated vertical-first so a
+ *     sideways drag still reaches the pager underneath and turns the page.
+ *   - Double-tap toggles between fit and 2x.
+ *
+ * All of them run on the JS thread (`runOnJS`). This app has no Reanimated
+ * worklet code anywhere and no babel config to enable it; the scrubber drives
+ * its drag through Animated from JS in exactly the same way, and a viewer that
+ * matches it is worth more than a marginally smoother pinch on a path that
+ * would be the only worklet in the codebase.
+ */
+function ImageCell({
+  asset,
+  settings,
+  width,
+  onPress,
+  onZoomChange,
+  onDismiss,
+}: {
+  asset: LibraryAsset;
+  settings: CaptureSettings;
+  width: number;
+  onPress: () => void;
+  onZoomChange?: (zoomed: boolean) => void;
+  onDismiss?: () => void;
+}) {
+  // useMemo, not useRef().current: reading a ref during render is the thing the
+  // React Compiler lint objects to, and this is the same shape the grid's
+  // scrubber fade already uses.
+  const scale = useMemo(() => new Animated.Value(1), []);
+  const translateX = useMemo(() => new Animated.Value(0), []);
+  const translateY = useMemo(() => new Animated.Value(0), []);
+  const opacity = useMemo(() => new Animated.Value(1), []);
+  // The committed values the next gesture starts from. Animated.Value has no
+  // readable current value, so they are tracked alongside it.
+  const zoom = useRef(1);
+  const origin = useRef({ x: 0, y: 0 });
+
+  const settle = useCallback(
+    (next: number) => {
+      zoom.current = next;
+      onZoomChange?.(next > 1);
+      if (next === 1) {
+        origin.current = { x: 0, y: 0 };
+        Animated.spring(translateX, { toValue: 0, useNativeDriver: false, bounciness: 0 }).start();
+        Animated.spring(translateY, { toValue: 0, useNativeDriver: false, bounciness: 0 }).start();
+      }
+    },
+    [onZoomChange, translateX, translateY],
+  );
+
+  const onPinch = useCallback(
+    (s: number) => scale.setValue(clampZoom(zoom.current * s)),
+    [scale],
+  );
+
+  const onPinchEnd = useCallback(
+    (s: number) => {
+      const next = clampZoom(zoom.current * s);
+      scale.setValue(next);
+      settle(next);
+    },
+    [scale, settle],
+  );
+
+  const onDoubleTap = useCallback(() => {
+    const next = zoom.current > 1 ? ZOOM.min : 2;
+    Animated.timing(scale, { toValue: next, duration: 180, useNativeDriver: false }).start();
+    settle(next);
+  }, [scale, settle]);
+
+  const onDrag = useCallback(
+    (dx: number, dy: number) => {
+      if (zoom.current > 1) {
+        translateX.setValue(origin.current.x + dx);
+        translateY.setValue(origin.current.y + dy);
+        return;
+      }
+      // At rest the drag is the dismissal: the photo follows the finger down and
+      // the black behind it thins out, so the gesture shows its own outcome.
+      translateY.setValue(dy);
+      opacity.setValue(backdropOpacity(dy));
+    },
+    [translateX, translateY, opacity],
+  );
+
+  const onDragEnd = useCallback(
+    (dx: number, dy: number, vy: number) => {
+      if (zoom.current > 1) {
+        origin.current = { x: origin.current.x + dx, y: origin.current.y + dy };
+        return;
+      }
+      if (shouldDismiss(dy, vy)) {
+        onDismiss?.();
+        return;
+      }
+      Animated.spring(translateY, { toValue: 0, useNativeDriver: false, bounciness: 0 }).start();
+      Animated.spring(opacity, { toValue: 1, useNativeDriver: false, bounciness: 0 }).start();
+    },
+    [translateY, opacity, onDismiss],
+  );
+
+  /* eslint-disable react-hooks/refs -- Same mismatch as photo-grid.tsx, and the
+     reasoning is written out in full there: the rule objects to the callbacks
+     being handed to `.onUpdate(...)` during render because they eventually
+     touch a ref, not to any read happening then. Nothing calls them until a
+     finger does, and every alternative (state mutation, Reanimated worklets) is
+     worse for this code. Note the rule did catch a real bug in this file --
+     `useRef(new Animated.Value()).current` genuinely reads a ref during render
+     -- which is fixed above rather than suppressed. */
+  const gestures = useMemo(
+    () =>
+      Gesture.Simultaneous(
+        Gesture.Pinch()
+          .runOnJS(true)
+          .onUpdate((e) => onPinch(e.scale))
+          .onEnd((e) => onPinchEnd(e.scale)),
+        Gesture.Race(
+          Gesture.Tap()
+            .numberOfTaps(2)
+            .runOnJS(true)
+            .onEnd(onDoubleTap),
+          Gesture.Pan()
+            // Vertical-first, and only far enough sideways to be sure: a
+            // horizontal drag has to reach the pager under this cell so the
+            // page still turns.
+            .activeOffsetY([-15, 15])
+            .failOffsetX([-20, 20])
+            .runOnJS(true)
+            .onUpdate((e) => onDrag(e.translationX, e.translationY))
+            .onEnd((e) => onDragEnd(e.translationX, e.translationY, e.velocityY)),
+        ),
+      ),
+    [onPinch, onPinchEnd, onDoubleTap, onDrag, onDragEnd],
+  );
+  /* eslint-enable react-hooks/refs */
+
   const source = fullImageSource(settings, asset);
   return (
-    <Pressable style={[styles.cell, { width }]} onPress={onPress}>
-      {source ? (
-        <Image source={source} style={styles.media} contentFit="contain" transition={150} cachePolicy="disk" />
-      ) : (
-        <ThemedText style={styles.chromeGlyph}>Preview unavailable</ThemedText>
-      )}
-    </Pressable>
+    <GestureDetector gesture={gestures}>
+      <Animated.View style={[styles.cell, { width, opacity }]}>
+        {/*
+          `layer`, not `fill`. The cell centres its children (`alignItems:
+          'center'`), which in a column flexbox means they size to their content
+          across the axis rather than stretching — so a bare `flex: 1` wrapper
+          here is full height and ZERO WIDTH. The image asks for `width: '100%'`
+          of that, gets nothing, and the viewer is a black screen. It worked
+          before only because the image was a direct child of the cell, whose
+          width is explicit; inserting these two wrappers to hang the gesture
+          transform on is what broke it. `alignSelf: 'stretch'` opts each wrapper
+          back out of the centring.
+        */}
+        <Pressable style={styles.layer} onPress={onPress}>
+          {source ? (
+            <Animated.View
+              style={[styles.layer, { transform: [{ scale }, { translateX }, { translateY }] }]}>
+              <Image
+                source={source}
+                style={styles.media}
+                contentFit="contain"
+                transition={150}
+                cachePolicy="disk"
+              />
+            </Animated.View>
+          ) : (
+            <ThemedText style={styles.chromeGlyph}>Preview unavailable</ThemedText>
+          )}
+        </Pressable>
+      </Animated.View>
+    </GestureDetector>
   );
 }
 
@@ -384,6 +580,9 @@ function VideoCell({
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: '#000' },
   cell: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000' },
+  // A full-bleed layer inside `cell`. alignSelf overrides the cell's
+  // alignItems: 'center', which would otherwise leave this zero-width.
+  layer: { flex: 1, alignSelf: 'stretch' },
   media: { width: '100%', height: '100%' },
   top: {
     position: 'absolute',

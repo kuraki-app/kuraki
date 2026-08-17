@@ -19,6 +19,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/config"
 	"github.com/kuraki-app/kuraki/internal/db"
 	"github.com/kuraki-app/kuraki/internal/duplicates"
+	"github.com/kuraki-app/kuraki/internal/fts"
 	"github.com/kuraki-app/kuraki/internal/geo"
 	"github.com/kuraki-app/kuraki/internal/httpapi"
 	"github.com/kuraki-app/kuraki/internal/importer"
@@ -677,16 +678,14 @@ func (a *App) storeOCR(ctx context.Context, id, text string) error {
 		Scan(&filename, &camera, &takenAt, &desc); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM assets_fts WHERE asset_id = ?`, id); err != nil {
-		return err
-	}
 	takenText := ""
 	if takenAt.Valid && len(takenAt.String) >= 10 {
 		takenText = takenAt.String[:10]
 	}
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO assets_fts (asset_id, filename, camera_model, taken_text, description, ocr_text) VALUES (?, ?, ?, ?, ?, ?)`,
-		id, filename, camera, takenText, desc.String, text); err != nil {
+	if err := fts.Replace(ctx, tx, fts.Row{
+		AssetID: id, Filename: filename, CameraModel: camera,
+		TakenText: takenText, Description: desc.String, OCRText: text,
+	}); err != nil {
 		return err
 	}
 	return tx.Commit()

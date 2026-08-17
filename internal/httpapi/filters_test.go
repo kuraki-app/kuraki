@@ -112,3 +112,54 @@ func getWithBearer[T any](t *testing.T, handler http.Handler, path, token string
 	}
 	return out
 }
+
+// Substring search is the point of the trigram index: a filename search that
+// only matches the start of a token is useless in a library where everything is
+// called "IMG_0001.jpg" or "Screenshot ...". The one- and two-character queries
+// are here because they are the regression the dual-index design exists to
+// prevent -- trigram cannot answer a query shorter than three characters, so
+// those must still route to the prefix index and keep working.
+func TestSearchMatchesSubstrings(t *testing.T) {
+	ctx := context.Background()
+	database, store, _ := seedHTTPAsset(t, ctx) // seeds IMG_0001.jpg
+	router := NewRouter(Deps{Version: "test", DB: database, Store: store, Logger: slog.Default()})
+	cookie := setupTestSession(t, router)
+
+	cases := map[string]int{
+		"IMG_0001": 1, // whole name, either index
+		"IMG":      1, // leading token
+		"MG_000":   1, // mid-token -- impossible before trigram
+		"0001":     1, // a token that is not the first
+		"jpg":      1, // the extension
+		"i":        1, // 1 char -> prefix index
+		"im":       1, // 2 chars -> prefix index
+		"zzz":      0, // matches nothing anywhere
+	}
+	for q, want := range cases {
+		got := getJSONWithCookie[apitypes.AssetList](t, router, "/api/search?q="+q, cookie)
+		if len(got.Assets) != want {
+			t.Errorf("q=%q returned %d assets, want %d", q, len(got.Assets), want)
+		}
+	}
+}
+
+// One short term drops the whole query to the prefix index, because a query
+// cannot join both tables and the prefix index is the only one that can answer
+// every term in a mixed query.
+func TestFTSPlanPicksIndexByShortestTerm(t *testing.T) {
+	cases := []struct {
+		q     string
+		table string
+	}{
+		{"scr", "assets_fts_tri"},
+		{"beach sunset", "assets_fts_tri"},
+		{"sc", "assets_fts"},
+		{"sc beach", "assets_fts"},
+		{"", "assets_fts"},
+	}
+	for _, tc := range cases {
+		if table, _ := ftsPlan(tc.q); table != tc.table {
+			t.Errorf("ftsPlan(%q) table = %q, want %q", tc.q, table, tc.table)
+		}
+	}
+}

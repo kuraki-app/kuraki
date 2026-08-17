@@ -8,6 +8,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
+import { coverLayout } from '@/lib/album-cover';
 import type { CachedAlbum } from '@/lib/cache/albums';
 import { createAlbum, fetchAlbums, thumbSource, type LibraryAsset } from '@/lib/library-api';
 import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
@@ -103,7 +104,7 @@ export default function AlbumList({ creating, onCreatingChange }: Props) {
           contentContainerStyle={styles.grid}
           contentInsetAdjustmentBehavior="automatic"
           renderItem={({ item }) => {
-            const source = settings && item.cover_asset_id ? thumbSource(settings, coverAsset(item.cover_asset_id)) : null;
+            const layout = coverLayout(item.cover_asset_ids);
             return (
               <Pressable
                 style={styles.card}
@@ -113,10 +114,36 @@ export default function AlbumList({ creating, onCreatingChange }: Props) {
                     params: { id: item.id, name: item.name },
                   })
                 }>
+                {/*
+                  One tile or four, never a partly-filled grid — see coverLayout.
+                  The mosaic is a plain wrapping flex row of 50%-square cells
+                  rather than a nested row-of-rows: with exactly four cells the
+                  wrap does the 2x2 for free, and the tokens.thumb underneath
+                  shows through the hairline gaps as the grout between them.
+                */}
                 <View style={[styles.cover, { backgroundColor: tokens.thumb }]}>
-                  {source && (
-                    <Image source={source} style={styles.coverImage} contentFit="cover" transition={120} cachePolicy="disk" />
-                  )}
+                  {layout.kind === 'mosaic' ? (
+                    <View style={styles.mosaic}>
+                      {layout.ids.map((id) => (
+                        <Image
+                          key={id}
+                          source={settings ? thumbSource(settings, coverAsset(id)) : null}
+                          style={styles.mosaicTile}
+                          contentFit="cover"
+                          transition={120}
+                          cachePolicy="disk"
+                        />
+                      ))}
+                    </View>
+                  ) : layout.kind === 'single' && settings ? (
+                    <Image
+                      source={thumbSource(settings, coverAsset(layout.ids[0]))}
+                      style={styles.coverImage}
+                      contentFit="cover"
+                      transition={120}
+                      cachePolicy="disk"
+                    />
+                  ) : null}
                 </View>
                 <ThemedText type="smallBold" numberOfLines={1}>{item.name}</ThemedText>
                 <ThemedText type="small" themeColor="mutedForeground">
@@ -169,6 +196,10 @@ const styles = StyleSheet.create({
   card: { flex: 1, gap: Spacing.one },
   cover: { width: '100%', aspectRatio: 1, borderRadius: Radius.sm, overflow: 'hidden' },
   coverImage: { width: '100%', height: '100%' },
+  mosaic: { width: '100%', height: '100%', flexDirection: 'row', flexWrap: 'wrap' },
+  // Just under half, so the 1pt left over on each axis becomes the seam between
+  // tiles and the cover's own background reads as grout.
+  mosaicTile: { width: '49.7%', height: '49.7%' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24, minHeight: 200 },
   msg: { textAlign: 'center' },
   form: { padding: Spacing.three, gap: Spacing.two },

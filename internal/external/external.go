@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kuraki-app/kuraki/internal/fts"
 	"github.com/kuraki-app/kuraki/internal/media"
 	"github.com/zeebo/blake3"
 )
@@ -69,7 +70,9 @@ func Scan(ctx context.Context, db *sql.DB, processor media.Processor, libraryID,
 			result.Skipped++
 			return nil
 		}
-		if _, err := db.ExecContext(ctx, `INSERT INTO assets_fts(asset_id,filename,camera_model,taken_text,description) VALUES(?,?,?,?,?)`, id.String(), filepath.Base(path), meta.CameraModel, "", ""); err != nil {
+		if err := fts.Replace(ctx, db, fts.Row{
+			AssetID: id.String(), Filename: filepath.Base(path), CameraModel: meta.CameraModel,
+		}); err != nil {
 			return err
 		}
 		if _, err := db.ExecContext(ctx, `INSERT INTO change_log(entity,entity_id,op,owner_id) VALUES('asset',?,'create',?)`, id.String(), ownerID); err != nil {

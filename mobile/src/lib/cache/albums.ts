@@ -2,7 +2,14 @@ import type { LibraryAsset } from '@/lib/library-api';
 import { getDB } from '@/lib/cache/db';
 import { rowToAsset, upsertAssets } from '@/lib/cache/assets';
 
-export type CachedAlbum = { id: string; name: string; cover_asset_id: string | null; count: number };
+export type CachedAlbum = {
+  id: string;
+  name: string;
+  cover_asset_id: string | null;
+  /** Newest few assets, for the cover mosaic. Empty for an empty album. */
+  cover_asset_ids: string[];
+  count: number;
+};
 
 export async function upsertAlbums(albums: CachedAlbum[]): Promise<void> {
   if (!albums.length) return;
@@ -11,12 +18,13 @@ export async function upsertAlbums(albums: CachedAlbum[]): Promise<void> {
   await db.withTransactionAsync(async () => {
     for (const a of albums) {
       await db.runAsync(
-        `INSERT INTO albums (id, name, cover_asset_id, count, cached_at)
-         VALUES (?, ?, ?, ?, ?)
+        `INSERT INTO albums (id, name, cover_asset_id, cover_asset_ids, count, cached_at)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            name=excluded.name, cover_asset_id=excluded.cover_asset_id,
+           cover_asset_ids=excluded.cover_asset_ids,
            count=excluded.count, cached_at=excluded.cached_at`,
-        [a.id, a.name, a.cover_asset_id, a.count, now],
+        [a.id, a.name, a.cover_asset_id, JSON.stringify(a.cover_asset_ids ?? []), a.count, now],
       );
     }
   });
@@ -29,8 +37,26 @@ export async function readAlbums(): Promise<CachedAlbum[]> {
     id: r.id as string,
     name: r.name as string,
     cover_asset_id: (r.cover_asset_id as string) ?? null,
+    cover_asset_ids: parseCoverIDs(r.cover_asset_ids),
     count: r.count as number,
   }));
+}
+
+/**
+ * parseCoverIDs reads the JSON array the mosaic needs back out of its column.
+ *
+ * Tolerant on purpose: the column is null for rows written before schema v7,
+ * and a cache is not worth throwing over. Anything unreadable is treated as an
+ * album with no cover, which simply draws the placeholder.
+ */
+function parseCoverIDs(raw: unknown): string[] {
+  if (typeof raw !== 'string' || raw === '') return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function setAlbumAssets(albumId: string, assets: LibraryAsset[]): Promise<void> {

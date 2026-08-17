@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kuraki-app/kuraki/internal/fts"
 	"github.com/kuraki-app/kuraki/internal/storage"
 )
 
@@ -172,7 +173,7 @@ func purgeOne(ctx context.Context, db *sql.DB, store storage.Storage, id, path, 
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, `DELETE FROM assets_fts WHERE asset_id = ?`, id); err != nil {
+	if err := fts.Delete(ctx, tx, id); err != nil {
 		return fmt.Errorf("trash: delete fts: %w", err)
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM assets WHERE id = ?`, id); err != nil {
