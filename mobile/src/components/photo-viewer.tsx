@@ -34,7 +34,12 @@ import {
 } from '@/lib/library-api';
 import type { CaptureSettings } from '@/lib/settings';
 
-const reg = registerStyle('vault');
+// Kura, not Vault. `design/registers.ts` states the rule outright — "the photo
+// grid and viewer always render kura regardless" — because the register belongs
+// to the page frame and a photograph is never an operational surface. This read
+// 'vault', which set the one caption in the app that sits on an image in the
+// mono data face.
+const reg = registerStyle('kura');
 const heading = { fontFamily: reg.heading };
 
 type Props = {
@@ -147,6 +152,10 @@ export default function PhotoViewer({
     ? [current.place_city, current.place_country].filter(Boolean).join(', ')
     : '';
   const takenAt = formatTakenAt(current?.taken_at);
+  // Where as well as when. Place was already derived for the details dialog but
+  // never shown with the photograph, which is the one place it reads as part of
+  // the picture rather than as a field.
+  const caption = [takenAt, place].filter(Boolean).join(' · ');
   const facts = [
     current?.size_bytes ? formatBytes(current.size_bytes) : '',
     current?.media_type === 'video' ? 'Video' : 'Photo',
@@ -240,7 +249,7 @@ export default function PhotoViewer({
             <ThemedText style={[heading, styles.captionName]} numberOfLines={2}>
               {current.filename}
             </ThemedText>
-            {takenAt ? <ThemedText style={styles.captionMeta}>{takenAt}</ThemedText> : null}
+            {caption ? <ThemedText style={styles.captionMeta}>{caption}</ThemedText> : null}
           </View>
         )}
 
@@ -607,8 +616,8 @@ const styles = StyleSheet.create({
   // behind two lines of text would cover more of the image than the text does.
   captionName: {
     color: '#fff',
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 20,
+    lineHeight: 26,
     textShadowColor: 'rgba(0,0,0,0.65)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,

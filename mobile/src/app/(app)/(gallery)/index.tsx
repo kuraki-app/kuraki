@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, StyleSheet, View } from 'react-native';
 
 import AlbumTargetPicker from '@/components/album-target-picker';
+import MemoriesRail from '@/components/memories-rail';
 import PhotoGrid from '@/components/photo-grid';
 import PlacesScreen from '@/components/places-screen';
 import { headerOptions } from '@/components/screen-header';
@@ -403,8 +404,12 @@ export default function LibraryScreen() {
   // resurfacing view fresh rather than caching a load-once snapshot). Deferred
   // a tick (matching the Backup tab's refresh-on-mount pattern) so the first
   // setState inside loadMemories doesn't fire synchronously within the effect.
+  //
+  // The timeline needs the same page: it draws the memories rail above the
+  // grid, and a rail that only populated after visiting the segment it exists
+  // to replace would never appear for the users it is for.
   useEffect(() => {
-    if (segment !== 'memories' || !settings) return;
+    if ((segment !== 'memories' && segment !== 'timeline') || !settings) return;
     const timer = setTimeout(() => void loadMemories(settings), 0);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -528,6 +533,21 @@ export default function LibraryScreen() {
             assets={assets}
             settings={settings}
             loading={loading}
+            listHeader={
+              // Hidden while selecting: the rail is a navigation affordance,
+              // and tapping one mid-selection would abandon the selection to
+              // change view.
+              selecting ? null : (
+                <MemoriesRail
+                  assets={memories}
+                  settings={settings}
+                  onPress={() => {
+                    cancelSelection();
+                    setSegment('memories');
+                  }}
+                />
+              )
+            }
             onEndReached={() => void loadMore()}
             onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
             onDelete={(id) => void trashOne(id)}

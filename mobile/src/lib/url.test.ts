@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeServerURL } from '@/lib/url';
+import { normalizeServerURL, serverHost } from '@/lib/url';
 
 describe('normalizeServerURL', () => {
   it('adds http and default port to a bare IP', () => {
@@ -31,5 +31,30 @@ describe('normalizeServerURL', () => {
   });
   it('throws on a scheme with no host', () => {
     expect(() => normalizeServerURL('http://')).toThrow();
+  });
+});
+
+describe('serverHost', () => {
+  it('drops the scheme', () => {
+    expect(serverHost('https://photos.home.lan')).toBe('photos.home.lan');
+    expect(serverHost('http://photos.home.lan')).toBe('photos.home.lan');
+  });
+
+  it('keeps a port that distinguishes servers', () => {
+    expect(serverHost('http://192.168.1.20:3000')).toBe('192.168.1.20:3000');
+  });
+
+  it('drops a port that distinguishes nothing', () => {
+    expect(serverHost('https://photos.home.lan:443')).toBe('photos.home.lan');
+    expect(serverHost('http://photos.home.lan:80')).toBe('photos.home.lan');
+  });
+
+  it('drops a path', () => {
+    expect(serverHost('https://photos.home.lan/settings')).toBe('photos.home.lan');
+  });
+
+  it('is empty for an unset address', () => {
+    expect(serverHost('')).toBe('');
+    expect(serverHost('   ')).toBe('');
   });
 });

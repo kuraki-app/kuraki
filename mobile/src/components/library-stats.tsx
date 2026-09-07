@@ -3,25 +3,32 @@ import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radius, Spacing } from '@/constants/theme';
-import { registerStyle } from '@/design/registers';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
+import { FontFamily } from '@/design/fonts';
 import { formatBytes, formatCount } from '@/lib/format';
 import { fetchStats, type LibraryStats } from '@/lib/library-api';
 import { loadCaptureSettings } from '@/lib/settings';
-
-const reg = registerStyle('vault');
-const heading = { fontFamily: reg.heading };
+import { serverHost } from '@/lib/url';
 
 // LibraryStats is the top of Settings: how much is on the server and what it
 // consists of. It fails quietly -- an unreachable server is already reported by
 // the connection section, and a missing stats card must not push the settings
 // list off the screen behind an error.
+//
+// This is the Vault register at its most literal: a cased mono label, three
+// figures set in Geist Mono, a hairline panel. The card previously led with the
+// library's byte total at 32pt, which made storage the headline fact about a
+// photo library -- it is a footnote, and it reads as one now.
 export default function LibraryStatsCard() {
+  const tokens = useTokens();
   const [stats, setStats] = useState<LibraryStats | null>(null);
+  const [host, setHost] = useState('');
 
   const load = useCallback(async () => {
     try {
-      setStats(await fetchStats(await loadCaptureSettings()));
+      const settings = await loadCaptureSettings();
+      setHost(serverHost(settings.baseURL));
+      setStats(await fetchStats(settings));
     } catch {
       setStats(null);
     }
@@ -38,28 +45,49 @@ export default function LibraryStatsCard() {
 
   return (
     <View style={styles.wrap}>
-      <ThemedView type="card" style={styles.card}>
-        <ThemedText type="title" style={[heading, styles.size]}>
-          {formatBytes(stats.total_bytes)}
-        </ThemedText>
-        <ThemedText type="small" themeColor="mutedForeground">
-          {formatCount(stats.total)} items in your library
-        </ThemedText>
+      <ThemedView type="card" style={[styles.card, { borderColor: tokens.border }]}>
+        <View style={styles.topRow}>
+          {/* Not "LIBRARY": the settings list below this card already has a
+              LIBRARY section (Free up space, Trash), and on device the two
+              identical labels read as one heading repeated. This card is about
+              what the server holds; that section is about acting on it. */}
+          <ThemedText style={[styles.caps, { fontFamily: FontFamily.mono, color: tokens.textFaint }]}>
+            ON THE SERVER
+          </ThemedText>
+
+          {/* The card only renders once a fetch has come back, so reaching this
+              line is itself the evidence the server answered. */}
+          {host ? (
+            <View style={styles.server}>
+              <View style={[styles.dot, { backgroundColor: tokens.ok }]} />
+              <ThemedText
+                numberOfLines={1}
+                style={[styles.host, { fontFamily: FontFamily.mono, color: tokens.mutedForeground }]}>
+                {host}
+              </ThemedText>
+            </View>
+          ) : null}
+        </View>
+
         <View style={styles.counts}>
           <Stat label="Photos" value={stats.images} />
           <Stat label="Videos" value={stats.videos} />
           <Stat label="Albums" value={stats.albums} />
-          <Stat label="Trash" value={stats.trashed} />
         </View>
+
+        <ThemedText type="small" themeColor="mutedForeground">
+          {formatBytes(stats.total_bytes)} · {formatCount(stats.trashed)} in trash
+        </ThemedText>
       </ThemedView>
     </View>
   );
 }
 
 function Stat({ label, value }: { label: string; value: number }) {
+  const tokens = useTokens();
   return (
     <View style={styles.stat}>
-      <ThemedText type="smallBold" style={styles.statValue}>
+      <ThemedText style={[styles.statValue, { fontFamily: FontFamily.mono, color: tokens.foreground }]}>
         {formatCount(value)}
       </ThemedText>
       <ThemedText type="small" themeColor="mutedForeground">
@@ -71,9 +99,16 @@ function Stat({ label, value }: { label: string; value: number }) {
 
 const styles = StyleSheet.create({
   wrap: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two },
-  card: { borderRadius: Radius.lg, padding: Spacing.three, gap: Spacing.half },
-  size: { fontSize: 32, lineHeight: 38 },
-  counts: { flexDirection: 'row', gap: Spacing.four, paddingTop: Spacing.two },
+  // A hairline border, not a shadow: Vault surfaces are drawn, not lifted.
+  card: { borderRadius: Radius.lg, borderWidth: StyleSheet.hairlineWidth, padding: Spacing.three, gap: Spacing.two },
+  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
+  caps: { fontSize: 11, lineHeight: 15, fontWeight: '600', letterSpacing: 1.4 },
+  server: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  host: { fontSize: 11, lineHeight: 15, flexShrink: 1 },
+  counts: { flexDirection: 'row', gap: Spacing.four },
   stat: { gap: 2 },
-  statValue: { fontVariant: ['tabular-nums'] },
+  // Tabular figures so the three columns line up and stay lined up as the
+  // counts tick over.
+  statValue: { fontSize: 24, lineHeight: 30, fontWeight: '600', fontVariant: ['tabular-nums'] },
 });

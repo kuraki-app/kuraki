@@ -1,13 +1,17 @@
 import { Image } from 'expo-image';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 
+import { SymbolView } from 'expo-symbols';
+
 import { ThemedText } from '@/components/themed-text';
 import { Spacing, useTokens } from '@/constants/theme';
+import { FontFamily } from '@/design/fonts';
 import { registerStyle } from '@/design/registers';
+import { formatCount } from '@/lib/format';
 import type { PlaceGroup } from '@/lib/library-api';
 import type { CaptureSettings } from '@/lib/settings';
 
-const reg = registerStyle('vault');
+const reg = registerStyle('kura');
 const heading = { fontFamily: reg.heading };
 
 type Props = {
@@ -42,9 +46,14 @@ export default function PlaceList({ groups, settings, totalLocated, onPressPlace
         keyExtractor={(g) => `${g.country}:${g.city}`}
         contentInsetAdjustmentBehavior="automatic"
         ListHeaderComponent={
-          <ThemedText type="subtitle" style={[heading, styles.header]}>
-            {totalLocated} located {totalLocated === 1 ? 'photo' : 'photos'}
-          </ThemedText>
+          <View style={styles.header}>
+            <ThemedText style={[heading, styles.headerTitle]}>
+              {formatCount(groups.length)} {groups.length === 1 ? 'place' : 'places'}
+            </ThemedText>
+            <ThemedText type="small" themeColor="textFaint">
+              {formatCount(totalLocated)} located {totalLocated === 1 ? 'photo' : 'photos'}
+            </ThemedText>
+          </View>
         }
         renderItem={({ item }) => (
           <Pressable style={styles.row} onPress={() => onPressPlace(item)}>
@@ -57,11 +66,26 @@ export default function PlaceList({ groups, settings, totalLocated, onPressPlace
               contentFit="cover"
             />
             <View style={styles.meta}>
-              <ThemedText style={heading}>{item.city}</ThemedText>
-              <ThemedText type="small" themeColor="mutedForeground">
-                {item.country} · {item.count}
+              <ThemedText style={styles.city} numberOfLines={1}>
+                {item.city}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textFaint" numberOfLines={1}>
+                {item.country}
               </ThemedText>
             </View>
+            {/* The count is data, so it is mono and right-aligned into its own
+                column — read down the list it answers "where are most of my
+                photos" at a glance, which it could not do buried after the
+                country in the same sentence. */}
+            <ThemedText style={[styles.count, { fontFamily: FontFamily.mono, color: tokens.textFaint }]}>
+              {formatCount(item.count)}
+            </ThemedText>
+            <SymbolView
+              name="chevron.right"
+              size={14}
+              tintColor={tokens.textFaint}
+              fallback={<ThemedText themeColor="textFaint">›</ThemedText>}
+            />
           </Pressable>
         )}
       />
@@ -71,7 +95,10 @@ export default function PlaceList({ groups, settings, totalLocated, onPressPlace
 
 const styles = StyleSheet.create({
   panel: { flex: 2, borderTopWidth: StyleSheet.hairlineWidth },
-  header: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two, paddingBottom: Spacing.one },
+  header: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two, paddingBottom: Spacing.one, gap: 2 },
+  headerTitle: { fontSize: 17, lineHeight: 22, fontWeight: '600' },
+  city: { fontSize: 15, lineHeight: 20, fontWeight: '600' },
+  count: { fontSize: 13, lineHeight: 18, fontVariant: ['tabular-nums'] },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

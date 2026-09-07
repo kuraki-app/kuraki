@@ -14,8 +14,10 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
 import PhotoViewer from '@/components/photo-viewer';
 import ScrollScrubber from '@/components/scroll-scrubber';
+import SectionHeading from '@/components/section-heading';
+import TileBadges from '@/components/tile-badges';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, useTokens } from '@/constants/theme';
+import { useTokens } from '@/constants/theme';
 import { usePrefs } from '@/hooks/use-prefs';
 import { applyPaint, paintMode, tileAt, type PaintMode, type TileFrame } from '@/lib/drag-select';
 import { formatBytes } from '@/lib/format';
@@ -389,24 +391,15 @@ export default function PhotoGrid({
             // on, so per-group selection simply is not offered.
             return null;
           }
+          const ids = sectionIds(section);
           const allSelected = selectAll ? sectionAllSelected(section, selectedIds ?? new Set()) : false;
           return (
-            <View style={styles.sectionRow}>
-              <ThemedText type="smallBold" style={styles.sectionHeader}>
-                {section.title}
-              </ThemedText>
-              {selectAll ? (
-                <Pressable
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${allSelected ? 'Deselect' : 'Select'} everything in ${section.title}`}
-                  onPress={() => onSelectSection(sectionIds(section), allSelected)}>
-                  <ThemedText type="smallBold" themeColor="primary">
-                    {allSelected ? 'None' : 'Select all'}
-                  </ThemedText>
-                </Pressable>
-              ) : null}
-            </View>
+            <SectionHeading
+              title={section.title}
+              count={ids.length}
+              allSelected={allSelected}
+              onSelectAll={selectAll ? () => onSelectSection(ids, allSelected) : undefined}
+            />
           );
         }}
         renderItem={({ item: row }) => (
@@ -444,14 +437,16 @@ export default function PhotoGrid({
                       {item.media_type}
                     </ThemedText>
                   )}
-                  {item.media_type === 'video' && <View style={styles.videoDot} />}
-                  {showSizeBadge && item.size_bytes ? (
-                    <View style={styles.sizeBadge}>
-                      <ThemedText type="small" style={styles.sizeText}>
-                        {formatBytes(item.size_bytes)}
-                      </ThemedText>
-                    </View>
-                  ) : null}
+                  {/* Hidden while selecting: the check owns the corner a stack
+                      or play marker would take, and a tile being chosen is not
+                      the moment to also be reading its length. */}
+                  {!selectionActive && (
+                    <TileBadges
+                      asset={item}
+                      showSize={showSizeBadge}
+                      sizeLabel={item.size_bytes ? formatBytes(item.size_bytes) : null}
+                    />
+                  )}
                   {selected && (
                     <View
                       style={[
@@ -521,27 +516,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row' },
   tile: { alignItems: 'center', justifyContent: 'center' },
   thumb: { width: '100%', height: '100%' },
-  sectionRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.two,
-  },
-  sectionHeader: { paddingTop: Spacing.three, paddingBottom: Spacing.one },
-  // Bottom-right, so it never sits under the selection check in the corner
-  // opposite. Fixed light-on-dark rather than themed: it is drawn over a
-  // photograph, not over the app's background.
-  sizeBadge: {
-    position: 'absolute',
-    right: 4,
-    bottom: 4,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 4,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
-  sizeText: { color: '#fff', fontSize: 10, lineHeight: 14 },
-  videoDot: { position: 'absolute', bottom: 6, left: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' },
   checkBadge: {
     position: 'absolute',
     top: 6,

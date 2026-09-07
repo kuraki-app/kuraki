@@ -27,3 +27,31 @@ export function normalizeServerURL(input: string): string {
   const path = url.pathname === '/' ? '' : url.pathname.replace(/\/+$/, '');
   return `${url.protocol}//${url.host}${path}`;
 }
+
+/**
+ * serverHost reduces a stored base URL to the host a person would say out loud:
+ * "photos.home.lan", "192.168.1.20:3000".
+ *
+ * Settings shows this beside the reachability dot, where the useful fact is
+ * *which* server is answering — the scheme is noise there, and a full URL
+ * wraps in the space available. The port survives only when it is not the
+ * scheme's default, because ":3000" distinguishes two servers on one host while
+ * ":443" never distinguishes anything.
+ *
+ * Falls back to the raw input rather than throwing: this is a label, and a
+ * settings screen that crashes because a hand-typed address is malformed is
+ * worse than one that shows the address as typed.
+ */
+export function serverHost(baseURL: string): string {
+  const trimmed = baseURL.trim();
+  if (!trimmed) return '';
+
+  try {
+    const url = new URL(normalizeServerURL(trimmed));
+    const isDefaultPort =
+      !url.port || (url.protocol === 'https:' && url.port === '443') || (url.protocol === 'http:' && url.port === '80');
+    return isDefaultPort ? url.hostname : `${url.hostname}:${url.port}`;
+  } catch {
+    return trimmed;
+  }
+}

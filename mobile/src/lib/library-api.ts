@@ -34,6 +34,22 @@ export type LibraryAsset = Pick<
   // fields their surface needs, and the grid's size badge simply hides when it
   // is absent rather than forcing every construction site to invent a number.
   size_bytes?: number;
+  /**
+   * Video length, for the duration badge over a video tile.
+   *
+   * Optional for the same reason as `size_bytes`: the contract always sends it,
+   * but synthetic assets assembled inside the app carry only the fields their
+   * surface needs. `formatDuration` returns null for a missing or zero value,
+   * so the badge simply does not draw.
+   */
+  duration_ms?: number;
+  /**
+   * How many originals this tile stands for, for the stack badge.
+   *
+   * A plain asset reports 1 (or nothing, when synthesised); only a value above
+   * 1 marks the tile as the visible face of a stack.
+   */
+  stack_size?: number;
 };
 
 // Place grouping from /api/places/summary, derived from the contract.
