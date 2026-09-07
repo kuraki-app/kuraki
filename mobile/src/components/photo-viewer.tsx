@@ -22,10 +22,14 @@ import Dialog from '@/components/dialog';
 import TagEditor from '@/components/tag-editor';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing, useTokens } from '@/constants/theme';
+import { FontFamily } from '@/design/fonts';
 import { registerStyle } from '@/design/registers';
-import { formatBytes, formatTakenAt } from '@/lib/format';
+import DetailFacts from '@/components/detail-facts';
+import { assetFacts, type AssetFact } from '@/lib/asset-facts';
+import { formatTakenAt } from '@/lib/format';
 import { backdropOpacity, clampZoom, shouldDismiss, ZOOM } from '@/lib/viewer-gestures';
 import {
+  fetchAssetDetail,
   fetchAssetTags,
   fullImageSource,
   videoSource,
@@ -92,6 +96,10 @@ export default function PhotoViewer({
   // Set by whichever cell is zoomed, so the pager can stand down while it is.
   const [zoomed, setZoomed] = useState(false);
   const [tags, setTags] = useState<Tag[]>([]);
+  // The full record for the details sheet. LibraryAsset deliberately omits
+  // dimensions, camera and MIME, so the sheet fetches them for the one asset
+  // it is about rather than every list response carrying them.
+  const [facts, setFacts] = useState<AssetFact[]>([]);
 
   const onViewable = useCallback(({ viewableItems }: { viewableItems: ViewToken[] }) => {
     const first = viewableItems[0];
@@ -127,6 +135,31 @@ export default function PhotoViewer({
     };
   }, [settings, currentId, editingTags]);
 
+  // Fetched when the sheet opens rather than as the pager settles: swiping
+  // through a hundred photographs should not fire a hundred detail requests for
+  // a panel nobody has asked for. Failures leave the list empty and the sheet
+  // still opens -- it also carries the tag row, which is worth showing on its
+  // own.
+  useEffect(() => {
+    if (!info || !currentId) return;
+    let cancelled = false;
+    // Deferred a tick so the first setState does not fire synchronously inside
+    // the effect, matching the tags effect above and the pattern used across
+    // the app.
+    const timer = setTimeout(() => {
+      setFacts([]);
+      fetchAssetDetail(settings, currentId)
+        .then((detail) => {
+          if (!cancelled) setFacts(assetFacts(detail));
+        })
+        .catch(() => {});
+    }, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [settings, currentId, info]);
+
   /**
    * Deleting is irreversible-looking to the user even though it is a move to
    * trash, and the button sits one thumb-width from the favourite. Android's
@@ -156,13 +189,6 @@ export default function PhotoViewer({
   // never shown with the photograph, which is the one place it reads as part of
   // the picture rather than as a field.
   const caption = [takenAt, place].filter(Boolean).join(' · ');
-  const facts = [
-    current?.size_bytes ? formatBytes(current.size_bytes) : '',
-    current?.media_type === 'video' ? 'Video' : 'Photo',
-  ]
-    .filter(Boolean)
-    .join(' · ');
-
   return (
     <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       {/*
@@ -265,22 +291,9 @@ export default function PhotoViewer({
             register="kura"
             onClose={() => setInfo(false)}>
             <View style={styles.details}>
-              {takenAt ? (
-                <ThemedText type="small" themeColor="mutedForeground">
-                  {takenAt}
-                </ThemedText>
-              ) : null}
-              {facts ? (
-                <ThemedText type="small" themeColor="mutedForeground">
-                  {facts}
-                </ThemedText>
-              ) : null}
-              {place ? (
-                <ThemedText type="small" themeColor="mutedForeground">
-                  {place}
-                </ThemedText>
-              ) : null}
+              <DetailFacts facts={facts} />
 
+              <ThemedText style={[styles.factsLabel, { color: tokens.textFaint }]}>TAGS</ThemedText>
               <View style={styles.tagRow}>
                 {tags.map((t) => (
                   <View key={t.id} style={[styles.chip, { borderColor: tokens.border }]}>
@@ -642,5 +655,13 @@ const styles = StyleSheet.create({
   details: { padding: Spacing.three, gap: Spacing.one },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.one, paddingTop: Spacing.two },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: Spacing.two, paddingVertical: Spacing.one },
+  factsLabel: {
+    fontFamily: FontFamily.mono,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '600',
+    letterSpacing: 1.4,
+    paddingTop: Spacing.one,
+  },
   chipAction: { borderStyle: 'dashed' },
 });

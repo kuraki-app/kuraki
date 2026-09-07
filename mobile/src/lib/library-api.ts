@@ -486,6 +486,22 @@ export async function fetchTrash(settings: CaptureSettings, cursor?: string): Pr
 type ChangeEntry = components['schemas']['apitypes.ChangeEntry'];
 type ChangesResponse = components['schemas']['apitypes.ChangesResponse'];
 
+/**
+ * AssetDetail is the server's full record for one asset — everything
+ * `LibraryAsset` deliberately leaves out (dimensions, camera, MIME, GPS).
+ *
+ * The grid works from the narrow `LibraryAsset` on purpose: a timeline page
+ * carries hundreds of these and the extra fields are dead weight there. The
+ * details sheet is the one surface that wants all of it, for exactly one asset
+ * at a time, so it fetches it on open rather than widening every list response.
+ */
+export type AssetDetail = components['schemas']['apitypes.Asset'];
+
+/** fetchAssetDetail reads one asset's full metadata for the details sheet. */
+export async function fetchAssetDetail(settings: CaptureSettings, id: string): Promise<AssetDetail> {
+  return authedGet<AssetDetail>(settings, `/api/assets/${id}`);
+}
+
 /** fetchAsset re-reads one asset's metadata; null if it is gone (404). */
 async function fetchAsset(settings: CaptureSettings, id: string): Promise<LibraryAsset | null> {
   const response = await fetch(`${settings.baseURL}/api/assets/${id}`, {

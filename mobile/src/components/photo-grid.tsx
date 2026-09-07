@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { SymbolView } from 'expo-symbols';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -448,15 +449,29 @@ export default function PhotoGrid({
                     />
                   )}
                   {selected && (
-                    <View
-                      style={[
-                        styles.checkBadge,
-                        { backgroundColor: tokens.primary, borderColor: tokens.primaryForeground },
-                      ]}>
-                      <ThemedText type="small" themeColor="primaryForeground">
-                        ✓
-                      </ThemedText>
-                    </View>
+                    <>
+                      {/* The whole tile carries the selection, not just a
+                          corner. A 22pt badge on a 128pt tile is findable only
+                          if you already know where to look; a tint is legible
+                          in peripheral vision, which is what scanning a grid
+                          of forty tiles actually uses. */}
+                      <View
+                        style={[styles.selectedTint, { backgroundColor: tokens.stamp }]}
+                        pointerEvents="none"
+                      />
+                      <View style={[styles.checkBadge, { backgroundColor: tokens.stamp }]}>
+                        <SymbolView
+                          name="checkmark"
+                          size={13}
+                          tintColor={tokens.stampForeground}
+                          fallback={
+                            <ThemedText type="small" themeColor="stampForeground">
+                              ✓
+                            </ThemedText>
+                          }
+                        />
+                      </View>
+                    </>
                   )}
                 </Pressable>
               );
@@ -516,14 +531,19 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row' },
   tile: { alignItems: 'center', justifyContent: 'center' },
   thumb: { width: '100%', height: '100%' },
+  // 0.28 stamp over the photograph — enough to read as chosen, not so much
+  // that the picture underneath stops being identifiable.
+  selectedTint: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.28 },
+  // The check keeps its own filled disc rather than sitting bare on the tint:
+  // the tint is translucent, so a bare mark inherits whatever contrast the
+  // photograph happens to offer, which on a dark frame is none.
   checkBadge: {
     position: 'absolute',
-    top: 6,
-    right: 6,
+    top: 8,
+    right: 8,
     width: 22,
     height: 22,
     borderRadius: 11,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
