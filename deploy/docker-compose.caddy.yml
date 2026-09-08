@@ -38,6 +38,10 @@ services:
       KURAKI_TRUST_PROXY: "1"
       # Unattended, SQLite-consistent backups onto the separate mount above.
       KURAKI_BACKUP_DIR: /backups
+      # The address a phone should connect to. Behind a proxy neither the
+      # scheme, the host nor the port matches this container's listener, so it
+      # has to be stated. Use the same domain as the Caddyfile.
+      # KURAKI_PUBLIC_URL: "https://photos.example.com"
     healthcheck:
       test: ["CMD", "kuraki", "healthcheck"]
       interval: 30s

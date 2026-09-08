@@ -3,6 +3,7 @@ package httpapi
 import (
 	"net"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 
@@ -63,6 +64,21 @@ func isPrivate(url string) bool {
 	return ip != nil && ip.IsPrivate()
 }
 
+// containerMarkers are the files a container runtime leaves in the filesystem.
+// Docker writes /.dockerenv; Podman and other OCI runtimes write
+// /run/.containerenv. A package variable so tests can point it elsewhere.
+var containerMarkers = []string{"/.dockerenv", "/run/.containerenv"}
+
+// inContainer reports whether this process is running inside a container.
+func inContainer() bool {
+	for _, marker := range containerMarkers {
+		if _, err := os.Stat(marker); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
 // serverAddresses reports the URLs a phone should be pointed at.
 // @Summary Reachable server addresses
 // @Tags    devices
@@ -71,6 +87,23 @@ func isPrivate(url string) bool {
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/server-addresses [get]
 func (d Deps) serverAddresses(w http.ResponseWriter, r *http.Request) {
+	// An operator who has stated the address outranks anything guessed from
+	// interfaces — it is the only correct answer behind a reverse proxy, where
+	// the published scheme, host and port are all different from the listener.
+	if d.PublicURL != "" {
+		writeJSON(w, http.StatusOK, apitypes.ServerAddresses{Addresses: []string{d.PublicURL}})
+		return
+	}
+	// In a container the interfaces belong to the container, not the host: the
+	// only non-loopback address is a bridge IP on the container port, which no
+	// phone can reach, and the pairing screen would prefill it over the
+	// browser's own origin AND drop the loopback warning while doing it — a
+	// confident wrong answer replacing a hedged right one. Offering nothing
+	// leaves the screen with the address the browser actually connected on.
+	if inContainer() {
+		writeJSON(w, http.StatusOK, apitypes.ServerAddresses{Addresses: []string{}})
+		return
+	}
 	port := d.ListenPort
 	if port == "" {
 		port = "3000"

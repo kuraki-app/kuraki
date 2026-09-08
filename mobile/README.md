@@ -5,6 +5,11 @@ roll up to a Kuraki server using a **revocable device token**, browses the
 library offline, and shows an honest per-item backup state. Its look is ported
 from the web app — the same Kura/Vault registers, palette, and fonts.
 
+Chrome is the platform's: `NativeTabs` with one route-group `Stack` per tab, and
+one header definition (`components/screen-header.tsx`). **Backup is a page of
+Settings, not a tab.** For what the app *does*, told as user flows rather than
+screens, see [USER_GUIDE.md](../USER_GUIDE.md).
+
 ## First run: connect to your server
 
 The app is gated on setup. On first launch it walks you through:
@@ -23,7 +28,8 @@ setup is **Settings → Disconnect this device**.
 
 ## Automatic backup
 
-Turn on **Automatic backup** (or tap **Back up new photos**) and the app
+Backup lives under **Settings → Backup**. Turn on **Automatic backup** (or tap
+**Back up new photos**) and the app
 enumerates the camera roll, uploads every photo/video the server hasn't yet
 accepted, and records progress durably. Already-backed-up local asset IDs are
 persisted (`@react-native-async-storage/async-storage`) and uploads use the
@@ -43,8 +49,12 @@ connection never creates a duplicate:
 - **Streams large files** — uploads read the file one chunk at a time through a
   native `expo-file-system` handle, so a multi-gigabyte video never fills memory.
 
-On the Backup tab, the **Albums** row opens a picker: back up everything (default)
+On the Backup page, the **Albums** row opens a picker: back up everything (default)
 or select specific device albums. An item in several selected albums uploads once.
+
+Capture dates come from the camera roll's `creationTime` as a **fallback** — embedded
+EXIF still wins, because it travels with the file. Without it, screenshots and similar
+EXIF-less media imported with no date at all and grouped under "Undated" everywhere.
 
 ## Library tab
 
@@ -64,6 +74,17 @@ language the web app uses. A segment control switches between:
 **Tag** a photo from the viewer (pick existing tags or create one) and browse by
 tag. **Trash** and **Duplicate review** (resolve near-identical copies with native
 controls) live under Settings.
+
+**Gestures.** Drag across the grid to select a run of photos, pinch the grid to change
+its density, and in the viewer pinch to zoom or swipe down to dismiss. The decision
+logic lives in `src/lib` (`drag-select`, `grid-zoom`, `viewer-gestures`) rather than in
+the components, because there is no React Native render harness here — anything left
+inside a component is checked by eye and nowhere else.
+
+**Album covers** are a 2x2 mosaic of the album's newest photos. The server sends up to
+four cover asset ids per album; under four, the cover falls back to one full-bleed
+photo, because three thumbnails and a grey square reads as a failed image rather than a
+small album.
 
 - **Offline cache.** Metadata is mirrored into a local **expo-sqlite** database, so
   the grid paints instantly on open and stays browsable with no connection; search
@@ -103,9 +124,19 @@ Checks (also gated in CI):
 ```sh
 npx tsc --noEmit      # types
 npm run lint          # expo lint
-npm run test          # vitest — pure logic: url, connection, mutation queue
+npm run test          # vitest — pure logic: url, connection, mutation queue, gestures, navigation
 npm run check-tokens  # regenerate design tokens from web/src/app.css and fail on drift
 ```
+
+**This directory is npm-only.** A stray `pnpm` run poisons `node_modules` and produces
+convincing but false "Cannot find native module" errors.
+
+None of these gates render a component, so layout regressions pass all of them. Two have
+already shipped that way. Look at what you changed on a simulator.
+
+`src/lib/api.gen.ts` is **generated** from the server's OpenAPI contract (`make gen` at
+the repo root) and CI fails on drift — which is what stops the client from inventing a
+server field and believing in it.
 
 ### Design tokens are generated
 

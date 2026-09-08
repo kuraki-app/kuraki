@@ -32,3 +32,7 @@ services:
     environment:
       KURAKI_DATA_DIR: /data
       KURAKI_ADDR: ":3000"
+      # The address a phone should connect to. A container can only see its own
+      # bridge interface, so it cannot work this out for itself — without this
+      # the Devices page falls back to whatever address your browser is using.
+      # KURAKI_PUBLIC_URL: "http://192.168.1.20:3000"

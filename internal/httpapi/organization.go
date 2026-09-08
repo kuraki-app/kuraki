@@ -214,10 +214,17 @@ func (d Deps) listSavedSearches(w http.ResponseWriter, r *http.Request) {
 	out := make([]apitypes.SavedSearch, 0)
 	for rows.Next() {
 		var x apitypes.SavedSearch
-		if err := rows.Scan(&x.ID, &x.Name, &x.Query, &x.CreatedAt); err != nil {
+		// query_json lands in a string first. database/sql matches its []byte
+		// destinations by exact type, and json.RawMessage is a named type, so
+		// scanning straight into x.Query fails with "unsupported Scan, storing
+		// driver.Value type string into type *json.RawMessage" — which meant
+		// this endpoint returned 500 for good as soon as one search was saved.
+		var query string
+		if err := rows.Scan(&x.ID, &x.Name, &query, &x.CreatedAt); err != nil {
 			writeError(w, 500, "scan_saved_searches_failed")
 			return
 		}
+		x.Query = json.RawMessage(query)
 		out = append(out, x)
 	}
 	writeJSON(w, 200, apitypes.SavedSearchList{SavedSearches: out})
@@ -254,11 +261,18 @@ func (d Deps) createSavedSearch(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "saved_search_id_failed")
 		return
 	}
-	if _, err = d.DB.ExecContext(r.Context(), `INSERT INTO saved_searches(id,owner_id,name,query_json) VALUES(?,?,?,?)`, id.String(), owner, req.Name, string(req.Query)); err != nil {
+	// RETURNING hands back the created_at the column default just computed, so
+	// the response carries the same timestamp the list endpoint will report
+	// rather than an empty string the client has to reload to fill in.
+	var createdAt string
+	err = d.DB.QueryRowContext(r.Context(),
+		`INSERT INTO saved_searches(id,owner_id,name,query_json) VALUES(?,?,?,?) RETURNING created_at`,
+		id.String(), owner, req.Name, string(req.Query)).Scan(&createdAt)
+	if err != nil {
 		writeError(w, 409, "saved_search_exists")
 		return
 	}
-	writeJSON(w, 201, apitypes.SavedSearch{ID: id.String(), Name: req.Name, Query: req.Query})
+	writeJSON(w, 201, apitypes.SavedSearch{ID: id.String(), Name: req.Name, Query: req.Query, CreatedAt: createdAt})
 }
 
 // @Summary Delete saved search

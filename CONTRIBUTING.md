@@ -8,8 +8,9 @@ Kuraki aims to be a focused, self-hosted photo backup you actually enjoy running
 
 ## Getting started
 
-Requirements: **Go 1.26+** and **Node 20+** (for the web UI). libvips + ffmpeg are optional (only for
-the full media pipeline; the default build is pure-Go).
+Requirements: **Go 1.26+** and **Node 24** (`web/.nvmrc` — the embedded UI's content hashes depend
+on the toolchain, so another version produces a spurious full-tree diff). libvips + ffmpeg are
+optional (only for the full media pipeline; the default build is pure-Go).
 
 ```sh
 git clone https://github.com/kuraki-app/kuraki
@@ -24,6 +25,11 @@ the binary. Use **`./scripts/dev.sh`** while iterating — it runs Vite with hot
 API. Before committing a UI change, run **`make web`** (or `./scripts/start.sh`) so the rebuilt embedded
 assets are included; the Go binary serves those, not the Vite dev output.
 
+**Generated files are never hand-edited.** The OpenAPI contract, both clients' generated types, the
+mobile design tokens, and the embedded UI are all produced by a command and gated in CI — see the
+table in [README.md](./README.md#generated-artifacts--never-hand-edit-these). Editing one by hand
+fails the build.
+
 ## Development workflow
 
 1. **Open an issue first** for anything non-trivial, so we agree on scope.
@@ -31,9 +37,14 @@ assets are included; the Go binary serves those, not the Vite dev output.
 3. Keep changes focused; one logical change per PR.
 4. Ensure it's green before pushing:
    ```sh
-   make fmt      # gofmt
-   make vet      # go vet ./...
-   make test     # go test -race ./...
+   make check      # fmt + vet + go test -race ./...
+   make check-gen  # if you touched a handler, apitypes, or the palette
+   make e2e        # if you touched web/src — the only gate that sees runtime behavior
+   ```
+   Front-end surfaces have their own gates, all of them run in CI:
+   ```sh
+   cd web    && npm run check                       # svelte-check — `npm run build` does NOT typecheck
+   cd mobile && npx tsc --noEmit && npm run lint && npm run test && npm run check-tokens
    ```
 5. Update **[ROADMAP.md](./ROADMAP.md)** checkboxes and **[CHANGELOG.md](./CHANGELOG.md)** (`Unreleased`) when your change lands user-facing behavior.
 6. Open a PR against `main` and fill out the template.

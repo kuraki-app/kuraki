@@ -354,7 +354,7 @@
   --frame-duration: var(--t-settle);
   --frame-ease: var(--e-kura);
 
-  /* Type: editorial. Fraunces display headings, generous, settled. */
+  /* Type: editorial. Large, generous, settled — one family, sized to lead. */
   --frame-title-font: var(--font-heading);
   --frame-title-size: 26px;
   --frame-title-weight: 700;
@@ -387,13 +387,18 @@
   --frame-title-weight: 600;
   --frame-title-tracking: -0.005em;
 
-  /* Mono-accented: labels become clipped, spaced micro-caps. */
+  /* Labels become clipped, spaced micro-caps. --font-mono resolves to the same
+   * family as the rest now; the field-name reading comes from the size, the
+   * tracking and the casing, not from the face. */
   --frame-label-font: var(--font-mono);
   --frame-label-size: 11px;
   --frame-label-tracking: 0.06em;
   --frame-label-transform: uppercase;
 
-  /* Vault states technical truth in mono: 0/O and 1/l must never be ambiguous. */
+  /* Figures are readouts here, not prose. The token is kept as the seam where a
+   * data face would be reintroduced; today it resolves to the shared family and
+   * the columns are held steady by font-variant-numeric: tabular-nums at the
+   * component. */
   --frame-data-font: var(--font-mono);
 
   /* Surface: panel. Hairline border, flat — same shared --border colour. */

@@ -46,6 +46,23 @@ Phase 1 = single-owner personal backup.
   the *group*, so the Stack picks its own root, and expo-router's last sort tiebreaker is filename
   length — `search.tsx`/`albums.tsx` lost it to `tag.tsx`/`album.tsx` and both tabs opened a detail
   screen with no params. `lib/navigation.test.ts` pins this (see §11, 2026-08-12).
+- **Mobile design pass from an external contact sheet (2026-09-07, `feat/mobile-contact-sheet-ui`).**
+  The Expo client gained a memories rail above the timeline, counted day headings, grid tile badges
+  (favourite / video length / stack), a Vault-register settings vocabulary (mono values, cased mono
+  section labels, inset hairlines), a backup progress card, and a visible list of backup failures
+  that the engine had been tracking with no reader. Screen headers moved to the **kura** register
+  (Fraunces) and the photo viewer moved to kura too, which is what `design/registers.ts` said it
+  should have been all along. **Three of the sheet's decisions were deliberately refused** — the
+  custom floating tab bar (already deleted, see §11 2026-08-02), `headerLargeTitle` (already failed
+  on device), and a floating selection action bar (selection lives in the native header). See §11.
+- **The container was run and driven, not just built (2026-09-08).** CI builds the Docker image but
+  never starts it, and four defects had been living in that gap. Fixed on `feat/mobile-contact-sheet-ui`:
+  saved searches 500'd the moment one existed (`json.RawMessage` is a named type, so `database/sql`
+  would not scan TEXT into it — the web UI swallowed it and said "No saved searches yet");
+  `/api/login` and `/api/setup` returned `role: ""`; `/api/server-addresses` handed the pairing
+  screen the container's own bridge IP, which it then *prefilled over* the browser's origin and
+  dropped the loopback warning for; and govips logged ~10 unstructured stderr lines per image,
+  burying the import progress bar. `KURAKI_PUBLIC_URL` is new — see §11.
 - **A simulator IS available (2026-08-12).** Earlier entries below say "there is no simulator here";
   that was true when written. The current dev machine has Xcode and eight iOS simulators, so mobile
   work can finally be rendered. There is still no Android emulator, and no physical device.
@@ -109,7 +126,12 @@ Phase 1 = single-owner personal backup.
   Vitest covers the pure logic (URL normalizer, connection machine, mutation classifier).
 - **Server delta sync (2026-07-19, `feat/delta-sync`, Improvement B):** the delta feed
   (`GET /api/changes` session-mounted, `GET /api/capture/changes` device-mounted — same
-  `d.changes` handler via the `ownerID(r)` bridge) now serves a **completed** `change_log`:
+  `d.changes` handler via the `ownerID(r)` bridge)
+  **[CORRECTED 2026-09-07 — the device mount no longer exists. Improvement D collapsed the
+  `/api/capture/*` duplicates into one `requirePrincipal` tree; only `/api/capture/uploads`
+  and `/api/capture/status` remain device-only, and both clients read `GET /api/changes`.
+  Entries below naming `/api/capture/changes` or `/api/capture/assets/{id}` are history.]**
+  now serves a **completed** `change_log`:
   every asset mutation (favorite, edit, tag, album add/remove, import, trash/restore/purge,
   external-library scan, batch favorite/archive/hide, and batch `shift-time`) logs a change.
   `change_log` gained `owner_id` (migration `00020`,
@@ -199,7 +221,7 @@ internal/
   app/                 composition root — wires everything; owns server lifecycle + workers
   config/              zero-config defaults + KURAKI_* env resolution
   domain/              core entities — **NO I/O EVER**
-  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00014)
+  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00025)
   storage/             Storage interface + FS impl (write-once, atomic, traversal-safe)
   media/               Processor interface + purego.go fallback + vips.go tagged backend, ffmpeg, EXIF
   importer/            recursive import, BLAKE3 dedup, import_state resume, derivatives; Takeout + geocode
@@ -208,13 +230,23 @@ internal/
   migrate/immich/      read-only Immich REST client + migrate.Source implementation
   geo/                 offline reverse geocoding (embedded GeoNames cities/countries)
   queue/               background import queue: worker, retries/backoff, crash recovery, jobs
+  fts/                 the ONLY writer of the FTS5 indexes (prefix + trigram); ftsPlan routes queries
+  duplicates/          resumable all-library phash scan: LSH bands + union-find, persisted groups
+  stacks/              deterministic RAW+JPEG / Live-photo grouping
+  external/            index a folder in place (never copies); admin-gated, refuses paths in the data dir
   trash/               soft-delete, restore, retention purge
   verify/              integrity re-checksum
+  backup/              portable archive (manifest v2) + staged, validated restore
+  serversettings/      owner-writable settings catalog (DB half of config.Store; migration 00022)
   auth/                argon2id password hashes + session IDs
-  httpapi/             chi router, handlers, middleware; assets/ = embedded UI
+  httpapi/             chi router, handlers, middleware; assets/ = embedded UI (generated, committed),
+                       apitypes/ = wire DTOs, apispec/ = generated OpenAPI
   ocr/                 opt-in local text recognition (tesseract via exec; feature-detected)
-web/                   SvelteKit SPA (routes: timeline/search/favorites/albums/memories/places/duplicates/stats/devices/activity/archive/hidden/trash)
-mobile/                Expo / React Native iOS+Android client (Capture backup + Library browse/search/filter tabs)
+web/                   SvelteKit SPA (routes: timeline [search lives in its filter bar], albums, tags,
+                       favorites, memories, places, archive, hidden, duplicates, trash,
+                       settings/{overview,account,appearance,library,devices,activity,server,users})
+mobile/                Expo / React Native iOS+Android client (NativeTabs; Backup is a page of Settings)
+USER_GUIDE.md          behavioural contract from outside the code: every user flow + the data it needs
 docs/                  PRD/BRD + local plans — gitignored, local only
 ```
 
@@ -283,6 +315,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Mobile local notifications (backup finished/failed, disconnected) for iOS + Android, guarded so Expo Go still runs | ✅ code-complete, needs a dev build to fire |
 | Mobile UI defects: 48pt type scale, duplicate headings, "Undated" grouping, media-library deprecation warnings | ✅ fixed |
 | One header for every screen (`components/screen-header.tsx`); per-tab route-group stacks; seven hand-rolled bars and all manual `insets.top` deleted | ✅ code-complete, not device-verified |
+| Mobile contact-sheet design pass: memories rail, tile badges (favourite/video length/stack), counted day headings, Vault settings rows, backup progress card + visible failures, Kura headers | ✅ code-complete |
 | Large-title overlap on all six settings pages (ScrollView was not the screen's direct child) | ✅ fixed |
 | Navigation theme built from Kuraki tokens (was react-navigation's stock white/black) | ✅ fixed |
 | Photo viewer: tap-to-toggle chrome, corner close/favorite icons, bottom details sheet (filename, date, size, place, tags) | ✅ code-complete, not device-verified |
@@ -352,6 +385,10 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | **Release pipeline** (`feat/release-pipeline`): `release.yml` is the only workflow that publishes — four archived binaries + `SHA256SUMS` + a GitHub Release, and a **multi-arch** image tagged both `:vX.Y.Z` and `:latest`, built on native amd64/arm64 runners and joined by digest; `ci.yml`'s docker job demoted to build-only; Dockerfile comments corrected (it builds `-tags vips`, not the CGO-free binary) | ✅ done |
 | **Canonical identity** (`chore/canonical-identity`): repository renamed back to `kuraki` and made **public**; landing page deployed to Cloudflare Pages (`kuraki.pages.dev`, crawling closed until `kuraki.app` is bound); site CTAs repointed; `.mailmap` collapses four author identities into one; `scripts/check-docs-links.sh` + a CI job fail the build on a dead documented URL, image path, or relative Markdown link | ✅ done; verified anonymously |
 
+| **Documentation truth pass** (2026-09-07): `USER_GUIDE.md` added (every user flow + the data it requires, no code, no design); README/CONTRIBUTING/web/mobile READMEs reconciled with the shipped code (multi-user, substring search, stacks, external libraries, tags/ratings, gestures, generated artifacts, Node 24, the real gate list); a `how-it-works` page added to the site; `/api/capture/changes` corrected wherever it was described as current | ✅ done |
+
+| **Docker runtime pass** (2026-09-08, `feat/mobile-contact-sheet-ui`): ran the `-tags vips` image against a copy of a real library and drove it. Fixed the saved-search scan 500, the empty `role` in sign-in responses, container-internal pairing addresses (+ `KURAKI_PUBLIC_URL`), the govips log flood, and the `useradd --system` build warning; rewrote `registers.spec.ts`, which had asserted Fraunces/Geist Mono since the font flattening and was only green locally because Playwright's browser was missing | ✅ done; 94 e2e + full gates green, verified in the container and the browser |
+
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
 
@@ -378,6 +415,163 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `feat/mobile-contact-sheet-ui` (2026-09-08) — **Ran the Docker image instead of only building it.
+  Everything below was found in the first hour of driving it, and none of it was reachable from the
+  test suite.**
+  - **A saved search broke the endpoint that lists saved searches.** `query_json` is TEXT;
+    `apitypes.SavedSearch.Query` is a `json.RawMessage`. `database/sql` matches its `[]byte` scan
+    destinations by *exact type*, and `json.RawMessage` is a named type, so the scan failed with
+    `unsupported Scan, storing driver.Value type string into type *json.RawMessage` and
+    `GET /api/saved-searches` answered 500 from the first save until someone deleted the row by
+    hand. **The UI made it invisible**: `loadSavedSearches` catches and renders "No saved searches
+    yet", so the feature looked empty rather than broken. Create and list had each been exercised
+    only against an empty table — `saved_searches_test.go` now does both in one test, and fails
+    against the old handler.
+  - **Sign-in responses carried `role: ""`.** `/api/login` and `/api/setup` built their user from
+    the request, not the row, while `GET /api/me` read the column. A client that stores the sign-in
+    user and gates admin surfaces on the role sees every admin as an ordinary account until the next
+    reload. Nothing does that *yet*, which is why it survived; the field is declared required.
+  - **The pairing screen was confidently wrong in Docker, which is the documented install path.**
+    `lanAddresses` reads the machine's interfaces — correct on bare metal, and inside a container
+    the only answer it can give is a bridge IP on the *container's* port. Worse than useless:
+    `settings/devices` treats a server-reported address as better than `location.origin`, so it
+    prefilled `http://192.168.215.3:3000` **and** dropped the "a phone using this would try to reach
+    itself" warning, because the prefilled value was not loopback. It now detects containers
+    (`/.dockerenv`, `/run/.containerenv`) and offers nothing, which leaves the browser's own working
+    address and the honest warning. `KURAKI_PUBLIC_URL` states the answer where detection cannot —
+    the only correct option behind a reverse proxy.
+  - **govips buried the import.** It ships an info-level handler writing unstructured `log.Printf`
+    to stderr: ~10 lines per image, ~30 on startup, and the progress bar and result line were
+    invisible in the noise. Now routed into slog at warning verbosity, with warnings deduplicated by
+    message — `heifload: ignoring nclx profile` is emitted for *every* HEIC in an iPhone library and
+    says nothing new the second time. `newLogger` also becomes the slog default so those lines match
+    the server's own format.
+  - **`registers.spec.ts` had been broken since the font flattening** (`263ad2d`) and nobody knew,
+    because Playwright's browser was not installed on this machine, so `make e2e` failed before the
+    first test. Three tests still asserted `Fraunces`/`Geist Mono`. Rewritten around what the seam
+    actually is now — rhythm (`--space-step` 8px/4px), micro-caps treatment, tabular figures — plus
+    a new test pinning that all three font tokens resolve to one family, so reintroducing a display
+    face has to be deliberate. **A gate that cannot run is not a gate**; install browsers before
+    trusting a green `make e2e`.
+  - **The one build warning is gone**: `useradd --system --uid 10001` warned on every image build
+    because system accounts must sit below `SYS_UID_MAX` (999). The uid cannot move — it is stamped
+    on every file in existing `/data` volumes — so the account is created without `--system`.
+  - **Testing method, for the next person:** never point a container at `./kuraki-data`. Serving a
+    library migrates its schema and writes rows. Copy it to a scratch directory and mount the copy
+    (`kuraki passwd` there gives you a login without touching the real one). And do **not** open the
+    copy with the host `sqlite3` while the container is serving it — that produced
+    `disk I/O error (522)` on every write and cost a round of false bug reports.
+
+- `feat/mobile-contact-sheet-ui` (2026-09-07) — **A nine-screen design pass on the Expo client, taken
+  from an external contact sheet. Three of the sheet's decisions were refused, and the refusals are
+  the useful part of this entry.**
+  - **The sheet redrew the custom tab bar this repo deleted on purpose.** A 326x64 floating pill with
+    a stamp-tinted active item — which is exactly the control §11 (2026-08-02) records as ~200 lines
+    approximating `NativeTabs` + `minimizeBehavior="onScrollDown"` + `role="search"`. Not built.
+    `(app)/_layout.tsx` is untouched. **A design mock is evidence about intent, not about the
+    platform** — the sheet's author could not see that iOS 26 already ships the control being drawn.
+  - **It also drew Fraunces 30 screen titles, which is a large title.** `headerLargeTitle` was removed
+    after failing on device (it drew "Settings" over the stats card — see the note in
+    `screen-header.tsx`). Taken halfway on purpose: `headerOptions` now defaults to the **kura**
+    register, so titles are Fraunces in the *compact* header. The typography lands; the inset bug
+    stays closed.
+  - **The viewer was in the wrong register, and its own design system said so.** `photo-viewer.tsx`
+    called `registerStyle('vault')` while `design/registers.ts` states outright that "the photo grid
+    and viewer always render kura regardless". So the one caption in the app that sits on a
+    photograph was set in the mono data face. Now kura, at 20pt, and the caption carries place as
+    well as date — `place` was already derived for the details dialog and shown nowhere with the
+    picture.
+  - **`progress.failed` had no reader.** The backup engine has tracked per-file failures with reasons
+    since the capture work, and the Backup screen rendered none of them: a photo that failed because
+    the file had left the device simply never appeared, and the backup looked complete.
+    `USER_GUIDE.md` §5.4 already promised "anything that cannot be uploaded is listed with its reason"
+    — the doc was describing an intention. `BackupFailures` makes it true. **A tracked-but-unrendered
+    field is worth grepping for after any UI pass; nothing type-checks an absence.**
+  - **Progress was a sentence in the same muted style as the static help text around it.**
+    `BackupProgressCard` gives the one thing on that screen that changes second-to-second a heading,
+    a `done / total` count and a determinate bar. The total is `done + pending` recomputed every tick,
+    because the scanner keeps discovering items mid-run — anchoring it at run start would make the bar
+    walk backwards (`backupProgress`, tested).
+  - **Memories were only reachable by switching the Library view to the segment that shows them**,
+    which meant the feature was invisible unless you already knew it existed. They are now a rail of
+    per-year cards above the timeline (`memoryGroups` groups by year, newest first, and drops undated
+    assets rather than bucketing them under the current year — an undated photo is not a memory of any
+    particular day). The segment stays as the "see all" surface.
+  - **Grid tiles said almost nothing.** A video was a plain white dot; favourite and stack showed
+    nothing at all, though `favorite`, `duration_ms` and `stack_size` are all on the contract.
+    `TileBadges` fixes the corners app-wide (top-right stack/play, bottom-left favourite, bottom-right
+    length) and hides itself entirely while selecting, so it can never collide with the check.
+  - **Day headings gained a count** and split across the register seam — Fraunces label, Geist Mono
+    number — which is the split stated in one component (`SectionHeading`).
+  - **Settings rows were two competing headings.** Label and value were both 14pt sans, so nothing
+    said which half was the setting and which was its state. Labels are now 16pt regular sans, values
+    are Geist Mono, section titles are cased mono at 1.4 tracking, and rows are separated by a
+    hairline inset past the icon column. `SettingsSection` inserts those dividers itself — a row
+    cannot know whether it is last, and a trailing hairline doubles the card's own edge.
+  - **Second pass, same branch — the four remaining screens.** Details, Albums, Search, Selection.
+    - **The details dialog was three unlabelled muted lines.** A date, a size and a place, set
+      identically, so nothing said which was which. Now one card per fact (`assetFacts` +
+      `DetailFacts`), each with its mark, the answer on the first line and *what kind of answer it
+      is* on the second. A row is omitted entirely rather than rendered empty: a sheet listing four
+      facts of which two say nothing reads as missing data the user should go and fix.
+    - **This needed the full asset record, which mobile never fetched.** `LibraryAsset` is a narrow
+      `Pick` on purpose (a timeline page carries hundreds), so `fetchAssetDetail` pulls the whole
+      contract `Asset` for the one asset the sheet is about, on open rather than as the pager
+      settles — swiping a hundred photographs must not fire a hundred detail requests.
+    - **The contact sheet's EXIF line is not backed by data.** It draws "f/1.7 1/240s ISO 42 24mm";
+      the contract carries `camera_make`/`camera_model`/`width`/`height`/`mime_type` and no aperture,
+      shutter, ISO or focal length. The camera row shows make + model over the MIME type instead.
+      **Do not add the EXIF line without adding the fields to the server first.**
+    - **`TagPills` replaced Search's "Browse tags" link — and the first version hid the whole row when
+      the tag list was empty, which took the tag browser with it.** Caught on device. An empty list
+      happens for reasons that are not "there are no tags" (offline, a fetch that has not landed
+      yet), and a feature that vanishes is indistinguishable from one that does not exist. The browse
+      pill now always renders, labelled "Browse tags" alone and "More" once pills precede it.
+    - **Search states its result count.** Without one a short list is ambiguous between "few matches"
+      and "still loading".
+    - **Selection tints the whole tile** (stamp at 0.28) instead of relying on a 22pt corner badge on
+      a 128pt tile. A badge is findable only if you already know where to look; a tint is legible in
+      peripheral vision, which is what scanning a grid actually uses. The check keeps its own filled
+      disc — the tint is translucent, so a bare mark inherits whatever contrast the photograph
+      happens to offer, which on a dark frame is none.
+  - **Verified on an iPhone 17 Pro simulator** against a seeded local server (38 assets dated to
+    populate the rail, four albums, five tags): timeline, memories rail, settings, backup, viewer,
+    details sheet, albums, search and selection. `tsc --noEmit`, `expo lint`, 245 Vitest tests and
+    `check-tokens` are green.
+  - **Two environment traps worth knowing.** A Metro left running by *another project* answers on
+    8081 and serves its bundle to this app — the symptom is a React Native version-mismatch redbox
+    that looks exactly like broken native code, and `mobile/` was never at fault. And the app's
+    local SQLite mirror means data created server-side while a screen is mounted does not appear
+    until the screen remounts; that is the mirror working, not a bug, but it makes seeded-data
+    checks confusing until you know.
+
+- `docs/user-guide-and-truth-pass` (2026-09-07) — **The documentation described a server that had
+  moved on, and there was nowhere to read what the product actually does.**
+  - **`USER_GUIDE.md` is new, and is a different kind of document to everything else here.** Every
+    other doc explains how to *run* or *build* Kuraki. This one states what it *does*: 23 flows, each
+    with the data it requires, what the server does with it, what comes back, and how it fails. No
+    code, no endpoints, no screen descriptions — deliberately, because those churn and the behaviour
+    is the contract. It is also the cheapest way to notice an incoherent feature: a flow that cannot
+    be written down in a table of inputs and outcomes is usually wrong.
+  - **Six claims in the README were false, and all six had been true once.** "Single-owner auth"
+    (multi-user shipped 2026-07-27), search "prefix matching" (trigram landed in `00025`), a
+    `change_log` "for future sync" (the feed, SSE push and the offline queue all ship), **Node 20+**
+    (the embedded assets are hash-stable only on Node 24), a `cmd/` list missing `useradd`,
+    `userlist` and `healthcheck`, and an `internal/` tree missing seven packages. None of this is
+    type-checked or exercised by a test — the same class of failure `scripts/check-docs-links.sh`
+    exists for, one level up: the links resolved, the sentences did not.
+  - **`/api/capture/changes` was still documented as current in CLAUDE.md.** Improvement D collapsed
+    the capture duplicates a year of entries ago; only `uploads`/`status` remain device-only. Fixed
+    in CLAUDE.md and marked as corrected in §2 rather than rewritten, since the historical entries
+    are accurate as history.
+  - **Docs now carry the traps that cost time.** The generated-artifact table and its four commands
+    are in the README; `npm run check` being the only type gate and `make e2e` the only runtime gate
+    are in `web/README.md`; `mobile/` being npm-only, and none of its gates rendering a component,
+    are in `mobile/README.md`.
+  - **Not verified:** the site build was not run (`site/` has no `node_modules` here). The new page
+    follows the existing collection schema exactly (`title`/`description`/`order`) and links out
+    absolutely, so `check-docs-links.sh` covers what it can.
 
 - `feat/album-cover-mosaic` (2026-08-15) — **Album covers were blank, and not for a styling reason.**
   - **`apitypes.Album` had no cover field at all**, so `/api/albums` never sent an asset id and every album drew a grey square. Mobile's `ServerAlbum` was *hand-written* and claimed a `cover_asset_id` the server does not have, so nothing in the type system objected — the client had invented a field and been believing in it. `ServerAlbum` is derived from the generated contract now, so the next invented field will not compile.

@@ -84,3 +84,23 @@ func TestLoadHardeningDefaults(t *testing.T) {
 		t.Errorf("MetricsToken = %q, want trimmed \"scrape-me\"", c.MetricsToken)
 	}
 }
+
+// KURAKI_PUBLIC_URL is what an operator states when address detection cannot be
+// right — in a container, whose interfaces are its own, or behind a reverse
+// proxy, whose published scheme, host and port all differ from the listener's.
+func TestLoadPublicURL(t *testing.T) {
+	if Default().PublicURL != "" {
+		t.Error("PublicURL should be empty by default: detection is right for a bare-metal install")
+	}
+	// The trailing slash goes: the value is joined with paths downstream, and
+	// "https://host//api" is a different URL to some proxies.
+	c := Load(func(k string) string {
+		if k == "KURAKI_PUBLIC_URL" {
+			return "  https://photos.example.com/  "
+		}
+		return ""
+	})
+	if c.PublicURL != "https://photos.example.com" {
+		t.Errorf("PublicURL = %q, want https://photos.example.com", c.PublicURL)
+	}
+}

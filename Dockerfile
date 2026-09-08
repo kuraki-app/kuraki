@@ -69,7 +69,16 @@ COPY --chmod=0755 scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.
 COPY web/assets/download/ /opt/kuraki/
 
 # Run as an unprivileged user; /data is owned by it so the volume is writable.
-RUN useradd --system --uid 10001 --home /data kuraki \
+#
+# uid/gid 10001 is fixed, not incidental: it is stamped on every file in an
+# existing /data volume, so changing it would make old libraries unreadable to
+# the new container. That is why the account is not created with --system —
+# system accounts must fall below SYS_UID_MAX (999), and useradd warned on
+# every build that 10001 does not. Plain useradd with the home directory
+# suppressed and no login shell gives the same unprivileged account, quietly.
+RUN groupadd --gid 10001 kuraki \
+    && useradd --uid 10001 --gid 10001 --home-dir /data --no-create-home \
+       --shell /usr/sbin/nologin kuraki \
     && mkdir -p /data && chown kuraki:kuraki /data
 USER kuraki
 

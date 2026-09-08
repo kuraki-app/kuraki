@@ -9,7 +9,38 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- `KURAKI_PUBLIC_URL` — the address other devices should use to reach this server. The pairing screen
+  previously derived candidates from the machine's own network interfaces, which is right for a
+  bare-metal install and impossible in a container or behind a reverse proxy.
+- **[USER_GUIDE.md](./USER_GUIDE.md)** — what Kuraki does, described as flows: what each one asks of
+  you, what the server does with it, what comes back, and how it fails. No code, no installation
+  detail, nothing about how a screen looks. Also a shorter "How Kuraki works" page on the docs site.
+
+### Fixed
+
+- **Saving a search broke the saved-search list.** `GET /api/saved-searches` returned 500 from the
+  moment the first search existed, because the stored query could not be scanned back out of SQLite.
+  The web UI reported "No saved searches yet" rather than an error, so the feature looked empty.
+- **The pairing screen offered an unreachable address in Docker.** A container can see only its own
+  bridge interface, and the screen preferred that address over the one the browser was already
+  using — dropping the "a phone using this would try to reach itself" warning as it did so. In a
+  container the server now offers nothing and the browser's own address stands; set
+  `KURAKI_PUBLIC_URL` to state the answer.
+- `/api/login` and `/api/setup` returned an empty `role` for the user they signed in, disagreeing
+  with `GET /api/me`.
+- libvips wrote about ten unstructured lines to stderr per imported image, burying import progress
+  and the result line. Its output is now structured, at warning level, and deduplicated.
+
+### Changed
+
+- Documentation reconciled with the shipped code. The README described single-owner auth (multi-user
+  with isolated libraries shipped), search that only matched the start of a word (it matches inside
+  words now), a change log kept "for future sync" (delta sync, live push and offline reconciliation
+  all ship), and Node 20 (the embedded UI is hash-stable only on Node 24). The command table, the
+  package map, the generated-artifact rules, and the real list of CI gates are now accurate in the
+  README, CONTRIBUTING, and both client READMEs.
 
 ## [0.1.0] - 2026-08-12
 

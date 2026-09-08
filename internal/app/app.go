@@ -728,7 +728,10 @@ func (a *App) Serve(ctx context.Context) error {
 		// The port half of the configured listen address, so the pairing screen
 		// can offer a URL a phone can actually route to rather than whatever the
 		// browser happened to be typed with.
-		ListenPort:     listenPort(booted.Addr),
+		ListenPort: listenPort(booted.Addr),
+		// Stated by the operator when interface detection cannot be right —
+		// in a container, or behind a reverse proxy.
+		PublicURL:      booted.PublicURL,
 		SecureCookies:  booted.SecureCookies,
 		TrustProxy:     booted.TrustProxy,
 		MetricsToken:   booted.MetricsToken,

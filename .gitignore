@@ -53,6 +53,17 @@ __pycache__/
 # Agent execution scratch
 .superpowers/
 
+# Agent tooling installed per machine, not repo source: third-party skills
+# vendored into .agents/skills (and linked from .claude/skills), the lockfile
+# that pins them, and Claude Code's per-machine permission grants. A shared
+# .claude/settings.json or .claude/commands/ IS repo state and stays committable
+# — which is why this ignores the local pieces by name rather than all of
+# .claude/.
+.agents/
+.claude/skills/
+.claude/settings.local.json
+skills-lock.json
+
 # Editor / tooling
 .idea/
 .vscode/

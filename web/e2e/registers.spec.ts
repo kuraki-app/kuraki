@@ -9,41 +9,72 @@ import { test, expect, gotoApp } from './support/fixtures';
 // registers safe to have at all: the register belongs to the page frame, never
 // to the photo components.
 
-const font = (locator: import('@playwright/test').Locator) =>
-  locator.evaluate((el) => getComputedStyle(el).fontFamily);
+const styleOf = (
+  locator: import('@playwright/test').Locator,
+  prop: string
+) => locator.evaluate((el, p) => getComputedStyle(el).getPropertyValue(p).trim(), prop);
 
-test('Vault pages label in mono micro-caps', async ({ page }) => {
-  await gotoApp(page, '/settings/server');
+// One family across the whole app, so the registers can no longer be told
+// apart by typeface — they are told apart by rhythm, density and treatment.
+// This is the pin: if a display or data face is ever reintroduced, it has to be
+// a decision someone makes here, not a drift.
+test('the registers share one typeface', async ({ page }) => {
+  await gotoApp(page, '/settings');
+  const root = page.locator('main#main');
 
-  const heading = page.getByText('Backup', { exact: true }).first();
-  expect(await font(heading)).toMatch(/Geist Mono/);
-  expect(
-    await heading.evaluate((el) => getComputedStyle(el).textTransform)
-  ).toBe('uppercase');
+  const [heading, sans, mono] = await Promise.all([
+    styleOf(root, '--font-heading'),
+    styleOf(root, '--font-sans'),
+    styleOf(root, '--font-mono'),
+  ]);
+  expect(heading).toBe(sans);
+  expect(mono).toBe(sans);
 });
 
-test('Vault states its figures in the data face', async ({ page }) => {
+test('Vault pages label in micro-caps', async ({ page }) => {
+  await gotoApp(page, '/settings/server');
+
+  // The label treatment, not the label's font file: uppercased, tracked out and
+  // small is what makes a Vault label read as a field name rather than prose.
+  const heading = page.getByText('Backup', { exact: true }).first();
+  expect(await styleOf(heading, 'text-transform')).toBe('uppercase');
+  expect(await styleOf(heading, 'font-size')).toBe('11px');
+  // 0.06em at 11px.
+  expect(parseFloat(await styleOf(heading, 'letter-spacing'))).toBeCloseTo(0.66, 1);
+});
+
+test('Vault pages keep the tighter rhythm', async ({ page }) => {
   await gotoApp(page, '/settings');
+  const root = page.locator('main#main');
+  await expect(root).toHaveAttribute('data-register', 'vault');
+
+  // 4px against Kura's 8px. Every Vault gap and pad is a multiple of this, so
+  // it is the single value that decides the density of the whole page.
+  expect(await styleOf(root, '--space-step')).toBe('4px');
+  expect(await styleOf(root, '--frame-radius')).toBe('4px');
 
   // StatCard was already register-aware; this asserts the page it sits on is
-  // actually declaring the Vault register, not that the component compiles.
+  // actually declaring the register, not that the component compiles.
   const figure = page.locator('.stat-value').first();
   await expect(figure).toBeVisible();
-  expect(await font(figure)).toMatch(/Geist Mono/);
+  // Figures in a column must not jitter as digits change.
+  expect(await styleOf(figure, 'font-variant-numeric')).toBe('tabular-nums');
 });
 
 test('Kura pages are not touched by any of it', async ({ page }) => {
   await gotoApp(page, '/');
-  await expect(page.locator('main#main')).toHaveAttribute('data-register', 'kura');
+  const root = page.locator('main#main');
+  await expect(root).toHaveAttribute('data-register', 'kura');
+  expect(await styleOf(root, '--space-step')).toBe('8px');
 
-  // The timeline's day headings are the display face. If the Vault treatment
-  // had been applied with a register-keyed element selector rather than an
-  // opt-in component, this is what would have broken — AssetGrid renders its
-  // day headers as <h2>, and Trash and Duplicates are Vault FRAMES.
+  // The timeline's day headings are prose. If the Vault treatment had been
+  // applied with a register-keyed element selector rather than an opt-in
+  // component, this is what would have broken — AssetGrid renders its day
+  // headers as <h2>, and Trash and Duplicates are Vault FRAMES.
   const day = page.locator('section.day h2').first();
   await expect(day).toBeVisible();
-  expect(await font(day)).toMatch(/Fraunces/);
-  expect(await day.evaluate((el) => getComputedStyle(el).textTransform)).toBe('none');
+  expect(await styleOf(day, 'text-transform')).toBe('none');
+  expect(await styleOf(day, 'font-size')).not.toBe('11px');
 });
 
 test('a Vault frame hosting photographs leaves the photographs alone', async ({ page }) => {

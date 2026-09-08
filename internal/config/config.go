@@ -68,6 +68,15 @@ type Config struct {
 	// ones are pruned (KURAKI_BACKUP_KEEP, default 7).
 	BackupKeep int
 
+	// PublicURL is the address other devices should use to reach this server,
+	// e.g. "https://photos.example.com" or "http://192.168.1.20:3000"
+	// (KURAKI_PUBLIC_URL). Empty (the default) makes the pairing screen derive
+	// candidates from the machine's own network interfaces, which is right for
+	// a bare-metal install and wrong for a container or a reverse proxy: what
+	// a container can see of itself is a bridge address no phone can route to,
+	// and behind a proxy the listen port is not the published one.
+	PublicURL string
+
 	// AndroidAPK is an optional override for the Android app package served at
 	// /download/android (KURAKI_ANDROID_APK). Empty (the default) uses
 	// AndroidAPKPath() under the data dir; the endpoint 404s when no file exists.
@@ -126,6 +135,9 @@ func Load(getenv func(string) string) Config {
 	}
 	if n, ok := positiveInt(getenv("KURAKI_BACKUP_KEEP")); ok {
 		c.BackupKeep = n
+	}
+	if v := strings.TrimSpace(getenv("KURAKI_PUBLIC_URL")); v != "" {
+		c.PublicURL = strings.TrimRight(v, "/")
 	}
 	if v := strings.TrimSpace(getenv("KURAKI_ANDROID_APK")); v != "" {
 		c.AndroidAPK = v
