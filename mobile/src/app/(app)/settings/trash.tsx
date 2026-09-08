@@ -220,6 +220,7 @@ export default function TrashScreen() {
           settings={settings}
           loading={loading}
           onEndReached={() => void loadMore()}
+          hasMore={!!cursor}
           selectedIds={selected}
           onToggleSelect={toggleSelect}
           onReplaceSelection={setSelected}

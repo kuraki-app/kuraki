@@ -48,6 +48,15 @@ type Props = {
    */
   listHeader?: React.ReactElement | null;
   onEndReached?: () => void;
+  /**
+   * Whether the server has more pages beyond what is loaded.
+   *
+   * Only used to qualify the newest day heading's count: everything above it is
+   * fully materialised (the server returns date-descending), so only the last
+   * group can still be growing. Without this the heading states a total it does
+   * not know.
+   */
+  hasMore?: boolean;
   onToggleFavorite?: (id: string, next: boolean) => void;
   /** Move a single asset to trash from inside the viewer. Surfaces the delete
    *  icon only where a caller supplies it — the Trash grid and the Places
@@ -103,6 +112,7 @@ export default function PhotoGrid({
   emptyMessage,
   listHeader,
   onEndReached,
+  hasMore = false,
   onToggleFavorite,
   onDelete,
   selectedIds,
@@ -398,6 +408,7 @@ export default function PhotoGrid({
             <SectionHeading
               title={section.title}
               count={ids.length}
+              partial={hasMore && section.key === sections[sections.length - 1]?.key}
               allSelected={allSelected}
               onSelectAll={selectAll ? () => onSelectSection(ids, allSelected) : undefined}
             />

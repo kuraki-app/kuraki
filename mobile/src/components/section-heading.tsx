@@ -26,13 +26,22 @@ export type SectionHeadingProps = {
   title: string;
   /** How many assets sit under this heading. Hidden when zero or absent. */
   count?: number;
+  /**
+   * The count is a floor, not a total — render it as "24+".
+   *
+   * Grouping happens over the assets that have *loaded*, so the newest group
+   * still being paged in knows only how much of itself has arrived. Printing a
+   * bare "6" for a day holding two hundred is not a partial answer, it is a
+   * wrong one; the plus is the difference between the two.
+   */
+  partial?: boolean;
   /** Present only while a selection is active. */
   onSelectAll?: () => void;
   /** Which way the select-all control should go. */
   allSelected?: boolean;
 };
 
-export default function SectionHeading({ title, count, onSelectAll, allSelected = false }: SectionHeadingProps) {
+export default function SectionHeading({ title, count, partial = false, onSelectAll, allSelected = false }: SectionHeadingProps) {
   const tokens = useTokens();
 
   return (
@@ -54,6 +63,7 @@ export default function SectionHeading({ title, count, onSelectAll, allSelected 
       ) : count ? (
         <ThemedText style={[styles.count, { fontFamily: FontFamily.mono, color: tokens.textFaint }]}>
           {formatCount(count)}
+          {partial ? '+' : ''}
         </ThemedText>
       ) : null}
     </View>

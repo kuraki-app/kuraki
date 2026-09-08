@@ -253,6 +253,7 @@ export default function SearchScreen() {
         loading={loading}
         listHeader={controls}
         onEndReached={() => void loadMore()}
+        hasMore={!!cursor}
         onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
         // A failed request reads as the grid's empty state rather than
         // replacing the grid: swapping the whole body out for the error took

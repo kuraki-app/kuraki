@@ -161,6 +161,7 @@ export default function AlbumAddPicker({
             settings={settings}
             loading={loading}
             onEndReached={() => void loadMore()}
+            hasMore={!!cursor}
             selectionMode
             // Everything already in the album reads as selected, so the grid
             // shows the album's current contents in place rather than offering

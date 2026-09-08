@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -19,27 +20,41 @@ import { serverHost } from '@/lib/url';
 // figures set in Geist Mono, a hairline panel. The card previously led with the
 // library's byte total at 32pt, which made storage the headline fact about a
 // photo library -- it is a footnote, and it reads as one now.
+//
+// It re-reads on every visit rather than once per mount. Mount-once meant the
+// counts were only ever as fresh as the first time Settings had been opened
+// this launch -- import a hundred photos and come back, and the card still
+// reported the old total. The dot is the *last fetch's* outcome, not "we
+// rendered, so the server must be up": a card showing month-old numbers under a
+// green light is worse than one that admits it could not reach anything.
 export default function LibraryStatsCard() {
   const tokens = useTokens();
   const [stats, setStats] = useState<LibraryStats | null>(null);
   const [host, setHost] = useState('');
+  const [reachable, setReachable] = useState(true);
 
   const load = useCallback(async () => {
     try {
       const settings = await loadCaptureSettings();
       setHost(serverHost(settings.baseURL));
       setStats(await fetchStats(settings));
+      setReachable(true);
     } catch {
-      setStats(null);
+      // Keep whatever numbers we already have -- they were true once, and
+      // blanking the card on a dropped connection loses the only record of the
+      // library's size the phone has. The dot is what says they are stale.
+      setReachable(false);
     }
   }, []);
 
   // Deferred a tick, matching the pattern the other screens use so the first
   // setState does not fire synchronously inside the effect.
-  useEffect(() => {
-    const timer = setTimeout(() => void load(), 0);
-    return () => clearTimeout(timer);
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setTimeout(() => void load(), 0);
+      return () => clearTimeout(timer);
+    }, [load]),
+  );
 
   if (!stats) return null;
 
@@ -55,11 +70,9 @@ export default function LibraryStatsCard() {
             ON THE SERVER
           </ThemedText>
 
-          {/* The card only renders once a fetch has come back, so reaching this
-              line is itself the evidence the server answered. */}
           {host ? (
             <View style={styles.server}>
-              <View style={[styles.dot, { backgroundColor: tokens.ok }]} />
+              <View style={[styles.dot, { backgroundColor: reachable ? tokens.ok : tokens.warn }]} />
               <ThemedText
                 numberOfLines={1}
                 style={[styles.host, { fontFamily: FontFamily.mono, color: tokens.mutedForeground }]}>
@@ -77,6 +90,7 @@ export default function LibraryStatsCard() {
 
         <ThemedText type="small" themeColor="mutedForeground">
           {formatBytes(stats.total_bytes)} · {formatCount(stats.trashed)} in trash
+          {reachable ? '' : ' · last known'}
         </ThemedText>
       </ThemedView>
     </View>

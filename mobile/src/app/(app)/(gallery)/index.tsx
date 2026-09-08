@@ -549,6 +549,7 @@ export default function LibraryScreen() {
               )
             }
             onEndReached={() => void loadMore()}
+            hasMore={!!cursor}
             onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
             onDelete={(id) => void trashOne(id)}
             selectedIds={selected}
@@ -577,6 +578,7 @@ export default function LibraryScreen() {
             settings={settings}
             loading={memoriesLoading}
             onEndReached={() => void loadMoreMemories()}
+            hasMore={!!memoriesCursor}
             onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
             emptyMessage="No memories from this day yet."
           />
@@ -595,6 +597,7 @@ export default function LibraryScreen() {
             settings={settings}
             loading={archivedLoading}
             onEndReached={() => void loadMoreArchived()}
+            hasMore={!!archivedCursor}
             onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
             onDelete={(id) => void trashOne(id)}
             selectedIds={selected}

@@ -73,7 +73,10 @@ function MemoryCard({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${group.title}, ${group.subtitle}, ${group.count} photos`}
+      // No count in the label. `count` is how many of that year have *loaded*,
+      // and the memories feed is paginated, so speaking it aloud would assert a
+      // total the rail does not know.
+      accessibilityLabel={`${group.title}, ${group.subtitle}`}
       onPress={() => onPress?.(group)}
       style={[styles.card, { backgroundColor: tokens.thumb }]}>
       {source ? <Image source={source} style={styles.cover} contentFit="cover" transition={160} cachePolicy="disk" /> : null}

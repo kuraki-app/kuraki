@@ -57,6 +57,7 @@ export default function TagGrid({ tag }: { tag: string }) {
         settings={settings}
         loading={loading}
         onEndReached={() => void loadMore()}
+        hasMore={!!cursor}
         emptyMessage="No photos with this tag yet."
       />
     </ThemedView>
