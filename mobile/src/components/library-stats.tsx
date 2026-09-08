@@ -16,10 +16,19 @@ import { serverHost } from '@/lib/url';
 // the connection section, and a missing stats card must not push the settings
 // list off the screen behind an error.
 //
-// This is the Vault register at its most literal: a cased mono label, three
-// figures set in Geist Mono, a hairline panel. The card previously led with the
-// library's byte total at 32pt, which made storage the headline fact about a
-// photo library -- it is a footnote, and it reads as one now.
+// This is the Vault register at its most literal: a cased mono label, figures
+// set in Geist Mono, a hairline panel.
+//
+// The card leads with how many items the library holds. An earlier pass led
+// with the byte total at 32pt, which makes storage the headline fact about a
+// photo library; correcting that dropped the item total altogether, which was
+// worse -- "21 photos, 0 videos, 1 album" does not add up to a library's size,
+// and nothing else on the screen stated it. Total leads, bytes are a footnote,
+// and the breakdown sits between them.
+//
+// Reachability is a word, not just a coloured dot. A dot alone cannot say
+// whether green means "fresh" or merely "we drew something", and a screen
+// reader gets nothing from it at all.
 //
 // It re-reads on every visit rather than once per mount. Mount-once meant the
 // counts were only ever as fresh as the first time Settings had been opened
@@ -70,16 +79,24 @@ export default function LibraryStatsCard() {
             ON THE SERVER
           </ThemedText>
 
-          {host ? (
-            <View style={styles.server}>
-              <View style={[styles.dot, { backgroundColor: reachable ? tokens.ok : tokens.warn }]} />
-              <ThemedText
-                numberOfLines={1}
-                style={[styles.host, { fontFamily: FontFamily.mono, color: tokens.mutedForeground }]}>
-                {host}
-              </ThemedText>
-            </View>
-          ) : null}
+          <View style={styles.server}>
+            <View style={[styles.dot, { backgroundColor: reachable ? tokens.ok : tokens.warn }]} />
+            <ThemedText
+              numberOfLines={1}
+              style={[styles.status, { fontFamily: FontFamily.mono, color: tokens.mutedForeground }]}>
+              {reachable ? 'Connected' : 'Last known'}
+            </ThemedText>
+          </View>
+        </View>
+
+        {/* The total, stated once and stated first. */}
+        <View style={styles.totalRow}>
+          <ThemedText style={[styles.total, { fontFamily: FontFamily.mono, color: tokens.foreground }]}>
+            {formatCount(stats.total)}
+          </ThemedText>
+          <ThemedText type="small" themeColor="mutedForeground" style={styles.totalLabel}>
+            {stats.total === 1 ? 'item' : 'items'}
+          </ThemedText>
         </View>
 
         <View style={styles.counts}>
@@ -88,9 +105,10 @@ export default function LibraryStatsCard() {
           <Stat label="Albums" value={stats.albums} />
         </View>
 
-        <ThemedText type="small" themeColor="mutedForeground">
-          {formatBytes(stats.total_bytes)} · {formatCount(stats.trashed)} in trash
-          {reachable ? '' : ' · last known'}
+        <ThemedText type="small" themeColor="mutedForeground" numberOfLines={1}>
+          {[formatBytes(stats.total_bytes), `${formatCount(stats.trashed)} in trash`, host]
+            .filter(Boolean)
+            .join(' · ')}
         </ThemedText>
       </ThemedView>
     </View>
@@ -119,10 +137,15 @@ const styles = StyleSheet.create({
   caps: { fontSize: 11, lineHeight: 15, fontWeight: '600', letterSpacing: 1.4 },
   server: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  host: { fontSize: 11, lineHeight: 15, flexShrink: 1 },
+  status: { fontSize: 11, lineHeight: 15, flexShrink: 1 },
+  totalRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  // The one figure that answers "how big is my library", so it is the biggest
+  // thing on the card.
+  total: { fontSize: 34, lineHeight: 40, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  totalLabel: { paddingBottom: 2 },
   counts: { flexDirection: 'row', gap: Spacing.four },
   stat: { gap: 2 },
   // Tabular figures so the three columns line up and stay lined up as the
   // counts tick over.
-  statValue: { fontSize: 24, lineHeight: 30, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  statValue: { fontSize: 20, lineHeight: 26, fontWeight: '600', fontVariant: ['tabular-nums'] },
 });

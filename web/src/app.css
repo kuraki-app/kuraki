@@ -16,24 +16,24 @@
 :root {
   --radius: 0.625rem;
 
-  --background: #f2efe8;
-  --foreground: #191612;
-  --card: #fbf9f4;
-  --card-foreground: #191612;
-  --popover: #fbf9f4;
-  --popover-foreground: #191612;
-  --primary: #24211f;
+  --background: #ffffff;
+  --foreground: #111111;
+  --card: #ffffff;
+  --card-foreground: #111111;
+  --popover: #ffffff;
+  --popover-foreground: #111111;
+  --primary: #111111;
   --primary-foreground: #ffffff;
-  --secondary: #e9e3d7;
-  --secondary-foreground: #191612;
-  --muted: #e9e3d7;
-  --muted-foreground: #5c554a;
-  --accent: #e9e3d7;
-  --accent-foreground: #191612;
-  --destructive: #a33a2a;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #111111;
+  --muted: #f4f4f5;
+  --muted-foreground: #5a5a5e;
+  --accent: #f4f4f5;
+  --accent-foreground: #111111;
+  --destructive: #b3261e;
   --destructive-foreground: #ffffff;
-  --border: #ded7c9;
-  --input: #7e7664;
+  --border: #e4e4e7;
+  --input: #71717a;
   --ring: #1f5fbf;
 
   /* Kuraki's own mark. Deliberately NOT --primary: as the button fill it would
@@ -41,37 +41,37 @@
   --stamp: #8c3a2b;
   --stamp-foreground: #ffffff;
 
-  --chart-1: #24211f;
+  --chart-1: #111111;
   --chart-2: #2b7548;
   --chart-3: #2b5c9c;
   --chart-4: #ffd35c;
   --chart-5: #a33a2a;
 
-  --sidebar: #fbf8f2;
-  --sidebar-foreground: #201d1a;
-  --sidebar-primary: #24211f;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #111111;
+  --sidebar-primary: #111111;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #efe7da;
-  --sidebar-accent-foreground: #201d1a;
-  --sidebar-border: #e5ddd1;
+  --sidebar-accent: #f4f4f5;
+  --sidebar-accent-foreground: #111111;
+  --sidebar-border: #e4e4e7;
   --sidebar-ring: #1f5fbf;
 
   /* Kuraki extras (not part of shadcn). */
-  --text-dim: #4a443c;
-  --text-faint: #6f685c;
-  --thumb: #ded6ca;
+  --text-dim: #3f3f46;
+  --text-faint: #6b6b73;
+  --thumb: #e4e4e7;
   --ok: #2b7548;
-  --ok-bg: #e5f2e9;
+  --ok-bg: #eef6f1;
   --info: #2b5c9c;
-  --info-bg: #e4edf7;
+  --info-bg: #eef2f8;
   --warn: #8a5a2a;
   --warn-text: #7a4a3a;
-  --warn-bg: #fff8ea;
-  --warn-border: #ead7b8;
-  --destructive-bg: #f6e3df;
-  --destructive-border: #e6c3bb;
-  --skel-a: #e6ded3;
-  --skel-b: #f9f5ee;
+  --warn-bg: #faf5ec;
+  --warn-border: #e6dcc9;
+  --destructive-bg: #f9eeed;
+  --destructive-border: #e8cfcc;
+  --skel-a: #ededf0;
+  --skel-b: #f8f8fa;
   /* Transient progress/attention. Its one consumer is the upload/import
    * progress bar in +layout.svelte — amber reads as "something is happening
    * right now", so it belongs on things that finish and then disappear.
@@ -80,14 +80,14 @@
   --highlight: #ffd35c;
 
   /* Floating "dark glass" chrome — constant in both themes. */
-  --chrome: #201d1a;
-  --chrome-text: #f7f3ec;
-  --chrome-muted: #c9c0b6;
+  --chrome: #111111;
+  --chrome-text: #f5f5f5;
+  --chrome-muted: #a1a1aa;
   --chrome-fill: rgba(255, 255, 255, 0.08);
   --chrome-fill-strong: rgba(255, 255, 255, 0.14);
   --chrome-danger: #ff9a86;
 
-  --scrim: rgba(20, 18, 14, 0.55);
+  --scrim: rgba(0, 0, 0, 0.55);
   --shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
   --shadow-strong: 0 12px 34px rgba(0, 0, 0, 0.26);
 
@@ -152,59 +152,59 @@
 }
 
 .dark {
-  --background: #131108;
-  --foreground: #f2ede3;
-  --card: #1e1b14;
-  --card-foreground: #f2ede3;
-  --popover: #1e1b14;
-  --popover-foreground: #f2ede3;
-  --primary: #f0eadf;
-  --primary-foreground: #201d1a;
-  --secondary: #2c2820;
-  --secondary-foreground: #f2ede3;
-  --muted: #2c2820;
-  --muted-foreground: #b3aa9c;
-  --accent: #2c2820;
-  --accent-foreground: #f2ede3;
+  --background: #000000;
+  --foreground: #f5f5f5;
+  --card: #0a0a0a;
+  --card-foreground: #f5f5f5;
+  --popover: #0a0a0a;
+  --popover-foreground: #f5f5f5;
+  --primary: #f5f5f5;
+  --primary-foreground: #0a0a0a;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #f5f5f5;
+  --muted: #1a1a1a;
+  --muted-foreground: #a1a1aa;
+  --accent: #1a1a1a;
+  --accent-foreground: #f5f5f5;
   --destructive: #ff9a86;
-  --destructive-foreground: #201d1a;
-  --border: #332e24;
-  --input: #7e7666;
+  --destructive-foreground: #0a0a0a;
+  --border: #262626;
+  --input: #71717a;
   --ring: #8fb6e6;
 
   --stamp: #e8836b;
-  --stamp-foreground: #1a120f;
+  --stamp-foreground: #0a0a0a;
 
-  --chart-1: #f0eadf;
+  --chart-1: #f5f5f5;
   --chart-2: #7cc79a;
   --chart-3: #8fb6e6;
   --chart-4: #ffd35c;
   --chart-5: #ff9a86;
 
-  --sidebar: #1b1813;
-  --sidebar-foreground: #f2ede3;
-  --sidebar-primary: #f0eadf;
-  --sidebar-primary-foreground: #201d1a;
-  --sidebar-accent: #2c2820;
-  --sidebar-accent-foreground: #f2ede3;
-  --sidebar-border: #322d24;
+  --sidebar: #0a0a0a;
+  --sidebar-foreground: #f5f5f5;
+  --sidebar-primary: #f5f5f5;
+  --sidebar-primary-foreground: #0a0a0a;
+  --sidebar-accent: #1a1a1a;
+  --sidebar-accent-foreground: #f5f5f5;
+  --sidebar-border: #262626;
   --sidebar-ring: #8fb6e6;
 
-  --text-dim: #c4bbac;
-  --text-faint: #948b7d;
-  --thumb: #2a2620;
+  --text-dim: #d4d4d8;
+  --text-faint: #8a8a90;
+  --thumb: #1a1a1a;
   --ok: #7cc79a;
-  --ok-bg: #1c3a2a;
+  --ok-bg: #10241a;
   --info: #8fb6e6;
-  --info-bg: #1e2e42;
+  --info-bg: #111c28;
   --warn: #d69a5a;
   --warn-text: #d0a184;
-  --warn-bg: #33281a;
-  --warn-border: #4d3d24;
-  --destructive-bg: #3a221c;
-  --destructive-border: #5c332a;
-  --skel-a: #241f19;
-  --skel-b: #2c261e;
+  --warn-bg: #241d12;
+  --warn-border: #3d3120;
+  --destructive-bg: #2b1714;
+  --destructive-border: #4a2620;
+  --skel-a: #141414;
+  --skel-b: #1c1c1c;
   --highlight: #ffd35c;
 }
 
