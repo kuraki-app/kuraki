@@ -1,20 +1,7 @@
-/* Self-hosted, byte-identical to the @fontsource-variable files the web client
- * vendors — see site/scripts/check-fonts.mjs, which fails the build if they
- * drift. A page arguing that your photos should not live on someone else's
- * computer should not fetch its own headline from one. */
-@font-face {
-  font-family: 'Fraunces'; font-style: normal; font-display: swap;
-  font-weight: 100 900; src: url('/fonts/fraunces-latin-wght-normal.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Geist'; font-style: normal; font-display: swap;
-  font-weight: 100 900; src: url('/fonts/geist-latin-wght-normal.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Geist Mono'; font-style: normal; font-display: swap;
-  font-weight: 100 900; src: url('/fonts/geist-mono-latin-wght-normal.woff2') format('woff2');
-}
-
+/* No webfonts. The app is set in the platform's own sans, and a page
+ * advertising it should not arrive in a different typeface — nor fetch a
+ * headline from someone else's computer to make the argument that your photos
+ * should not live on one. There is nothing to vendor and nothing to gate. */
 :root {
     --paper:   #ffffff;
     --paper-2: #f0f0f2;
@@ -31,9 +18,11 @@
     --vault-paper: #f5f5f5;
     --vault-muted: #a1a1aa;
 
-    --display: 'Fraunces', Georgia, 'Times New Roman', serif;
-    --body: 'Geist', system-ui, -apple-system, sans-serif;
-    --mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', monospace;
+    /* One family. --display/--mono stay named so the seam is still
+       visible, but they no longer change typeface. */
+    --display: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 
     --r: 14px;
     --shadow: 0 1px 2px rgba(0,0,0,.04), 0 20px 45px -30px rgba(0,0,0,.35);
