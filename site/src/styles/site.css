@@ -17,13 +17,13 @@
 
 :root {
     --paper:   #ffffff;
-    --paper-2: #f4f4f5;
-    --card:    #ffffff;
+    --paper-2: #f0f0f2;
+    --card:    #fafafa;
     --ink:     #111111;
     --ink-2:   #3f3f46;
-    --ink-3:   #6b6b73;
-    --line:    #e4e4e7;
-    --line-2:  #d4d4d8;
+    --ink-3:   #67676f;
+    --line:    #e6e6e9;
+    --line-2:  #d8d8dc;
     --stamp:   #8c3a2b;   /* Kuraki's own mark. Used with restraint. */
     --stamp-ink:#ffffff;
     --vault:   #111111;   /* the dark "storehouse" register */
@@ -42,13 +42,13 @@
   @media (prefers-color-scheme: dark) {
     :root {
       --paper:   #000000;
-      --paper-2: #0f0f0f;
-      --card:    #0a0a0a;
+      --paper-2: #0d0d0d;
+      --card:    #0d0d0d;
       --ink:     #f5f5f5;
       --ink-2:   #d4d4d8;
       --ink-3:   #8a8a90;
-      --line:    #262626;
-      --line-2:  #333333;
+      --line:    #282828;
+      --line-2:  #343434;
       --stamp:   #e8836b;
       --stamp-ink:#0a0a0a;
       --vault:   #000000;

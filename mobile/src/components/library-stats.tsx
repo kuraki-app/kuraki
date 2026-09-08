@@ -65,7 +65,12 @@ export default function LibraryStatsCard() {
     }, [load]),
   );
 
-  if (!stats) return null;
+  // Deliberately no `if (!stats) return null`. The card vanishing was read as
+  // "the stats are missing from Settings" -- which it is, indistinguishably
+  // from the feature not existing. A library has a size whether or not this
+  // phone has managed to ask yet, so the card holds its place and says which
+  // of the two it is.
+  const figure = (n: number | undefined) => (stats ? formatCount(n ?? 0) : '—');
 
   return (
     <View style={styles.wrap}>
@@ -80,11 +85,11 @@ export default function LibraryStatsCard() {
           </ThemedText>
 
           <View style={styles.server}>
-            <View style={[styles.dot, { backgroundColor: reachable ? tokens.ok : tokens.warn }]} />
+            <View style={[styles.dot, { backgroundColor: stats && reachable ? tokens.ok : tokens.warn }]} />
             <ThemedText
               numberOfLines={1}
               style={[styles.status, { fontFamily: FontFamily.mono, color: tokens.mutedForeground }]}>
-              {reachable ? 'Connected' : 'Last known'}
+              {!stats ? (reachable ? 'Checking…' : 'Not connected') : reachable ? 'Connected' : 'Last known'}
             </ThemedText>
           </View>
         </View>
@@ -92,21 +97,21 @@ export default function LibraryStatsCard() {
         {/* The total, stated once and stated first. */}
         <View style={styles.totalRow}>
           <ThemedText style={[styles.total, { fontFamily: FontFamily.mono, color: tokens.foreground }]}>
-            {formatCount(stats.total)}
+            {figure(stats?.total)}
           </ThemedText>
           <ThemedText type="small" themeColor="mutedForeground" style={styles.totalLabel}>
-            {stats.total === 1 ? 'item' : 'items'}
+            {stats?.total === 1 ? 'item' : 'items'}
           </ThemedText>
         </View>
 
         <View style={styles.counts}>
-          <Stat label="Photos" value={stats.images} />
-          <Stat label="Videos" value={stats.videos} />
-          <Stat label="Albums" value={stats.albums} />
+          <Stat label="Photos" value={figure(stats?.images)} />
+          <Stat label="Videos" value={figure(stats?.videos)} />
+          <Stat label="Albums" value={figure(stats?.albums)} />
         </View>
 
         <ThemedText type="small" themeColor="mutedForeground" numberOfLines={1}>
-          {[formatBytes(stats.total_bytes), `${formatCount(stats.trashed)} in trash`, host]
+          {[stats ? formatBytes(stats.total_bytes) : null, stats ? `${formatCount(stats.trashed)} in trash` : null, host]
             .filter(Boolean)
             .join(' · ')}
         </ThemedText>
@@ -115,12 +120,12 @@ export default function LibraryStatsCard() {
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value }: { label: string; value: string }) {
   const tokens = useTokens();
   return (
     <View style={styles.stat}>
       <ThemedText style={[styles.statValue, { fontFamily: FontFamily.mono, color: tokens.foreground }]}>
-        {formatCount(value)}
+        {value}
       </ThemedText>
       <ThemedText type="small" themeColor="mutedForeground">
         {label}

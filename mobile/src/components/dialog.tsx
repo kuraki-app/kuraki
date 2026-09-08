@@ -71,7 +71,10 @@ export default function Dialog({
           style={styles.centre}>
           <View
             onStartShouldSetResponder={() => true}
-            style={[styles.card, { backgroundColor: tokens.card, borderColor: tokens.border }]}>
+            /* `popover`, not `card`: this floats over the whole screen, so it
+               is the top step of the elevation ramp. On a card-coloured panel
+               a card-coloured dialog reads as part of the page underneath. */
+            style={[styles.card, { backgroundColor: tokens.popover, borderColor: tokens.border }]}>
             <View style={[styles.header, { borderBottomColor: tokens.border }]}>
               <ThemedText type="subtitle" style={[{ fontFamily: reg.heading }, styles.title]} numberOfLines={2}>
                 {title}

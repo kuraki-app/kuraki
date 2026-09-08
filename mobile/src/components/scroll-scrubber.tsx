@@ -85,7 +85,8 @@ export default function ScrollScrubber({
         accessibilityLabel="Scroll through your library"
         style={[
           styles.thumb,
-          { top, backgroundColor: tokens.card, borderColor: tokens.border },
+          // Floats over the grid, so it takes the top step of the ramp.
+          { top, backgroundColor: tokens.popover, borderColor: tokens.border },
           scrubbing && { backgroundColor: tokens.primary, borderColor: tokens.primary },
         ]}>
         <View style={[styles.grip, { backgroundColor: scrubbing ? tokens.primaryForeground : tokens.mutedForeground }]} />
