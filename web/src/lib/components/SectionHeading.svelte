@@ -41,6 +41,9 @@
   .aside {
     /* Whatever sits at the end of the row is a readout, not a label. */
     font-family: var(--frame-data-font);
+    /* The mono face used to align these columns; a proportional
+       sans needs telling. */
+    font-variant-numeric: tabular-nums;
     font-size: 12px;
     letter-spacing: 0;
     text-transform: none;

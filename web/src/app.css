@@ -1,9 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import "shadcn-svelte/tailwind.css";
-@import "@fontsource-variable/geist";
-@import "@fontsource-variable/fraunces";
-@import "@fontsource-variable/geist-mono";
 
 /* shadcn-svelte dark mode is a `.dark` class on <html> (driven by mode-watcher),
  * not a media query, so a pinned choice always wins. */
@@ -141,9 +138,11 @@
    * blocks select between these three by name, so all three must be real
    * properties here — @theme inline alone would make var() resolve to nothing
    * and silently drop the register's type shift. */
-  --font-sans: 'Geist Variable', sans-serif;
-  --font-heading: 'Fraunces Variable', Georgia, serif;
-  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+  /* One family, everywhere. The Kura/Vault split still governs rhythm,
+   * density and layout — it just no longer changes typeface. */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-heading: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 .dark {
   --scrim: rgba(0, 0, 0, 0.62);
@@ -263,9 +262,9 @@
   --color-warn-border: var(--warn-border);
   --color-thumb: var(--thumb);
   --color-highlight: var(--highlight);
-  --font-sans: 'Geist Variable', sans-serif;
-  --font-heading: 'Fraunces Variable', Georgia, serif;
-  --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-heading: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);

@@ -93,6 +93,9 @@
    * exists — the variant lives on the Badge — so this hangs off .status. */
   .status code {
     font-family: var(--font-mono);
+    /* The mono face used to align these columns; a proportional
+       sans needs telling. */
+    font-variant-numeric: tabular-nums;
   }
   .control {
     display: flex;

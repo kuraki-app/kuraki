@@ -68,9 +68,9 @@ export const lightTokens = {
   "tMorph": "320ms",
   "eKura": "cubic-bezier(0.2, 0, 0, 1)",
   "eVault": "cubic-bezier(0.4, 0, 0.2, 1)",
-  "fontSans": "'Geist Variable', sans-serif",
-  "fontHeading": "'Fraunces Variable', Georgia, serif",
-  "fontMono": "'Geist Mono Variable', ui-monospace, monospace"
+  "fontSans": "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+  "fontHeading": "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+  "fontMono": "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 } as const;
 
 export type TokenName = keyof typeof lightTokens;
@@ -142,7 +142,7 @@ export const darkTokens: Record<TokenName, string> = {
   "tMorph": "320ms",
   "eKura": "cubic-bezier(0.2, 0, 0, 1)",
   "eVault": "cubic-bezier(0.4, 0, 0.2, 1)",
-  "fontSans": "'Geist Variable', sans-serif",
-  "fontHeading": "'Fraunces Variable', Georgia, serif",
-  "fontMono": "'Geist Mono Variable', ui-monospace, monospace"
+  "fontSans": "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+  "fontHeading": "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+  "fontMono": "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 };
