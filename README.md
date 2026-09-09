@@ -320,9 +320,16 @@ includes them.
 - **`scripts/start.sh`** (aka `make start`) compiles the SvelteKit UI into the Go binary and runs
   a single process — the same way it runs in production. Open <http://localhost:3000>.
 - **`scripts/dev.sh`** (aka `make dev`) runs the backend and frontend as two processes so the UI
-  hot-reloads on save; Vite proxies `/api` to the Go server. Open <http://localhost:5173>.
+  hot-reloads on save; Vite proxies `/api`, `/healthz`, `/metrics` and `/download` to the Go server.
+  Open <http://localhost:5173>.
 
-Both forward extra arguments to `kuraki serve`, e.g. `./scripts/dev.sh --addr :4000`.
+Both forward extra arguments to `kuraki serve` (e.g. `--data-dir …`). To move the API port in dev,
+set `KURAKI_PORT` rather than passing `--addr` — `dev.sh` exports it so Vite's proxy follows the
+server instead of being left pointing at whatever else holds 3000:
+
+```sh
+KURAKI_PORT=4000 ./scripts/dev.sh
+```
 
 ### Deploy with Docker
 

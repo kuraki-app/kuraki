@@ -169,7 +169,7 @@ its own staging space, and both are imported.
 
 | Field | Required | Notes |
 |---|---|---|
-| Server address | Yes | A bare LAN address is enough; the app normalizes it and probes the server before continuing, so a wrong address fails here rather than later |
+| Server address | Yes | A bare address is enough, and it decides how the app connects: something that can only be local (an IP, a single name, `.local`/`.lan`/`.internal`) is tried over plain HTTP on port 3000, and a domain name is tried over HTTPS first. Whichever answers is the one kept, and a wrong address fails here rather than later. Typing a full `http://…`/`https://…` address overrides the guess |
 | Pairing code | Yes | Generated on the server, scanned as a QR or entered by hand |
 | Device name | Yes | How the device appears in your device list |
 | Photo library permission | Yes | Requested by the phone's own operating system |
@@ -182,6 +182,12 @@ its own staging space, and both are imported.
 2. The phone redeems it and receives its own credential. That credential is shown
    once, stored in the phone's secure storage, and never displayed again.
 3. The phone can now read and change the library it was paired to, and nothing else.
+
+**Changing servers.** Pointing the app at a different server — or pairing it to a different
+account on the same one — discards everything it had cached from the previous library, including
+any changes still queued offline. This is not optional: a cache from one library says nothing true
+about another, and the app previously kept showing the old one while reporting that it was
+connected to the new one.
 
 **Which address to type.** The pairing screen offers one. On a bare-metal install
 the server reads it from its own network interfaces, which is right. In a

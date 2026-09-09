@@ -16,7 +16,7 @@ optional (only for the full media pipeline; the default build is pure-Go).
 git clone https://github.com/kuraki-app/kuraki
 cd kuraki
 ./scripts/start.sh   # build UI + binary, run one server on :3000 (production-like)
-./scripts/dev.sh     # API (:3000) + Vite UI (:5173) separately, with hot reload
+./scripts/dev.sh     # API ($KURAKI_PORT, default 3000) + Vite UI (:5173), with hot reload
 make test            # go test -race ./...
 ```
 

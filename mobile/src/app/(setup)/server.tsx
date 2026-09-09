@@ -5,8 +5,7 @@ import { Pressable, StyleSheet, TextInput } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import SetupStep from '@/components/setup-step';
 import { Radius, Spacing, useTokens } from '@/constants/theme';
-import { probeServer } from '@/lib/connection';
-import { normalizeServerURL } from '@/lib/url';
+import { resolveServerURL } from '@/lib/connection';
 import { saveCaptureSettings, loadCaptureSettings } from '@/lib/settings';
 
 export default function ServerStep() {
@@ -19,9 +18,11 @@ export default function ServerStep() {
     setBusy(true);
     setError('');
     try {
-      const baseURL = normalizeServerURL(value);
-      const reach = await probeServer(baseURL);
-      if (reach !== 'ok') {
+      // resolveServerURL, not normalizeServerURL: a bare hostname does not say
+      // whether this is a box on the LAN or a domain behind a reverse proxy, so
+      // the probe decides rather than the guess.
+      const baseURL = await resolveServerURL(value);
+      if (!baseURL) {
         setError('Could not reach a Kuraki server at that address. Check the address and that the server is running.');
         return;
       }
@@ -35,20 +36,29 @@ export default function ServerStep() {
     }
   }
 
-  // Mirrors normalizeServerURL: a bare host gets :3000, anything with an
-  // explicit port or scheme is left alone.
-  const typedPort = /:\d+/.test(value.replace(/^\w+:\/\//, ''));
+  // Says what the address will be resolved to, before it is. The old hint
+  // promised ":3000 will be added" for everything, which was a lie for a domain
+  // on a reverse proxy — and the person typing one had no way to tell that the
+  // failure they then got was the app's assumption rather than their address.
+  const bare = value.trim().replace(/^\w+:\/\//, '');
+  const typedScheme = /^https?:\/\//i.test(value.trim());
+  const typedPort = /:\d+/.test(bare);
+  const looksPublic = bare.includes('.') && !/^\d{1,3}(\.\d{1,3}){3}/.test(bare)
+    && !/\.(local|lan|home|internal|localdomain)(\/|$)/.test(bare);
   const portHint = value.trim() === ''
-    ? 'Port 3000 is added automatically — add your own (like :8080) if the server uses a different one.'
-    : typedPort
-      ? 'Using the port you entered.'
-      : 'Port 3000 will be added automatically.';
+    ? 'A local address gets port 3000 automatically; a domain name is tried over HTTPS first.'
+    : typedScheme || typedPort
+      ? 'Using the address exactly as you entered it.'
+      : looksPublic
+        ? 'Trying https:// first, then port 3000.'
+        : 'Port 3000 will be added automatically.';
 
   return (
     <SetupStep>
       <ThemedText type="title">Your server</ThemedText>
       <ThemedText themeColor="textDim">
-        Enter your Kuraki server address. A local IP like 192.168.1.40 is fine — we will add the rest.
+        Enter your Kuraki server address. A local IP like 192.168.1.40 or a domain like
+        photos.example.com both work — we will add the rest.
       </ThemedText>
       <TextInput
         autoCapitalize="none" autoCorrect={false} keyboardType="url"

@@ -1,3 +1,5 @@
+import { serverURLCandidates } from '@/lib/url';
+
 // The mobile connection model distinguishes two failures that demand opposite
 // responses. `unreachable` is a network/address problem — the token is still
 // valid, so a probe recovering flips us back to online. `disconnected` is a
@@ -55,4 +57,28 @@ export async function probeServer(baseURL: string, signal?: AbortSignal): Promis
     clearTimeout(timer);
     signal?.removeEventListener('abort', onAbort);
   }
+}
+
+/**
+ * resolveServerURL finds which of the addresses a typed input could mean is
+ * actually answering, and returns it.
+ *
+ * A bare hostname does not say whether the server is a box on the LAN
+ * (plain HTTP on :3000) or a domain behind a reverse proxy (HTTPS on 443).
+ * `serverURLCandidates` orders the guesses; this tries them in that order and
+ * keeps the first that responds, so someone typing `photos.example.com` reaches
+ * their proxied server and someone typing `192.168.1.40` reaches the box —
+ * without either having to know to type a scheme.
+ *
+ * Returns null when nothing answered, which the caller reports as an
+ * unreachable address. The probes run in sequence, not in parallel: the second
+ * candidate only matters when the first failed, and firing both would open a
+ * connection to an address the user did not ask for on every successful setup.
+ */
+export async function resolveServerURL(input: string, signal?: AbortSignal): Promise<string | null> {
+  for (const candidate of serverURLCandidates(input)) {
+    if (signal?.aborted) return null;
+    if ((await probeServer(candidate, signal)) === 'ok') return candidate;
+  }
+  return null;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeServerURL, serverHost } from '@/lib/url';
+import { normalizeServerURL, serverHost, serverURLCandidates } from '@/lib/url';
 
 describe('normalizeServerURL', () => {
   it('adds http and default port to a bare IP', () => {
@@ -31,6 +31,56 @@ describe('normalizeServerURL', () => {
   });
   it('throws on a scheme with no host', () => {
     expect(() => normalizeServerURL('http://')).toThrow();
+  });
+});
+
+describe('serverURLCandidates', () => {
+  // The bug this exists for: every scheme-less address became http://host:3000,
+  // so the reverse-proxy deployment DEPLOYMENT.md documents was unreachable
+  // from the app — and on iOS not merely wrong but blocked, since App Transport
+  // Security permits cleartext on the local network only.
+  it('assumes HTTPS on 443 for a public-looking domain', () => {
+    expect(serverURLCandidates('photos.example.com')[0]).toBe('https://photos.example.com');
+  });
+
+  it('still assumes plain HTTP on 3000 for anything that can only be local', () => {
+    for (const local of ['192.168.1.40', 'nas', 'kuraki.local', 'photos.home.lan', 'box.internal']) {
+      expect(serverURLCandidates(local)[0]).toBe(`http://${local}:3000`);
+    }
+  });
+
+  it('offers the other scheme second, so a guess that is wrong is recoverable', () => {
+    expect(serverURLCandidates('photos.example.com')).toEqual([
+      'https://photos.example.com',
+      'http://photos.example.com:3000',
+    ]);
+    expect(serverURLCandidates('192.168.1.40')).toEqual([
+      'http://192.168.1.40:3000',
+      'https://192.168.1.40',
+    ]);
+  });
+
+  it('treats a stated scheme as an instruction, not a guess', () => {
+    expect(serverURLCandidates('https://photos.example.com')).toEqual(['https://photos.example.com']);
+    expect(serverURLCandidates('http://192.168.1.40:8080')).toEqual(['http://192.168.1.40:8080']);
+  });
+
+  it('keeps a stated port on both schemes, and never overrides it with 3000', () => {
+    expect(serverURLCandidates('photos.example.com:8443')).toEqual([
+      'http://photos.example.com:8443',
+      'https://photos.example.com:8443',
+    ]);
+  });
+
+  it('carries a reverse-proxy subpath onto every candidate', () => {
+    expect(serverURLCandidates('photos.example.com/kuraki')).toEqual([
+      'https://photos.example.com/kuraki',
+      'http://photos.example.com:3000/kuraki',
+    ]);
+  });
+
+  it('keeps an IPv6 literal bracketed', () => {
+    expect(serverURLCandidates('[fd00::1]')[0]).toBe('http://[fd00::1]:3000');
   });
 });
 

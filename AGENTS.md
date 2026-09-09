@@ -55,6 +55,14 @@ Phase 1 = single-owner personal backup.
   should have been all along. **Three of the sheet's decisions were deliberately refused** — the
   custom floating tab bar (already deleted, see §11 2026-08-02), `headerLargeTitle` (already failed
   on device), and a floating selection action bar (selection lives in the native header). See §11.
+- **The three surfaces were connected to each other and driven (2026-09-09).** Server in Docker on a
+  LAN address, the web UI in a browser against it, and the Expo client on a simulator paired to it —
+  the first time the mobile↔server link has been exercised over a real network address rather than
+  `localhost`. It works; four things around it did not. The app could not reach a server on the
+  internet at all (every scheme-less address became `http://host:3000`); repointing it at another
+  server kept serving the previous library from a mirror keyed by nothing; a malformed address in
+  Settings escaped as an unhandled rejection; and `make dev` proxied neither `/download` nor a port
+  anyone could move. See §11.
 - **The container was run and driven, not just built (2026-09-08).** CI builds the Docker image but
   never starts it, and four defects had been living in that gap. Fixed on `feat/mobile-contact-sheet-ui`:
   saved searches 500'd the moment one existed (`json.RawMessage` is a named type, so `database/sql`
@@ -389,6 +397,8 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 
 | **Docker runtime pass** (2026-09-08, `feat/mobile-contact-sheet-ui`): ran the `-tags vips` image against a copy of a real library and drove it. Fixed the saved-search scan 500, the empty `role` in sign-in responses, container-internal pairing addresses (+ `KURAKI_PUBLIC_URL`), the govips log flood, and the `useradd --system` build warning; rewrote `registers.spec.ts`, which had asserted Fraunces/Geist Mono since the font flattening and was only green locally because Playwright's browser was missing | ✅ done; 94 e2e + full gates green, verified in the container and the browser |
 
+| **Connecting the surfaces** (2026-09-09, `feat/mobile-contact-sheet-ui`): mobile address resolution now probes HTTPS-then-HTTP by the *kind* of host, so a proxied domain works as well as a LAN IP; the offline mirror and sync cursor reset when the library changes; iOS local-network usage and ATS moved into `app.json`; `make dev` proxies `/download` and takes its port from `KURAKI_PORT`, guarded by `devproxy_test.go` | ✅ done; paired and browsed on a simulator against a LAN server, full gates green |
+
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
 
@@ -415,6 +425,58 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `feat/mobile-contact-sheet-ui` (2026-09-09) — **Server, web and mobile pointed at each other over a
+  real network for the first time. The link itself was sound; everything that decides *which*
+  address to use was not.**
+  - **Method first, because it is the part that found things.** A container on the host's LAN IP
+    (`192.168.29.128:3999`, a copy of the library — never `./kuraki-data`), the browser at that
+    address, and the simulator paired to it with a typed code. Pairing, timeline, albums and
+    thumbnails all worked. `devices.last_seen_at` is the honest probe for "has the phone actually
+    called the server" — it is touched by `resolveDevice` on every authenticated request, and it is
+    what proved the gallery was serving cache rather than talking to anything.
+  - **The app could not be pointed at a server on the internet.** `normalizeServerURL` gave every
+    scheme-less input `http://<host>:3000`. For the deployment DEPLOYMENT.md documents — a domain on
+    443 behind Caddy — that is wrong twice, and on iOS it does not merely fail: ATS is
+    `NSAllowsArbitraryLoads: false` + `NSAllowsLocalNetworking: true`, so cleartext to a public host
+    is refused before a packet leaves. The screen then reported that a correctly-typed domain could
+    not be reached, and its own hint promised ":3000 will be added automatically". Now
+    `serverURLCandidates` orders guesses by the *kind* of host — literal IP, single label, `.local`
+    / `.lan` / `.internal` mean LAN and get HTTP on 3000; anything else gets HTTPS on 443 — and
+    `resolveServerURL` probes them in order and keeps what answers. A stated scheme or port stays an
+    instruction, not a guess.
+  - **Repointing the app at another server showed the previous library.** `assets`, `albums`, `tags`
+    and `sync_meta.cursor` are one global set of tables; `saveCaptureSettings` changed the address
+    and cleared none of them. The cursor is the sharp end: `syncChanges` asks the *new* server for
+    everything since a number from the *old* server's change_log, gets nothing back, and concludes
+    it is current — so the app sits on another library's photos indefinitely while Settings says
+    "Connected". `switchedLibrary` (pure, tested) now decides, and `resetMirror` wipes on a changed
+    address or a changed device token. Pending mutations go too: they name asset ids on a server
+    that is no longer the one being talked to.
+  - **A malformed address crashed the save.** `saveAddress` never caught, so `normalizeServerURL`
+    throwing surfaced as `Uncaught (in promise)` while the status line kept claiming the old address
+    was connected. Found by fat-fingering a paste on the simulator, which is a fair argument for
+    driving the thing by hand. The status line also read from the *text field*, so it narrated
+    whatever was being typed; it now reports the stored address.
+  - **`make dev` is the only mode where UI and server are different origins, and it was the least
+    tested.** `/download/android` was never added to Vite's proxy, so the Devices page's APK link
+    404'd there and only there. The port was hardcoded in `scripts/dev.sh` *and* in
+    `web/vite.config.ts`, so `--addr :4000` moved one and not the other — and on a machine where
+    something else owns 3000 that is not an error, just another app's responses arriving in the
+    Kuraki UI. `KURAKI_PORT` is now chosen once and exported, `dev.sh` refuses to start on a busy
+    port and names the process holding it, `--addr` is rejected with a pointer to `KURAKI_PORT`, and
+    `devproxy_test.go` fails the build if the proxy list and the router disagree in either
+    direction.
+  - **A correction worth keeping.** I expected a clean `expo prebuild` to flip ATS to Expo's
+    permissive template default. Introspection says otherwise — it reads the existing untracked
+    `ios/Info.plist`, so that experiment proves nothing either way. What *was* provably missing is
+    `NSLocalNetworkUsageDescription`, which iOS 14+ requires for LAN access; both it and the ATS
+    block now live in `app.json` so they no longer depend on a gitignored directory.
+  - **Not fixed, deliberately.** The pairing code is 64 hex characters and the web UI offers typing
+    it as an equal alternative to scanning; shortening it is a protocol change. Android still sets
+    `usesCleartextTraffic: true` globally rather than scoping cleartext to private ranges, which
+    needs a network-security-config plugin. The web SPA cannot be served under a reverse-proxy
+    subpath (its asset and API paths are absolute) even though the mobile client supports one.
 
 - `feat/mobile-contact-sheet-ui` (2026-09-08) — **Ran the Docker image instead of only building it.
   Everything below was found in the first hour of driving it, and none of it was reachable from the

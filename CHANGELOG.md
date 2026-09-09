@@ -20,6 +20,27 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Fixed
 
+- **The mobile app could not be pointed at a server on the internet.** Any address typed without a
+  scheme became `http://<host>:3000`, so the reverse-proxy deployment in DEPLOYMENT.md — a domain on
+  443 — was unreachable, and on iOS it was refused outright rather than merely failing (App
+  Transport Security permits cleartext on the local network only). A domain is now tried over HTTPS
+  first and a LAN address over HTTP on 3000, and whichever answers is the one kept.
+- **Pointing the app at a different server kept showing the previous library.** The offline mirror
+  and the delta-sync cursor were keyed by nothing, so the new server was asked for changes since a
+  position in the *old* server's change log — it had nothing newer to report, and the app settled on
+  another library's photos while reporting "Connected". Changing the server, or pairing as a
+  different account, now clears the mirror.
+- A malformed server address in mobile Settings raised an unhandled promise rejection instead of an
+  error, and the status line went on claiming the old address was connected. The status line also
+  followed the text field while it was being edited, so half-typed input read back as a connection.
+- iOS builds declared no `NSLocalNetworkUsageDescription`, which iOS 14+ requires to reach a server
+  on the local network. It — and the App Transport Security posture — now come from `app.json`
+  rather than from an untracked `ios/` directory.
+- `make dev` did not proxy `/download`, so the Devices page's Android APK link 404'd in dev; and the
+  API port was hardcoded in both `scripts/dev.sh` and `web/vite.config.ts`, so moving one left the
+  other pointing at whatever else held 3000. The port is now `KURAKI_PORT`, chosen once and
+  exported, `dev.sh` refuses to start when it is busy (naming the process holding it), and a test
+  fails the build if the proxy list drifts from the router.
 - **Saving a search broke the saved-search list.** `GET /api/saved-searches` returned 500 from the
   moment the first search existed, because the stored query could not be scanned back out of SQLite.
   The web UI reported "No saved searches yet" rather than an error, so the feature looked empty.

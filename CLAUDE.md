@@ -34,7 +34,7 @@ Security scan (not wired into CI; run it when touching dependencies):
 Run a single Go test: `go test -race ./internal/importer -run TestName`.
 Note: `make` targets use `GO_PACKAGES` (`go list ./...` minus `node_modules`) — Expo fixtures under `mobile/` contain Go files that must not be treated as project packages. (`make check` uses it; CI runs bare `./...`.)
 
-Web (`cd web`): `npm run dev` (Vite, proxies /api to :3000) · `npm run build` (outputs embedded assets into `internal/httpapi/assets` via `go:embed`) · **`npm run check` (svelte-check) — `build` does NOT typecheck, this is the only type gate** · `npm run test` (Vitest, pure logic in `src/lib` only) · `npm run test:e2e` (Playwright; prefer `make e2e`, which rebuilds first).
+Web (`cd web`): `npm run dev` (Vite; proxies `/api`, `/healthz`, `/metrics` and `/download` to the Go server on `$KURAKI_PORT`, default 3000 — `scripts/dev.sh` picks the port and exports it, and `devproxy_test.go` fails the build if the proxy list drifts from the router) · `npm run build` (outputs embedded assets into `internal/httpapi/assets` via `go:embed`) · **`npm run check` (svelte-check) — `build` does NOT typecheck, this is the only type gate** · `npm run test` (Vitest, pure logic in `src/lib` only) · `npm run test:e2e` (Playwright; prefer `make e2e`, which rebuilds first).
 
 Run one browser test: `cd web && npx playwright test <file-substring>` — e.g. `npx playwright test viewer`. Add `--ui` to step through it.
 
