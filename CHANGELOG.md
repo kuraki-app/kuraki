@@ -48,6 +48,12 @@ line under `Unreleased` as part of the same change that introduces it.
 - iOS builds declared no `NSLocalNetworkUsageDescription`, which iOS 14+ requires to reach a server
   on the local network. It — and the App Transport Security posture — now come from `app.json`
   rather than from an untracked `ios/` directory.
+- **`kuraki backup` destroyed its own run when the archive was written into the library.**
+  `kuraki backup /data/x.tar.gz --data-dir /data` archived the file it was writing: the walk reached
+  an archive that grew with every byte added to it, and the run died on `archive/tar: write too
+  long` after inflating past the size of the library — leaving a truncated, unrestorable `.tar.gz`
+  sitting exactly where a real backup belongs. The destination is now excluded from the walk, and a
+  failed backup deletes its partial archive instead of leaving something that looks like one.
 - **`make dev` could not complete first-run setup.** The server refuses browser cross-origin state
   changes by comparing Origin against Host, and Vite rewrote Host to the proxy target — so every
   POST, PATCH and DELETE came back 403 `cross_origin_request` while reads worked normally, making

@@ -2,9 +2,11 @@ package backup
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -193,4 +195,89 @@ func TestRestoreRequiresEmptyTarget(t *testing.T) {
 	if err := Restore(ctx, archive, target); err == nil {
 		t.Fatal("restore should reject nonempty target")
 	}
+}
+
+// Backing up into the library being backed up.
+//
+// `kuraki backup /data/x.tar.gz --data-dir /data` used to archive its own
+// output. The walk reached a file that grew with every byte written to it,
+// io.Copy sent more than the header promised, and the run died on
+// `archive/tar: write too long` — after inflating well past the size of the
+// library. RUNNING.md's examples all write to a separate mount, which is why
+// nothing caught it, but the command never refused the other choice and the
+// error named neither the cause nor the file.
+func TestCreateSkipsItsOwnDestination(t *testing.T) {
+	dataDir := t.TempDir()
+	writeTree(t, dataDir)
+
+	dest := filepath.Join(dataDir, "inside.tar.gz")
+	if err := Create(context.Background(), dataDir, dest); err != nil {
+		t.Fatalf("backup into its own data dir: %v", err)
+	}
+
+	// And the archive must not contain itself, at any size.
+	for _, name := range archiveNames(t, dest) {
+		if name == "inside.tar.gz" {
+			t.Error("the archive contains itself")
+		}
+	}
+}
+
+// A failed backup must not leave something that looks like a backup. The
+// partial archive is truncated and unrestorable, but it is a plausible .tar.gz
+// of a plausible size sitting exactly where the real one belongs — the worst
+// thing to find while recovering.
+func TestFailedCreateLeavesNoArchive(t *testing.T) {
+	dataDir := t.TempDir()
+	writeTree(t, dataDir)
+
+	dest := filepath.Join(t.TempDir(), "aborted.tar.gz")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // the walk checks ctx on every entry
+
+	if err := Create(ctx, dataDir, dest); err == nil {
+		t.Fatal("cancelled backup reported success")
+	}
+	if _, err := os.Stat(dest); !os.IsNotExist(err) {
+		t.Errorf("a failed backup left %s behind (stat err = %v)", dest, err)
+	}
+}
+
+func writeTree(t *testing.T, dataDir string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Join(dataDir, "originals", "2026", "01"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 3 {
+		name := filepath.Join(dataDir, "originals", "2026", "01", fmt.Sprintf("p%d.jpg", i))
+		if err := os.WriteFile(name, bytes.Repeat([]byte{byte(i)}, 4096), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dataDir, "kuraki.db"), []byte("not a real db"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func archiveNames(t *testing.T, path string) []string {
+	t.Helper()
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	zr, err := gzip.NewReader(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	tr := tar.NewReader(zr)
+	for {
+		h, err := tr.Next()
+		if err != nil {
+			break
+		}
+		names = append(names, h.Name)
+	}
+	return names
 }

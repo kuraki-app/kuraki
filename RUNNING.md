@@ -466,6 +466,15 @@ The Caddy production example enables automatic, SQLite-consistent portable
 backups in `/backups`, every 24 hours, retaining seven by default. The backup
 mount should be a separate disk, and its archives should also be copied off-site.
 
+Write the archive somewhere outside the library. A backup is a copy of the data
+directory, so a destination inside it is a file that grows as it is written; the
+command now skips its own output rather than trying to archive it, but keeping
+backups on separate storage is the point of them anyway.
+
+**Verify a backup by restoring it**, not by looking at it. Restore into an empty
+directory and count what came back — see below. A truncated archive still lists
+plausible entries.
+
 Create an additional manual backup while the server is online:
 
 ```sh

@@ -430,6 +430,30 @@ audited baseline and release checklist.
 
 ## 11. Handoff log (append newest at top)
 
+- `feat/mobile-contact-sheet-ui` (2026-09-09, fourth pass) — **Moving the live container to the new
+  port turned up a bug in the recovery path, which is the worst place to have one.**
+  - **`kuraki backup` archived its own output.** Taking the pre-move backup with
+    `kuraki backup /data/x.tar.gz --data-dir /data` failed with `archive/tar: write too long`: the
+    walk reached the archive being written, whose size grew between `entry.Info()` and `io.Copy`, so
+    more bytes were sent than the tar header promised. It inflated to 43MB from a 22MB library before
+    dying. **And it left the truncated archive on disk** — a plausible `.tar.gz` of a plausible size,
+    in exactly the place a real backup belongs, which is the worst thing to find mid-recovery.
+    RUNNING.md's examples all write to a separate mount, which is why nothing had hit it; the command
+    never refused the other choice, and the error named neither the cause nor the file. Both halves
+    fixed (skip the destination, remove the partial on failure) with tests that fail against the old
+    code.
+  - **The move itself, done the way RUNNING.md prescribes.** Container stopped so the library was at
+    rest; offline backup with the fixed binary, written outside the library; **the backup restored to
+    an empty directory and checked** (schema 24, 28 assets, 1 album, 2 users, 28 originals,
+    `integrity_check ok`) before anything was touched. Then the old hand-run container removed
+    (`kuraki:local` kept as the rollback image), `docker compose up -d --build`, and verified:
+    migration 24 → 25 with the automatic pre-migration snapshot on disk, 28 assets intact,
+    `kuraki verify` 28/28 problems=0, serving on 39170, port 3000 gone, UI loads with no console
+    errors.
+  - **Verifying a backup means restoring it.** Checking that the archive exists, or that `tar -t`
+    lists plausible entries, would have passed on the truncated one. Restoring into an empty
+    directory and counting rows is the only check that distinguishes a backup from a file.
+
 - `feat/mobile-contact-sheet-ui` (2026-09-09, third pass) — **Every port Kuraki binds now comes from
   one Go constant, and they are chosen so everything can run at once.**
   - **The default moved off 3000.** It is the most contested port on a developer's machine, and this
