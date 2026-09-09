@@ -88,6 +88,35 @@ export function serverURLCandidates(input: string): string[] {
 }
 
 /**
+ * describeAddressGuess says what will be done with what has been typed so far.
+ *
+ * It exists as a function, and is tested, because this sentence has been wrong
+ * twice. It promised ":3000 will be added automatically" for every input, which
+ * was a lie for a domain behind a reverse proxy; and once that was fixed it
+ * called a half-typed `192.168.2` a public domain and offered HTTPS, because it
+ * tested for a *complete* dotted quad. Someone typing a LAN address sees this
+ * line the entire time they are typing, so it has to be right at every prefix,
+ * not only at the end.
+ */
+export function describeAddressGuess(input: string, port: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return `A local address gets port ${port} automatically; a domain name is tried over HTTPS first.`;
+  }
+  const bare = trimmed.replace(/^\w+:\/\//, '');
+  const host = bare.split('/')[0];
+  if (/^https?:\/\//i.test(trimmed) || /:\d+/.test(host)) {
+    return 'Using the address exactly as you entered it.';
+  }
+  // Digits and dots only: an IPv4 address, however much of it has been typed.
+  // Anything shorter than four octets is still on its way to being one.
+  const partialIP = /^[\d.]+$/.test(host);
+  const localSuffix = /\.(local|lan|home|internal|localdomain)$/.test(host);
+  const looksPublic = !partialIP && !localSuffix && host.includes('.');
+  return looksPublic ? `Trying https:// first, then port ${port}.` : `Port ${port} will be added automatically.`;
+}
+
+/**
  * normalizeServerURL is the single best guess for what was typed — the first
  * candidate. Callers that can afford to probe should use `resolveServerURL`
  * (lib/connection.ts), which tries the rest before reporting failure.

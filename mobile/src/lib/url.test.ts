@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SERVER_PORT as PORT } from '@/design/ports';
-import { normalizeServerURL, serverHost, serverURLCandidates } from '@/lib/url';
+import { describeAddressGuess, normalizeServerURL, serverHost, serverURLCandidates } from '@/lib/url';
 
 // The port is read from the generated constant, not written here: these tests
 // pin the *rule* (a local address gets the server's own port, a domain gets
@@ -111,5 +111,48 @@ describe('serverHost', () => {
   it('is empty for an unset address', () => {
     expect(serverHost('')).toBe('');
     expect(serverHost('   ')).toBe('');
+  });
+});
+
+// The sentence under the address field, at every prefix someone types through.
+//
+// It has been wrong twice: it promised a port would be added for everything,
+// which was false for a domain behind a reverse proxy; and after that was fixed
+// it called a half-typed `192.168.2` a public domain and offered HTTPS, because
+// it only recognised a *complete* dotted quad. This line is read continuously
+// while typing, so a prefix being wrong is the normal case, not an edge one.
+describe('describeAddressGuess', () => {
+  const guess = (input: string) => describeAddressGuess(input, PORT);
+
+  it('describes both paths before anything is typed', () => {
+    expect(guess('')).toContain(`port ${PORT}`);
+    expect(guess('   ')).toContain('HTTPS');
+  });
+
+  it('never offers HTTPS while an IPv4 address is being typed', () => {
+    for (const prefix of ['1', '19', '192', '192.', '192.1', '192.168', '192.168.', '192.168.2', '192.168.29.1', '192.168.29.128']) {
+      expect(guess(prefix)).toBe(`Port ${PORT} will be added automatically.`);
+    }
+  });
+
+  it('offers HTTPS for a domain', () => {
+    expect(guess('photos.example.com')).toBe(`Trying https:// first, then port ${PORT}.`);
+  });
+
+  it('treats a local suffix as local, not as a domain', () => {
+    for (const local of ['nas', 'kuraki.local', 'photos.home.lan', 'box.internal']) {
+      expect(guess(local)).toBe(`Port ${PORT} will be added automatically.`);
+    }
+  });
+
+  it('stands back when the address is already complete', () => {
+    for (const stated of ['https://photos.example.com', 'http://192.168.1.40:8080', '192.168.1.40:8080']) {
+      expect(guess(stated)).toBe('Using the address exactly as you entered it.');
+    }
+  });
+
+  it('ignores a path when deciding', () => {
+    expect(guess('192.168.1.40/kuraki')).toBe(`Port ${PORT} will be added automatically.`);
+    expect(guess('photos.example.com/kuraki')).toBe(`Trying https:// first, then port ${PORT}.`);
   });
 });

@@ -430,6 +430,21 @@ audited baseline and release checklist.
 
 ## 11. Handoff log (append newest at top)
 
+- `feat/mobile-contact-sheet-ui` (2026-09-09, fifth pass) — **Pointed the app at the real container
+  on the new port, and the address hint was wrong again — for the second time, in a new way.**
+  - Typing `192.168.29.128` into onboarding showed **"Trying https:// first, then port 39170"** for
+    every prefix up to the final octet, because the check tested for a *complete* dotted quad. This
+    line is read continuously while someone types, so a prefix being wrong is the normal case rather
+    than an edge one. It is now `describeAddressGuess` in `lib/url.ts` — a pure function with a test
+    that walks every prefix of an IPv4 address — instead of inline JSX logic. **Third time this
+    sentence has been wrong; the fix is that it is now testable, not that it is now correct.**
+  - **Verified against the live library:** a bare `192.168.29.128` resolved to
+    `http://192.168.29.128:39170`, the probe succeeded against the running container, and onboarding
+    advanced to pairing. The generated `DEFAULT_SERVER_PORT` is what the copy and the resolution both
+    read, so the Go constant reaches the phone.
+  - **Stopped short of pairing.** Minting a code needs an admin session on the operator's own
+    library, and there is no CLI path for it. Not something to work around.
+
 - `feat/mobile-contact-sheet-ui` (2026-09-09, fourth pass) — **Moving the live container to the new
   port turned up a bug in the recovery path, which is the worst place to have one.**
   - **`kuraki backup` archived its own output.** Taking the pre-move backup with

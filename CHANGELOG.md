@@ -48,6 +48,9 @@ line under `Unreleased` as part of the same change that introduces it.
 - iOS builds declared no `NSLocalNetworkUsageDescription`, which iOS 14+ requires to reach a server
   on the local network. It — and the App Transport Security posture — now come from `app.json`
   rather than from an untracked `ios/` directory.
+- The hint under the mobile server-address field called a half-typed IPv4 address a public domain and
+  offered HTTPS — it only recognised a complete dotted quad, so someone typing a LAN address read the
+  wrong advice for as long as they were typing.
 - **`kuraki backup` destroyed its own run when the archive was written into the library.**
   `kuraki backup /data/x.tar.gz --data-dir /data` archived the file it was writing: the walk reached
   an archive that grew with every byte added to it, and the run died on `archive/tar: write too

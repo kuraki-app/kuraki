@@ -6,6 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import SetupStep from '@/components/setup-step';
 import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { resolveServerURL } from '@/lib/connection';
+import { describeAddressGuess } from '@/lib/url';
 import { DEFAULT_SERVER_PORT } from '@/design/ports';
 import { saveCaptureSettings, loadCaptureSettings } from '@/lib/settings';
 
@@ -37,22 +38,9 @@ export default function ServerStep() {
     }
   }
 
-  // Says what the address will be resolved to, before it is. The old hint
-  // promised a port would be added for everything, which was a lie for a domain
-  // on a reverse proxy — and the person typing one had no way to tell that the
-  // failure they then got was the app's assumption rather than their address.
-  const bare = value.trim().replace(/^\w+:\/\//, '');
-  const typedScheme = /^https?:\/\//i.test(value.trim());
-  const typedPort = /:\d+/.test(bare);
-  const looksPublic = bare.includes('.') && !/^\d{1,3}(\.\d{1,3}){3}/.test(bare)
-    && !/\.(local|lan|home|internal|localdomain)(\/|$)/.test(bare);
-  const portHint = value.trim() === ''
-    ? `A local address gets port ${DEFAULT_SERVER_PORT} automatically; a domain name is tried over HTTPS first.`
-    : typedScheme || typedPort
-      ? 'Using the address exactly as you entered it.'
-      : looksPublic
-        ? `Trying https:// first, then port ${DEFAULT_SERVER_PORT}.`
-        : `Port ${DEFAULT_SERVER_PORT} will be added automatically.`;
+  // The hint is a tested function in lib/url.ts, not inline logic: it is read
+  // continuously while someone types, so it has to be right at every prefix.
+  const portHint = describeAddressGuess(value, DEFAULT_SERVER_PORT);
 
   return (
     <SetupStep>
@@ -67,10 +55,10 @@ export default function ServerStep() {
         value={value} onChangeText={setValue}
         style={[styles.input, { borderColor: tokens.input, color: tokens.foreground }]}
       />
-      {/* Says what normalizeServerURL is about to do, before it does it. "we
-          will add the rest" above is vague about WHICH rest — someone typing a
-          bare IP cannot tell whether they still need a port, and someone whose
-          server is on another port needs to know their :8080 is respected. */}
+      {/* "we will add the rest" above is vague about WHICH rest — someone
+          typing a bare IP cannot tell whether they still need a port, and
+          someone whose server is on another port needs to know their :8080 is
+          respected. describeAddressGuess answers both, at every prefix. */}
       <ThemedText type="small" themeColor="textFaint">
         {portHint}
       </ThemedText>
