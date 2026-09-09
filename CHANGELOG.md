@@ -32,11 +32,22 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Fixed
 
+- **A transient database error unpaired every phone.** `resolveDevice` gave the same answer for "no
+  such device" and for "the lookup failed", and both became `401` — which is the client's
+  instruction to delete its credential, because that is what a revoked device means. So a momentary
+  fault permanently unpaired every paired phone, each needing a human to re-pair it. Observed: a
+  156ms burst of `database disk image is malformed` produced 19 of these and a phone that had paired
+  seconds earlier deleted its token. A lookup that cannot run now answers `503`, which clients
+  already retry without touching what they have stored; a token no device owns still answers `401`.
+- Two client-side halves of the same problem: a 401 for a request that carried **no** token raised
+  "This device was disconnected" at someone who had never paired (screens fetch during onboarding,
+  before pairing), and a 401 already in flight when the user paired deleted the credential pairing
+  had just written. Auth loss is now attributed to the token that actually failed.
 - **The mobile app could not be pointed at a server on the internet.** Any address typed without a
   scheme became `http://<host>:3000`, so the reverse-proxy deployment in DEPLOYMENT.md — a domain on
   443 — was unreachable, and on iOS it was refused outright rather than merely failing (App
   Transport Security permits cleartext on the local network only). A domain is now tried over HTTPS
-  first and a LAN address over HTTP on 3000, and whichever answers is the one kept.
+  first and a LAN address over HTTP on the server's own port, and whichever answers is the one kept.
 - **Pointing the app at a different server kept showing the previous library.** The offline mirror
   and the delta-sync cursor were keyed by nothing, so the new server was asked for changes since a
   position in the *old* server's change log — it had nothing newer to report, and the app settled on

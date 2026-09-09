@@ -41,8 +41,10 @@ Phase 1 = single-owner personal backup.
   pads by `insets.top` any more. `place`/`tag` push inside the Gallery stack; Trash and Duplicates live
   in the Settings stack. Backup is a **page of Settings**, not a tab. Device tokens and pairing codes
   are never rendered once paired — see `lib/connection-view.ts`. Header actions are `Stack.Toolbar`
-  items, never `headerRight` — see §11 (2026-08-02, fifth pass) for why. **All of this is code-complete
-  but device-unverified.** Each tab group's list screen must be named `index.tsx`: a tab trigger names
+  items, never `headerRight` — see §11 (2026-08-02, fifth pass) for why. This was long recorded here as
+  device-unverified; **it no longer is** — on 2026-09-09 the client was driven on a simulator against
+  a real server over the LAN, paired by typed code, and browsed a real library. Each tab group's list
+  screen must be named `index.tsx`: a tab trigger names
   the *group*, so the Stack picks its own root, and expo-router's last sort tiebreaker is filename
   length — `search.tsx`/`albums.tsx` lost it to `tag.tsx`/`album.tsx` and both tabs opened a detail
   screen with no params. `lib/navigation.test.ts` pins this (see §11, 2026-08-12).
@@ -51,10 +53,20 @@ Phase 1 = single-owner personal backup.
   (favourite / video length / stack), a Vault-register settings vocabulary (mono values, cased mono
   section labels, inset hairlines), a backup progress card, and a visible list of backup failures
   that the engine had been tracking with no reader. Screen headers moved to the **kura** register
-  (Fraunces) and the photo viewer moved to kura too, which is what `design/registers.ts` said it
-  should have been all along. **Three of the sheet's decisions were deliberately refused** — the
+  and the photo viewer moved to kura too, which is what `design/registers.ts` said it should have
+  been all along. (That register carried Fraunces at the time; the typeface split was removed later
+  in the branch — see the one-family entry below — and the registers now govern rhythm and density
+  only.) **Three of the sheet's decisions were deliberately refused** — the
   custom floating tab bar (already deleted, see §11 2026-08-02), `headerLargeTitle` (already failed
   on device), and a floating selection action bar (selection lives in the native header). See §11.
+- **Every port Kuraki binds is declared once, in `internal/config/ports.go` (2026-09-09).** The
+  shipped default is `:39170`, not `:3000` — 3000 is the most contested port on a developer's
+  machine, and losing that race is silent (a container here published a port it never held, for 22
+  hours, while reporting healthy). The dev API, dev web, Metro and e2e each get their own number
+  (`39175`/`39176`/`39177`/`39178`) so a container, a hot-reload session, a bundler and the browser
+  suite can all be up at once. `make ports` generates `ports.env` and `mobile/src/design/ports.ts`;
+  `ports_test.go` holds every file that can read neither (Dockerfile, both Compose files, the
+  Caddyfile, `package.json`) to the same numbers. `KURAKI_ADDR=:3000` restores the old default.
 - **The three surfaces were connected to each other and driven (2026-09-09).** Server in Docker on a
   LAN address, the web UI in a browser against it, and the Expo client on a simulator paired to it —
   the first time the mobile↔server link has been exercised over a real network address rather than
