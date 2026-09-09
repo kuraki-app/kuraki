@@ -64,6 +64,9 @@ export async function claimPairing(baseURL: string, code: string, name: string):
       true,
     );
   }
+  // No token argument: claiming a pairing code is the one device call made
+  // without a credential, so a 401 here means the code was wrong, not that a
+  // device was disconnected.
   return unwrap<PairedDevice>(response, 'Pairing failed. Generate a new code and try again.');
 }
 
@@ -72,7 +75,7 @@ export async function getCaptureStatus(settings: CaptureSettings): Promise<Captu
   const response = await fetch(`${settings.baseURL}/api/capture/status`, {
     headers: { Authorization: `Bearer ${settings.deviceToken}` },
   });
-  return unwrap<CaptureStatus>(response, 'Could not check backup status.');
+  return unwrap<CaptureStatus>(response, 'Could not check backup status.', settings.deviceToken);
 }
 
 /**
@@ -247,7 +250,7 @@ async function sendChunk(
         return next;
       }
       if (response.status === 401) {
-        reportAuthLost();
+        reportAuthLost(settings.deviceToken);
         throw new CaptureAPIError('This device was disconnected. Re-pair it in Settings.', 401);
       }
       // A 409 with an Upload-Offset header means the server already advanced past
@@ -276,12 +279,14 @@ async function deviceRequest<T>(settings: CaptureSettings, path: string, init: R
     ...init,
     headers: { Authorization: `Bearer ${settings.deviceToken}`, ...init.headers },
   });
-  return unwrap<T>(response, `Request failed (${response.status})`);
+  return unwrap<T>(response, `Request failed (${response.status})`, settings.deviceToken);
 }
 
-async function unwrap<T>(response: Response, fallback: string): Promise<T> {
+// `token` is the credential the request carried, so a 401 can be attributed to
+// it rather than to whatever happens to be stored by the time it is handled.
+async function unwrap<T>(response: Response, fallback: string, token = ''): Promise<T> {
   if (response.status === 401) {
-    reportAuthLost();
+    reportAuthLost(token);
     throw new CaptureAPIError('This device was disconnected. Re-pair it in Settings.', 401);
   }
   if (!response.ok) {

@@ -142,7 +142,7 @@ export async function fetchLibrary(
     headers: { Authorization: `Bearer ${settings.deviceToken}` },
   });
   if (response.status === 401) {
-    reportAuthLost();
+    reportAuthLost(settings.deviceToken);
     throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
   }
   if (!response.ok) {
@@ -167,7 +167,7 @@ export async function setFavorite(settings: CaptureSettings, id: string, favorit
     body: JSON.stringify({ favorite }),
   });
   if (response.status === 401) {
-    reportAuthLost();
+    reportAuthLost(settings.deviceToken);
     throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
   }
   if (!response.ok) {
@@ -207,7 +207,7 @@ async function authedGet<T>(settings: CaptureSettings, path: string): Promise<T>
     headers: { Authorization: `Bearer ${settings.deviceToken}` },
   });
   if (response.status === 401) {
-    reportAuthLost();
+    reportAuthLost(settings.deviceToken);
     throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
   }
   if (!response.ok) {
@@ -226,7 +226,7 @@ async function authedMutate(settings: CaptureSettings, path: string, method: str
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   if (response.status === 401) {
-    reportAuthLost();
+    reportAuthLost(settings.deviceToken);
     throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
   }
   if (!response.ok) {
@@ -286,7 +286,7 @@ export async function createAlbum(settings: CaptureSettings, name: string): Prom
     body: JSON.stringify({ name }),
   });
   if (response.status === 401) {
-    reportAuthLost();
+    reportAuthLost(settings.deviceToken);
     throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
   }
   if (!response.ok) {
@@ -359,7 +359,7 @@ async function authedPost<T>(settings: CaptureSettings, path: string, body: unkn
     body: JSON.stringify(body),
   });
   if (response.status === 401) {
-    reportAuthLost();
+    reportAuthLost(settings.deviceToken);
     throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
   }
   if (!response.ok) throw new LibraryError(`Request failed (${response.status})`, response.status);
@@ -508,7 +508,7 @@ async function fetchAsset(settings: CaptureSettings, id: string): Promise<Librar
     headers: { Authorization: `Bearer ${settings.deviceToken}` },
   });
   if (response.status === 401) {
-    reportAuthLost();
+    reportAuthLost(settings.deviceToken);
     throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
   }
   if (response.status === 404) return null;
@@ -657,7 +657,7 @@ export async function flushMutationsQueue(settings: CaptureSettings): Promise<vo
         ...(call.body !== undefined ? { body: JSON.stringify(call.body) } : {}),
       });
       if (response.status === 401) {
-        reportAuthLost();
+        reportAuthLost(settings.deviceToken);
         return { status: 401, networkError: false };
       }
       return { status: response.status, networkError: false };

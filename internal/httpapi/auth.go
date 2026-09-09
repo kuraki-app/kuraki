@@ -213,7 +213,16 @@ func (d Deps) requirePrincipal(next http.Handler) http.Handler {
 		// captureDeviceKey — the capture-ingest handlers (captureStart/Append/
 		// Complete/Status) read deviceFromRequest(r) directly, so the device must
 		// remain in context under its original key for them to keep working.
-		if dev, ok := d.resolveDevice(r); ok {
+		dev, ok, lookupFailed := d.resolveDevice(r)
+		// A lookup that could not run is a server fault, not a verdict on the
+		// credential. Answering 401 would tell the phone to delete a token that
+		// may be perfectly valid; 503 tells it to try again, which the client
+		// already treats as retryable without touching what it has stored.
+		if lookupFailed {
+			writeError(w, http.StatusServiceUnavailable, "device_auth_unavailable")
+			return
+		}
+		if ok {
 			p := principal{OwnerID: dev.OwnerID, Kind: principalDevice, DeviceID: dev.ID}
 			ctx := context.WithValue(r.Context(), captureDeviceKey{}, dev)
 			ctx = context.WithValue(ctx, principalCtxKey{}, p)

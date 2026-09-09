@@ -68,8 +68,22 @@ export async function saveCaptureSettings(settings: CaptureSettings): Promise<vo
   }
 }
 
-/** clearDeviceToken removes the stored token (e.g. after the server revoked it). */
-export async function clearDeviceToken(): Promise<void> {
+/**
+ * clearDeviceToken removes the stored token, but only if it is still the one
+ * that failed.
+ *
+ * The compare is the whole point. A 401 clears the token asynchronously, and
+ * nothing ordered that against a re-pair storing a new one — so a rejection
+ * that was already in flight when the user paired deleted the credential
+ * pairing had just written, leaving a device the server considers active and an
+ * app that says "Not paired". Passing the token that actually failed makes the
+ * clear a no-op once it has been replaced.
+ */
+export async function clearDeviceToken(failed?: string): Promise<void> {
+  if (failed !== undefined) {
+    const current = await getSecret(deviceTokenKey);
+    if (current !== failed) return;
+  }
   await deleteSecret(deviceTokenKey);
 }
 
