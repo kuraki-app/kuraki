@@ -399,6 +399,8 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 
 | **Connecting the surfaces** (2026-09-09, `feat/mobile-contact-sheet-ui`): mobile address resolution now probes HTTPS-then-HTTP by the *kind* of host, so a proxied domain works as well as a LAN IP; the offline mirror and sync cursor reset when the library changes; iOS local-network usage and ATS moved into `app.json`; `make dev` proxies `/download` and takes its port from `KURAKI_PORT`, guarded by `devproxy_test.go` | ✅ done; paired and browsed on a simulator against a LAN server, full gates green |
 
+| **One port block, generated from Go** (2026-09-09): default moved off the contested `3000` to `39170`, with separate uncommon ports for the dev API, dev web, Metro and e2e so all of them run at once; declared in `internal/config/ports.go`, generated to `ports.env` + a mobile constant, and gated by `ports_test.go` for every file that cannot read them | ✅ done; five servers up simultaneously, 94/94 e2e green, mobile onboarding reads the generated port |
+
 | **Operator runbook** (2026-09-09): `RUNNING.md` now gives one verified path from local hot reload through a production-like source run to local Docker and private-behind-Caddy production, including port/config precedence, full environment reference, storage permissions, health/logging, imports, integrity checks, backup/restore, upgrades, account recovery, phone pairing, and troubleshooting | ✅ done; documentation links checked |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
@@ -427,6 +429,33 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `feat/mobile-contact-sheet-ui` (2026-09-09, third pass) — **Every port Kuraki binds now comes from
+  one Go constant, and they are chosen so everything can run at once.**
+  - **The default moved off 3000.** It is the most contested port on a developer's machine, and this
+    repo has already paid for that twice: a Next.js dev server owned it, so a Kuraki container
+    published a mapping it never held for 22 hours while reporting healthy, and `make dev` had no way
+    to coexist with a running container. Self-hosted photo servers avoid this deliberately (Immich
+    2283, PhotoPrism 2342). `39170` is in the unassigned user-port range, nowhere near the usual
+    suspects, and below 49152 where macOS starts allocating ephemeral ports.
+  - **Five numbers, not one, and that is the point.** `39170` server · `39175` dev API · `39176` dev
+    web · `39177` Metro (Expo's 8081 collides with any other RN project — that has already cost this
+    repo a debugging session) · `39178` e2e. A deployed container, a hot-reload session, a bundler
+    and a browser suite are four servers; sharing a number between any two decides which one you are
+    allowed to have running. Verified by having all five up simultaneously with 94/94 e2e green.
+  - **The Go server is the source of truth, mechanically.** `internal/config/ports.go` declares them;
+    `make ports` (folded into `make gen`/`check-gen`) generates `ports.env` and
+    `mobile/src/design/ports.ts`. `dev.sh` sources the env file, `vite.config.ts` parses it,
+    the mobile onboarding copy and LAN default read the TS constant. Files that cannot read either —
+    Dockerfile, both Compose files, the Caddyfile, `package.json`, the e2e fallbacks — carry the
+    literal and are held to it by `ports_test.go`, which also refuses duplicates and anything outside
+    the safe range. Confirmed the gate fails on a hand-edited `EXPOSE`.
+  - **The mobile URL tests now read the constant rather than pinning `3000`,** so moving the server's
+    port is one edit, not a hunt through assertions. That is the shape to keep: tests pin the *rule*
+    (a local address gets the server's own port, a domain gets HTTPS), not the number.
+  - **Not done, on purpose:** the running container on this machine was left on the old port. Its
+    library is at schema 24 and the tree carries migration 25, so recreating it would migrate a real
+    library — an operator's decision, not a side effect of a port change.
 
 - `feat/mobile-contact-sheet-ui` (2026-09-09, second pass) — **Ran RUNNING.md's local flows instead
   of reading them. The hot-reload workflow it documents first could not complete first-run setup.**

@@ -9,6 +9,18 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ## [Unreleased]
 
+### Changed
+
+- **Kuraki's default port is now `39170`, not `3000`.** 3000 is the most contested port on a
+  developer's machine, and losing that race is not loud: a container on this project's own machine
+  published a port it never actually held, for 22 hours, while reporting healthy. Every port Kuraki
+  binds is now declared once in `internal/config/ports.go` and generated outward — `39170` for the
+  server, `39175`/`39176` for the hot-reload API and web UI, `39177` for Metro (Expo's 8081 collides
+  with any other React Native project), `39178` for the browser suite. They differ from each other on
+  purpose, so a container, a dev session, a bundler and the e2e run can all be up at once. Existing
+  installs keep working by setting `KURAKI_ADDR=:3000`; a phone that stored a `:3000` address keeps
+  using it, since a stated port is always respected.
+
 ### Added
 
 - `KURAKI_PUBLIC_URL` — the address other devices should use to reach this server. The pairing screen

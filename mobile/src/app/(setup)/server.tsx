@@ -6,6 +6,7 @@ import { ThemedText } from '@/components/themed-text';
 import SetupStep from '@/components/setup-step';
 import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { resolveServerURL } from '@/lib/connection';
+import { DEFAULT_SERVER_PORT } from '@/design/ports';
 import { saveCaptureSettings, loadCaptureSettings } from '@/lib/settings';
 
 export default function ServerStep() {
@@ -37,7 +38,7 @@ export default function ServerStep() {
   }
 
   // Says what the address will be resolved to, before it is. The old hint
-  // promised ":3000 will be added" for everything, which was a lie for a domain
+  // promised a port would be added for everything, which was a lie for a domain
   // on a reverse proxy — and the person typing one had no way to tell that the
   // failure they then got was the app's assumption rather than their address.
   const bare = value.trim().replace(/^\w+:\/\//, '');
@@ -46,12 +47,12 @@ export default function ServerStep() {
   const looksPublic = bare.includes('.') && !/^\d{1,3}(\.\d{1,3}){3}/.test(bare)
     && !/\.(local|lan|home|internal|localdomain)(\/|$)/.test(bare);
   const portHint = value.trim() === ''
-    ? 'A local address gets port 3000 automatically; a domain name is tried over HTTPS first.'
+    ? `A local address gets port ${DEFAULT_SERVER_PORT} automatically; a domain name is tried over HTTPS first.`
     : typedScheme || typedPort
       ? 'Using the address exactly as you entered it.'
       : looksPublic
-        ? 'Trying https:// first, then port 3000.'
-        : 'Port 3000 will be added automatically.';
+        ? `Trying https:// first, then port ${DEFAULT_SERVER_PORT}.`
+        : `Port ${DEFAULT_SERVER_PORT} will be added automatically.`;
 
   return (
     <SetupStep>
@@ -68,7 +69,7 @@ export default function ServerStep() {
       />
       {/* Says what normalizeServerURL is about to do, before it does it. "we
           will add the rest" above is vague about WHICH rest — someone typing a
-          bare IP cannot tell whether they still need :3000, and someone whose
+          bare IP cannot tell whether they still need a port, and someone whose
           server is on another port needs to know their :8080 is respected. */}
       <ThemedText type="small" themeColor="textFaint">
         {portHint}

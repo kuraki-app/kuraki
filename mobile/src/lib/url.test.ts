@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_SERVER_PORT as PORT } from '@/design/ports';
 import { normalizeServerURL, serverHost, serverURLCandidates } from '@/lib/url';
+
+// The port is read from the generated constant, not written here: these tests
+// pin the *rule* (a local address gets the server's own port, a domain gets
+// HTTPS), and moving the server's port should not require editing assertions.
 
 describe('normalizeServerURL', () => {
   it('adds http and default port to a bare IP', () => {
-    expect(normalizeServerURL('192.168.1.40')).toBe('http://192.168.1.40:3000');
+    expect(normalizeServerURL('192.168.1.40')).toBe(`http://192.168.1.40:${PORT}`);
   });
   it('keeps an explicit port', () => {
     expect(normalizeServerURL('192.168.1.40:8080')).toBe('http://192.168.1.40:8080');
@@ -15,7 +20,7 @@ describe('normalizeServerURL', () => {
     expect(normalizeServerURL('http://host:3000/')).toBe('http://host:3000');
   });
   it('trims whitespace', () => {
-    expect(normalizeServerURL('  192.168.1.40  ')).toBe('http://192.168.1.40:3000');
+    expect(normalizeServerURL('  192.168.1.40  ')).toBe(`http://192.168.1.40:${PORT}`);
   });
   it('throws on empty', () => {
     expect(() => normalizeServerURL('   ')).toThrow();
@@ -27,7 +32,7 @@ describe('normalizeServerURL', () => {
     expect(normalizeServerURL('https://example.com/kuraki/')).toBe('https://example.com/kuraki');
   });
   it('drops a lone root slash', () => {
-    expect(normalizeServerURL('192.168.1.40/')).toBe('http://192.168.1.40:3000');
+    expect(normalizeServerURL('192.168.1.40/')).toBe(`http://192.168.1.40:${PORT}`);
   });
   it('throws on a scheme with no host', () => {
     expect(() => normalizeServerURL('http://')).toThrow();
@@ -45,17 +50,17 @@ describe('serverURLCandidates', () => {
 
   it('still assumes plain HTTP on 3000 for anything that can only be local', () => {
     for (const local of ['192.168.1.40', 'nas', 'kuraki.local', 'photos.home.lan', 'box.internal']) {
-      expect(serverURLCandidates(local)[0]).toBe(`http://${local}:3000`);
+      expect(serverURLCandidates(local)[0]).toBe(`http://${local}:${PORT}`);
     }
   });
 
   it('offers the other scheme second, so a guess that is wrong is recoverable', () => {
     expect(serverURLCandidates('photos.example.com')).toEqual([
       'https://photos.example.com',
-      'http://photos.example.com:3000',
+      `http://photos.example.com:${PORT}`,
     ]);
     expect(serverURLCandidates('192.168.1.40')).toEqual([
-      'http://192.168.1.40:3000',
+      `http://192.168.1.40:${PORT}`,
       'https://192.168.1.40',
     ]);
   });
@@ -65,7 +70,7 @@ describe('serverURLCandidates', () => {
     expect(serverURLCandidates('http://192.168.1.40:8080')).toEqual(['http://192.168.1.40:8080']);
   });
 
-  it('keeps a stated port on both schemes, and never overrides it with 3000', () => {
+  it('keeps a stated port on both schemes, and never overrides it with the default', () => {
     expect(serverURLCandidates('photos.example.com:8443')).toEqual([
       'http://photos.example.com:8443',
       'https://photos.example.com:8443',
@@ -75,12 +80,12 @@ describe('serverURLCandidates', () => {
   it('carries a reverse-proxy subpath onto every candidate', () => {
     expect(serverURLCandidates('photos.example.com/kuraki')).toEqual([
       'https://photos.example.com/kuraki',
-      'http://photos.example.com:3000/kuraki',
+      `http://photos.example.com:${PORT}/kuraki`,
     ]);
   });
 
   it('keeps an IPv6 literal bracketed', () => {
-    expect(serverURLCandidates('[fd00::1]')[0]).toBe('http://[fd00::1]:3000');
+    expect(serverURLCandidates('[fd00::1]')[0]).toBe(`http://[fd00::1]:${PORT}`);
   });
 });
 
@@ -91,7 +96,7 @@ describe('serverHost', () => {
   });
 
   it('keeps a port that distinguishes servers', () => {
-    expect(serverHost('http://192.168.1.20:3000')).toBe('192.168.1.20:3000');
+    expect(serverHost(`http://192.168.1.20:${PORT}`)).toBe(`192.168.1.20:${PORT}`);
   });
 
   it('drops a port that distinguishes nothing', () => {

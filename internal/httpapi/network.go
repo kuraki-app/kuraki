@@ -5,7 +5,10 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
+
+	"github.com/kuraki-app/kuraki/internal/config"
 
 	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
@@ -15,7 +18,7 @@ import (
 //
 // The pairing screen used to build its address from `location.origin`, which is
 // whatever the BROWSER typed — so an owner setting up on the same machine saw
-// `http://127.0.0.1:3000` and was told, correctly but unhelpfully, that a phone
+// `http://127.0.0.1:39170` and was told, correctly but unhelpfully, that a phone
 // using it would try to reach itself. The server is the only party that knows
 // its own interfaces, so it is the one that should answer.
 //
@@ -106,7 +109,7 @@ func (d Deps) serverAddresses(w http.ResponseWriter, r *http.Request) {
 	}
 	port := d.ListenPort
 	if port == "" {
-		port = "3000"
+		port = strconv.Itoa(config.DefaultServerPort)
 	}
 	writeJSON(w, http.StatusOK, apitypes.ServerAddresses{Addresses: lanAddresses(port)})
 }

@@ -58,7 +58,7 @@ func securityHeaders(secureCookies bool) func(http.Handler) http.Handler {
 			// Secure. Sending it unconditionally would be worse than not sending
 			// it: a browser that sees HSTS once refuses plain HTTP for that host
 			// for the max-age, and the default deployment of a self-hosted photo
-			// server is http://a-machine-on-my-LAN:3000. That would lock people
+			// server is http://a-machine-on-my-LAN:39170. That would lock people
 			// out of their own library with no way to undo it from the server
 			// side.
 			//

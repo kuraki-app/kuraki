@@ -169,7 +169,7 @@ its own staging space, and both are imported.
 
 | Field | Required | Notes |
 |---|---|---|
-| Server address | Yes | A bare address is enough, and it decides how the app connects: something that can only be local (an IP, a single name, `.local`/`.lan`/`.internal`) is tried over plain HTTP on port 3000, and a domain name is tried over HTTPS first. Whichever answers is the one kept, and a wrong address fails here rather than later. Typing a full `http://…`/`https://…` address overrides the guess |
+| Server address | Yes | A bare address is enough, and it decides how the app connects: something that can only be local (an IP, a single name, `.local`/`.lan`/`.internal`) is tried over plain HTTP on the server's own port, and a domain name is tried over HTTPS first. Whichever answers is the one kept, and a wrong address fails here rather than later. Typing a full `http://…`/`https://…` address overrides the guess |
 | Pairing code | Yes | Generated on the server, scanned as a QR or entered by hand |
 | Device name | Yes | How the device appears in your device list |
 | Photo library permission | Yes | Requested by the phone's own operating system |

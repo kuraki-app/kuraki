@@ -16,7 +16,7 @@ The app is gated on setup. On first launch it walks you through:
 
 1. **Welcome** — what Kuraki is.
 2. **Server address** — *required.* Enter your server's address; a bare LAN IP
-   like `192.168.1.40` is fine (it's normalized to `http://192.168.1.40:3000`).
+   like `192.168.1.40` is fine (it's normalized to `http://192.168.1.40:39170`).
    The app probes `GET /api/status` so a wrong address fails here, before pairing.
 3. **Pair** — scan the QR from the web app's **Devices** page (it fills in the
    address and claims a revocable device token for you), or paste a token by hand.

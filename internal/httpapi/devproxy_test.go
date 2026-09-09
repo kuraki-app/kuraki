@@ -11,8 +11,8 @@ import (
 // /api that is not the SPA itself.
 //
 // In production these never need listing: the binary embeds the UI and serves
-// both from one origin. `make dev` is the single mode where the UI (Vite, :5173)
-// and the server (:3000) are different origins, and there each of these has to
+// both from one origin. `make dev` is the single mode where the UI (Vite) and
+// the server are different origins, and there each of these has to
 // be named in web/vite.config.ts or it resolves against Vite instead.
 var devProxyPaths = []string{"/healthz", "/metrics", "/download"}
 
@@ -39,7 +39,7 @@ func TestDevProxyCoversEveryServerOwnedPath(t *testing.T) {
 
 // The port is chosen once, by scripts/dev.sh, and exported. Hardcoding it in
 // vite.config.ts as well meant `--addr :4000` moved the server and left the
-// proxy pointing at whatever else held 3000 — not an error, just another app's
+// proxy pointing at whatever else held the old number — not an error, just another app's
 // responses arriving in the Kuraki UI.
 func TestDevProxyPortFollowsTheServer(t *testing.T) {
 	config := readRepoFile(t, "web/vite.config.ts")
@@ -54,7 +54,7 @@ func TestDevProxyPortFollowsTheServer(t *testing.T) {
 
 // sameOriginWrites compares the Origin header against the Host the request
 // arrived on. Vite rewrites Host to the proxy target unless told not to, so with
-// the default the server saw Origin localhost:5173 at Host localhost:3000 and
+// the default the server saw the browser's Origin at the target's Host and
 // refused every POST, PATCH and DELETE with 403 cross_origin_request. Reads were
 // fine, so `make dev` looked healthy until the first write — and the first write
 // the workflow asks for is first-run setup, which could not complete.

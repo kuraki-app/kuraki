@@ -231,7 +231,7 @@ jobs:
             echo '## Install'
             echo
             echo '```sh'
-            echo "docker run -d -p 3000:3000 -v \"\$PWD/kuraki-data:/data\" ${IMAGE}:${GITHUB_REF_NAME}"
+            echo "docker run -d -p 39170:39170 -v \"\$PWD/kuraki-data:/data\" ${IMAGE}:${GITHUB_REF_NAME}"
             echo '```'
             echo
             echo 'Or download a binary below and verify it against `SHA256SUMS`.'

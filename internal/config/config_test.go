@@ -10,7 +10,10 @@ func TestDefault(t *testing.T) {
 	if c.DataDir != "./kuraki-data" {
 		t.Errorf("DataDir = %q", c.DataDir)
 	}
-	if c.Addr != ":3000" {
+	// The literal is deliberate: this is the one place that asserts what the
+	// shipped default *is*, so moving it has to be a deliberate edit here as
+	// well as in ports.go. ports_test.go checks everything downstream follows.
+	if c.Addr != ":39170" {
 		t.Errorf("Addr = %q", c.Addr)
 	}
 	if got, want := c.DBPath(), filepath.Join("./kuraki-data", "kuraki.db"); got != want {

@@ -21,7 +21,7 @@ services:
     # No `ports:` — Kuraki is only reachable through Caddy on the internal
     # network, not from the host or LAN directly.
     expose:
-      - "3000"
+      - "39170"
     volumes:
       - ./kuraki-data:/data
       # Keep automatic backups on a SEPARATE disk/mount from ./kuraki-data so a
@@ -29,7 +29,7 @@ services:
       - /mnt/backups/kuraki:/backups
     environment:
       KURAKI_DATA_DIR: /data
-      KURAKI_ADDR: ":3000"
+      KURAKI_ADDR: ":39170"
       # Behind TLS: send the session cookie only over HTTPS.
       KURAKI_SECURE_COOKIES: "1"
       # Trust the proxy's X-Forwarded-For so per-IP login/pairing rate limits key

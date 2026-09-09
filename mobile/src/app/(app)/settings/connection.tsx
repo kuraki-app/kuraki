@@ -10,6 +10,7 @@ import { connectionView, showsCodeInput } from '@/lib/connection-view';
 import { flushFavorites } from '@/lib/library-api';
 import { clearAuthLost, isAuthLost, onAuthLost } from '@/lib/session';
 import { loadCaptureSettings, saveCaptureSettings } from '@/lib/settings';
+import { DEFAULT_SERVER_PORT } from '@/design/ports';
 import { normalizeServerURL } from '@/lib/url';
 
 function hostOf(url: string): string {
@@ -92,7 +93,8 @@ export default function ConnectionSettings() {
   async function commitAddress() {
     const s = await loadCaptureSettings();
     // Resolve before storing: a typed domain is HTTPS on 443 and a typed LAN
-    // address is HTTP on 3000, and only a probe can tell which one this is. A
+    // address is HTTP on the server's own port, and only a probe can tell which
+    // one this is. A
     // resolved address is known-reachable, so the reconnect below needs no
     // second probe; nothing answering leaves the stored address alone rather
     // than overwriting a working one with a guess.
@@ -153,7 +155,7 @@ export default function ConnectionSettings() {
                 setBaseURL(t);
                 setSaved(false);
               }}
-              placeholder="http://192.168.1.20:3000"
+              placeholder={`http://192.168.1.20:${DEFAULT_SERVER_PORT}`}
               placeholderTextColor={tokens.textFaint}
               style={[styles.input, { borderColor: tokens.input, color: tokens.foreground }]}
               value={baseURL}

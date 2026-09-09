@@ -21,8 +21,8 @@ make check        # fmt + vet + test — run before every commit
 make test         # go test -race ./...
 make build        # pure-Go binary -> ./bin/kuraki (CGO_ENABLED=0)
 make build-vips   # libvips backend (needs libvips-dev + pkg-config; -tags vips)
-make dev          # API :3000 + Vite UI :5173, hot reload (scripts/dev.sh) — open :5173
-make start        # build web + binary, one production-like process on :3000
+make dev          # API :39175 + Vite UI :39176, hot reload (scripts/dev.sh) — open :39176
+make start        # build web + binary, one production-like process on :39170
 make e2e          # web + build + Playwright against a real seeded server (see below)
 make gen          # regenerate OpenAPI contract + web/mobile TS types (see below)
 make check-gen    # what CI runs: gen, then fail if the committed artifacts moved
@@ -95,7 +95,7 @@ Four things about this loop bite repeatedly:
 
 **CLI: `cmd/kuraki`** (cobra; `main.go` plus `migrate.go`) — `serve` / `import` / `verify` / `backup` / `restore` / `passwd` / `useradd` / `userlist` / `healthcheck` / `version`, and `migrate immich` + `migrate status` for pulling in another server's library. `passwd` resets a password offline and is the recovery path when locked out of the web UI; `healthcheck` is the container's HEALTHCHECK probe.
 
-**Runtime shape in Docker:** one container, one process, one origin. `scripts/docker-entrypoint.sh` `exec`s `kuraki serve` on `:3000`, which serves the API, media, `/healthz`, `/metrics`, `/download/*`, and the embedded SvelteKit UI (including first-run setup) — all from a single origin. The UI boots under the strict CSP via a per-request script nonce (`spaHandler`/`serveSPADocument` in `internal/httpapi`); there is no in-container Caddy. Any non-`serve` argument passes straight through to the CLI, which is why `docker compose exec kuraki kuraki import …` still works. For internet exposure, front the container with the HTTPS reverse proxy in `deploy/` (which proxies to `:3000`).
+**Runtime shape in Docker:** one container, one process, one origin. `scripts/docker-entrypoint.sh` `exec`s `kuraki serve` on `:39170`, which serves the API, media, `/healthz`, `/metrics`, `/download/*`, and the embedded SvelteKit UI (including first-run setup) — all from a single origin. The UI boots under the strict CSP via a per-request script nonce (`spaHandler`/`serveSPADocument` in `internal/httpapi`); there is no in-container Caddy. Any non-`serve` argument passes straight through to the CLI, which is why `docker compose exec kuraki kuraki import …` still works. For internet exposure, front the container with the HTTPS reverse proxy in `deploy/` (which proxies to `:39170`).
 
 ## Invariants (violating these is a bug)
 
@@ -112,7 +112,7 @@ Four things about this loop bite repeatedly:
 
 Default build is `CGO_ENABLED=0` pure-Go; `-tags vips` (CGO on) adds the libvips backend for broader image decoding (HEIC/AVIF/etc.). **libvips is not installed on this dev machine; ffmpeg is** — use Docker or install `libvips-dev` for the vips build. The Docker image bundles libvips + ffmpeg + tesseract.
 
-Config is zero-config with `KURAKI_*` env overrides (`internal/config`; precedence defaults < env < flags). Full table in README; the ones that change behavior most: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`), `KURAKI_TRASH_RETENTION_DAYS` (`30`), `KURAKI_THUMBNAIL_SIZE` (`512`), `KURAKI_OCR` (`off`), `KURAKI_SECURE_COOKIES` (`off`), `KURAKI_TRUST_PROXY` (`off` — trusting `X-Forwarded-For` when *not* behind a proxy silently weakens the login rate limit), `KURAKI_METRICS_TOKEN`, `KURAKI_BACKUP_DIR`/`_INTERVAL_HOURS`/`_KEEP` (unattended backups), `KURAKI_ANDROID_APK`.
+Config is zero-config with `KURAKI_*` env overrides (`internal/config`; precedence defaults < env < flags). Full table in README; the ones that change behavior most: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`), `KURAKI_TRASH_RETENTION_DAYS` (`30`), `KURAKI_THUMBNAIL_SIZE` (`512`), `KURAKI_OCR` (`off`), `KURAKI_SECURE_COOKIES` (`off`), `KURAKI_TRUST_PROXY` (`off` — trusting `X-Forwarded-For` when *not* behind a proxy silently weakens the login rate limit), `KURAKI_METRICS_TOKEN`, `KURAKI_BACKUP_DIR`/`_INTERVAL_HOURS`/`_KEEP` (unattended backups), `KURAKI_ANDROID_APK`.
 
 ## Conventions
 

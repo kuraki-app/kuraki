@@ -1,13 +1,36 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, type ProxyOptions } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 
-// The API port is chosen by scripts/dev.sh and exported as KURAKI_PORT, so the
-// server and this proxy cannot drift apart. Hardcoding 3000 in both meant
-// `--addr :4000` moved the server and left the proxy pointing at whatever else
-// was on 3000 — which on a machine running another dev server is not an error,
-// just the wrong app's responses appearing in the Kuraki UI.
-const apiPort = process.env.KURAKI_PORT ?? '3000';
+// Ports come from ports.env, which `make ports` generates from
+// internal/config/ports.go — the Go server owns the numbers. scripts/dev.sh
+// exports them too, and the environment wins so `KURAKI_PORT=… npm run dev`
+// still works; the file is the fallback for running Vite directly.
+//
+// Hardcoding the port here as well as in dev.sh meant moving one left the other
+// pointing at whatever else held the old number — which, on a machine running
+// another dev server, is not an error, just the wrong app's responses appearing
+// in the Kuraki UI.
+function portsFromFile(): Record<string, string> {
+  try {
+    const body = readFileSync(fileURLToPath(new URL('../ports.env', import.meta.url)), 'utf8');
+    return Object.fromEntries(
+      body
+        .split('\n')
+        .filter((line) => line && !line.startsWith('#'))
+        .map((line) => line.split('=') as [string, string])
+    );
+  } catch {
+    return {};
+  }
+}
+
+const ports = portsFromFile();
+const apiPort = process.env.KURAKI_PORT ?? ports.KURAKI_PORT ?? '39175';
+const webPort = Number(process.env.KURAKI_WEB_PORT ?? ports.KURAKI_WEB_PORT ?? '39176');
 const api = `http://localhost:${apiPort}`;
 
 /**
@@ -43,6 +66,11 @@ export default defineConfig({
   // SvelteKit instead of the server and 404'd in dev only — the one mode where
   // the two are not the same origin.
   server: {
+    // Not Vite's 5173: that collides with every other Vite project on the
+    // machine, and the point of this block is that a Kuraki dev session can run
+    // beside anything else without either of them moving.
+    port: webPort,
+    strictPort: true,
     proxy: {
       '/api': toAPI,
       '/healthz': toAPI,

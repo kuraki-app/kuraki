@@ -3,29 +3,43 @@
 # dev.sh — run Kuraki's backend and frontend as SEPARATE processes for local
 # development, with hot-reloading.
 #
-#   • Go API server              -> http://localhost:$KURAKI_PORT  (serves /api, media)
-#   • Vite dev server (SvelteKit) -> http://localhost:5173          (open THIS one)
+#   • Go API server              -> http://localhost:$KURAKI_PORT      (serves /api, media)
+#   • Vite dev server (SvelteKit) -> http://localhost:$KURAKI_WEB_PORT  (open THIS one)
 #
 # Vite proxies the server-owned paths to the Go server (see web/vite.config.ts),
 # so the UI hot-reloads on save while talking to the real backend. Both
 # processes stop together on Ctrl-C.
 #
-# The API port is KURAKI_PORT (default 3000) and this script is the only place
-# it is chosen: it is exported so web/vite.config.ts proxies to the same number.
-# Passing `--addr` directly would move the server without moving the proxy, and
-# the UI would then quietly talk to whatever else is on 3000.
+# Both ports come from ports.env (generated from internal/config/ports.go) and
+# are exported, so web/vite.config.ts proxies to the same number this script
+# started the server on. Passing `--addr` directly would move the server without
+# moving the proxy, and the UI would then quietly talk to whatever else is there.
+#
+# They are deliberately NOT the server's shipped default: a hot-reload session
+# has to be able to run beside a container already serving the real library.
 #
 # For a single production-like process instead (built UI embedded in one binary
 # on one port), use scripts/start.sh.
 #
-# Usage:  ./scripts/dev.sh            (API on 3000)
+# Usage:  ./scripts/dev.sh
 #         KURAKI_PORT=4000 ./scripts/dev.sh
 # Any arguments are forwarded to `kuraki serve` (e.g. --data-dir …).
 set -euo pipefail
 
-# One source of truth for the API port, exported so Vite's proxy reads the same
-# value (web/vite.config.ts). Changing it here moves both halves together.
-export KURAKI_PORT="${KURAKI_PORT:-3000}"
+# Ports come from ports.env, which `make ports` generates from
+# internal/config/ports.go — the Go server owns the numbers, everything else
+# reads them. Sourced before ROOT is computed, so resolve the path directly.
+# Existing environment wins, so `KURAKI_PORT=4000 ./scripts/dev.sh` still works.
+_ports="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/ports.env"
+if [ -f "$_ports" ]; then
+  while IFS='=' read -r _k _v; do
+    case "$_k" in ''|\#*) continue ;; esac
+    # `-v` so anything already exported on the command line takes precedence.
+    if [ -z "${!_k-}" ]; then export "$_k=$_v"; fi
+  done < "$_ports"
+fi
+export KURAKI_PORT="${KURAKI_PORT:-39175}"
+export KURAKI_WEB_PORT="${KURAKI_WEB_PORT:-39176}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -73,7 +87,7 @@ for arg in "$@"; do
   case "$arg" in
     --addr|--addr=*)
       echo "Use KURAKI_PORT instead of --addr here, so Vite's proxy moves with the server:" >&2
-      echo "  KURAKI_PORT=4000 ./scripts/dev.sh" >&2
+      echo "  KURAKI_PORT=39185 ./scripts/dev.sh" >&2
       exit 1
       ;;
   esac
@@ -86,7 +100,7 @@ done
 # proxy keeps working and serves that other app's responses into the Kuraki UI.
 if holder="$(lsof -nP -iTCP:"$KURAKI_PORT" -sTCP:LISTEN 2>/dev/null | awk 'NR==2 {print $1" (pid "$2")"}')" && [ -n "$holder" ]; then
   echo "Port $KURAKI_PORT is already in use by $holder." >&2
-  echo "Stop it, or run:  KURAKI_PORT=4000 ./scripts/dev.sh" >&2
+  echo "Stop it, or pick another:  KURAKI_PORT=39185 ./scripts/dev.sh" >&2
   exit 1
 fi
 
@@ -94,13 +108,13 @@ echo "==> Starting Go API server on :$KURAKI_PORT…"
 go run ./cmd/kuraki serve --addr ":$KURAKI_PORT" "$@" &
 api_pid=$!
 
-echo "==> Starting Vite dev server on :5173…"
+echo "==> Starting Vite dev server on :$KURAKI_WEB_PORT…"
 (cd web && npm run dev) &
 ui_pid=$!
 
 echo ""
 echo "  Backend : http://localhost:$KURAKI_PORT"
-echo "  Frontend: http://localhost:5173   <- open this one"
+echo "  Frontend: http://localhost:$KURAKI_WEB_PORT   <- open this one"
 echo "  Press Ctrl-C to stop both."
 echo ""
 

@@ -19,7 +19,7 @@ type Config struct {
 	// derivatives, trash, and pre-migration snapshots all live under it.
 	DataDir string
 
-	// Addr is the HTTP listen address, e.g. ":3000".
+	// Addr is the HTTP listen address, e.g. ":39170" (see ports.go).
 	Addr string
 
 	// TrashRetentionDays is how long soft-deleted items stay before purge.
@@ -69,7 +69,7 @@ type Config struct {
 	BackupKeep int
 
 	// PublicURL is the address other devices should use to reach this server,
-	// e.g. "https://photos.example.com" or "http://192.168.1.20:3000"
+	// e.g. "https://photos.example.com" or "http://192.168.1.20:39170"
 	// (KURAKI_PUBLIC_URL). Empty (the default) makes the pairing screen derive
 	// candidates from the machine's own network interfaces, which is right for
 	// a bare-metal install and wrong for a container or a reverse proxy: what
@@ -87,7 +87,7 @@ type Config struct {
 func Default() Config {
 	return Config{
 		DataDir:             "./kuraki-data",
-		Addr:                ":3000",
+		Addr:                DefaultAddr(),
 		TrashRetentionDays:  30,
 		ChangeLogKeep:       100000,
 		ThumbnailSize:       512,

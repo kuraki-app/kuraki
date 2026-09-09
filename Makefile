@@ -35,7 +35,7 @@ start: ## Build web + binary and run one production-like server (scripts/start.s
 	./scripts/start.sh
 
 .PHONY: dev
-dev: ## Run API (:3000) + Vite UI (:5173) separately with hot reload (scripts/dev.sh)
+dev: ## Run the API + Vite UI separately with hot reload (ports in ports.env)
 	./scripts/dev.sh
 
 .PHONY: web
@@ -44,7 +44,7 @@ web: ## Build SvelteKit UI into embedded assets
 
 .PHONY: e2e
 e2e: web build ## Browser end-to-end suite (Playwright) against a real seeded server
-	cd web && npm run test:e2e
+	set -a; . ./ports.env; set +a; cd web && npm run test:e2e
 
 .PHONY: test
 test: ## Run tests with the race detector
@@ -99,10 +99,15 @@ client-types: ## Regenerate web + mobile TS types from the contract
 	npx -y openapi-typescript@$(OAPI_TS_VER) internal/httpapi/apispec/openapi.json -o web/src/lib/api.gen.ts
 	npx -y openapi-typescript@$(OAPI_TS_VER) internal/httpapi/apispec/openapi.json -o mobile/src/lib/api.gen.ts
 
-.PHONY: gen
-gen: openapi client-types ## Regenerate the contract and all client types
+.PHONY: ports
+ports: ## Regenerate ports.env + the mobile port constant from internal/config/ports.go
+	go run internal/config/gen_ports.go
 
-GEN_ARTIFACTS := internal/httpapi/apispec/openapi.json web/src/lib/api.gen.ts mobile/src/lib/api.gen.ts
+.PHONY: gen
+gen: openapi client-types ports ## Regenerate the contract, client types and ports
+
+GEN_ARTIFACTS := internal/httpapi/apispec/openapi.json web/src/lib/api.gen.ts mobile/src/lib/api.gen.ts \
+	ports.env mobile/src/design/ports.ts
 
 .PHONY: check-gen
 check-gen: gen ## Fail if the committed contract/client types are stale (CI gate)

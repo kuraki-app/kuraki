@@ -14,7 +14,7 @@
 # The web stage compiles the SvelteKit UI into internal/httpapi/assets before the
 # Go build embeds it.
 #
-# The runtime image runs ONE process — `kuraki serve` on :3000 — which serves
+# The runtime image runs ONE process — `kuraki serve` on :39170 — which serves
 # the API, media, AND the embedded SvelteKit UI (including first-run setup) from
 # a single origin. See scripts/docker-entrypoint.sh. For internet exposure with
 # automatic HTTPS, front this with the reverse proxy in deploy/ (DEPLOYMENT.md).
@@ -84,13 +84,15 @@ USER kuraki
 
 VOLUME ["/data"]
 ENV KURAKI_DATA_DIR=/data \
-    KURAKI_ADDR=:3000 \
+    KURAKI_ADDR=:39170 \
     KURAKI_ANDROID_APK=/opt/kuraki/kuraki-android.apk
-# 3000 = Go server: API + media + embedded UI (single origin).
-EXPOSE 3000
+# 39170 = Go server: API + media + embedded UI (single origin). Not 3000: that
+# is the most contested port on a developer's machine, and a published mapping
+# that loses a race to another process fails silently. See internal/config/ports.go.
+EXPOSE 39170
 
 # Self-probe the API via the kuraki binary — no curl/wget needed in the image.
-# If the API is down the UI is useless too, so probing :3000 covers both.
+# If the API is down the UI is useless too, so probing :39170 covers both.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD ["kuraki", "healthcheck"]
 

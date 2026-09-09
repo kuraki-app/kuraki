@@ -1,3 +1,5 @@
+import { DEFAULT_SERVER_PORT } from '@/design/ports';
+
 // normalizeServerURL turns operator input (often a bare LAN IP) into a usable
 // origin. A bare host gets a scheme and, on a local network, Kuraki's default
 // :3000; an explicit scheme is respected and left portless. A meaningful path
@@ -78,11 +80,11 @@ export function serverURLCandidates(input: string): string[] {
   // A name that cannot resolve on the public internet is a LAN server: HTTP on
   // Kuraki's own port. HTTPS second, for a LAN server someone fronted with a
   // certificate anyway.
-  if (isLocalHostname(url.hostname)) return [at('http:', '3000'), at('https:')];
+  if (isLocalHostname(url.hostname)) return [at('http:', DEFAULT_SERVER_PORT), at('https:')];
 
   // A public-looking domain: HTTPS on 443, the shape DEPLOYMENT.md produces.
-  // Plain HTTP on :3000 second, for a server exposed without a proxy.
-  return [at('https:'), at('http:', '3000')];
+  // Plain HTTP on the server's own port second, for one exposed without a proxy.
+  return [at('https:'), at('http:', DEFAULT_SERVER_PORT)];
 }
 
 /**

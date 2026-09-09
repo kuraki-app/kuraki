@@ -318,15 +318,15 @@ configuration, backups, upgrades, and troubleshooting, see
 **[RUNNING.md](RUNNING.md)**.
 
 ```sh
-./scripts/start.sh   # build the UI + binary, run ONE server on :3000 (production-like)
-./scripts/dev.sh     # run API (:3000) + Vite UI (:5173) SEPARATELY with hot reload
+./scripts/start.sh   # build the UI + binary, run ONE server on :39170 (production-like)
+./scripts/dev.sh     # run API + Vite UI SEPARATELY with hot reload (ports.env)
 ```
 
 - **`scripts/start.sh`** (aka `make start`) compiles the SvelteKit UI into the Go binary and runs
-  a single process — the same way it runs in production. Open <http://localhost:3000>.
+  a single process — the same way it runs in production. Open <http://localhost:39170>.
 - **`scripts/dev.sh`** (aka `make dev`) runs the backend and frontend as two processes so the UI
   hot-reloads on save; Vite proxies `/api`, `/healthz`, `/metrics` and `/download` to the Go server.
-  Open <http://localhost:5173>.
+  Open <http://localhost:39176>.
 
 Both forward extra arguments to `kuraki serve` (e.g. `--data-dir …`). To move the API port in dev,
 set `KURAKI_PORT` rather than passing `--addr` — `dev.sh` exports it so Vite's proxy follows the
@@ -339,7 +339,7 @@ KURAKI_PORT=4000 ./scripts/dev.sh
 ### Deploy with Docker
 
 ```sh
-docker compose up -d                                   # simple local host on :3000
+docker compose up -d                                   # simple local host on :39170
 docker compose -f deploy/docker-compose.caddy.yml up -d # production: automatic HTTPS via Caddy
 ```
 

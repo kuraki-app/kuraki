@@ -2,7 +2,10 @@ import { defineConfig, devices } from '@playwright/test';
 
 // The port is shared with e2e/server.mjs through the environment, not an import
 // — importing that module would start a server.
-const PORT = Number(process.env.KURAKI_E2E_PORT ?? 3456);
+// Fallback matches config.E2EPort (internal/config/ports.go), gated by
+// ports_test.go. `make e2e` sources ports.env, so this is only for a bare
+// `npx playwright test`.
+const PORT = Number(process.env.KURAKI_E2E_PORT ?? 39178);
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({

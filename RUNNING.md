@@ -13,14 +13,28 @@ For the shorter security-focused deployment reference, see
 
 | Use case | Command | Open in a browser |
 |---|---|---|
-| Web development with hot reload | `./scripts/dev.sh` | `http://localhost:5173` |
-| Production-like run from source | `./scripts/start.sh` | `http://localhost:3000` |
-| Local Docker from this checkout | `docker compose up -d --build` | `http://localhost:3000` |
+| Web development with hot reload | `./scripts/dev.sh` | `http://localhost:39176` |
+| Production-like run from source | `./scripts/start.sh` | `http://localhost:39170` |
+| Local Docker from this checkout | `docker compose up -d --build` | `http://localhost:39170` |
 | Internet production with Docker and HTTPS | `docker compose -f deploy/docker-compose.caddy.yml up -d` | Your HTTPS domain |
 
-The Go server defaults to `:3000`. A leading colon means it listens on all
-interfaces, not only localhost. The hot-reload web server uses `:5173` and
-proxies server-owned paths to the Go server.
+The Go server defaults to `:39170`. A leading colon means it listens on all
+interfaces, not only localhost.
+
+Every port Kuraki binds is declared once, in `internal/config/ports.go`, and
+generated out to `ports.env` and a mobile constant by `make ports`. They are
+deliberately uncommon, and deliberately different from each other, so a
+container, a hot-reload session, a Metro bundler and the browser suite can all
+run at the same time — and so none of them fights the next project on your
+machine for port 3000:
+
+| Port | What |
+|---|---|
+| `39170` | The server itself: container, Compose publish, `start.sh`, and what a phone assumes for a LAN address typed without one |
+| `39175` | The Go API under `./scripts/dev.sh` |
+| `39176` | The Vite hot-reload web UI — the one to open while developing |
+| `39177` | The Metro bundler for the mobile client |
+| `39178` | The throwaway server `make e2e` boots |
 
 ## Local development
 
@@ -55,10 +69,10 @@ From the repository root:
 
 This starts two processes and stops both with `Ctrl-C`:
 
-- Go API/media server: `http://localhost:3000`
-- Vite/SvelteKit web UI: `http://localhost:5173`
+- Go API/media server: `http://localhost:39175`
+- Vite/SvelteKit web UI: `http://localhost:39176`
 
-Open `http://localhost:5173`, not port 3000, while developing the web UI. Vite
+Open `http://localhost:39176`, not the API port, while developing the web UI. Vite
 proxies `/api`, `/healthz`, `/metrics`, and `/download` to the Go process.
 
 Writes go through that proxy too. The server refuses browser cross-origin state
@@ -78,11 +92,11 @@ To use another API port, set `KURAKI_PORT`. Do not pass `--addr` to `dev.sh`,
 because the Vite proxy must move with the API:
 
 ```sh
-KURAKI_PORT=4000 ./scripts/dev.sh --data-dir ./kuraki-data-dev
+KURAKI_PORT=39185 ./scripts/dev.sh --data-dir ./kuraki-data-dev
 ```
 
-The UI remains at `http://localhost:5173`; its API proxy now points to port
-4000.
+The UI remains at `http://localhost:39176`; its API proxy now points to port
+39185.
 
 ### One production-like process from source
 
@@ -93,7 +107,7 @@ from one process:
 ./scripts/start.sh
 ```
 
-Open `http://localhost:3000`. Stop it with `Ctrl-C`.
+Open `http://localhost:39170`. Stop it with `Ctrl-C`.
 
 Use another port or data directory as follows:
 
@@ -133,24 +147,25 @@ APK path remain operator-controlled.
 On macOS, check whether a port is already occupied:
 
 ```sh
-lsof -nP -iTCP:3000 -sTCP:LISTEN
-lsof -nP -iTCP:5173 -sTCP:LISTEN
+lsof -nP -iTCP:39170 -sTCP:LISTEN   # a deployed/production-like server
+lsof -nP -iTCP:39175 -sTCP:LISTEN   # the dev API
+lsof -nP -iTCP:39176 -sTCP:LISTEN   # the dev web UI
 ```
 
 On Linux, use:
 
 ```sh
-ss -ltnp | grep -E ':(3000|5173)[[:space:]]'
+ss -ltnp | grep -E ':(39170|39175|39176)[[:space:]]'
 ```
 
 Once the server is running:
 
 ```sh
-curl -f http://127.0.0.1:3000/healthz
+curl -f http://127.0.0.1:39170/healthz
 ```
 
-If port 3000 is busy, use port 4000 in the commands above. To bind a source run
-only to the local machine, use `--addr 127.0.0.1:4000` instead of `:4000`.
+If a port is busy, pick another. To bind a source run only to the local
+machine, use `--addr 127.0.0.1:39185` instead of `:39185`.
 
 ### Run development checks
 
@@ -175,14 +190,14 @@ make e2e                             # browser tests against a real server
 
 ### Build and start this checkout
 
-The root Compose file builds the current checkout, publishes host port 3000,
+The root Compose file builds the current checkout, publishes host port 39170,
 and stores the library in the host directory `./kuraki-data`:
 
 ```sh
 docker compose up -d --build
 ```
 
-Open `http://localhost:3000` and create the first admin account.
+Open `http://localhost:39170` and create the first admin account.
 
 Useful lifecycle commands:
 
@@ -198,16 +213,16 @@ docker compose down
 uses a host bind mount, so the library remains in `./kuraki-data`. Still, treat
 that directory as irreplaceable data: do not delete it, and back it up.
 
-If host port 3000 is occupied, change only the host side of the mapping in
+If host port 39170 is occupied, change only the host side of the mapping in
 `docker-compose.yml`:
 
 ```yaml
 ports:
-  - "4000:3000"
+  - "39180:39170"
 ```
 
-Keep `KURAKI_ADDR: ":3000"` inside the container. Open
-`http://localhost:4000`, and set `KURAKI_PUBLIC_URL` to the externally reachable
+Keep `KURAKI_ADDR: ":39170"` inside the container. Open
+`http://localhost:39180`, and set `KURAKI_PUBLIC_URL` to the externally reachable
 address if a phone will pair with this server.
 
 ### Rebuild a local Docker image safely
@@ -340,7 +355,7 @@ thumbnails and search metadata. Protect the host, its disks, and its backups.
 | Environment variable | Default | Purpose |
 |---|---|---|
 | `KURAKI_DATA_DIR` | `./kuraki-data` (`/data` in Docker) | Database, originals, derivatives, trash, staging, and snapshots |
-| `KURAKI_ADDR` | `:3000` | HTTP listen address inside the process/container |
+| `KURAKI_ADDR` | `:39170` | HTTP listen address inside the process/container |
 | `KURAKI_PUBLIC_URL` | empty | Reachable browser/mobile URL, especially important in Docker or behind a proxy |
 | `KURAKI_TRASH_RETENTION_DAYS` | `30` | Days before trashed media is purged |
 | `KURAKI_CHANGELOG_KEEP` | `100000` | Delta-sync rows retained before an old client must resync |
@@ -364,7 +379,7 @@ the web UI cannot silently override an operator's deployment configuration.
 address reachable from the phone:
 
 ```yaml
-KURAKI_PUBLIC_URL: "http://192.168.1.20:3000"  # trusted LAN
+KURAKI_PUBLIC_URL: "http://192.168.1.20:39170"  # trusted LAN
 ```
 
 or:
@@ -557,8 +572,8 @@ volumes contain certificate state.
 ### `bind: address already in use`
 
 Another process owns the port. Stop that process or choose another port. For
-hot reload use `KURAKI_PORT=4000`; for a single source process use
-`--addr :4000`; for Docker change the host half of `4000:3000`.
+hot reload use `KURAKI_PORT=39185`; for a single source process use
+`--addr :39185`; for Docker change the host half of `39180:39170`.
 
 ### Container is healthy but the port does not answer
 
@@ -571,8 +586,8 @@ exits. The container keeps reporting healthy, because `HEALTHCHECK` runs
 Confirm with the host, not with Docker:
 
 ```sh
-lsof -nP -iTCP:3000 -sTCP:LISTEN     # macOS: expect Docker/OrbStack, not another app
-curl -f http://127.0.0.1:3000/healthz
+lsof -nP -iTCP:39170 -sTCP:LISTEN     # macOS: expect Docker/OrbStack, not another app
+curl -f http://127.0.0.1:39170/healthz
 docker exec kuraki kuraki healthcheck   # succeeds even while the mapping is broken
 ```
 
