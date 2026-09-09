@@ -294,6 +294,7 @@ kuraki/
 ├── deploy/                 # production compose: Caddy (auto-HTTPS) + Caddyfile
 ├── Dockerfile              # builds the -tags vips profile; runtime bundles libvips + ffmpeg + tesseract
 ├── docker-compose.yml      # simple one-command local host
+├── RUNNING.md              # local development + production Docker runbook
 ├── USER_GUIDE.md           # how Kuraki behaves, as flows — no code, no install detail
 ├── DEPLOYMENT.md           # production deployment & security guide
 ├── MIGRATING.md            # moving a library in from Immich or Google Photos
@@ -311,6 +312,10 @@ assets). For the full media pipeline you also need libvips and ffmpeg — or jus
 includes them.
 
 ### Run from source
+
+For the complete local and Docker production runbook, including ports,
+configuration, backups, upgrades, and troubleshooting, see
+**[RUNNING.md](RUNNING.md)**.
 
 ```sh
 ./scripts/start.sh   # build the UI + binary, run ONE server on :3000 (production-like)

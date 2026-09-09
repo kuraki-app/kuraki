@@ -399,6 +399,8 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 
 | **Connecting the surfaces** (2026-09-09, `feat/mobile-contact-sheet-ui`): mobile address resolution now probes HTTPS-then-HTTP by the *kind* of host, so a proxied domain works as well as a LAN IP; the offline mirror and sync cursor reset when the library changes; iOS local-network usage and ATS moved into `app.json`; `make dev` proxies `/download` and takes its port from `KURAKI_PORT`, guarded by `devproxy_test.go` | ✅ done; paired and browsed on a simulator against a LAN server, full gates green |
 
+| **Operator runbook** (2026-09-09): `RUNNING.md` now gives one verified path from local hot reload through a production-like source run to local Docker and private-behind-Caddy production, including port/config precedence, full environment reference, storage permissions, health/logging, imports, integrity checks, backup/restore, upgrades, account recovery, phone pairing, and troubleshooting | ✅ done; documentation links checked |
+
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
 
@@ -425,6 +427,50 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `feat/mobile-contact-sheet-ui` (2026-09-09, second pass) — **Ran RUNNING.md's local flows instead
+  of reading them. The hot-reload workflow it documents first could not complete first-run setup.**
+  - **`make dev` allowed reads and refused every write.** `sameOriginWrites` compares the Origin
+    header against the Host the request arrived on. Vite rewrites Host to the proxy target by
+    default, so the server saw Origin `localhost:5173` arriving at Host `localhost:3000` and answered
+    403 `cross_origin_request` to every POST, PATCH and DELETE. GETs are exempt, so the UI loaded,
+    rendered and looked healthy right up to the first write — and the first write the workflow asks
+    for is creating the owner account, so a fresh checkout could not get past the welcome screen.
+    Fixed in the proxy (`changeOrigin: false`) rather than in the check, because the check is a real
+    CSRF defence and is doing its job in production, where the UI is same-origin.
+    `devproxy_test.go` now pins it.
+  - **Diagnosis note, because reasoning got it wrong twice.** Vite's shorthand proxy rewrites Host to
+    the target and forwards the browser's Origin untouched — the opposite of raw http-proxy's
+    documented default. Neither a `configure`/`proxyReq` hook (the event never fired in Vite 6.4)
+    nor the `headers` option overrode it; only `changeOrigin: false` did. Proven with an echo server
+    behind a throwaway Vite proxy rather than argued from docs.
+  - **`--data-dir ./kuraki-data-dev`, which RUNNING.md recommends three times, was not gitignored.**
+    `.gitignore` had `/kuraki-data/` exactly. A development library is someone's photos plus a
+    SQLite database one `git add -A` away from a commit; the pattern is now `/kuraki-data*/`.
+  - **`start.sh --addr :4000` printed "Starting Kuraki on http://localhost:3000".** The banner was a
+    constant, and RUNNING.md documents that exact flag. It now parses the address it was given —
+    with an `if` rather than `&&`, because a failing test as the last command of a `case` branch
+    returns non-zero and `set -euo pipefail` would have turned the banner into an exit.
+  - **A container can report healthy while its published port answers nothing.** Found on this
+    machine: another process owned host 3000 when the container started, OrbStack never established
+    the forward, and never retried after that process exited — so `docker ps` advertised
+    `0.0.0.0:3000->3000/tcp` for 22 hours with nothing listening. `HEALTHCHECK` cannot see it: it
+    runs `kuraki healthcheck` inside the container and never crosses the mapping. RUNNING.md's
+    troubleshooting section now names the symptom and the host-side commands that prove it.
+  - **Verified working end to end:** first-run setup and the timeline through Vite on :5173 against
+    the Go server on a configurable port; the same library on the simulator, paired by typed code
+    over the LAN; and the one-process `start.sh` build serving SPA, API, `/healthz` and `/download`
+    from a single origin. The mirror reset from the previous pass was confirmed on device — the
+    previous library's albums were gone after re-pairing, though only after the app was relaunched,
+    since already-mounted screens keep their in-memory copy.
+
+- `feat/mobile-contact-sheet-ui` (2026-09-09) — **Added the missing end-to-end operator runbook.**
+  `RUNNING.md` distinguishes hot-reload (`:5173` UI + configurable Go API), a one-process source
+  build, local full-media Docker, and internet production where Kuraki stays private behind Caddy.
+  It records the real configuration precedence and every `KURAKI_*` setting, plus host-port mapping,
+  UID/GID 10001 mount permissions, public phone addresses, health/log commands, import/verify,
+  online portable backups, restore-to-an-empty-sibling discipline, upgrades, account recovery, and
+  failure diagnosis. README links the runbook. `scripts/check-docs-links.sh` passes.
 
 - `feat/mobile-contact-sheet-ui` (2026-09-09) — **Server, web and mobile pointed at each other over a
   real network for the first time. The link itself was sound; everything that decides *which*

@@ -17,8 +17,11 @@ docs/
 *.test
 *.out
 
-# Runtime data
-/kuraki-data/
+# Runtime data. The glob, not just /kuraki-data/: RUNNING.md tells people to
+# keep development libraries out of the way with --data-dir ./kuraki-data-dev,
+# and an un-ignored library is a directory of someone's photos plus a SQLite
+# database sitting one `git add -A` away from a commit.
+/kuraki-data*/
 *.db
 *.db-wal
 *.db-shm

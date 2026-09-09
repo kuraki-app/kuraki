@@ -52,6 +52,19 @@ func TestDevProxyPortFollowsTheServer(t *testing.T) {
 	}
 }
 
+// sameOriginWrites compares the Origin header against the Host the request
+// arrived on. Vite rewrites Host to the proxy target unless told not to, so with
+// the default the server saw Origin localhost:5173 at Host localhost:3000 and
+// refused every POST, PATCH and DELETE with 403 cross_origin_request. Reads were
+// fine, so `make dev` looked healthy until the first write — and the first write
+// the workflow asks for is first-run setup, which could not complete.
+func TestDevProxyKeepsTheBrowserHost(t *testing.T) {
+	config := readRepoFile(t, "web/vite.config.ts")
+	if !strings.Contains(config, "changeOrigin: false") {
+		t.Error("web/vite.config.ts must set changeOrigin: false, or sameOriginWrites rejects every write in `make dev`")
+	}
+}
+
 func readRepoFile(t *testing.T, rel string) string {
 	t.Helper()
 	body, err := os.ReadFile(filepath.Join("..", "..", rel))

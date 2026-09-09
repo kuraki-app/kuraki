@@ -36,6 +36,13 @@ line under `Unreleased` as part of the same change that introduces it.
 - iOS builds declared no `NSLocalNetworkUsageDescription`, which iOS 14+ requires to reach a server
   on the local network. It — and the App Transport Security posture — now come from `app.json`
   rather than from an untracked `ios/` directory.
+- **`make dev` could not complete first-run setup.** The server refuses browser cross-origin state
+  changes by comparing Origin against Host, and Vite rewrote Host to the proxy target — so every
+  POST, PATCH and DELETE came back 403 `cross_origin_request` while reads worked normally, making
+  the UI look healthy until the first write. The dev proxy now preserves the browser's Host.
+- `scripts/start.sh --addr :4000` announced `http://localhost:3000` regardless of the address given.
+- Development libraries created with `--data-dir ./kuraki-data-dev`, as the runbook suggests, were
+  not gitignored; the pattern now covers them.
 - `make dev` did not proxy `/download`, so the Devices page's Android APK link 404'd in dev; and the
   API port was hardcoded in both `scripts/dev.sh` and `web/vite.config.ts`, so moving one left the
   other pointing at whatever else held 3000. The port is now `KURAKI_PORT`, chosen once and
