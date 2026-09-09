@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/kuraki-app/kuraki/internal/backup"
+	"strconv"
+
 	"github.com/kuraki-app/kuraki/internal/config"
 	"github.com/kuraki-app/kuraki/internal/db"
 	"github.com/kuraki-app/kuraki/internal/duplicates"
@@ -728,7 +730,10 @@ func (a *App) Serve(ctx context.Context) error {
 		// The port half of the configured listen address, so the pairing screen
 		// can offer a URL a phone can actually route to rather than whatever the
 		// browser happened to be typed with.
-		ListenPort:     listenPort(booted.Addr),
+		ListenPort: listenPort(booted.Addr),
+		// Stated by the operator when interface detection cannot be right —
+		// in a container, or behind a reverse proxy.
+		PublicURL:      booted.PublicURL,
 		SecureCookies:  booted.SecureCookies,
 		TrustProxy:     booted.TrustProxy,
 		MetricsToken:   booted.MetricsToken,
@@ -771,11 +776,11 @@ func (a *App) Close() error {
 	return nil
 }
 
-// listenPort extracts the port from a listen address like ":3000" or
-// "127.0.0.1:3000", defaulting to 3000 when it cannot be parsed.
+// listenPort extracts the port from a listen address like ":39170" or
+// "127.0.0.1:39170", defaulting to the shipped port when it cannot be parsed.
 func listenPort(addr string) string {
 	if _, port, err := net.SplitHostPort(addr); err == nil && port != "" {
 		return port
 	}
-	return "3000"
+	return strconv.Itoa(config.DefaultServerPort)
 }

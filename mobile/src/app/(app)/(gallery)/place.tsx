@@ -76,6 +76,7 @@ export default function PlaceScreen() {
         settings={settings}
         loading={loading}
         onEndReached={() => void loadMore()}
+        hasMore={!!cursor}
         emptyMessage="No photos from this place yet."
       />
     </ThemedView>

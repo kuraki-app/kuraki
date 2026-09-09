@@ -1,8 +1,8 @@
 # Kuraki — one-command self-hosting (simple local host, plain HTTP).
 #
-#   docker compose up -d      # build + start, then open http://localhost:3000
+#   docker compose up -d      # build + start, then open http://localhost:39170
 #
-# One container, one process: `kuraki serve` on :3000 serves the API, media, and
+# One container, one process: `kuraki serve` on :39170 serves the API, media, and
 # the web UI (including first-run admin setup) from a single origin.
 #
 # Your photos live in ./kuraki-data (originals/, derivatives/, the
@@ -23,7 +23,9 @@ services:
     container_name: kuraki
     restart: unless-stopped
     ports:
-      - "3000:3000"   # Go server: API + media + web UI
+      # Host and container both 39170 — see internal/config/ports.go for why not
+      # 3000. Change only the left half if the host port is taken.
+      - "39170:39170"   # Go server: API + media + web UI
     volumes:
       - ./kuraki-data:/data
       # Optional: mount a folder Syncthing/rsync writes into, then run
@@ -31,4 +33,8 @@ services:
       # - ./inbox:/inbox:ro
     environment:
       KURAKI_DATA_DIR: /data
-      KURAKI_ADDR: ":3000"
+      KURAKI_ADDR: ":39170"
+      # The address a phone should connect to. A container can only see its own
+      # bridge interface, so it cannot work this out for itself — without this
+      # the Devices page falls back to whatever address your browser is using.
+      # KURAKI_PUBLIC_URL: "http://192.168.1.20:39170"

@@ -41,11 +41,48 @@ Phase 1 = single-owner personal backup.
   pads by `insets.top` any more. `place`/`tag` push inside the Gallery stack; Trash and Duplicates live
   in the Settings stack. Backup is a **page of Settings**, not a tab. Device tokens and pairing codes
   are never rendered once paired — see `lib/connection-view.ts`. Header actions are `Stack.Toolbar`
-  items, never `headerRight` — see §11 (2026-08-02, fifth pass) for why. **All of this is code-complete
-  but device-unverified.** Each tab group's list screen must be named `index.tsx`: a tab trigger names
+  items, never `headerRight` — see §11 (2026-08-02, fifth pass) for why. This was long recorded here as
+  device-unverified; **it no longer is** — on 2026-09-09 the client was driven on a simulator against
+  a real server over the LAN, paired by typed code, and browsed a real library. Each tab group's list
+  screen must be named `index.tsx`: a tab trigger names
   the *group*, so the Stack picks its own root, and expo-router's last sort tiebreaker is filename
   length — `search.tsx`/`albums.tsx` lost it to `tag.tsx`/`album.tsx` and both tabs opened a detail
   screen with no params. `lib/navigation.test.ts` pins this (see §11, 2026-08-12).
+- **Mobile design pass from an external contact sheet (2026-09-07, `feat/mobile-contact-sheet-ui`).**
+  The Expo client gained a memories rail above the timeline, counted day headings, grid tile badges
+  (favourite / video length / stack), a Vault-register settings vocabulary (mono values, cased mono
+  section labels, inset hairlines), a backup progress card, and a visible list of backup failures
+  that the engine had been tracking with no reader. Screen headers moved to the **kura** register
+  and the photo viewer moved to kura too, which is what `design/registers.ts` said it should have
+  been all along. (That register carried Fraunces at the time; the typeface split was removed later
+  in the branch — see the one-family entry below — and the registers now govern rhythm and density
+  only.) **Three of the sheet's decisions were deliberately refused** — the
+  custom floating tab bar (already deleted, see §11 2026-08-02), `headerLargeTitle` (already failed
+  on device), and a floating selection action bar (selection lives in the native header). See §11.
+- **Every port Kuraki binds is declared once, in `internal/config/ports.go` (2026-09-09).** The
+  shipped default is `:39170`, not `:3000` — 3000 is the most contested port on a developer's
+  machine, and losing that race is silent (a container here published a port it never held, for 22
+  hours, while reporting healthy). The dev API, dev web, Metro and e2e each get their own number
+  (`39175`/`39176`/`39177`/`39178`) so a container, a hot-reload session, a bundler and the browser
+  suite can all be up at once. `make ports` generates `ports.env` and `mobile/src/design/ports.ts`;
+  `ports_test.go` holds every file that can read neither (Dockerfile, both Compose files, the
+  Caddyfile, `package.json`) to the same numbers. `KURAKI_ADDR=:3000` restores the old default.
+- **The three surfaces were connected to each other and driven (2026-09-09).** Server in Docker on a
+  LAN address, the web UI in a browser against it, and the Expo client on a simulator paired to it —
+  the first time the mobile↔server link has been exercised over a real network address rather than
+  `localhost`. It works; four things around it did not. The app could not reach a server on the
+  internet at all (every scheme-less address became `http://host:3000`); repointing it at another
+  server kept serving the previous library from a mirror keyed by nothing; a malformed address in
+  Settings escaped as an unhandled rejection; and `make dev` proxied neither `/download` nor a port
+  anyone could move. See §11.
+- **The container was run and driven, not just built (2026-09-08).** CI builds the Docker image but
+  never starts it, and four defects had been living in that gap. Fixed on `feat/mobile-contact-sheet-ui`:
+  saved searches 500'd the moment one existed (`json.RawMessage` is a named type, so `database/sql`
+  would not scan TEXT into it — the web UI swallowed it and said "No saved searches yet");
+  `/api/login` and `/api/setup` returned `role: ""`; `/api/server-addresses` handed the pairing
+  screen the container's own bridge IP, which it then *prefilled over* the browser's origin and
+  dropped the loopback warning for; and govips logged ~10 unstructured stderr lines per image,
+  burying the import progress bar. `KURAKI_PUBLIC_URL` is new — see §11.
 - **A simulator IS available (2026-08-12).** Earlier entries below say "there is no simulator here";
   that was true when written. The current dev machine has Xcode and eight iOS simulators, so mobile
   work can finally be rendered. There is still no Android emulator, and no physical device.
@@ -109,7 +146,12 @@ Phase 1 = single-owner personal backup.
   Vitest covers the pure logic (URL normalizer, connection machine, mutation classifier).
 - **Server delta sync (2026-07-19, `feat/delta-sync`, Improvement B):** the delta feed
   (`GET /api/changes` session-mounted, `GET /api/capture/changes` device-mounted — same
-  `d.changes` handler via the `ownerID(r)` bridge) now serves a **completed** `change_log`:
+  `d.changes` handler via the `ownerID(r)` bridge)
+  **[CORRECTED 2026-09-07 — the device mount no longer exists. Improvement D collapsed the
+  `/api/capture/*` duplicates into one `requirePrincipal` tree; only `/api/capture/uploads`
+  and `/api/capture/status` remain device-only, and both clients read `GET /api/changes`.
+  Entries below naming `/api/capture/changes` or `/api/capture/assets/{id}` are history.]**
+  now serves a **completed** `change_log`:
   every asset mutation (favorite, edit, tag, album add/remove, import, trash/restore/purge,
   external-library scan, batch favorite/archive/hide, and batch `shift-time`) logs a change.
   `change_log` gained `owner_id` (migration `00020`,
@@ -199,7 +241,7 @@ internal/
   app/                 composition root — wires everything; owns server lifecycle + workers
   config/              zero-config defaults + KURAKI_* env resolution
   domain/              core entities — **NO I/O EVER**
-  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00014)
+  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00025)
   storage/             Storage interface + FS impl (write-once, atomic, traversal-safe)
   media/               Processor interface + purego.go fallback + vips.go tagged backend, ffmpeg, EXIF
   importer/            recursive import, BLAKE3 dedup, import_state resume, derivatives; Takeout + geocode
@@ -208,13 +250,23 @@ internal/
   migrate/immich/      read-only Immich REST client + migrate.Source implementation
   geo/                 offline reverse geocoding (embedded GeoNames cities/countries)
   queue/               background import queue: worker, retries/backoff, crash recovery, jobs
+  fts/                 the ONLY writer of the FTS5 indexes (prefix + trigram); ftsPlan routes queries
+  duplicates/          resumable all-library phash scan: LSH bands + union-find, persisted groups
+  stacks/              deterministic RAW+JPEG / Live-photo grouping
+  external/            index a folder in place (never copies); admin-gated, refuses paths in the data dir
   trash/               soft-delete, restore, retention purge
   verify/              integrity re-checksum
+  backup/              portable archive (manifest v2) + staged, validated restore
+  serversettings/      owner-writable settings catalog (DB half of config.Store; migration 00022)
   auth/                argon2id password hashes + session IDs
-  httpapi/             chi router, handlers, middleware; assets/ = embedded UI
+  httpapi/             chi router, handlers, middleware; assets/ = embedded UI (generated, committed),
+                       apitypes/ = wire DTOs, apispec/ = generated OpenAPI
   ocr/                 opt-in local text recognition (tesseract via exec; feature-detected)
-web/                   SvelteKit SPA (routes: timeline/search/favorites/albums/memories/places/duplicates/stats/devices/activity/archive/hidden/trash)
-mobile/                Expo / React Native iOS+Android client (Capture backup + Library browse/search/filter tabs)
+web/                   SvelteKit SPA (routes: timeline [search lives in its filter bar], albums, tags,
+                       favorites, memories, places, archive, hidden, duplicates, trash,
+                       settings/{overview,account,appearance,library,devices,activity,server,users})
+mobile/                Expo / React Native iOS+Android client (NativeTabs; Backup is a page of Settings)
+USER_GUIDE.md          behavioural contract from outside the code: every user flow + the data it needs
 docs/                  PRD/BRD + local plans — gitignored, local only
 ```
 
@@ -283,6 +335,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Mobile local notifications (backup finished/failed, disconnected) for iOS + Android, guarded so Expo Go still runs | ✅ code-complete, needs a dev build to fire |
 | Mobile UI defects: 48pt type scale, duplicate headings, "Undated" grouping, media-library deprecation warnings | ✅ fixed |
 | One header for every screen (`components/screen-header.tsx`); per-tab route-group stacks; seven hand-rolled bars and all manual `insets.top` deleted | ✅ code-complete, not device-verified |
+| Mobile contact-sheet design pass: memories rail, tile badges (favourite/video length/stack), counted day headings, Vault settings rows, backup progress card + visible failures, Kura headers | ✅ code-complete |
 | Large-title overlap on all six settings pages (ScrollView was not the screen's direct child) | ✅ fixed |
 | Navigation theme built from Kuraki tokens (was react-navigation's stock white/black) | ✅ fixed |
 | Photo viewer: tap-to-toggle chrome, corner close/favorite icons, bottom details sheet (filename, date, size, place, tags) | ✅ code-complete, not device-verified |
@@ -352,6 +405,16 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | **Release pipeline** (`feat/release-pipeline`): `release.yml` is the only workflow that publishes — four archived binaries + `SHA256SUMS` + a GitHub Release, and a **multi-arch** image tagged both `:vX.Y.Z` and `:latest`, built on native amd64/arm64 runners and joined by digest; `ci.yml`'s docker job demoted to build-only; Dockerfile comments corrected (it builds `-tags vips`, not the CGO-free binary) | ✅ done |
 | **Canonical identity** (`chore/canonical-identity`): repository renamed back to `kuraki` and made **public**; landing page deployed to Cloudflare Pages (`kuraki.pages.dev`, crawling closed until `kuraki.app` is bound); site CTAs repointed; `.mailmap` collapses four author identities into one; `scripts/check-docs-links.sh` + a CI job fail the build on a dead documented URL, image path, or relative Markdown link | ✅ done; verified anonymously |
 
+| **Documentation truth pass** (2026-09-07): `USER_GUIDE.md` added (every user flow + the data it requires, no code, no design); README/CONTRIBUTING/web/mobile READMEs reconciled with the shipped code (multi-user, substring search, stacks, external libraries, tags/ratings, gestures, generated artifacts, Node 24, the real gate list); a `how-it-works` page added to the site; `/api/capture/changes` corrected wherever it was described as current | ✅ done |
+
+| **Docker runtime pass** (2026-09-08, `feat/mobile-contact-sheet-ui`): ran the `-tags vips` image against a copy of a real library and drove it. Fixed the saved-search scan 500, the empty `role` in sign-in responses, container-internal pairing addresses (+ `KURAKI_PUBLIC_URL`), the govips log flood, and the `useradd --system` build warning; rewrote `registers.spec.ts`, which had asserted Fraunces/Geist Mono since the font flattening and was only green locally because Playwright's browser was missing | ✅ done; 94 e2e + full gates green, verified in the container and the browser |
+
+| **Connecting the surfaces** (2026-09-09, `feat/mobile-contact-sheet-ui`): mobile address resolution now probes HTTPS-then-HTTP by the *kind* of host, so a proxied domain works as well as a LAN IP; the offline mirror and sync cursor reset when the library changes; iOS local-network usage and ATS moved into `app.json`; `make dev` proxies `/download` and takes its port from `KURAKI_PORT`, guarded by `devproxy_test.go` | ✅ done; paired and browsed on a simulator against a LAN server, full gates green |
+
+| **One port block, generated from Go** (2026-09-09): default moved off the contested `3000` to `39170`, with separate uncommon ports for the dev API, dev web, Metro and e2e so all of them run at once; declared in `internal/config/ports.go`, generated to `ports.env` + a mobile constant, and gated by `ports_test.go` for every file that cannot read them | ✅ done; five servers up simultaneously, 94/94 e2e green, mobile onboarding reads the generated port |
+
+| **Operator runbook** (2026-09-09): `RUNNING.md` now gives one verified path from local hot reload through a production-like source run to local Docker and private-behind-Caddy production, including port/config precedence, full environment reference, storage permissions, health/logging, imports, integrity checks, backup/restore, upgrades, account recovery, phone pairing, and troubleshooting | ✅ done; documentation links checked |
+
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
 
@@ -378,6 +441,325 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `feat/mobile-contact-sheet-ui` (2026-09-09, fifth pass) — **Pointed the app at the real container
+  on the new port, and the address hint was wrong again — for the second time, in a new way.**
+  - Typing `192.168.29.128` into onboarding showed **"Trying https:// first, then port 39170"** for
+    every prefix up to the final octet, because the check tested for a *complete* dotted quad. This
+    line is read continuously while someone types, so a prefix being wrong is the normal case rather
+    than an edge one. It is now `describeAddressGuess` in `lib/url.ts` — a pure function with a test
+    that walks every prefix of an IPv4 address — instead of inline JSX logic. **Third time this
+    sentence has been wrong; the fix is that it is now testable, not that it is now correct.**
+  - **Verified against the live library:** a bare `192.168.29.128` resolved to
+    `http://192.168.29.128:39170`, the probe succeeded against the running container, and onboarding
+    advanced to pairing. The generated `DEFAULT_SERVER_PORT` is what the copy and the resolution both
+    read, so the Go constant reaches the phone.
+  - **Stopped short of pairing.** Minting a code needs an admin session on the operator's own
+    library, and there is no CLI path for it. Not something to work around.
+
+- `feat/mobile-contact-sheet-ui` (2026-09-09, fourth pass) — **Moving the live container to the new
+  port turned up a bug in the recovery path, which is the worst place to have one.**
+  - **`kuraki backup` archived its own output.** Taking the pre-move backup with
+    `kuraki backup /data/x.tar.gz --data-dir /data` failed with `archive/tar: write too long`: the
+    walk reached the archive being written, whose size grew between `entry.Info()` and `io.Copy`, so
+    more bytes were sent than the tar header promised. It inflated to 43MB from a 22MB library before
+    dying. **And it left the truncated archive on disk** — a plausible `.tar.gz` of a plausible size,
+    in exactly the place a real backup belongs, which is the worst thing to find mid-recovery.
+    RUNNING.md's examples all write to a separate mount, which is why nothing had hit it; the command
+    never refused the other choice, and the error named neither the cause nor the file. Both halves
+    fixed (skip the destination, remove the partial on failure) with tests that fail against the old
+    code.
+  - **The move itself, done the way RUNNING.md prescribes.** Container stopped so the library was at
+    rest; offline backup with the fixed binary, written outside the library; **the backup restored to
+    an empty directory and checked** (schema 24, 28 assets, 1 album, 2 users, 28 originals,
+    `integrity_check ok`) before anything was touched. Then the old hand-run container removed
+    (`kuraki:local` kept as the rollback image), `docker compose up -d --build`, and verified:
+    migration 24 → 25 with the automatic pre-migration snapshot on disk, 28 assets intact,
+    `kuraki verify` 28/28 problems=0, serving on 39170, port 3000 gone, UI loads with no console
+    errors.
+  - **Verifying a backup means restoring it.** Checking that the archive exists, or that `tar -t`
+    lists plausible entries, would have passed on the truncated one. Restoring into an empty
+    directory and counting rows is the only check that distinguishes a backup from a file.
+
+- `feat/mobile-contact-sheet-ui` (2026-09-09, third pass) — **Every port Kuraki binds now comes from
+  one Go constant, and they are chosen so everything can run at once.**
+  - **The default moved off 3000.** It is the most contested port on a developer's machine, and this
+    repo has already paid for that twice: a Next.js dev server owned it, so a Kuraki container
+    published a mapping it never held for 22 hours while reporting healthy, and `make dev` had no way
+    to coexist with a running container. Self-hosted photo servers avoid this deliberately (Immich
+    2283, PhotoPrism 2342). `39170` is in the unassigned user-port range, nowhere near the usual
+    suspects, and below 49152 where macOS starts allocating ephemeral ports.
+  - **Five numbers, not one, and that is the point.** `39170` server · `39175` dev API · `39176` dev
+    web · `39177` Metro (Expo's 8081 collides with any other RN project — that has already cost this
+    repo a debugging session) · `39178` e2e. A deployed container, a hot-reload session, a bundler
+    and a browser suite are four servers; sharing a number between any two decides which one you are
+    allowed to have running. Verified by having all five up simultaneously with 94/94 e2e green.
+  - **The Go server is the source of truth, mechanically.** `internal/config/ports.go` declares them;
+    `make ports` (folded into `make gen`/`check-gen`) generates `ports.env` and
+    `mobile/src/design/ports.ts`. `dev.sh` sources the env file, `vite.config.ts` parses it,
+    the mobile onboarding copy and LAN default read the TS constant. Files that cannot read either —
+    Dockerfile, both Compose files, the Caddyfile, `package.json`, the e2e fallbacks — carry the
+    literal and are held to it by `ports_test.go`, which also refuses duplicates and anything outside
+    the safe range. Confirmed the gate fails on a hand-edited `EXPOSE`.
+  - **The mobile URL tests now read the constant rather than pinning `3000`,** so moving the server's
+    port is one edit, not a hunt through assertions. That is the shape to keep: tests pin the *rule*
+    (a local address gets the server's own port, a domain gets HTTPS), not the number.
+  - **Not done, on purpose:** the running container on this machine was left on the old port. Its
+    library is at schema 24 and the tree carries migration 25, so recreating it would migrate a real
+    library — an operator's decision, not a side effect of a port change.
+
+- `feat/mobile-contact-sheet-ui` (2026-09-09, second pass) — **Ran RUNNING.md's local flows instead
+  of reading them. The hot-reload workflow it documents first could not complete first-run setup.**
+  - **`make dev` allowed reads and refused every write.** `sameOriginWrites` compares the Origin
+    header against the Host the request arrived on. Vite rewrites Host to the proxy target by
+    default, so the server saw Origin `localhost:5173` arriving at Host `localhost:3000` and answered
+    403 `cross_origin_request` to every POST, PATCH and DELETE. GETs are exempt, so the UI loaded,
+    rendered and looked healthy right up to the first write — and the first write the workflow asks
+    for is creating the owner account, so a fresh checkout could not get past the welcome screen.
+    Fixed in the proxy (`changeOrigin: false`) rather than in the check, because the check is a real
+    CSRF defence and is doing its job in production, where the UI is same-origin.
+    `devproxy_test.go` now pins it.
+  - **Diagnosis note, because reasoning got it wrong twice.** Vite's shorthand proxy rewrites Host to
+    the target and forwards the browser's Origin untouched — the opposite of raw http-proxy's
+    documented default. Neither a `configure`/`proxyReq` hook (the event never fired in Vite 6.4)
+    nor the `headers` option overrode it; only `changeOrigin: false` did. Proven with an echo server
+    behind a throwaway Vite proxy rather than argued from docs.
+  - **`--data-dir ./kuraki-data-dev`, which RUNNING.md recommends three times, was not gitignored.**
+    `.gitignore` had `/kuraki-data/` exactly. A development library is someone's photos plus a
+    SQLite database one `git add -A` away from a commit; the pattern is now `/kuraki-data*/`.
+  - **`start.sh --addr :4000` printed "Starting Kuraki on http://localhost:3000".** The banner was a
+    constant, and RUNNING.md documents that exact flag. It now parses the address it was given —
+    with an `if` rather than `&&`, because a failing test as the last command of a `case` branch
+    returns non-zero and `set -euo pipefail` would have turned the banner into an exit.
+  - **A container can report healthy while its published port answers nothing.** Found on this
+    machine: another process owned host 3000 when the container started, OrbStack never established
+    the forward, and never retried after that process exited — so `docker ps` advertised
+    `0.0.0.0:3000->3000/tcp` for 22 hours with nothing listening. `HEALTHCHECK` cannot see it: it
+    runs `kuraki healthcheck` inside the container and never crosses the mapping. RUNNING.md's
+    troubleshooting section now names the symptom and the host-side commands that prove it.
+  - **Verified working end to end:** first-run setup and the timeline through Vite on :5173 against
+    the Go server on a configurable port; the same library on the simulator, paired by typed code
+    over the LAN; and the one-process `start.sh` build serving SPA, API, `/healthz` and `/download`
+    from a single origin. The mirror reset from the previous pass was confirmed on device — the
+    previous library's albums were gone after re-pairing, though only after the app was relaunched,
+    since already-mounted screens keep their in-memory copy.
+
+- `feat/mobile-contact-sheet-ui` (2026-09-09) — **Added the missing end-to-end operator runbook.**
+  `RUNNING.md` distinguishes hot-reload (`:5173` UI + configurable Go API), a one-process source
+  build, local full-media Docker, and internet production where Kuraki stays private behind Caddy.
+  It records the real configuration precedence and every `KURAKI_*` setting, plus host-port mapping,
+  UID/GID 10001 mount permissions, public phone addresses, health/log commands, import/verify,
+  online portable backups, restore-to-an-empty-sibling discipline, upgrades, account recovery, and
+  failure diagnosis. README links the runbook. `scripts/check-docs-links.sh` passes.
+
+- `feat/mobile-contact-sheet-ui` (2026-09-09) — **Server, web and mobile pointed at each other over a
+  real network for the first time. The link itself was sound; everything that decides *which*
+  address to use was not.**
+  - **Method first, because it is the part that found things.** A container on the host's LAN IP
+    (`192.168.29.128:3999`, a copy of the library — never `./kuraki-data`), the browser at that
+    address, and the simulator paired to it with a typed code. Pairing, timeline, albums and
+    thumbnails all worked. `devices.last_seen_at` is the honest probe for "has the phone actually
+    called the server" — it is touched by `resolveDevice` on every authenticated request, and it is
+    what proved the gallery was serving cache rather than talking to anything.
+  - **The app could not be pointed at a server on the internet.** `normalizeServerURL` gave every
+    scheme-less input `http://<host>:3000`. For the deployment DEPLOYMENT.md documents — a domain on
+    443 behind Caddy — that is wrong twice, and on iOS it does not merely fail: ATS is
+    `NSAllowsArbitraryLoads: false` + `NSAllowsLocalNetworking: true`, so cleartext to a public host
+    is refused before a packet leaves. The screen then reported that a correctly-typed domain could
+    not be reached, and its own hint promised ":3000 will be added automatically". Now
+    `serverURLCandidates` orders guesses by the *kind* of host — literal IP, single label, `.local`
+    / `.lan` / `.internal` mean LAN and get HTTP on 3000; anything else gets HTTPS on 443 — and
+    `resolveServerURL` probes them in order and keeps what answers. A stated scheme or port stays an
+    instruction, not a guess.
+  - **Repointing the app at another server showed the previous library.** `assets`, `albums`, `tags`
+    and `sync_meta.cursor` are one global set of tables; `saveCaptureSettings` changed the address
+    and cleared none of them. The cursor is the sharp end: `syncChanges` asks the *new* server for
+    everything since a number from the *old* server's change_log, gets nothing back, and concludes
+    it is current — so the app sits on another library's photos indefinitely while Settings says
+    "Connected". `switchedLibrary` (pure, tested) now decides, and `resetMirror` wipes on a changed
+    address or a changed device token. Pending mutations go too: they name asset ids on a server
+    that is no longer the one being talked to.
+  - **A malformed address crashed the save.** `saveAddress` never caught, so `normalizeServerURL`
+    throwing surfaced as `Uncaught (in promise)` while the status line kept claiming the old address
+    was connected. Found by fat-fingering a paste on the simulator, which is a fair argument for
+    driving the thing by hand. The status line also read from the *text field*, so it narrated
+    whatever was being typed; it now reports the stored address.
+  - **`make dev` is the only mode where UI and server are different origins, and it was the least
+    tested.** `/download/android` was never added to Vite's proxy, so the Devices page's APK link
+    404'd there and only there. The port was hardcoded in `scripts/dev.sh` *and* in
+    `web/vite.config.ts`, so `--addr :4000` moved one and not the other — and on a machine where
+    something else owns 3000 that is not an error, just another app's responses arriving in the
+    Kuraki UI. `KURAKI_PORT` is now chosen once and exported, `dev.sh` refuses to start on a busy
+    port and names the process holding it, `--addr` is rejected with a pointer to `KURAKI_PORT`, and
+    `devproxy_test.go` fails the build if the proxy list and the router disagree in either
+    direction.
+  - **A correction worth keeping.** I expected a clean `expo prebuild` to flip ATS to Expo's
+    permissive template default. Introspection says otherwise — it reads the existing untracked
+    `ios/Info.plist`, so that experiment proves nothing either way. What *was* provably missing is
+    `NSLocalNetworkUsageDescription`, which iOS 14+ requires for LAN access; both it and the ATS
+    block now live in `app.json` so they no longer depend on a gitignored directory.
+  - **Not fixed, deliberately.** The pairing code is 64 hex characters and the web UI offers typing
+    it as an equal alternative to scanning; shortening it is a protocol change. Android still sets
+    `usesCleartextTraffic: true` globally rather than scoping cleartext to private ranges, which
+    needs a network-security-config plugin. The web SPA cannot be served under a reverse-proxy
+    subpath (its asset and API paths are absolute) even though the mobile client supports one.
+
+- `feat/mobile-contact-sheet-ui` (2026-09-08) — **Ran the Docker image instead of only building it.
+  Everything below was found in the first hour of driving it, and none of it was reachable from the
+  test suite.**
+  - **A saved search broke the endpoint that lists saved searches.** `query_json` is TEXT;
+    `apitypes.SavedSearch.Query` is a `json.RawMessage`. `database/sql` matches its `[]byte` scan
+    destinations by *exact type*, and `json.RawMessage` is a named type, so the scan failed with
+    `unsupported Scan, storing driver.Value type string into type *json.RawMessage` and
+    `GET /api/saved-searches` answered 500 from the first save until someone deleted the row by
+    hand. **The UI made it invisible**: `loadSavedSearches` catches and renders "No saved searches
+    yet", so the feature looked empty rather than broken. Create and list had each been exercised
+    only against an empty table — `saved_searches_test.go` now does both in one test, and fails
+    against the old handler.
+  - **Sign-in responses carried `role: ""`.** `/api/login` and `/api/setup` built their user from
+    the request, not the row, while `GET /api/me` read the column. A client that stores the sign-in
+    user and gates admin surfaces on the role sees every admin as an ordinary account until the next
+    reload. Nothing does that *yet*, which is why it survived; the field is declared required.
+  - **The pairing screen was confidently wrong in Docker, which is the documented install path.**
+    `lanAddresses` reads the machine's interfaces — correct on bare metal, and inside a container
+    the only answer it can give is a bridge IP on the *container's* port. Worse than useless:
+    `settings/devices` treats a server-reported address as better than `location.origin`, so it
+    prefilled `http://192.168.215.3:3000` **and** dropped the "a phone using this would try to reach
+    itself" warning, because the prefilled value was not loopback. It now detects containers
+    (`/.dockerenv`, `/run/.containerenv`) and offers nothing, which leaves the browser's own working
+    address and the honest warning. `KURAKI_PUBLIC_URL` states the answer where detection cannot —
+    the only correct option behind a reverse proxy.
+  - **govips buried the import.** It ships an info-level handler writing unstructured `log.Printf`
+    to stderr: ~10 lines per image, ~30 on startup, and the progress bar and result line were
+    invisible in the noise. Now routed into slog at warning verbosity, with warnings deduplicated by
+    message — `heifload: ignoring nclx profile` is emitted for *every* HEIC in an iPhone library and
+    says nothing new the second time. `newLogger` also becomes the slog default so those lines match
+    the server's own format.
+  - **`registers.spec.ts` had been broken since the font flattening** (`263ad2d`) and nobody knew,
+    because Playwright's browser was not installed on this machine, so `make e2e` failed before the
+    first test. Three tests still asserted `Fraunces`/`Geist Mono`. Rewritten around what the seam
+    actually is now — rhythm (`--space-step` 8px/4px), micro-caps treatment, tabular figures — plus
+    a new test pinning that all three font tokens resolve to one family, so reintroducing a display
+    face has to be deliberate. **A gate that cannot run is not a gate**; install browsers before
+    trusting a green `make e2e`.
+  - **The one build warning is gone**: `useradd --system --uid 10001` warned on every image build
+    because system accounts must sit below `SYS_UID_MAX` (999). The uid cannot move — it is stamped
+    on every file in existing `/data` volumes — so the account is created without `--system`.
+  - **Testing method, for the next person:** never point a container at `./kuraki-data`. Serving a
+    library migrates its schema and writes rows. Copy it to a scratch directory and mount the copy
+    (`kuraki passwd` there gives you a login without touching the real one). And do **not** open the
+    copy with the host `sqlite3` while the container is serving it — that produced
+    `disk I/O error (522)` on every write and cost a round of false bug reports.
+
+- `feat/mobile-contact-sheet-ui` (2026-09-07) — **A nine-screen design pass on the Expo client, taken
+  from an external contact sheet. Three of the sheet's decisions were refused, and the refusals are
+  the useful part of this entry.**
+  - **The sheet redrew the custom tab bar this repo deleted on purpose.** A 326x64 floating pill with
+    a stamp-tinted active item — which is exactly the control §11 (2026-08-02) records as ~200 lines
+    approximating `NativeTabs` + `minimizeBehavior="onScrollDown"` + `role="search"`. Not built.
+    `(app)/_layout.tsx` is untouched. **A design mock is evidence about intent, not about the
+    platform** — the sheet's author could not see that iOS 26 already ships the control being drawn.
+  - **It also drew Fraunces 30 screen titles, which is a large title.** `headerLargeTitle` was removed
+    after failing on device (it drew "Settings" over the stats card — see the note in
+    `screen-header.tsx`). Taken halfway on purpose: `headerOptions` now defaults to the **kura**
+    register, so titles are Fraunces in the *compact* header. The typography lands; the inset bug
+    stays closed.
+  - **The viewer was in the wrong register, and its own design system said so.** `photo-viewer.tsx`
+    called `registerStyle('vault')` while `design/registers.ts` states outright that "the photo grid
+    and viewer always render kura regardless". So the one caption in the app that sits on a
+    photograph was set in the mono data face. Now kura, at 20pt, and the caption carries place as
+    well as date — `place` was already derived for the details dialog and shown nowhere with the
+    picture.
+  - **`progress.failed` had no reader.** The backup engine has tracked per-file failures with reasons
+    since the capture work, and the Backup screen rendered none of them: a photo that failed because
+    the file had left the device simply never appeared, and the backup looked complete.
+    `USER_GUIDE.md` §5.4 already promised "anything that cannot be uploaded is listed with its reason"
+    — the doc was describing an intention. `BackupFailures` makes it true. **A tracked-but-unrendered
+    field is worth grepping for after any UI pass; nothing type-checks an absence.**
+  - **Progress was a sentence in the same muted style as the static help text around it.**
+    `BackupProgressCard` gives the one thing on that screen that changes second-to-second a heading,
+    a `done / total` count and a determinate bar. The total is `done + pending` recomputed every tick,
+    because the scanner keeps discovering items mid-run — anchoring it at run start would make the bar
+    walk backwards (`backupProgress`, tested).
+  - **Memories were only reachable by switching the Library view to the segment that shows them**,
+    which meant the feature was invisible unless you already knew it existed. They are now a rail of
+    per-year cards above the timeline (`memoryGroups` groups by year, newest first, and drops undated
+    assets rather than bucketing them under the current year — an undated photo is not a memory of any
+    particular day). The segment stays as the "see all" surface.
+  - **Grid tiles said almost nothing.** A video was a plain white dot; favourite and stack showed
+    nothing at all, though `favorite`, `duration_ms` and `stack_size` are all on the contract.
+    `TileBadges` fixes the corners app-wide (top-right stack/play, bottom-left favourite, bottom-right
+    length) and hides itself entirely while selecting, so it can never collide with the check.
+  - **Day headings gained a count** and split across the register seam — Fraunces label, Geist Mono
+    number — which is the split stated in one component (`SectionHeading`).
+  - **Settings rows were two competing headings.** Label and value were both 14pt sans, so nothing
+    said which half was the setting and which was its state. Labels are now 16pt regular sans, values
+    are Geist Mono, section titles are cased mono at 1.4 tracking, and rows are separated by a
+    hairline inset past the icon column. `SettingsSection` inserts those dividers itself — a row
+    cannot know whether it is last, and a trailing hairline doubles the card's own edge.
+  - **Second pass, same branch — the four remaining screens.** Details, Albums, Search, Selection.
+    - **The details dialog was three unlabelled muted lines.** A date, a size and a place, set
+      identically, so nothing said which was which. Now one card per fact (`assetFacts` +
+      `DetailFacts`), each with its mark, the answer on the first line and *what kind of answer it
+      is* on the second. A row is omitted entirely rather than rendered empty: a sheet listing four
+      facts of which two say nothing reads as missing data the user should go and fix.
+    - **This needed the full asset record, which mobile never fetched.** `LibraryAsset` is a narrow
+      `Pick` on purpose (a timeline page carries hundreds), so `fetchAssetDetail` pulls the whole
+      contract `Asset` for the one asset the sheet is about, on open rather than as the pager
+      settles — swiping a hundred photographs must not fire a hundred detail requests.
+    - **The contact sheet's EXIF line is not backed by data.** It draws "f/1.7 1/240s ISO 42 24mm";
+      the contract carries `camera_make`/`camera_model`/`width`/`height`/`mime_type` and no aperture,
+      shutter, ISO or focal length. The camera row shows make + model over the MIME type instead.
+      **Do not add the EXIF line without adding the fields to the server first.**
+    - **`TagPills` replaced Search's "Browse tags" link — and the first version hid the whole row when
+      the tag list was empty, which took the tag browser with it.** Caught on device. An empty list
+      happens for reasons that are not "there are no tags" (offline, a fetch that has not landed
+      yet), and a feature that vanishes is indistinguishable from one that does not exist. The browse
+      pill now always renders, labelled "Browse tags" alone and "More" once pills precede it.
+    - **Search states its result count.** Without one a short list is ambiguous between "few matches"
+      and "still loading".
+    - **Selection tints the whole tile** (stamp at 0.28) instead of relying on a 22pt corner badge on
+      a 128pt tile. A badge is findable only if you already know where to look; a tint is legible in
+      peripheral vision, which is what scanning a grid actually uses. The check keeps its own filled
+      disc — the tint is translucent, so a bare mark inherits whatever contrast the photograph
+      happens to offer, which on a dark frame is none.
+  - **Verified on an iPhone 17 Pro simulator** against a seeded local server (38 assets dated to
+    populate the rail, four albums, five tags): timeline, memories rail, settings, backup, viewer,
+    details sheet, albums, search and selection. `tsc --noEmit`, `expo lint`, 245 Vitest tests and
+    `check-tokens` are green.
+  - **Two environment traps worth knowing.** A Metro left running by *another project* answers on
+    8081 and serves its bundle to this app — the symptom is a React Native version-mismatch redbox
+    that looks exactly like broken native code, and `mobile/` was never at fault. And the app's
+    local SQLite mirror means data created server-side while a screen is mounted does not appear
+    until the screen remounts; that is the mirror working, not a bug, but it makes seeded-data
+    checks confusing until you know.
+
+- `docs/user-guide-and-truth-pass` (2026-09-07) — **The documentation described a server that had
+  moved on, and there was nowhere to read what the product actually does.**
+  - **`USER_GUIDE.md` is new, and is a different kind of document to everything else here.** Every
+    other doc explains how to *run* or *build* Kuraki. This one states what it *does*: 23 flows, each
+    with the data it requires, what the server does with it, what comes back, and how it fails. No
+    code, no endpoints, no screen descriptions — deliberately, because those churn and the behaviour
+    is the contract. It is also the cheapest way to notice an incoherent feature: a flow that cannot
+    be written down in a table of inputs and outcomes is usually wrong.
+  - **Six claims in the README were false, and all six had been true once.** "Single-owner auth"
+    (multi-user shipped 2026-07-27), search "prefix matching" (trigram landed in `00025`), a
+    `change_log` "for future sync" (the feed, SSE push and the offline queue all ship), **Node 20+**
+    (the embedded assets are hash-stable only on Node 24), a `cmd/` list missing `useradd`,
+    `userlist` and `healthcheck`, and an `internal/` tree missing seven packages. None of this is
+    type-checked or exercised by a test — the same class of failure `scripts/check-docs-links.sh`
+    exists for, one level up: the links resolved, the sentences did not.
+  - **`/api/capture/changes` was still documented as current in CLAUDE.md.** Improvement D collapsed
+    the capture duplicates a year of entries ago; only `uploads`/`status` remain device-only. Fixed
+    in CLAUDE.md and marked as corrected in §2 rather than rewritten, since the historical entries
+    are accurate as history.
+  - **Docs now carry the traps that cost time.** The generated-artifact table and its four commands
+    are in the README; `npm run check` being the only type gate and `make e2e` the only runtime gate
+    are in `web/README.md`; `mobile/` being npm-only, and none of its gates rendering a component,
+    are in `mobile/README.md`.
+  - **Not verified:** the site build was not run (`site/` has no `node_modules` here). The new page
+    follows the existing collection schema exactly (`title`/`description`/`order`) and links out
+    absolutely, so `check-docs-links.sh` covers what it can.
 
 - `feat/album-cover-mosaic` (2026-08-15) — **Album covers were blank, and not for a styling reason.**
   - **`apitypes.Album` had no cover field at all**, so `/api/albums` never sent an asset id and every album drew a grey square. Mobile's `ServerAlbum` was *hand-written* and claimed a `cover_asset_id` the server does not have, so nothing in the type system objected — the client had invented a field and been believing in it. `ServerAlbum` is derived from the generated contract now, so the next invented field will not compile.

@@ -1,66 +1,131 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radius, Spacing } from '@/constants/theme';
-import { registerStyle } from '@/design/registers';
+import { Radius, Spacing, useTokens } from '@/constants/theme';
+import { FontFamily } from '@/design/fonts';
 import { formatBytes, formatCount } from '@/lib/format';
 import { fetchStats, type LibraryStats } from '@/lib/library-api';
 import { loadCaptureSettings } from '@/lib/settings';
-
-const reg = registerStyle('vault');
-const heading = { fontFamily: reg.heading };
+import { serverHost } from '@/lib/url';
 
 // LibraryStats is the top of Settings: how much is on the server and what it
 // consists of. It fails quietly -- an unreachable server is already reported by
 // the connection section, and a missing stats card must not push the settings
 // list off the screen behind an error.
+//
+// This is the Vault register at its most literal: a cased mono label, figures
+// set in Geist Mono, a hairline panel.
+//
+// The card leads with how many items the library holds. An earlier pass led
+// with the byte total at 32pt, which makes storage the headline fact about a
+// photo library; correcting that dropped the item total altogether, which was
+// worse -- "21 photos, 0 videos, 1 album" does not add up to a library's size,
+// and nothing else on the screen stated it. Total leads, bytes are a footnote,
+// and the breakdown sits between them.
+//
+// Reachability is a word, not just a coloured dot. A dot alone cannot say
+// whether green means "fresh" or merely "we drew something", and a screen
+// reader gets nothing from it at all.
+//
+// It re-reads on every visit rather than once per mount. Mount-once meant the
+// counts were only ever as fresh as the first time Settings had been opened
+// this launch -- import a hundred photos and come back, and the card still
+// reported the old total. The dot is the *last fetch's* outcome, not "we
+// rendered, so the server must be up": a card showing month-old numbers under a
+// green light is worse than one that admits it could not reach anything.
 export default function LibraryStatsCard() {
+  const tokens = useTokens();
   const [stats, setStats] = useState<LibraryStats | null>(null);
+  const [host, setHost] = useState('');
+  const [reachable, setReachable] = useState(true);
 
   const load = useCallback(async () => {
     try {
-      setStats(await fetchStats(await loadCaptureSettings()));
+      const settings = await loadCaptureSettings();
+      setHost(serverHost(settings.baseURL));
+      setStats(await fetchStats(settings));
+      setReachable(true);
     } catch {
-      setStats(null);
+      // Keep whatever numbers we already have -- they were true once, and
+      // blanking the card on a dropped connection loses the only record of the
+      // library's size the phone has. The dot is what says they are stale.
+      setReachable(false);
     }
   }, []);
 
   // Deferred a tick, matching the pattern the other screens use so the first
   // setState does not fire synchronously inside the effect.
-  useEffect(() => {
-    const timer = setTimeout(() => void load(), 0);
-    return () => clearTimeout(timer);
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setTimeout(() => void load(), 0);
+      return () => clearTimeout(timer);
+    }, [load]),
+  );
 
-  if (!stats) return null;
+  // Deliberately no `if (!stats) return null`. The card vanishing was read as
+  // "the stats are missing from Settings" -- which it is, indistinguishably
+  // from the feature not existing. A library has a size whether or not this
+  // phone has managed to ask yet, so the card holds its place and says which
+  // of the two it is.
+  const figure = (n: number | undefined) => (stats ? formatCount(n ?? 0) : '—');
 
   return (
     <View style={styles.wrap}>
-      <ThemedView type="card" style={styles.card}>
-        <ThemedText type="title" style={[heading, styles.size]}>
-          {formatBytes(stats.total_bytes)}
-        </ThemedText>
-        <ThemedText type="small" themeColor="mutedForeground">
-          {formatCount(stats.total)} items in your library
-        </ThemedText>
-        <View style={styles.counts}>
-          <Stat label="Photos" value={stats.images} />
-          <Stat label="Videos" value={stats.videos} />
-          <Stat label="Albums" value={stats.albums} />
-          <Stat label="Trash" value={stats.trashed} />
+      <ThemedView type="card" style={[styles.card, { borderColor: tokens.border }]}>
+        <View style={styles.topRow}>
+          {/* Not "LIBRARY": the settings list below this card already has a
+              LIBRARY section (Free up space, Trash), and on device the two
+              identical labels read as one heading repeated. This card is about
+              what the server holds; that section is about acting on it. */}
+          <ThemedText style={[styles.caps, { fontFamily: FontFamily.mono, color: tokens.textFaint }]}>
+            ON THE SERVER
+          </ThemedText>
+
+          <View style={styles.server}>
+            <View style={[styles.dot, { backgroundColor: stats && reachable ? tokens.ok : tokens.warn }]} />
+            <ThemedText
+              numberOfLines={1}
+              style={[styles.status, { fontFamily: FontFamily.mono, color: tokens.mutedForeground }]}>
+              {!stats ? (reachable ? 'Checking…' : 'Not connected') : reachable ? 'Connected' : 'Last known'}
+            </ThemedText>
+          </View>
         </View>
+
+        {/* The total, stated once and stated first. */}
+        <View style={styles.totalRow}>
+          <ThemedText style={[styles.total, { fontFamily: FontFamily.mono, color: tokens.foreground }]}>
+            {figure(stats?.total)}
+          </ThemedText>
+          <ThemedText type="small" themeColor="mutedForeground" style={styles.totalLabel}>
+            {stats?.total === 1 ? 'item' : 'items'}
+          </ThemedText>
+        </View>
+
+        <View style={styles.counts}>
+          <Stat label="Photos" value={figure(stats?.images)} />
+          <Stat label="Videos" value={figure(stats?.videos)} />
+          <Stat label="Albums" value={figure(stats?.albums)} />
+        </View>
+
+        <ThemedText type="small" themeColor="mutedForeground" numberOfLines={1}>
+          {[stats ? formatBytes(stats.total_bytes) : null, stats ? `${formatCount(stats.trashed)} in trash` : null, host]
+            .filter(Boolean)
+            .join(' · ')}
+        </ThemedText>
       </ThemedView>
     </View>
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value }: { label: string; value: string }) {
+  const tokens = useTokens();
   return (
     <View style={styles.stat}>
-      <ThemedText type="smallBold" style={styles.statValue}>
-        {formatCount(value)}
+      <ThemedText style={[styles.statValue, { fontFamily: FontFamily.mono, color: tokens.foreground }]}>
+        {value}
       </ThemedText>
       <ThemedText type="small" themeColor="mutedForeground">
         {label}
@@ -71,9 +136,21 @@ function Stat({ label, value }: { label: string; value: number }) {
 
 const styles = StyleSheet.create({
   wrap: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two },
-  card: { borderRadius: Radius.lg, padding: Spacing.three, gap: Spacing.half },
-  size: { fontSize: 32, lineHeight: 38 },
-  counts: { flexDirection: 'row', gap: Spacing.four, paddingTop: Spacing.two },
+  // A hairline border, not a shadow: Vault surfaces are drawn, not lifted.
+  card: { borderRadius: Radius.lg, borderWidth: StyleSheet.hairlineWidth, padding: Spacing.three, gap: Spacing.two },
+  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
+  caps: { fontSize: 11, lineHeight: 15, fontWeight: '600', letterSpacing: 1.4 },
+  server: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  status: { fontSize: 11, lineHeight: 15, flexShrink: 1 },
+  totalRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+  // The one figure that answers "how big is my library", so it is the biggest
+  // thing on the card.
+  total: { fontSize: 34, lineHeight: 40, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  totalLabel: { paddingBottom: 2 },
+  counts: { flexDirection: 'row', gap: Spacing.four },
   stat: { gap: 2 },
-  statValue: { fontVariant: ['tabular-nums'] },
+  // Tabular figures so the three columns line up and stay lined up as the
+  // counts tick over.
+  statValue: { fontSize: 20, lineHeight: 26, fontWeight: '600', fontVariant: ['tabular-nums'] },
 });

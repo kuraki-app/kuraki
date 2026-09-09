@@ -26,7 +26,10 @@ const repoRoot = resolve(here, '..', '..');
 // Not exported: importing this module runs it. The port is agreed with
 // playwright.config.ts through the environment rather than through an import,
 // so reading the config can never start a server as a side effect.
-const PORT = Number(process.env.KURAKI_E2E_PORT ?? 3456);
+// The fallback matches config.E2EPort in internal/config/ports.go; `make e2e`
+// sources ports.env so the environment normally supplies it. ports_test.go
+// fails the build if the two ever disagree.
+const PORT = Number(process.env.KURAKI_E2E_PORT ?? 39178);
 
 const BINARY = join(repoRoot, 'bin', 'kuraki');
 const DATA_DIR = join(here, '.tmp', 'data');

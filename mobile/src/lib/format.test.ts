@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { captureTimestamp, formatBytes, formatCount, formatTakenAt } from '@/lib/format';
+import { captureTimestamp, formatBytes, formatCount, formatDuration, formatTakenAt } from '@/lib/format';
 
 describe('formatBytes', () => {
   it('shows plain bytes below a kilobyte', () => {
@@ -92,5 +92,32 @@ describe('captureTimestamp', () => {
     expect(captureTimestamp(0)).toBeUndefined();
     expect(captureTimestamp(-1)).toBeUndefined();
     expect(captureTimestamp(Number.NaN)).toBeUndefined();
+  });
+});
+
+describe('formatDuration', () => {
+  it('renders under a minute with a zero minute field', () => {
+    // The badge in the contact sheet reads "0:57" — the colon stays put.
+    expect(formatDuration(57_000)).toBe('0:57');
+    expect(formatDuration(1_000)).toBe('0:01');
+  });
+
+  it('pads seconds but not minutes', () => {
+    expect(formatDuration(64_000)).toBe('1:04');
+    expect(formatDuration(724_000)).toBe('12:04');
+  });
+
+  it('adds an hours field only past an hour', () => {
+    expect(formatDuration(3_599_000)).toBe('59:59');
+    expect(formatDuration(5_025_000)).toBe('1:23:45');
+  });
+
+  it('returns null when there is nothing to say', () => {
+    // A missing field and a zero-length video are indistinguishable on the
+    // wire, so neither draws a badge.
+    expect(formatDuration(undefined)).toBeNull();
+    expect(formatDuration(0)).toBeNull();
+    expect(formatDuration(999)).toBeNull();
+    expect(formatDuration(Number.NaN)).toBeNull();
   });
 });

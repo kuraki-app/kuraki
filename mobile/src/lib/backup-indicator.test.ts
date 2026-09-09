@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { backupIndicator } from '@/lib/backup-indicator';
+import { backupIndicator, backupProgress } from '@/lib/backup-indicator';
 
 const idle = { running: false, pending: 0, done: 0, failed: [] };
 const failure = { localId: 'a', filename: 'a.jpg', error: 'boom', at: 0 };
@@ -46,5 +46,26 @@ describe('backupIndicator', () => {
     // Queued-but-idle is the resting state of automatic backup between wakes.
     // An indicator here would be permanently on for anyone with auto backup.
     expect(backupIndicator({ ...idle, pending: 40 }).state).toBe('hidden');
+  });
+});
+
+describe('backupProgress', () => {
+  it('totals what is done plus what is still queued', () => {
+    // The total moves as the scanner finds more, so it is derived every tick
+    // rather than anchored when the run started.
+    expect(backupProgress(128, 1076)).toEqual({ total: 1204, fraction: 128 / 1204 });
+  });
+
+  it('reports a finished run as full', () => {
+    expect(backupProgress(40, 0)).toEqual({ total: 40, fraction: 1 });
+  });
+
+  it('does not divide by zero on an empty run', () => {
+    expect(backupProgress(0, 0)).toEqual({ total: 0, fraction: 0 });
+  });
+
+  it('clamps and floors hostile counters', () => {
+    expect(backupProgress(-5, 10)).toEqual({ total: 10, fraction: 0 });
+    expect(backupProgress(Number.NaN, 4)).toEqual({ total: 4, fraction: 0 });
   });
 });

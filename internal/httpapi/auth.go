@@ -84,9 +84,11 @@ func (d Deps) setup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "create_session_failed")
 		return
 	}
+	// upsertSetupUser always writes roleAdmin: whoever completes first-run setup
+	// owns the server.
 	writeJSON(w, http.StatusCreated, apitypes.SetupStatus{
 		SetupRequired: false,
-		User:          &apitypes.User{ID: userID, Username: req.Username},
+		User:          &apitypes.User{ID: userID, Username: req.Username, Role: roleAdmin},
 	})
 }
 
@@ -107,10 +109,10 @@ func (d Deps) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Username = strings.TrimSpace(req.Username)
-	var userID, username, passwordHash string
+	var userID, username, role, passwordHash string
 	err := d.DB.QueryRowContext(r.Context(),
-		`SELECT id, username, password_hash FROM users WHERE username = ? AND password_hash <> ''`,
-		req.Username).Scan(&userID, &username, &passwordHash)
+		`SELECT id, username, role, password_hash FROM users WHERE username = ? AND password_hash <> ''`,
+		req.Username).Scan(&userID, &username, &role, &passwordHash)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusUnauthorized, "invalid_credentials")
 		return
@@ -128,9 +130,13 @@ func (d Deps) login(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "create_session_failed")
 		return
 	}
+	// Role travels with the login response, not just with GET /api/me: a client
+	// that stores this user and gates admin surfaces on the role would
+	// otherwise treat every freshly signed-in admin as an ordinary user until
+	// the next reload.
 	writeJSON(w, http.StatusOK, apitypes.SetupStatus{
 		SetupRequired: false,
-		User:          &apitypes.User{ID: userID, Username: username},
+		User:          &apitypes.User{ID: userID, Username: username, Role: role},
 	})
 }
 
@@ -207,7 +213,16 @@ func (d Deps) requirePrincipal(next http.Handler) http.Handler {
 		// captureDeviceKey — the capture-ingest handlers (captureStart/Append/
 		// Complete/Status) read deviceFromRequest(r) directly, so the device must
 		// remain in context under its original key for them to keep working.
-		if dev, ok := d.resolveDevice(r); ok {
+		dev, ok, lookupFailed := d.resolveDevice(r)
+		// A lookup that could not run is a server fault, not a verdict on the
+		// credential. Answering 401 would tell the phone to delete a token that
+		// may be perfectly valid; 503 tells it to try again, which the client
+		// already treats as retryable without touching what it has stored.
+		if lookupFailed {
+			writeError(w, http.StatusServiceUnavailable, "device_auth_unavailable")
+			return
+		}
+		if ok {
 			p := principal{OwnerID: dev.OwnerID, Kind: principalDevice, DeviceID: dev.ID}
 			ctx := context.WithValue(r.Context(), captureDeviceKey{}, dev)
 			ctx = context.WithValue(ctx, principalCtxKey{}, p)

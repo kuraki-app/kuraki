@@ -10,7 +10,10 @@ func TestDefault(t *testing.T) {
 	if c.DataDir != "./kuraki-data" {
 		t.Errorf("DataDir = %q", c.DataDir)
 	}
-	if c.Addr != ":3000" {
+	// The literal is deliberate: this is the one place that asserts what the
+	// shipped default *is*, so moving it has to be a deliberate edit here as
+	// well as in ports.go. ports_test.go checks everything downstream follows.
+	if c.Addr != ":39170" {
 		t.Errorf("Addr = %q", c.Addr)
 	}
 	if got, want := c.DBPath(), filepath.Join("./kuraki-data", "kuraki.db"); got != want {
@@ -82,5 +85,25 @@ func TestLoadHardeningDefaults(t *testing.T) {
 	}
 	if c.MetricsToken != "scrape-me" {
 		t.Errorf("MetricsToken = %q, want trimmed \"scrape-me\"", c.MetricsToken)
+	}
+}
+
+// KURAKI_PUBLIC_URL is what an operator states when address detection cannot be
+// right — in a container, whose interfaces are its own, or behind a reverse
+// proxy, whose published scheme, host and port all differ from the listener's.
+func TestLoadPublicURL(t *testing.T) {
+	if Default().PublicURL != "" {
+		t.Error("PublicURL should be empty by default: detection is right for a bare-metal install")
+	}
+	// The trailing slash goes: the value is joined with paths downstream, and
+	// "https://host//api" is a different URL to some proxies.
+	c := Load(func(k string) string {
+		if k == "KURAKI_PUBLIC_URL" {
+			return "  https://photos.example.com/  "
+		}
+		return ""
+	})
+	if c.PublicURL != "https://photos.example.com" {
+		t.Errorf("PublicURL = %q, want https://photos.example.com", c.PublicURL)
 	}
 }

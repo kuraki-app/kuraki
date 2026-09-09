@@ -5,7 +5,7 @@ photos.example.com {
 	# Reverse-proxy to the kuraki service on the internal Docker network. Caddy
 	# sets X-Forwarded-For / X-Forwarded-Proto, which Kuraki honours only when
 	# KURAKI_TRUST_PROXY=1 (set in the compose file).
-	reverse_proxy kuraki:3000
+	reverse_proxy kuraki:39170
 
 	# Photo/video originals are large; allow big uploads through the proxy.
 	request_body {

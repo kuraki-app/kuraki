@@ -77,3 +77,27 @@ export function formatTakenAt(iso: string | undefined): string {
   const time = at.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   return `${date} at ${time}`;
 }
+
+/**
+ * formatDuration renders a video length as a clock: "0:57", "12:04", "1:23:45".
+ *
+ * Minutes are unpadded and hours are dropped below an hour, because this is a
+ * badge over a thumbnail with room for four glyphs, not a scrubber readout.
+ * Seconds always take two digits so the colon stays in the same place as the
+ * value ticks over.
+ *
+ * Returns null rather than "0:00" when there is no usable duration: every
+ * caller draws the badge only when there is something to say, and a zero-length
+ * video is indistinguishable from a missing field on the wire.
+ */
+export function formatDuration(ms: number | undefined): string | null {
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms < 1000) return null;
+
+  const total = Math.round(ms / 1000);
+  const seconds = total % 60;
+  const minutes = Math.floor(total / 60) % 60;
+  const hours = Math.floor(total / 3600);
+  const ss = String(seconds).padStart(2, '0');
+
+  return hours > 0 ? `${hours}:${String(minutes).padStart(2, '0')}:${ss}` : `${minutes}:${ss}`;
+}

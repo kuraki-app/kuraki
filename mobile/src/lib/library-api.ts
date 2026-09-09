@@ -34,6 +34,22 @@ export type LibraryAsset = Pick<
   // fields their surface needs, and the grid's size badge simply hides when it
   // is absent rather than forcing every construction site to invent a number.
   size_bytes?: number;
+  /**
+   * Video length, for the duration badge over a video tile.
+   *
+   * Optional for the same reason as `size_bytes`: the contract always sends it,
+   * but synthetic assets assembled inside the app carry only the fields their
+   * surface needs. `formatDuration` returns null for a missing or zero value,
+   * so the badge simply does not draw.
+   */
+  duration_ms?: number;
+  /**
+   * How many originals this tile stands for, for the stack badge.
+   *
+   * A plain asset reports 1 (or nothing, when synthesised); only a value above
+   * 1 marks the tile as the visible face of a stack.
+   */
+  stack_size?: number;
 };
 
 // Place grouping from /api/places/summary, derived from the contract.
@@ -126,7 +142,7 @@ export async function fetchLibrary(
     headers: { Authorization: `Bearer ${settings.deviceToken}` },
   });
   if (response.status === 401) {
-    reportAuthLost();
+    reportAuthLost(settings.deviceToken);
     throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
   }
   if (!response.ok) {
@@ -151,7 +167,7 @@ export async function setFavorite(settings: CaptureSettings, id: string, favorit
     body: JSON.stringify({ favorite }),
   });
   if (response.status === 401) {
-    reportAuthLost();
+    reportAuthLost(settings.deviceToken);
     throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
   }
   if (!response.ok) {
@@ -191,7 +207,7 @@ async function authedGet<T>(settings: CaptureSettings, path: string): Promise<T>
     headers: { Authorization: `Bearer ${settings.deviceToken}` },
   });
   if (response.status === 401) {
-    reportAuthLost();
+    reportAuthLost(settings.deviceToken);
     throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
   }
   if (!response.ok) {
@@ -210,7 +226,7 @@ async function authedMutate(settings: CaptureSettings, path: string, method: str
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   if (response.status === 401) {
-    reportAuthLost();
+    reportAuthLost(settings.deviceToken);
     throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
   }
   if (!response.ok) {
@@ -270,7 +286,7 @@ export async function createAlbum(settings: CaptureSettings, name: string): Prom
     body: JSON.stringify({ name }),
   });
   if (response.status === 401) {
-    reportAuthLost();
+    reportAuthLost(settings.deviceToken);
     throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
   }
   if (!response.ok) {
@@ -343,7 +359,7 @@ async function authedPost<T>(settings: CaptureSettings, path: string, body: unkn
     body: JSON.stringify(body),
   });
   if (response.status === 401) {
-    reportAuthLost();
+    reportAuthLost(settings.deviceToken);
     throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
   }
   if (!response.ok) throw new LibraryError(`Request failed (${response.status})`, response.status);
@@ -470,13 +486,29 @@ export async function fetchTrash(settings: CaptureSettings, cursor?: string): Pr
 type ChangeEntry = components['schemas']['apitypes.ChangeEntry'];
 type ChangesResponse = components['schemas']['apitypes.ChangesResponse'];
 
+/**
+ * AssetDetail is the server's full record for one asset — everything
+ * `LibraryAsset` deliberately leaves out (dimensions, camera, MIME, GPS).
+ *
+ * The grid works from the narrow `LibraryAsset` on purpose: a timeline page
+ * carries hundreds of these and the extra fields are dead weight there. The
+ * details sheet is the one surface that wants all of it, for exactly one asset
+ * at a time, so it fetches it on open rather than widening every list response.
+ */
+export type AssetDetail = components['schemas']['apitypes.Asset'];
+
+/** fetchAssetDetail reads one asset's full metadata for the details sheet. */
+export async function fetchAssetDetail(settings: CaptureSettings, id: string): Promise<AssetDetail> {
+  return authedGet<AssetDetail>(settings, `/api/assets/${id}`);
+}
+
 /** fetchAsset re-reads one asset's metadata; null if it is gone (404). */
 async function fetchAsset(settings: CaptureSettings, id: string): Promise<LibraryAsset | null> {
   const response = await fetch(`${settings.baseURL}/api/assets/${id}`, {
     headers: { Authorization: `Bearer ${settings.deviceToken}` },
   });
   if (response.status === 401) {
-    reportAuthLost();
+    reportAuthLost(settings.deviceToken);
     throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
   }
   if (response.status === 404) return null;
@@ -625,7 +657,7 @@ export async function flushMutationsQueue(settings: CaptureSettings): Promise<vo
         ...(call.body !== undefined ? { body: JSON.stringify(call.body) } : {}),
       });
       if (response.status === 401) {
-        reportAuthLost();
+        reportAuthLost(settings.deviceToken);
         return { status: 401, networkError: false };
       }
       return { status: response.status, networkError: false };

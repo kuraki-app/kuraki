@@ -10,7 +10,14 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "app.kuraki.mobile",
-      "buildNumber": "1"
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSAllowsLocalNetworking": true
+        },
+        "NSLocalNetworkUsageDescription": "Kuraki connects to your own Kuraki server on this network to back up and browse your photos. Nothing is sent anywhere else."
+      }
     },
     "android": {
       "package": "app.kuraki.mobile",

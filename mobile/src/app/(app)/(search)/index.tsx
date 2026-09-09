@@ -1,17 +1,18 @@
 import { SegmentedControl } from '@expo/ui/community/segmented-control';
 import { Stack, router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import PhotoGrid from '@/components/photo-grid';
 import { headerOptions } from '@/components/screen-header';
 import TagList from '@/components/tag-list';
+import TagPills from '@/components/tag-pills';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { Spacing, useTokens } from '@/constants/theme';
 import { setCachedFavorite } from '@/lib/cache/assets';
 import { enqueueFavorite, pendingFavorites } from '@/lib/cache/mutations';
-import { fetchLibrary, setFavorite, type LibraryAsset } from '@/lib/library-api';
+import { fetchLibrary, fetchTags, setFavorite, type LibraryAsset, type Tag } from '@/lib/library-api';
 import { SEARCH_CHIPS, searchFilters } from '@/lib/search';
 import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
 
@@ -45,6 +46,7 @@ const DEBOUNCE_MS = 300;
  * there is nothing left to collide with — which is why the title is empty here.
  */
 export default function SearchScreen() {
+  const tokens = useTokens();
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
   const [query, setQuery] = useState('');
   // The debounced mirror of `query` is what actually drives the request, so the
@@ -62,6 +64,7 @@ export default function SearchScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [tagSheet, setTagSheet] = useState(false);
+  const [tags, setTags] = useState<Tag[]>([]);
 
   useEffect(() => {
     let live = true;
@@ -168,6 +171,24 @@ export default function SearchScreen() {
   // top of the word "Search" and the text field went up behind the status bar.
   // Only a scroll view gets the platform's automatic inset, so the controls go
   // in the scroll view. See the `listHeader` note in photo-grid.tsx.
+  // The tag vocabulary, fetched once for the pill row. Silent on failure: the
+  // pills are a shortcut, and search itself must keep working without them.
+  useEffect(() => {
+    if (!settings) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      fetchTags(settings)
+        .then((next) => {
+          if (!cancelled) setTags(next);
+        })
+        .catch(() => {});
+    }, 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [settings]);
+
   const controls = (
     <View style={styles.header}>
       <SegmentedControl
@@ -176,16 +197,22 @@ export default function SearchScreen() {
         selectedIndex={chip}
         onChange={(e) => onChipChange(e.nativeEvent.selectedSegmentIndex)}
       />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Browse tags"
-        hitSlop={8}
-        style={styles.tags}
-        onPress={() => setTagSheet(true)}>
-        <ThemedText type="smallBold" themeColor="ring">
-          Browse tags
+      <TagPills
+        tags={tags}
+        onPickTag={(t) =>
+          router.push({ pathname: '/(app)/(search)/tag', params: { tag: t.id, title: t.name } })
+        }
+        onBrowseAll={() => setTagSheet(true)}
+      />
+      {/* How many matched, stated once. Without it a short result list is
+          ambiguous between "few matches" and "still loading". */}
+      {touched && !loading ? (
+        <ThemedText style={[styles.count, { color: tokens.textFaint }]}>
+          {assets.length === 0
+            ? 'No results'
+            : `${assets.length}${cursor ? '+' : ''} result${assets.length === 1 ? '' : 's'}`}
         </ThemedText>
-      </Pressable>
+      ) : null}
     </View>
   );
 
@@ -226,6 +253,7 @@ export default function SearchScreen() {
         loading={loading}
         listHeader={controls}
         onEndReached={() => void loadMore()}
+        hasMore={!!cursor}
         onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
         // A failed request reads as the grid's empty state rather than
         // replacing the grid: swapping the whole body out for the error took
@@ -257,5 +285,5 @@ const styles = StyleSheet.create({
   // It hosts a SwiftUI picker on iOS, and a host that reports a collapsed height
   // is exactly how this screen's controls ended up stacked on one line before.
   segments: { height: 32 },
-  tags: { alignSelf: 'flex-start', paddingBottom: Spacing.two },
+  count: { fontSize: 13, lineHeight: 18, paddingTop: Spacing.half },
 });

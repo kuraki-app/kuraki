@@ -5,6 +5,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import AlbumPicker from '@/components/album-picker';
 import { uploadPhoto } from '@/lib/capture-api';
 import { loadCaptureSettings } from '@/lib/settings';
+import { BackupFailures, BackupProgressCard } from '@/components/backup-progress';
 import { SettingsRow, SettingsSection, SettingsSwitch } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing, useTokens } from '@/constants/theme';
@@ -106,6 +107,8 @@ export default function BackupSettings() {
         contentInsetAdjustmentBehavior="automatic"
         style={[styles.fill, { backgroundColor: tokens.background }]}
         contentContainerStyle={styles.content}>
+        <BackupProgressCard progress={progress} />
+
         <SettingsSection
           title="What to back up"
           footer={
@@ -187,15 +190,19 @@ export default function BackupSettings() {
           ) : null}
         </View>
 
-        {progress?.message ? (
+        {/* Only when a run is *not* in flight: BackupProgressCard above covers
+            the running case in full, and printing the same state twice made the
+            page argue with itself. `message` still carries everything else the
+            engine says — a network gate, an idle summary, a stop reason. */}
+        {progress?.message && !running ? (
           <View style={styles.note}>
             <ThemedText type="small" themeColor="mutedForeground" selectable>
-              {running && progress.currentFile
-                ? `${progress.currentFile} · ${progress.currentPercent}%`
-                : progress.message}
+              {progress.message}
             </ThemedText>
           </View>
         ) : null}
+
+        <BackupFailures failed={progress?.failed ?? []} />
 
         <SettingsSection
           title="Manual upload"

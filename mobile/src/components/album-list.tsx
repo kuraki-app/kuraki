@@ -9,6 +9,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { coverLayout } from '@/lib/album-cover';
+import { formatCount } from '@/lib/format';
 import type { CachedAlbum } from '@/lib/cache/albums';
 import { createAlbum, fetchAlbums, thumbSource, type LibraryAsset } from '@/lib/library-api';
 import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
@@ -145,9 +146,13 @@ export default function AlbumList({ creating, onCreatingChange }: Props) {
                     />
                   ) : null}
                 </View>
-                <ThemedText type="smallBold" numberOfLines={1}>{item.name}</ThemedText>
-                <ThemedText type="small" themeColor="mutedForeground">
-                  {item.count} item{item.count === 1 ? '' : 's'}
+                <ThemedText style={styles.cardName} numberOfLines={1}>
+                  {item.name}
+                </ThemedText>
+                {/* Grouped, because a library that has 1204 items in an album
+                    reads it as "1,204" and not as a four-digit run. */}
+                <ThemedText style={[styles.cardCount, { color: tokens.textFaint }]}>
+                  {formatCount(item.count)} item{item.count === 1 ? '' : 's'}
                 </ThemedText>
               </Pressable>
             );
@@ -193,8 +198,15 @@ export default function AlbumList({ creating, onCreatingChange }: Props) {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   grid: { gap: Spacing.three, paddingBottom: Spacing.four },
-  card: { flex: 1, gap: Spacing.one },
-  cover: { width: '100%', aspectRatio: 1, borderRadius: Radius.sm, overflow: 'hidden' },
+  card: { flex: 1, gap: 2 },
+  // Radius.md, not sm: an album cover is a card in a two-up grid, and at 8pt
+  // the corner barely read against the square mosaic inside it.
+  cover: { width: '100%', aspectRatio: 1, borderRadius: Radius.md, overflow: 'hidden', marginBottom: 6 },
+  // 15/600 over a 12pt count: the name leads and the count recedes. Both were
+  // 14pt before, the name bold and the count merely muted, so the pair read as
+  // one two-line label rather than a title and its footnote.
+  cardName: { fontSize: 15, lineHeight: 20, fontWeight: '600' },
+  cardCount: { fontSize: 12, lineHeight: 16 },
   coverImage: { width: '100%', height: '100%' },
   mosaic: { width: '100%', height: '100%', flexDirection: 'row', flexWrap: 'wrap' },
   // Just under half, so the 1pt left over on each axis becomes the seam between

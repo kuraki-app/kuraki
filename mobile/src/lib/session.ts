@@ -21,11 +21,26 @@ export function onAuthLost(listener: Listener): () => void {
   };
 }
 
-/** reportAuthLost is called by the API layer when a device request returns 401. */
-export function reportAuthLost(): void {
+/**
+ * reportAuthLost is called by the API layer when a device request returns 401.
+ *
+ * `failedToken` is the credential the rejected request actually used, and both
+ * of the things done with it were bugs before it existed:
+ *
+ *   - An empty token means the request carried no credential, so there was
+ *     nothing to lose. Screens mount and fetch during onboarding, before pairing
+ *     has happened; those 401s used to raise "This device was disconnected and
+ *     is no longer backing up" at someone who had never paired.
+ *   - A non-empty token is only worth clearing while it is still the stored one.
+ *     The clear is asynchronous and nothing ordered it against pairing, so a
+ *     401 already in flight would delete the token a successful pair had just
+ *     written — the server kept an active device, the app said "Not paired".
+ */
+export function reportAuthLost(failedToken: string): void {
+  if (!failedToken) return;
   if (lost) return;
   lost = true;
-  void clearDeviceToken();
+  void clearDeviceToken(failedToken);
   // A revoked device stops backing up silently, which is the one state the
   // user cannot discover on their own. The `lost` guard above means this fires
   // once per revocation, not once per failing request. Imported lazily so this

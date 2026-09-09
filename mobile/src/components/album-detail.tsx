@@ -248,6 +248,7 @@ export default function AlbumDetail({ albumId, adding, onAddingChange, onSelecti
           settings={settings}
           loading={loading}
           onEndReached={() => void loadMore()}
+          hasMore={!!cursor}
           onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
           onDelete={(id) => void trashOne(id)}
           selectedIds={selected}

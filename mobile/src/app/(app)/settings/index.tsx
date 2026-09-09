@@ -1,6 +1,6 @@
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import * as MediaLibrary from 'expo-media-library/legacy';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { AppState, ScrollView, StyleSheet, View } from 'react-native';
 
 import LibraryStatsCard from '@/components/library-stats';
@@ -8,6 +8,7 @@ import { SettingsRow, SettingsSection } from '@/components/settings-ui';
 import { Spacing, useTokens } from '@/constants/theme';
 import { clearMutations } from '@/lib/cache/mutations';
 import { connectionView } from '@/lib/connection-view';
+import { serverHost } from '@/lib/url';
 import { classifyPermission, type PermissionStatus } from '@/lib/permissions';
 import { isAuthLost } from '@/lib/session';
 import { clearDeviceToken, clearSetupComplete, loadCaptureSettings } from '@/lib/settings';
@@ -27,24 +28,33 @@ export default function SettingsIndex() {
 
   const reload = useCallback(async () => {
     const s = await loadCaptureSettings();
-    setHost(s.baseURL.replace(/^https?:\/\//i, '').replace(/\/+$/, ''));
+    // Same helper the stats card uses, so the two do not disagree about how an
+    // address is spelled.
+    setHost(serverHost(s.baseURL));
     setHasToken(Boolean(s.deviceToken));
     setPhotos(classifyPermission(await MediaLibrary.getPermissionsAsync()));
   }, []);
 
   // Deferred a tick so the first setState does not fire synchronously inside
-  // the effect, matching the pattern used across the app. Re-read on foreground
-  // so a permission changed in the Settings app is reflected on return.
-  useEffect(() => {
-    const timer = setTimeout(() => void reload(), 0);
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void reload();
-    });
-    return () => {
-      clearTimeout(timer);
-      sub.remove();
-    };
-  }, [reload]);
+  // the effect, matching the pattern used across the app.
+  //
+  // On focus, not just on mount. Pairing happens on a screen pushed from this
+  // one, so returning here never re-read and the row went on saying "Not
+  // paired" directly above a stats card reporting a live connection -- the page
+  // contradicting itself. The AppState listener stays for the other direction:
+  // a permission changed in the iOS Settings app while Kuraki is backgrounded.
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setTimeout(() => void reload(), 0);
+      const sub = AppState.addEventListener('change', (state) => {
+        if (state === 'active') void reload();
+      });
+      return () => {
+        clearTimeout(timer);
+        sub.remove();
+      };
+    }, [reload]),
+  );
 
   const view = connectionView({ hasToken, connection: isAuthLost() ? 'disconnected' : 'online' });
   const connectionDetail =

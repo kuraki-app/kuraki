@@ -41,3 +41,24 @@ export function backupIndicator({ running, pending, done, failed }: Input): Indi
   if (failed.length > 0) return { state: 'failed', percent: 0 };
   return { state: 'hidden', percent: 0 };
 }
+
+/**
+ * backupProgress reduces a run's counters to what a progress bar needs.
+ *
+ * `done` and `pending` are both live: `pending` is what is still queued, so the
+ * total for this run is the two added together rather than either alone. That
+ * total moves as the scanner discovers more items, which is why the fraction is
+ * recomputed from both every tick instead of being anchored to a total captured
+ * when the run started.
+ *
+ * The fraction is clamped to 0..1 so a late-arriving `done` (an upload
+ * completing after the queue drained) cannot drive a bar past its track, and a
+ * run with nothing in it reports 0 rather than dividing by zero.
+ */
+export function backupProgress(done: number, pending: number): { total: number; fraction: number } {
+  const safeDone = Number.isFinite(done) && done > 0 ? Math.floor(done) : 0;
+  const safePending = Number.isFinite(pending) && pending > 0 ? Math.floor(pending) : 0;
+  const total = safeDone + safePending;
+  if (total === 0) return { total: 0, fraction: 0 };
+  return { total, fraction: Math.min(1, Math.max(0, safeDone / total)) };
+}

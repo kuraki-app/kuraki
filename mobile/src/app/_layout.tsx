@@ -6,7 +6,6 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { useTokens } from '@/constants/theme';
-import { useAppFonts } from '@/design/fonts';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { backupEngine } from '@/lib/backup-engine';
 import { shouldRunForegroundBackup } from '@/lib/foreground-backup';
@@ -36,7 +35,6 @@ configureNotifications();
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const tokens = useTokens();
-  const fontsLoaded = useAppFonts();
   const [ready, setReady] = useState<boolean | null>(setupCompleteSnapshot());
   const segments = useSegments();
 
@@ -129,7 +127,9 @@ export default function RootLayout() {
     return () => sub.remove();
   }, []);
 
-  if (!fontsLoaded || ready === null) {
+  // No font gate any more: the app uses the platform sans, which is already
+  // resident, so there is nothing to wait for but the setup flag.
+  if (ready === null) {
     return <View style={{ flex: 1 }} />; // splash stays up
   }
 

@@ -9,7 +9,98 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- **Kuraki's default port is now `39170`, not `3000`.** 3000 is the most contested port on a
+  developer's machine, and losing that race is not loud: a container on this project's own machine
+  published a port it never actually held, for 22 hours, while reporting healthy. Every port Kuraki
+  binds is now declared once in `internal/config/ports.go` and generated outward — `39170` for the
+  server, `39175`/`39176` for the hot-reload API and web UI, `39177` for Metro (Expo's 8081 collides
+  with any other React Native project), `39178` for the browser suite. They differ from each other on
+  purpose, so a container, a dev session, a bundler and the e2e run can all be up at once. Existing
+  installs keep working by setting `KURAKI_ADDR=:3000`; a phone that stored a `:3000` address keeps
+  using it, since a stated port is always respected.
+
+### Added
+
+- `KURAKI_PUBLIC_URL` — the address other devices should use to reach this server. The pairing screen
+  previously derived candidates from the machine's own network interfaces, which is right for a
+  bare-metal install and impossible in a container or behind a reverse proxy.
+- **[USER_GUIDE.md](./USER_GUIDE.md)** — what Kuraki does, described as flows: what each one asks of
+  you, what the server does with it, what comes back, and how it fails. No code, no installation
+  detail, nothing about how a screen looks. Also a shorter "How Kuraki works" page on the docs site.
+
+### Fixed
+
+- **A transient database error unpaired every phone.** `resolveDevice` gave the same answer for "no
+  such device" and for "the lookup failed", and both became `401` — which is the client's
+  instruction to delete its credential, because that is what a revoked device means. So a momentary
+  fault permanently unpaired every paired phone, each needing a human to re-pair it. Observed: a
+  156ms burst of `database disk image is malformed` produced 19 of these and a phone that had paired
+  seconds earlier deleted its token. A lookup that cannot run now answers `503`, which clients
+  already retry without touching what they have stored; a token no device owns still answers `401`.
+- Two client-side halves of the same problem: a 401 for a request that carried **no** token raised
+  "This device was disconnected" at someone who had never paired (screens fetch during onboarding,
+  before pairing), and a 401 already in flight when the user paired deleted the credential pairing
+  had just written. Auth loss is now attributed to the token that actually failed.
+- **The mobile app could not be pointed at a server on the internet.** Any address typed without a
+  scheme became `http://<host>:3000`, so the reverse-proxy deployment in DEPLOYMENT.md — a domain on
+  443 — was unreachable, and on iOS it was refused outright rather than merely failing (App
+  Transport Security permits cleartext on the local network only). A domain is now tried over HTTPS
+  first and a LAN address over HTTP on the server's own port, and whichever answers is the one kept.
+- **Pointing the app at a different server kept showing the previous library.** The offline mirror
+  and the delta-sync cursor were keyed by nothing, so the new server was asked for changes since a
+  position in the *old* server's change log — it had nothing newer to report, and the app settled on
+  another library's photos while reporting "Connected". Changing the server, or pairing as a
+  different account, now clears the mirror.
+- A malformed server address in mobile Settings raised an unhandled promise rejection instead of an
+  error, and the status line went on claiming the old address was connected. The status line also
+  followed the text field while it was being edited, so half-typed input read back as a connection.
+- iOS builds declared no `NSLocalNetworkUsageDescription`, which iOS 14+ requires to reach a server
+  on the local network. It — and the App Transport Security posture — now come from `app.json`
+  rather than from an untracked `ios/` directory.
+- The hint under the mobile server-address field called a half-typed IPv4 address a public domain and
+  offered HTTPS — it only recognised a complete dotted quad, so someone typing a LAN address read the
+  wrong advice for as long as they were typing.
+- **`kuraki backup` destroyed its own run when the archive was written into the library.**
+  `kuraki backup /data/x.tar.gz --data-dir /data` archived the file it was writing: the walk reached
+  an archive that grew with every byte added to it, and the run died on `archive/tar: write too
+  long` after inflating past the size of the library — leaving a truncated, unrestorable `.tar.gz`
+  sitting exactly where a real backup belongs. The destination is now excluded from the walk, and a
+  failed backup deletes its partial archive instead of leaving something that looks like one.
+- **`make dev` could not complete first-run setup.** The server refuses browser cross-origin state
+  changes by comparing Origin against Host, and Vite rewrote Host to the proxy target — so every
+  POST, PATCH and DELETE came back 403 `cross_origin_request` while reads worked normally, making
+  the UI look healthy until the first write. The dev proxy now preserves the browser's Host.
+- `scripts/start.sh --addr :4000` announced `http://localhost:3000` regardless of the address given.
+- Development libraries created with `--data-dir ./kuraki-data-dev`, as the runbook suggests, were
+  not gitignored; the pattern now covers them.
+- `make dev` did not proxy `/download`, so the Devices page's Android APK link 404'd in dev; and the
+  API port was hardcoded in both `scripts/dev.sh` and `web/vite.config.ts`, so moving one left the
+  other pointing at whatever else held 3000. The port is now `KURAKI_PORT`, chosen once and
+  exported, `dev.sh` refuses to start when it is busy (naming the process holding it), and a test
+  fails the build if the proxy list drifts from the router.
+- **Saving a search broke the saved-search list.** `GET /api/saved-searches` returned 500 from the
+  moment the first search existed, because the stored query could not be scanned back out of SQLite.
+  The web UI reported "No saved searches yet" rather than an error, so the feature looked empty.
+- **The pairing screen offered an unreachable address in Docker.** A container can see only its own
+  bridge interface, and the screen preferred that address over the one the browser was already
+  using — dropping the "a phone using this would try to reach itself" warning as it did so. In a
+  container the server now offers nothing and the browser's own address stands; set
+  `KURAKI_PUBLIC_URL` to state the answer.
+- `/api/login` and `/api/setup` returned an empty `role` for the user they signed in, disagreeing
+  with `GET /api/me`.
+- libvips wrote about ten unstructured lines to stderr per imported image, burying import progress
+  and the result line. Its output is now structured, at warning level, and deduplicated.
+
+### Changed
+
+- Documentation reconciled with the shipped code. The README described single-owner auth (multi-user
+  with isolated libraries shipped), search that only matched the start of a word (it matches inside
+  words now), a change log kept "for future sync" (delta sync, live push and offline reconciliation
+  all ship), and Node 20 (the embedded UI is hash-stable only on Node 24). The command table, the
+  package map, the generated-artifact rules, and the real list of CI gates are now accurate in the
+  README, CONTRIBUTING, and both client READMEs.
 
 ## [0.1.0] - 2026-08-12
 

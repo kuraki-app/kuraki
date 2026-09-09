@@ -6,9 +6,11 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/davidbyttow/govips/v2/vips"
 	"github.com/evanoberholster/imagemeta"
@@ -21,9 +23,39 @@ type Vips struct {
 	fallback *PureGo
 }
 
+// vipsWarned remembers which libvips warnings have already been reported, so a
+// decoder quirk shared by every file in a library is stated once rather than
+// once per photo.
+var vipsWarned sync.Map
+
+// vipsLog routes a libvips/glib message into slog.
+//
+// govips ships its own handler that writes unstructured `log.Printf` lines to
+// stderr at info verbosity — roughly ten per image ("selected loader is ...",
+// "converting to processing space srgb"), which buried the result line of an
+// import and broke the structured-logging invariant. Errors and criticals are
+// always logged; warnings are deduplicated by message, because the common one
+// ("heifload: ignoring nclx profile") is emitted for every HEIC an iPhone
+// library contains and says nothing new the second time.
+func vipsLog(domain string, level vips.LogLevel, message string) {
+	switch level {
+	case vips.LogLevelError, vips.LogLevelCritical:
+		slog.Error("libvips", "domain", domain, "message", message)
+	default:
+		if _, seen := vipsWarned.LoadOrStore(domain+": "+message, struct{}{}); seen {
+			return
+		}
+		slog.Warn("libvips", "domain", domain, "message", message)
+	}
+}
+
 // NewVips starts libvips lazily and returns a Processor implementation. If
 // startup fails, individual operations will surface that error through govips.
 func NewVips() *Vips {
+	// Must precede Startup: govips installs its own info-level handler on first
+	// start unless the settings have already been overridden, and Startup itself
+	// logs through it.
+	vips.LoggingSettings(vipsLog, vips.LogLevelWarning)
 	_ = vips.Startup(&vips.Config{
 		ConcurrencyLevel: min(max(runtime.GOMAXPROCS(0), 1), 2),
 		MaxCacheMem:      50 * 1024 * 1024,

@@ -4,6 +4,11 @@ The SvelteKit single-page app that is Kuraki's browser experience — the timeli
 viewer, search, albums, places, and the operational dashboards. It is **not a
 standalone app**: it is built into the Go server and talks to it over `/api`.
 
+Its API types (`src/lib/api.gen.ts`) are **generated** from the server's OpenAPI
+contract and CI fails on drift — see the generated-artifacts table in the
+[root README](../README.md). What Kuraki does, told as user flows rather than
+routes, is [USER_GUIDE.md](../USER_GUIDE.md).
+
 ## How it fits together
 
 `npm run build` compiles this app with `@sveltejs/adapter-static` (SPA mode) into
@@ -41,6 +46,13 @@ npm run build         # svelte-kit sync && vite build -> internal/httpapi/assets
 make web
 ```
 
+Build on **Node 24** (`.nvmrc`). Vite's content hashes are deterministic for identical
+inputs, and "identical" includes the toolchain — another Node version rewrites every
+hashed filename and produces a spurious full-tree diff in the committed assets.
+
+`internal/httpapi/assets/` is **committed** (`go:embed` needs it in the tree), so a
+change under `src/` is not landed until `make web` has been run and its diff staged.
+
 After building, `./scripts/start.sh` (or `make start`) runs one production-like
 Go process on `:3000` serving the embedded UI.
 
@@ -49,10 +61,16 @@ Go process on `:3000` serving the embedded UI.
 The UI has a deliberate identity built around **two registers** driven by
 `src/lib/nav.ts`:
 
-- **Kura** — Fraunces display type, an 8px rhythm, warm paper surfaces. Fronts the
+- **Kura** — an 8px rhythm, large settled headings, soft cards. Fronts the
   photo surfaces (timeline, viewer, albums, favorites, places).
-- **Vault** — Geist Mono for data, a 4px rhythm, flat hairline panels. Backs the
-  operational surfaces (Overview, Devices, Activity, Settings, Trash, Duplicates).
+- **Vault** — a 4px rhythm, micro-caps labels, tabular figures, flat hairline
+  panels. Backs the operational surfaces (Overview, Devices, Activity, Settings,
+  Trash, Duplicates).
+
+Both registers set type in one family — the platform's own sans. The split is
+rhythm, density and treatment, not typeface; hierarchy comes from size and
+weight, which is what a photo app wants, since the type should seat the
+photographs rather than compete with them. `e2e/registers.spec.ts` pins that.
 
 The rule: **the register belongs to the page frame, never the photo components** —
 `AssetGrid` and `Viewer` always render as Kura, because a photograph is a memory
@@ -62,6 +80,21 @@ The palette lives in **`src/app.css`** as CSS custom properties mapped onto
 shadcn-svelte's token names (renaming them would break every shadcn component).
 `--stamp` (oxblood) is Kuraki's own mark, reserved for brand/active-nav/selection;
 `--primary` stays ink so buttons never compete with the photographs.
+
+## Gates
+
+```sh
+npm run check         # svelte-check — the ONLY type gate; `npm run build` does not typecheck
+npm run test          # Vitest, pure logic in src/lib only
+make e2e              # from the repo root: Playwright against a real seeded server
+```
+
+`make e2e` boots the **Go binary** against a throwaway seeded library, so it is the only
+gate that sees runtime behaviour — a component that throws on mount is invisible to both
+`build` and `svelte-check`. A console-error guard fails any test on `console.error` or an
+uncaught page error, which is why a test that navigates and asserts nothing still earns
+its keep. Note that a **running** `kuraki serve` keeps serving the assets it started
+with: after `make web build`, restart it or you are testing the old UI.
 
 ### The contrast gate
 
@@ -82,7 +115,7 @@ surfaces.
 
 - **SvelteKit** + `@sveltejs/adapter-static` (SPA, `go:embed`ed into the server)
 - **Tailwind v4** + **shadcn-svelte** components (`src/lib/components/ui`)
-- **Fraunces** (display) + **Geist** (body) + **Geist Mono** (Vault data), via `@fontsource-variable`
+- **No bundled fonts** — one system sans stack (`ui-sans-serif, system-ui, …`) for every register
 - **@lucide/svelte** icons · native **View Transitions** for the grid→viewer morph
 
 ## Layout
@@ -96,7 +129,9 @@ web/
 │   │   ├── api.ts · types.ts   # API client + shared types
 │   │   ├── motion.ts           # transition/motion helpers
 │   │   └── components/         # AssetGrid, Viewer, PageHeader, … + ui/ (shadcn)
-│   └── routes/                 # timeline, albums, places, trash, stats, devices, activity, settings, …
+│   └── routes/                 # timeline (search lives in its filter bar), albums, tags, favorites,
+│                               #   memories, places, archive, hidden, duplicates, trash,
+│                               #   settings/{overview,account,appearance,library,devices,activity,server,users}
 ├── scripts/check-contrast.py   # WCAG AA gate over app.css
 └── svelte.config.js            # adapter-static -> internal/httpapi/assets
 ```

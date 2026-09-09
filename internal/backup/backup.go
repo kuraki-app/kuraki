@@ -51,12 +51,34 @@ func CreateLive(ctx context.Context, database *sql.DB, dataDir, destination stri
 	return create(ctx, dataDir, destination, snapshotPath)
 }
 
-func create(ctx context.Context, dataDir, destination, snapshotPath string) error {
+func create(ctx context.Context, dataDir, destination, snapshotPath string) (err error) {
+	// Resolved so the walk can recognise the archive it is writing. Without
+	// this, `kuraki backup /data/x.tar.gz --data-dir /data` archives its own
+	// output: the walk reaches a file that grows with every byte written to it,
+	// io.Copy sends more than the header promised, and the whole run dies on
+	// `archive/tar: write too long` after ballooning past the size of the
+	// library. RUNNING.md's examples all write to a separate mount, which is why
+	// this went unnoticed — but nothing stopped the other choice, and the
+	// failure named neither the cause nor the file.
+	destAbs, absErr := filepath.Abs(destination)
+	if absErr != nil {
+		return fmt.Errorf("backup: resolve destination: %w", absErr)
+	}
+
 	out, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("backup: create archive: %w", err)
 	}
 	defer out.Close()
+	// A failed backup must not leave something that looks like a backup. The
+	// partial archive is gzip-truncated and unrestorable, but it is a plausible
+	// .tar.gz of a plausible size sitting exactly where the real one belongs —
+	// which is the worst possible thing to find during a recovery.
+	defer func() {
+		if err != nil {
+			_ = os.Remove(destination)
+		}
+	}()
 	zw := gzip.NewWriter(out)
 	defer zw.Close()
 	tw := tar.NewWriter(zw)
@@ -110,6 +132,9 @@ func create(ctx context.Context, dataDir, destination, snapshotPath string) erro
 		// A live backup archives the consistent snapshot instead of copying the
 		// mutable main/WAL/SHM files that happen to exist during the walk.
 		if snapshotPath != "" && (rel == "kuraki.db" || rel == "kuraki.db-wal" || rel == "kuraki.db-shm") {
+			return nil
+		}
+		if pathAbs, err := filepath.Abs(path); err == nil && pathAbs == destAbs {
 			return nil
 		}
 		if rel == "staging" || strings.HasPrefix(rel, "staging"+string(os.PathSeparator)) || rel == "snapshots" || strings.HasPrefix(rel, "snapshots"+string(os.PathSeparator)) {

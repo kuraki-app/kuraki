@@ -57,10 +57,15 @@ export type ScreenHeaderProps = {
   /** The title the header shows. Also the back label of anything pushed on top. */
   title: string;
   /**
-   * Which type register the title takes. Defaults to `vault` (Geist Mono),
-   * which is every header in the app — see the note on `headerOptions`. The
-   * parameter stays because the register split still governs *content*, and a
-   * screen may one day want its header to follow.
+   * Which type register the title takes. Defaults to `kura` (Fraunces).
+   *
+   * A screen title names the place you are in — "Albums", "Settings", "Coorg" —
+   * which is prose, not data, so it belongs to the display face even on screens
+   * whose *content* is Vault. This was `vault` (Geist Mono) for every header in
+   * the app, which made the mono face the app's voice rather than its data
+   * treatment, and left Fraunces appearing nowhere on mobile except a card
+   * heading. Pass `vault` explicitly for a header that genuinely titles a data
+   * readout.
    */
   register?: Register;
 };
@@ -90,7 +95,7 @@ export type ScreenHeaderProps = {
  * title is ever wanted again, it needs verifying on hardware first -- the
  * inset is the whole feature, and it did not work here.
  */
-export function headerOptions({ title, register = 'vault' }: ScreenHeaderProps): ScreenOptions {
+export function headerOptions({ title, register = 'kura' }: ScreenHeaderProps): ScreenOptions {
   const reg = registerStyle(register);
 
   return {

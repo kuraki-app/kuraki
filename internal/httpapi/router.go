@@ -38,6 +38,10 @@ type Deps struct {
 	// ListenPort is the port the server is bound to, used to build the
 	// pairing address a phone should connect to.
 	ListenPort string
+	// PublicURL, when set (KURAKI_PUBLIC_URL), is the address other devices
+	// should use to reach this server, and is reported verbatim in place of
+	// anything derived from the machine's own interfaces.
+	PublicURL string
 
 	// SecureCookies marks the session cookie Secure (HTTPS-only) in production.
 	SecureCookies bool

@@ -1,58 +1,47 @@
-/* Self-hosted, byte-identical to the @fontsource-variable files the web client
- * vendors — see site/scripts/check-fonts.mjs, which fails the build if they
- * drift. A page arguing that your photos should not live on someone else's
- * computer should not fetch its own headline from one. */
-@font-face {
-  font-family: 'Fraunces'; font-style: normal; font-display: swap;
-  font-weight: 100 900; src: url('/fonts/fraunces-latin-wght-normal.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Geist'; font-style: normal; font-display: swap;
-  font-weight: 100 900; src: url('/fonts/geist-latin-wght-normal.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Geist Mono'; font-style: normal; font-display: swap;
-  font-weight: 100 900; src: url('/fonts/geist-mono-latin-wght-normal.woff2') format('woff2');
-}
-
+/* No webfonts. The app is set in the platform's own sans, and a page
+ * advertising it should not arrive in a different typeface — nor fetch a
+ * headline from someone else's computer to make the argument that your photos
+ * should not live on one. There is nothing to vendor and nothing to gate. */
 :root {
-    --paper:   #f2efe8;
-    --paper-2: #eae4d8;
-    --card:    #fbf9f4;
-    --ink:     #191612;
-    --ink-2:   #4f4942;
-    --ink-3:   #6f685c;
-    --line:    #e0d9cb;
-    --line-2:  #d3cabb;
+    --paper:   #ffffff;
+    --paper-2: #f0f0f2;
+    --card:    #fafafa;
+    --ink:     #111111;
+    --ink-2:   #3f3f46;
+    --ink-3:   #67676f;
+    --line:    #e6e6e9;
+    --line-2:  #d8d8dc;
     --stamp:   #8c3a2b;   /* Kuraki's own mark. Used with restraint. */
     --stamp-ink:#ffffff;
-    --vault:   #201d18;   /* the dark "storehouse" register */
-    --vault-2: #17140f;
-    --vault-paper: #f2ede3;
-    --vault-muted: #b3aa9c;
+    --vault:   #111111;   /* the dark "storehouse" register */
+    --vault-2: #0a0a0a;
+    --vault-paper: #f5f5f5;
+    --vault-muted: #a1a1aa;
 
-    --display: 'Fraunces', Georgia, 'Times New Roman', serif;
-    --body: 'Geist', system-ui, -apple-system, sans-serif;
-    --mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', monospace;
+    /* One family. --display/--mono stay named so the seam is still
+       visible, but they no longer change typeface. */
+    --display: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 
     --r: 14px;
-    --shadow: 0 1px 2px rgba(25,22,18,.04), 0 20px 45px -30px rgba(25,22,18,.35);
+    --shadow: 0 1px 2px rgba(0,0,0,.04), 0 20px 45px -30px rgba(0,0,0,.35);
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --paper:   #131108;
-      --paper-2: #1a170f;
-      --card:    #1e1b14;
-      --ink:     #f2ede3;
-      --ink-2:   #cdc3b2;
-      --ink-3:   #a89e8e;
-      --line:    #322d23;
-      --line-2:  #3d372b;
+      --paper:   #000000;
+      --paper-2: #0d0d0d;
+      --card:    #0d0d0d;
+      --ink:     #f5f5f5;
+      --ink-2:   #d4d4d8;
+      --ink-3:   #8a8a90;
+      --line:    #282828;
+      --line-2:  #343434;
       --stamp:   #e8836b;
-      --stamp-ink:#1a120f;
-      --vault:   #0e0c07;
-      --vault-2: #0a0805;
+      --stamp-ink:#0a0a0a;
+      --vault:   #000000;
+      --vault-2: #0a0a0a;
       --shadow: 0 1px 2px rgba(0,0,0,.3), 0 24px 50px -30px rgba(0,0,0,.7);
       color-scheme: dark;
     }

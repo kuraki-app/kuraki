@@ -326,8 +326,15 @@ func healthcheckCmd() *cobra.Command {
 }
 
 // newLogger builds a structured slog logger (F: clear structured logs).
+//
+// It also becomes the process default. Code that cannot be handed a logger
+// still has to report — libvips talks to us through a glib callback, and its
+// warnings would otherwise print in slog's default format beside the server's
+// own lines, in the same stream.
 func newLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	slog.SetDefault(logger)
+	return logger
 }
 
 func serveCmd() *cobra.Command {

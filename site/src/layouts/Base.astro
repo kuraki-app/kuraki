@@ -45,8 +45,11 @@ const ogImage = new URL('/og.png', Astro.site);
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImage} />
 
-    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f2efe8" />
-    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#131108" />
+    <!-- Must track --paper in site.css: the browser paints its own chrome with
+         this, and a stale value shows as a band of the old palette above a page
+         in the new one. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
 
     <!-- Favicon: the oxblood stamp, inline so it costs no request. -->
     <link
@@ -54,14 +57,11 @@ const ogImage = new URL('/og.png', Astro.site);
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23191612'/%3E%3Ccircle cx='16' cy='16' r='8.5' fill='none' stroke='%238c3a2b' stroke-width='2.4'/%3E%3Cpath d='M16 9.5l1.9 3.9 4.3.6-3.1 3 .7 4.3-3.8-2-3.8 2 .7-4.3-3.1-3 4.3-.6z' fill='%238c3a2b'/%3E%3C/svg%3E"
     />
 
-    <!-- Fonts are served from this origin, not fonts.googleapis.com.
-         A page whose argument is "your photos should not live on someone else's
-         computer" should not make a third-party request to render its own
-         headline. These are the same @fontsource-variable files the web client
-         vendors, so the site and the app render identically. Preloaded because
-         they are the only render-blocking resources left. -->
-    <link rel="preload" href="/fonts/fraunces-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- No font files, from here or anywhere: the site and the app both set
+         type in the reader's own system sans. A page whose argument is "your
+         photos should not live on someone else's computer" should not make a
+         third-party request to render its own headline, and the cheapest way to
+         keep that true is to have nothing to fetch. -->
 
     <script
       type="application/ld+json"

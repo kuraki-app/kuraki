@@ -35,6 +35,24 @@ echo "==> [2/3] Building Go binary -> ./bin/kuraki …"
 VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o bin/kuraki ./cmd/kuraki
 
-echo "==> [3/3] Starting Kuraki on http://localhost:3000 (Ctrl-C to stop)…"
+# Report the address actually being used. The banner said 3000 unconditionally,
+# so `./scripts/start.sh --addr :4000` — the form RUNNING.md documents — sent
+# people to a port nothing was listening on.
+addr=":3000"
+prev=""
+for arg in "$@"; do
+  case "$arg" in
+    --addr=*) addr="${arg#--addr=}" ;;
+    # `if`, not `&&`: a failed test as the last command in a case branch makes
+    # the whole case return non-zero, which `set -e` turns into an exit.
+    *) if [ "$prev" = "--addr" ]; then addr="$arg"; fi ;;
+  esac
+  prev="$arg"
+done
+# ":4000" and "127.0.0.1:4000" both become a URL someone can click.
+host="${addr%:*}"
+port="${addr##*:}"
+[ -z "$host" ] && host="localhost"
+echo "==> [3/3] Starting Kuraki on http://$host:$port (Ctrl-C to stop)…"
 echo ""
 exec ./bin/kuraki serve "$@"

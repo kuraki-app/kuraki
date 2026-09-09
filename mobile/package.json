@@ -52,10 +52,10 @@
     "vitest": "^4.1.10"
   },
   "scripts": {
-    "start": "expo start",
+    "start": "expo start --port 39177",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo start --android --port 39177",
+    "ios": "expo start --ios --port 39177",
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "vitest run",

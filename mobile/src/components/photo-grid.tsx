@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { SymbolView } from 'expo-symbols';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Animated,
@@ -14,8 +15,10 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
 import PhotoViewer from '@/components/photo-viewer';
 import ScrollScrubber from '@/components/scroll-scrubber';
+import SectionHeading from '@/components/section-heading';
+import TileBadges from '@/components/tile-badges';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, useTokens } from '@/constants/theme';
+import { useTokens } from '@/constants/theme';
 import { usePrefs } from '@/hooks/use-prefs';
 import { applyPaint, paintMode, tileAt, type PaintMode, type TileFrame } from '@/lib/drag-select';
 import { formatBytes } from '@/lib/format';
@@ -45,6 +48,15 @@ type Props = {
    */
   listHeader?: React.ReactElement | null;
   onEndReached?: () => void;
+  /**
+   * Whether the server has more pages beyond what is loaded.
+   *
+   * Only used to qualify the newest day heading's count: everything above it is
+   * fully materialised (the server returns date-descending), so only the last
+   * group can still be growing. Without this the heading states a total it does
+   * not know.
+   */
+  hasMore?: boolean;
   onToggleFavorite?: (id: string, next: boolean) => void;
   /** Move a single asset to trash from inside the viewer. Surfaces the delete
    *  icon only where a caller supplies it — the Trash grid and the Places
@@ -100,6 +112,7 @@ export default function PhotoGrid({
   emptyMessage,
   listHeader,
   onEndReached,
+  hasMore = false,
   onToggleFavorite,
   onDelete,
   selectedIds,
@@ -389,24 +402,16 @@ export default function PhotoGrid({
             // on, so per-group selection simply is not offered.
             return null;
           }
+          const ids = sectionIds(section);
           const allSelected = selectAll ? sectionAllSelected(section, selectedIds ?? new Set()) : false;
           return (
-            <View style={styles.sectionRow}>
-              <ThemedText type="smallBold" style={styles.sectionHeader}>
-                {section.title}
-              </ThemedText>
-              {selectAll ? (
-                <Pressable
-                  hitSlop={8}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${allSelected ? 'Deselect' : 'Select'} everything in ${section.title}`}
-                  onPress={() => onSelectSection(sectionIds(section), allSelected)}>
-                  <ThemedText type="smallBold" themeColor="primary">
-                    {allSelected ? 'None' : 'Select all'}
-                  </ThemedText>
-                </Pressable>
-              ) : null}
-            </View>
+            <SectionHeading
+              title={section.title}
+              count={ids.length}
+              partial={hasMore && section.key === sections[sections.length - 1]?.key}
+              allSelected={allSelected}
+              onSelectAll={selectAll ? () => onSelectSection(ids, allSelected) : undefined}
+            />
           );
         }}
         renderItem={({ item: row }) => (
@@ -444,24 +449,40 @@ export default function PhotoGrid({
                       {item.media_type}
                     </ThemedText>
                   )}
-                  {item.media_type === 'video' && <View style={styles.videoDot} />}
-                  {showSizeBadge && item.size_bytes ? (
-                    <View style={styles.sizeBadge}>
-                      <ThemedText type="small" style={styles.sizeText}>
-                        {formatBytes(item.size_bytes)}
-                      </ThemedText>
-                    </View>
-                  ) : null}
+                  {/* Hidden while selecting: the check owns the corner a stack
+                      or play marker would take, and a tile being chosen is not
+                      the moment to also be reading its length. */}
+                  {!selectionActive && (
+                    <TileBadges
+                      asset={item}
+                      showSize={showSizeBadge}
+                      sizeLabel={item.size_bytes ? formatBytes(item.size_bytes) : null}
+                    />
+                  )}
                   {selected && (
-                    <View
-                      style={[
-                        styles.checkBadge,
-                        { backgroundColor: tokens.primary, borderColor: tokens.primaryForeground },
-                      ]}>
-                      <ThemedText type="small" themeColor="primaryForeground">
-                        ✓
-                      </ThemedText>
-                    </View>
+                    <>
+                      {/* The whole tile carries the selection, not just a
+                          corner. A 22pt badge on a 128pt tile is findable only
+                          if you already know where to look; a tint is legible
+                          in peripheral vision, which is what scanning a grid
+                          of forty tiles actually uses. */}
+                      <View
+                        style={[styles.selectedTint, { backgroundColor: tokens.stamp }]}
+                        pointerEvents="none"
+                      />
+                      <View style={[styles.checkBadge, { backgroundColor: tokens.stamp }]}>
+                        <SymbolView
+                          name="checkmark"
+                          size={13}
+                          tintColor={tokens.stampForeground}
+                          fallback={
+                            <ThemedText type="small" themeColor="stampForeground">
+                              ✓
+                            </ThemedText>
+                          }
+                        />
+                      </View>
+                    </>
                   )}
                 </Pressable>
               );
@@ -521,35 +542,19 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row' },
   tile: { alignItems: 'center', justifyContent: 'center' },
   thumb: { width: '100%', height: '100%' },
-  sectionRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.two,
-  },
-  sectionHeader: { paddingTop: Spacing.three, paddingBottom: Spacing.one },
-  // Bottom-right, so it never sits under the selection check in the corner
-  // opposite. Fixed light-on-dark rather than themed: it is drawn over a
-  // photograph, not over the app's background.
-  sizeBadge: {
-    position: 'absolute',
-    right: 4,
-    bottom: 4,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 4,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
-  sizeText: { color: '#fff', fontSize: 10, lineHeight: 14 },
-  videoDot: { position: 'absolute', bottom: 6, left: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: '#fff' },
+  // 0.28 stamp over the photograph — enough to read as chosen, not so much
+  // that the picture underneath stops being identifiable.
+  selectedTint: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0.28 },
+  // The check keeps its own filled disc rather than sitting bare on the tint:
+  // the tint is translucent, so a bare mark inherits whatever contrast the
+  // photograph happens to offer, which on a dark frame is none.
   checkBadge: {
     position: 'absolute',
-    top: 6,
-    right: 6,
+    top: 8,
+    right: 8,
     width: 22,
     height: 22,
     borderRadius: 11,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },

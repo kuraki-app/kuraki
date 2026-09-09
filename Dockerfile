@@ -14,7 +14,7 @@
 # The web stage compiles the SvelteKit UI into internal/httpapi/assets before the
 # Go build embeds it.
 #
-# The runtime image runs ONE process — `kuraki serve` on :3000 — which serves
+# The runtime image runs ONE process — `kuraki serve` on :39170 — which serves
 # the API, media, AND the embedded SvelteKit UI (including first-run setup) from
 # a single origin. See scripts/docker-entrypoint.sh. For internet exposure with
 # automatic HTTPS, front this with the reverse proxy in deploy/ (DEPLOYMENT.md).
@@ -69,19 +69,30 @@ COPY --chmod=0755 scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.
 COPY web/assets/download/ /opt/kuraki/
 
 # Run as an unprivileged user; /data is owned by it so the volume is writable.
-RUN useradd --system --uid 10001 --home /data kuraki \
+#
+# uid/gid 10001 is fixed, not incidental: it is stamped on every file in an
+# existing /data volume, so changing it would make old libraries unreadable to
+# the new container. That is why the account is not created with --system —
+# system accounts must fall below SYS_UID_MAX (999), and useradd warned on
+# every build that 10001 does not. Plain useradd with the home directory
+# suppressed and no login shell gives the same unprivileged account, quietly.
+RUN groupadd --gid 10001 kuraki \
+    && useradd --uid 10001 --gid 10001 --home-dir /data --no-create-home \
+       --shell /usr/sbin/nologin kuraki \
     && mkdir -p /data && chown kuraki:kuraki /data
 USER kuraki
 
 VOLUME ["/data"]
 ENV KURAKI_DATA_DIR=/data \
-    KURAKI_ADDR=:3000 \
+    KURAKI_ADDR=:39170 \
     KURAKI_ANDROID_APK=/opt/kuraki/kuraki-android.apk
-# 3000 = Go server: API + media + embedded UI (single origin).
-EXPOSE 3000
+# 39170 = Go server: API + media + embedded UI (single origin). Not 3000: that
+# is the most contested port on a developer's machine, and a published mapping
+# that loses a race to another process fails silently. See internal/config/ports.go.
+EXPOSE 39170
 
 # Self-probe the API via the kuraki binary — no curl/wget needed in the image.
-# If the API is down the UI is useless too, so probing :3000 covers both.
+# If the API is down the UI is useless too, so probing :39170 covers both.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD ["kuraki", "healthcheck"]
 
