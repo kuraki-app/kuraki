@@ -9,7 +9,14 @@
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-  import { api, uploadFiles } from '$lib/api';
+  import { api, uploadFiles, UploadHTTPError } from '$lib/api';
+  import {
+    drainUploads,
+    enqueueUploads,
+    PermanentUploadError,
+    uploadQueueState,
+    UPLOAD_SYNC_TAG
+  } from '$lib/upload-queue';
   import { session, bumpLibrary, showToast, uploadRequest } from '$lib/stores';
   import { startSync } from '$lib/sync';
   import { defaultView } from '$lib/prefs';
@@ -31,6 +38,9 @@
   };
   let dragging = false;
   let uploadPct = -1;
+  let uploadBatchFiles = 0;
+  let queuedFiles = 0;
+  let drainingUploads = false;
   let importStatus = '';
   let fileInput: HTMLInputElement;
 
@@ -38,7 +48,33 @@
   // the choice, and prevents the flash of the wrong theme on load.
   const themeIcon = { system: Monitor, light: Sun, dark: Moon } as const;
 
-  onMount(init);
+  onMount(() => {
+    let active = true;
+    const online = () => void resumeQueuedUploads();
+    const serviceWorkerMessage = (event: MessageEvent) => {
+      const message = event.data as { type?: string; uploaded?: number; failed?: number; pending?: number };
+      if (message.type !== 'kuraki-upload-result') return;
+      queuedFiles = message.pending ?? queuedFiles;
+      if (message.uploaded) {
+        bumpLibrary();
+        showToast(`${message.uploaded} ${message.uploaded === 1 ? 'file' : 'files'} uploaded in the background`);
+      }
+      if (message.failed) showToast(`${message.failed} unsupported ${message.failed === 1 ? 'file was' : 'files were'} skipped`);
+    };
+
+    void init().then(async () => {
+      if (!active) return;
+      await refreshUploadCount();
+      await resumeQueuedUploads();
+    });
+    window.addEventListener('online', online);
+    if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', serviceWorkerMessage);
+    return () => {
+      active = false;
+      window.removeEventListener('online', online);
+      if ('serviceWorker' in navigator) navigator.serviceWorker.removeEventListener('message', serviceWorkerMessage);
+    };
+  });
 
   // Delta-sync poller: runs only while signed in. Reacts to login/logout by
   // starting on the first authenticated user and stopping when it clears.
@@ -83,6 +119,8 @@
       if (s.user) {
         const target = get(defaultView);
         if (target !== '/' && $page.url.pathname === '/') goto(target);
+        void refreshUploadCount();
+        void resumeQueuedUploads();
       }
       password = '';
       confirmPassword = '';
@@ -99,24 +137,98 @@
     session.set({ checking: false, setupRequired: false, user: null });
   }
 
-  async function doUpload(files: File[]) {
-    if (!files.length) return;
-    uploadPct = 0;
+  type SyncRegistration = ServiceWorkerRegistration & {
+    sync?: { register(tag: string): Promise<void> };
+  };
+
+  async function requestBackgroundUpload(): Promise<boolean> {
+    if (!('serviceWorker' in navigator)) return false;
     try {
-      const { job_id } = await uploadFiles(files, (p) => (uploadPct = p));
-      uploadPct = -1;
-      if (!job_id) {
-        bumpLibrary();
-        return;
+      const registration = (await navigator.serviceWorker.getRegistration()) as SyncRegistration | undefined;
+      if (!registration?.sync) return false;
+      await registration.sync.register(UPLOAD_SYNC_TAG);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function refreshUploadCount() {
+    const user = get(session).user;
+    if (!user) return;
+    queuedFiles = (await uploadQueueState(user.id)).files;
+  }
+
+  async function resumeQueuedUploads() {
+    const user = get(session).user;
+    if (!user || drainingUploads) return;
+    drainingUploads = true;
+    try {
+      const before = await uploadQueueState(user.id);
+      queuedFiles = before.files;
+      if (!before.files) return;
+
+      const result = await drainUploads(user.id, async (files) => {
+        uploadBatchFiles = files.length;
+        uploadPct = 0;
+        try {
+          return await uploadFiles(files, (progress) => (uploadPct = progress));
+        } catch (error) {
+          if (
+            error instanceof UploadHTTPError &&
+            error.status >= 400 &&
+            error.status < 500 &&
+            error.status !== 401 &&
+            error.status !== 403
+          ) {
+            throw new PermanentUploadError(error.message);
+          }
+          throw error;
+        }
+      });
+
+      queuedFiles = result.files;
+      const uploaded = result.sent.reduce((total, item) => total + item.files, 0);
+      if (result.failedFiles) {
+        showToast(`${result.failedFiles} unsupported ${result.failedFiles === 1 ? 'file was' : 'files were'} skipped`);
       }
-      importStatus = 'Importing…';
-      await pollJob(job_id);
-      bumpLibrary();
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Upload failed');
+      if (uploaded) {
+        const jobs = result.sent.map((item) => item.value.job_id).filter(Boolean);
+        importStatus = `Importing ${uploaded} ${uploaded === 1 ? 'file' : 'files'}…`;
+        for (const job of jobs) await pollJob(job);
+        bumpLibrary();
+      }
+      if (result.retry && result.files) {
+        const background = await requestBackgroundUpload();
+        showToast(
+          `${result.files} ${result.files === 1 ? 'upload' : 'uploads'} queued — ${background ? 'retrying in the background' : 'will resume when Kuraki reopens'}`
+        );
+      }
     } finally {
       uploadPct = -1;
+      uploadBatchFiles = 0;
       importStatus = '';
+      drainingUploads = false;
+    }
+  }
+
+  async function doUpload(files: File[]) {
+    const user = get(session).user;
+    if (!files.length || !user) return;
+    try {
+      queuedFiles = (await enqueueUploads(files, user.id)).files;
+      // Register before the foreground attempt. If the page closes mid-upload,
+      // the worker still knows there is durable work to resume.
+      await requestBackgroundUpload();
+      await resumeQueuedUploads();
+    } catch (error) {
+      showToast(
+        error instanceof DOMException && error.name === 'QuotaExceededError'
+          ? 'Not enough browser storage to queue those files'
+          : error instanceof Error
+            ? error.message
+            : 'Could not queue uploads'
+      );
     }
   }
 
@@ -268,9 +380,9 @@
 
     <main class="content" id="main" data-register={registerFor($page.url.pathname)}><slot /></main>
 
-    <!-- Below 820px `.side` is hidden, so this is the only route to Upload,
-         theme and sign-out; both actions are owned here and handed down. -->
-    <MobileNav on:upload={() => fileInput.click()} on:signout={logout} />
+    <!-- Mobile web uses the same four primary destinations as the native app.
+         Upload, appearance, and sign-out live under Settings. -->
+    <MobileNav />
 
     <input
       bind:this={fileInput}
@@ -286,9 +398,11 @@
     />
     {#if dragging}<div class="drop" aria-hidden="true">Drop to upload</div>{/if}
     {#if uploadPct >= 0}
-      <div class="uploading" role="status"><div class="ubar" style="width:{uploadPct}%"></div><span>Uploading {uploadPct}%</span></div>
+      <div class="uploading" role="status"><div class="ubar" style="width:{uploadPct}%"></div><span>Uploading {uploadBatchFiles} {uploadBatchFiles === 1 ? 'file' : 'files'} · {uploadPct}%</span></div>
     {:else if importStatus}
       <div class="uploading" role="status"><div class="ubar indet"></div><span>{importStatus}</span></div>
+    {:else if queuedFiles > 0}
+      <div class="uploading" role="status"><span>{queuedFiles} {queuedFiles === 1 ? 'upload' : 'uploads'} queued</span></div>
     {/if}
   </div>
 {/if}

@@ -410,8 +410,9 @@
   }
   @media (max-width: 820px) {
     .grid {
-      grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
-    .grid.large { grid-template-columns: repeat(auto-fill, minmax(144px, 1fr)); }
+    .grid.compact { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .grid.large { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 </style>

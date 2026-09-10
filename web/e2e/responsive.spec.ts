@@ -47,4 +47,22 @@ test.describe('responsive', () => {
     await expect(sidebar).toBeHidden();
     await expect(tabBar).toBeVisible();
   });
+
+  test('mobile uses the same four destinations as the native app', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await gotoApp(page, '/');
+
+    const tabs = page.getByRole('navigation', { name: 'Primary' });
+    await expect(tabs.getByRole('link')).toHaveCount(4);
+    await expect(tabs.getByRole('link')).toHaveText(['Gallery', 'Albums', 'Settings', 'Search']);
+    await expect(page.getByRole('searchbox')).toBeHidden();
+
+    await tabs.getByRole('link', { name: 'Search' }).click();
+    await expect(page.getByRole('heading', { name: 'Search' })).toBeVisible();
+    await expect(page.getByRole('searchbox')).toBeFocused();
+
+    await tabs.getByRole('link', { name: 'Settings' }).click();
+    await expect(page.getByRole('navigation', { name: 'Settings and library shortcuts' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Settings sections' })).toBeHidden();
+  });
 });

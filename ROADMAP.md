@@ -106,6 +106,13 @@ existing promise works.
   the server summary avoids duplicate/trash totals, common preferences stay on the main page, and
   Activity lives under Advanced.
 
+- **[done] Native-aligned mobile web and resilient PWA uploads — Phone browser users — S.** The
+  phone layout now uses Gallery, Albums, Settings, and Search like the native app, keeps secondary
+  controls behind the Settings directory, and installs with an offline application shell. Files a
+  person selects are queued per account in browser storage and resume after reconnect/reopen, with
+  Background Sync where supported. Browsers still cannot silently enumerate a camera roll; that
+  automatic backup job remains in the native app.
+
 - **[new feature] Smart albums — Organizers — M.** Build on saved searches with
   explicit ownership, preview, and reversible membership semantics.
 

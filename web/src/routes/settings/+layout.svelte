@@ -18,6 +18,8 @@
   function active(href: string, exact: boolean | undefined, pathname: string) {
     return exact ? pathname === href : pathname === href || pathname.startsWith(href + '/');
   }
+
+  $: isIndex = $page.url.pathname === '/settings';
 </script>
 
 <div class="settings-shell">
@@ -33,6 +35,9 @@
       </a>
     {/each}
   </nav>
+  {#if !isIndex}
+    <a class="mobile-back" href="/settings">← Settings</a>
+  {/if}
   <div class="panel">
     <slot />
   </div>
@@ -67,6 +72,9 @@
     position: sticky;
     top: calc(var(--space-step) * 3);
   }
+  .mobile-back {
+    display: none;
+  }
   .rail a {
     display: flex;
     align-items: center;
@@ -93,25 +101,15 @@
       grid-template-columns: minmax(0, 1fr);
     }
     .rail {
-      position: static;
-      /* Was a horizontal scroller with a fading trailing edge: Server and Users
-       * were cut off and you had to discover that the rail slid. Eight items
-       * fit as two rows of four, so nothing is hidden and nothing scrolls.
-       * `min-width: 0` still matters — it lets this grid child shrink instead
-       * of being floored by its content, which is what pushed 320px 3px wide. */
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 4px;
-      min-width: 0;
+      display: none;
     }
-    .rail a {
-      min-width: 0;
-      flex-direction: column;
-      justify-content: center;
-      gap: 4px;
-      padding: 6px 2px;
-      text-align: center;
-      font-size: 11px;
-      white-space: normal;
+    .mobile-back {
+      display: inline-flex;
+      width: fit-content;
+      color: var(--stamp);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
     }
   }
 </style>

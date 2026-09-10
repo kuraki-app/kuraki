@@ -8,7 +8,7 @@ import { test, expect, gotoApp } from './support/fixtures';
 /** href → the heading that route is expected to render, and the register its
  *  page frame should be in (nav.ts is the source of truth for the register). */
 const ROUTES = [
-  { path: '/', heading: 'Timeline', register: 'kura' },
+  { path: '/', heading: 'Photos', register: 'kura' },
   { path: '/favorites', heading: 'Favorites', register: 'kura' },
   { path: '/albums', heading: 'Albums', register: 'kura' },
   { path: '/memories', heading: 'On this day', register: 'kura' },
@@ -18,9 +18,7 @@ const ROUTES = [
   { path: '/hidden', heading: 'Hidden', register: 'kura' },
   { path: '/duplicates', heading: 'Duplicates', register: 'vault' },
   { path: '/trash', heading: 'Trash', register: 'vault' },
-  // Titled "Overview", matching its label in the settings rail — /settings is
-  // the section's index, not a page called Settings.
-  { path: '/settings', heading: 'Overview', register: 'vault' },
+  { path: '/settings', heading: 'Settings', register: 'vault' },
   { path: '/settings/account', heading: 'Account', register: 'vault' },
   { path: '/settings/appearance', heading: 'Appearance', register: 'vault' },
   { path: '/settings/library', heading: 'Library', register: 'vault' },

@@ -1,0 +1,1 @@
+import"./WSFfxB3w.js";import{s,r as p}from"./ThbG16I7.js";import{I as a}from"./C1nGsSwf.js";var n=new Set(["$$slots","$$events","$$legacy"]);function i(o,t){let e=p(t,n);const r=[["path",{d:"m16 17 5-5-5-5"}],["path",{d:"M21 12H9"}],["path",{d:"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"}]];a(o,s({name:"log-out"},()=>e,{get iconNode(){return r}}))}export{i as L};

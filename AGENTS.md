@@ -64,6 +64,13 @@ Phase 1 = single-owner personal backup.
   recycled image cells carry stable asset keys. The main Settings page owns Notifications and Photo
   Grid, Advanced owns Activity, and the server card no longer repeats the item total or reports the
   trash count. Verified in the running iPhone 17 Pro simulator against the host dev server.
+- **Mobile web now follows the native app's information architecture and installs as a PWA
+  (2026-09-10).** At phone widths the browser uses the same Gallery / Albums / Settings / Search
+  tabs, a fixed three-column default grid, search-on-demand, and a drill-in Settings directory
+  instead of exposing every control at once. User-selected uploads are persisted per account in
+  IndexedDB, resume on reconnect/reopen, and use Background Sync when the browser supports it. The
+  service worker caches only the application shell; authenticated API and media responses are never
+  placed in CacheStorage. Automatic camera-roll access remains native-app-only.
 - **Every port Kuraki binds is declared once, in `internal/config/ports.go` (2026-09-09).** The
   shipped default is `:39170`, not `:3000` — 3000 is the most contested port on a developer's
   machine, and losing that race is silent (a container here published a port it never held, for 22
@@ -303,7 +310,7 @@ docs/                  PRD/BRD + local plans — gitignored, local only
 ```sh
 make build        # pure-Go binary -> ./bin/kuraki   (CGO_ENABLED=0)
 make build-vips   # libvips backend (needs libvips-dev; -tags vips)
-make run          # build + serve on :3000
+make run          # build + serve on :39170
 make test         # go test -race ./...
 make vet          # go vet ./...
 make fmt          # gofmt -w -s .
@@ -312,7 +319,7 @@ make cross        # release binaries for all platforms -> ./dist
 make docker       # build container image
 ```
 
-Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
+Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 `KURAKI_TRASH_RETENTION_DAYS` (`30`), `KURAKI_THUMBNAIL_SIZE` (`512`),
 `KURAKI_OCR` (`off`; `1` enables the local tesseract OCR worker),
 `KURAKI_SECURE_COOKIES` (`off`; `1` marks the session cookie Secure for HTTPS).
@@ -428,6 +435,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | **Operator runbook** (2026-09-09): `RUNNING.md` gives verified direct-source development paths plus private-LAN and Caddy-backed production deployment, including port/config precedence, full environment reference, storage permissions, health/logging, imports, integrity checks, backup/restore, upgrades, account recovery, phone pairing, and troubleshooting | ✅ done; documentation links checked |
 | **Direct local development** (2026-09-10): `make dev`/`make start` are the only development paths; Docker consumes released images for release/prod only; `make clean` covers all disposable build and test output without deleting library data or installed JavaScript dependencies | ✅ done; Go + Vite + Expo live-verified together |
 | **Mobile refresh + Settings hierarchy** (2026-09-10): pull-to-refresh re-probes and reloads active photo views; thumbnail cells have stable recycle keys; server stats are concise; Notifications/Photo Grid are top-level and Activity is Advanced | ✅ done; simulator-verified |
+| **Mobile web + PWA upload queue** (2026-09-10): native-aligned four-tab phone navigation, three-column photo grid, drill-in Settings, install manifest/offline shell, and account-scoped IndexedDB upload retry with Background Sync + foreground fallback | ✅ done; focused Chromium offline/reconnect flow verified |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
@@ -455,6 +463,15 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/settings-activity-polish` (2026-09-10, mobile web + PWA) — **The phone-sized web app now
+  uses the native client's four destinations and keeps secondary controls inside Settings.** Gallery
+  defaults to a three-column grid and does not render search/filter controls until Search is opened;
+  settings subpages expose one back affordance instead of an eight-control rail. A manifest and
+  shell-only service worker make the UI installable, while an account-scoped IndexedDB queue stores
+  each selected file independently and retries on reconnect, reopen, or Background Sync. Private
+  `/api` and media responses are excluded from CacheStorage. The focused browser flow queued a photo
+  offline and uploaded it after connectivity returned; typecheck and the production build pass.
 
 - `codex/settings-activity-polish` (2026-09-10, mobile refresh follow-up) — **The photo grid now
   recovers instead of remaining half blank after connectivity returns.** The simulator reproduced 21

@@ -1,13 +1,54 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
-  import { showToast } from '$lib/stores';
+  import { requestUpload, showToast } from '$lib/stores';
   import { fileSize, relativeTime } from '$lib/format';
   import type { BackupStatus, IntegrityRun, LibraryStats } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import SectionHeading from '$lib/components/SectionHeading.svelte';
   import StatCard from '$lib/components/StatCard.svelte';
   import { Button } from '$lib/components/ui/button';
+  import {
+    Upload,
+    User,
+    Palette,
+    SlidersHorizontal,
+    Server,
+    Smartphone,
+    Activity,
+    Users,
+    Star,
+    CalendarClock,
+    MapPin,
+    Tags,
+    Archive,
+    EyeOff,
+    Copy,
+    Trash2,
+    Download,
+    ChevronRight
+  } from '@lucide/svelte';
+
+  const mobilePrimary = [
+    { href: '/settings/account', label: 'Account', icon: User },
+    { href: '/settings/appearance', label: 'Appearance', icon: Palette },
+    { href: '/settings/library', label: 'Library', icon: SlidersHorizontal },
+    { href: '/settings/server', label: 'Server & backup', icon: Server },
+    { href: '/settings/devices', label: 'Devices', icon: Smartphone }
+  ];
+
+  const mobileMore = [
+    { href: '/favorites', label: 'Favorites', icon: Star },
+    { href: '/memories', label: 'On this day', icon: CalendarClock },
+    { href: '/places', label: 'Places', icon: MapPin },
+    { href: '/tags', label: 'Tags', icon: Tags },
+    { href: '/archive', label: 'Archive', icon: Archive },
+    { href: '/hidden', label: 'Hidden', icon: EyeOff },
+    { href: '/duplicates', label: 'Duplicates', icon: Copy },
+    { href: '/trash', label: 'Trash', icon: Trash2 },
+    { href: '/settings/activity', label: 'Activity', icon: Activity },
+    { href: '/settings/users', label: 'Users', icon: Users }
+  ];
 
   let stats: LibraryStats | null = null;
   let integrity: IntegrityRun | null = null;
@@ -56,9 +97,39 @@
     : `${Math.round(libraryDiskPercent)}%`;
 </script>
 
-<PageHeader title="Overview" subtitle="Library health at a glance.">
-  <Button variant="outline" href="/api/export" download>Export library (.zip)</Button>
+<PageHeader title="Settings">
+  <span class="desktop-export"><Button variant="outline" href="/api/export" download>Export library (.zip)</Button></span>
 </PageHeader>
+
+<nav class="mobile-directory" aria-label="Settings and library shortcuts">
+  <section>
+    <h2>This device</h2>
+    <button type="button" class="mobile-row" on:click={requestUpload}>
+      <Upload size={18} aria-hidden="true" /><span>Upload photos</span><ChevronRight size={16} aria-hidden="true" />
+    </button>
+    {#each mobilePrimary as item (item.href)}
+      <a class="mobile-row" href={item.href}>
+        <svelte:component this={item.icon} size={18} aria-hidden="true" />
+        <span>{item.label}</span><ChevronRight size={16} aria-hidden="true" />
+      </a>
+    {/each}
+  </section>
+
+  <details>
+    <summary>Advanced</summary>
+    <div class="mobile-more">
+      {#each mobileMore as item (item.href)}
+        <a class="mobile-row" href={item.href}>
+          <svelte:component this={item.icon} size={18} aria-hidden="true" />
+          <span>{item.label}</span><ChevronRight size={16} aria-hidden="true" />
+        </a>
+      {/each}
+      <a class="mobile-row" href="/api/export" download>
+        <Download size={18} aria-hidden="true" /><span>Export library</span><ChevronRight size={16} aria-hidden="true" />
+      </a>
+    </div>
+  </details>
+</nav>
 
 {#if loading}
   <p class="muted">Loading…</p>
@@ -79,7 +150,6 @@
       <StatCard value={stats.favorites.toLocaleString()} label="Favorites" />
       <StatCard value={stats.albums.toLocaleString()} label="Albums" />
       <StatCard value={stats.places.toLocaleString()} label="Places" />
-      <StatCard value={stats.trashed.toLocaleString()} label="In trash" />
     </div>
   </details>
 
@@ -149,6 +219,9 @@
 {/if}
 
 <style>
+  .mobile-directory {
+    display: none;
+  }
   .muted {
     color: var(--muted-foreground);
   }
@@ -298,5 +371,63 @@
     font-family: var(--frame-data-font);
     font-size: 13px;
     font-variant-numeric: tabular-nums;
+  }
+  @media (max-width: 820px) {
+    .desktop-export {
+      display: none;
+    }
+    .mobile-directory {
+      display: grid;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .mobile-directory section,
+    .mobile-directory details {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--card);
+    }
+    .mobile-directory h2 {
+      margin: 0;
+      padding: 10px 14px 6px;
+      color: var(--text-faint);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .mobile-row {
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr) 16px;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 46px;
+      padding: 10px 14px;
+      border: 0;
+      border-top: 1px solid var(--border);
+      background: transparent;
+      color: var(--foreground);
+      text-align: left;
+      text-decoration: none;
+      font: inherit;
+    }
+    .mobile-row > :global(svg:first-child) {
+      color: var(--stamp);
+    }
+    .mobile-row > :global(svg:last-child) {
+      color: var(--text-faint);
+    }
+    .mobile-directory summary {
+      padding: 13px 14px;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .mobile-more {
+      display: grid;
+    }
   }
 </style>

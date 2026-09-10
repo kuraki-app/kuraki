@@ -202,6 +202,13 @@ export async function downloadZip(ids: string[]): Promise<void> {
 
 // uploadFiles posts files as multipart, reporting 0-100 transfer progress, and
 // resolves with the enqueued job id (import runs asynchronously).
+export class UploadHTTPError extends Error {
+  constructor(public readonly status: number) {
+    super(status ? `upload failed (${status})` : 'upload failed');
+    this.name = 'UploadHTTPError';
+  }
+}
+
 export function uploadFiles(
   files: File[],
   onProgress: (pct: number) => void
@@ -223,10 +230,10 @@ export function uploadFiles(
           resolve({ job_id: '', count: 0 });
         }
       } else {
-        reject(new Error(`upload failed (${xhr.status})`));
+        reject(new UploadHTTPError(xhr.status));
       }
     };
-    xhr.onerror = () => reject(new Error('upload failed'));
+    xhr.onerror = () => reject(new UploadHTTPError(0));
     xhr.send(form);
   });
 }

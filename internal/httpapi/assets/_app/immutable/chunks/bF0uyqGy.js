@@ -1,0 +1,1 @@
+import{v as t,x as i,q as y,y as c}from"./DoLNI3dD.js";import{B as f}from"./ThbG16I7.js";const l=Symbol("NaN");function h(r,e,n){y&&c();var o=new f(r),s=!t();i(()=>{var a=e();a!==a&&(a=l),s&&a!==null&&typeof a=="object"&&(a={}),o.ensure(a,n)})}export{h as k};

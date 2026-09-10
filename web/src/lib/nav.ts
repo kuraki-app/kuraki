@@ -10,6 +10,7 @@ import {
   Copy,
   Trash2,
   Settings,
+  Search,
   type Icon
 } from '@lucide/svelte';
 
@@ -26,6 +27,10 @@ export interface NavItem {
 export interface NavGroup {
   label: string;
   items: NavItem[];
+}
+
+export interface MobileNavItem extends NavItem {
+  search?: boolean;
 }
 
 export const NAV_GROUPS: NavGroup[] = [
@@ -75,14 +80,20 @@ function requireNavItem(href: string): NavItem {
   return item;
 }
 
-/** Five is the ceiling: a sixth tab shrinks targets below a thumb hit area.
- *  Four routes here plus the More trigger in MobileNav makes five. */
-export const MOBILE_TABS: NavItem[] = [
-  requireNavItem('/'),
-  requireNavItem('/favorites'),
+/** Mirrors the native app's four system tabs. Secondary library views live in
+ * Settings on a phone instead of competing with the primary destinations. */
+export const MOBILE_TABS: MobileNavItem[] = [
+  { ...requireNavItem('/'), label: 'Gallery' },
   requireNavItem('/albums'),
-  requireNavItem('/places')
+  requireNavItem('/settings'),
+  { href: '/?search=1', label: 'Search', icon: Search, register: 'kura', search: true }
 ];
+
+export function isMobileActive(item: MobileNavItem, pathname: string, search: string): boolean {
+  if (item.search) return pathname === '/' && search === '1';
+  if (item.href === '/') return pathname === '/' && search !== '1';
+  return pathname === item.href || pathname.startsWith(`${item.href}/`);
+}
 
 export function isActive(href: string, pathname: string): boolean {
   return href === '/' ? pathname === '/' : pathname.startsWith(href);

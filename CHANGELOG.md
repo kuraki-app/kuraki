@@ -11,6 +11,10 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Changed
 
+- **Mobile web now matches the app's primary structure.** Phone widths use Gallery, Albums,
+  Settings, and Search tabs, a three-column default photo grid, search controls only when requested,
+  and drill-in settings instead of an eight-control rail. Secondary library and server tools live
+  under Advanced, and the overview no longer shows a trash total.
 - **Mobile Settings now keeps common preferences one tap away.** Notifications and Photo Grid moved
   to the main page, while Activity moved under Advanced. The server summary no longer repeats the
   total beside its media counts or includes the trash count; it shows only the useful breakdown,
@@ -33,6 +37,10 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Added
 
+- **The web client is installable as a PWA.** Its service worker keeps the application shell
+  available offline without caching authenticated API/media responses. User-selected photo and
+  video uploads are stored per account in IndexedDB, one file at a time, and resume on reconnect or
+  reopen; browsers with Background Sync can continue the queue after the page closes.
 - `KURAKI_PUBLIC_URL` — the address other devices should use to reach this server. The pairing screen
   previously derived candidates from the machine's own network interfaces, which is right for a
   bare-metal install and impossible in a container or behind a reverse proxy.

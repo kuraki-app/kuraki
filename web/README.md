@@ -26,16 +26,16 @@ here and rebuild.**
 From the **repo root** (recommended — runs the API and the UI together):
 
 ```sh
-./scripts/dev.sh      # Go API on :3000 + Vite UI on :5173 (hot reload) — open :5173
+./scripts/dev.sh      # Go API on :39175 + Vite UI on :39176 (hot reload) — open :39176
 ```
 
-Vite proxies `/api` to the Go server on `:3000`, so the UI needs that server
-running. To run just the front end (assuming the API is already up on `:3000`):
+Vite proxies `/api` to the Go server on `:39175`, so the UI needs that server
+running. To run just the front end (assuming the API is already up on `:39175`):
 
 ```sh
 cd web
 npm install
-npm run dev           # Vite dev server on :5173
+npm run dev           # Vite dev server; use KURAKI_WEB_PORT to override its port
 ```
 
 ## Build
@@ -54,7 +54,15 @@ hashed filename and produces a spurious full-tree diff in the committed assets.
 change under `src/` is not landed until `make web` has been run and its diff staged.
 
 After building, `./scripts/start.sh` (or `make start`) runs one production-like
-Go process on `:3000` serving the embedded UI.
+Go process on `:39170` serving the embedded UI.
+
+## PWA and resilient uploads
+
+The production web app ships a manifest and a service worker. It caches the application shell only;
+private `/api` and media responses remain network-only. Selected photos and videos are queued per
+account in IndexedDB and resume after reconnect or reopen. Background Sync continues the queue when
+the browser provides it; foreground retry is the universal fallback. A browser cannot automatically
+read a phone's camera roll, so unattended camera backup remains a native-app feature.
 
 ## Design system
 
