@@ -27,7 +27,7 @@ export default function GridSettings() {
       contentContainerStyle={styles.content}>
       <SettingsSection
         title="Tiles"
-        footer="Shows each item’s file size on its tile, so you can spot what is using space while browsing.">
+        info={{ message: 'File-size badges help you spot items using the most storage.' }}>
         <SettingsSwitch
           label="Show file size"
           value={prefs.showSizeBadge}
@@ -35,7 +35,7 @@ export default function GridSettings() {
         />
       </SettingsSection>
 
-      <SettingsSection title="Layout">
+      <SettingsSection title="Layout" info={{ message: 'Columns and spacing change the photo grid on this device.' }}>
         <Stepper
           label="Columns"
           value={prefs.gridColumns}
@@ -55,7 +55,7 @@ export default function GridSettings() {
 
       <SettingsSection
         title="Grouping"
-        footer="Grouping also drives the date shown while dragging the scroll indicator.">
+        info={{ message: 'Grouping also controls the date shown by the scroll indicator.' }}>
         <Choice
           value={prefs.groupBy}
           options={GROUP_OPTIONS}

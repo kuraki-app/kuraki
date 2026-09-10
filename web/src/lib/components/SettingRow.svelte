@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Label } from '$lib/components/ui/label';
   import { Badge } from '$lib/components/ui/badge';
+  import { Info } from '@lucide/svelte';
 
   export let label: string;
   export let description = '';
@@ -28,18 +29,30 @@
    *  label did nothing and assistive technology announced an unlabelled
    *  control. `e2e/a11y.spec.ts` now fails on any dangling `label[for]`. */
   export let kind: 'control' | 'group' | 'static' = 'control';
+  let infoOpen = false;
 
   $: labelId = `${id}-label`;
 </script>
 
 <div class="row" class:disabled>
   <div class="text">
-    {#if kind === 'control'}
-      <Label for={id}>{label}</Label>
-    {:else}
-      <Label id={labelId}>{label}</Label>
-    {/if}
-    {#if description}<p class="desc">{description}</p>{/if}
+    <div class="label-line">
+      {#if kind === 'control'}
+        <Label for={id}>{label}</Label>
+      {:else}
+        <Label id={labelId}>{label}</Label>
+      {/if}
+      {#if description}
+        <button
+          class="info"
+          type="button"
+          aria-label="About {label}"
+          aria-expanded={infoOpen}
+          on:click={() => (infoOpen = !infoOpen)}
+        ><Info size={15} aria-hidden="true" /></button>
+      {/if}
+    </div>
+    {#if description && infoOpen}<p class="desc">{description}</p>{/if}
     <!-- These three were hand-rolled coloured paragraphs while `ui/badge` sat in
          the tree with zero consumers. A status pill is precisely what a badge
          is, and the shadcn variants already carry the semantic colours. -->
@@ -78,6 +91,28 @@
     display: grid;
     gap: 4px;
     min-width: 0;
+  }
+  .label-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .info {
+    display: inline-grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted-foreground);
+    cursor: pointer;
+  }
+  .info:hover,
+  .info:focus-visible {
+    background: var(--accent);
+    color: var(--foreground);
   }
   .desc {
     margin: 0;

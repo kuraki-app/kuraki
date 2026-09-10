@@ -332,6 +332,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | Mobile navigation redesign: split tab bar (collapsible pill + search button), search on its own route, Backup folded into Settings, safe areas app-wide, device tokens never rendered | ✅ code-complete, not device-verified |
 | Mobile on native controls: NativeTabs (minimizeBehavior + role=search), SwiftUI menu/picker/field, native settings Stack | ✅ code-complete, not device-verified |
 | Mobile settings tree: stats index + Backup/Connection/Activity/Notifications/Photo Grid subpages, preference store | ✅ code-complete, not device-verified |
+| Settings density pass (web + mobile): explanations moved behind an info affordance, settings rail wraps instead of scrolling, Activity gets a state summary, one byte formatter per surface | ✅ done |
 | Mobile local notifications (backup finished/failed, disconnected) for iOS + Android, guarded so Expo Go still runs | ✅ code-complete, needs a dev build to fire |
 | Mobile UI defects: 48pt type scale, duplicate headings, "Undated" grouping, media-library deprecation warnings | ✅ fixed |
 | One header for every screen (`components/screen-header.tsx`); per-tab route-group stacks; seven hand-rolled bars and all manual `insets.top` deleted | ✅ code-complete, not device-verified |
@@ -441,6 +442,40 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/settings-activity-polish` (2026-09-10) — **Settings said too much at once, on both clients,
+  and the byte formatter disagreed with itself.**
+  - **Explanations were permanent furniture.** Every web `SettingRow` printed its description under
+    the label and every mobile `SettingsSection` printed a footer, so a page of six switches was a
+    page of twelve paragraphs and the controls were what you had to hunt for. Both are now one
+    affordance away — an `Info` button beside the web label, an `info.circle` beside the mobile
+    section title that opens an `Alert`. The text is unchanged; it is just no longer competing with
+    the thing it describes. `SettingsSwitch`'s per-row `help` prop had no consumers left afterwards
+    and is gone rather than left in the tree.
+  - **The settings rail hid two of its eight sections on a phone.** It was a horizontal scroller with
+    a fading trailing edge, so Server and Users were off-screen and you had to discover that the rail
+    slid at all. Two rows of four fit without scrolling. The e2e test that pinned the fade now pins
+    the opposite property: eight links, all visible, nothing overflowing.
+  - **The Overview disk bar was measuring the wrong thing and then drawing nothing.** It filled to the
+    *disk's* used share, which on a NAS is mostly not photos; it now shows the library's share, which
+    is the number the page is about. A 4.7 KB library against a 926 GB volume computes to 0% and drew
+    an empty track — indistinguishable from a bar that failed to render — so the fill has a 3px floor
+    whenever there is anything at all. Six of the nine stat cards moved into a `<details>`; the three
+    that answer "is my library fine" stay up top.
+  - **Activity now leads with a count of what needs attention**, on both clients, and hides that
+    summary when there is nothing to count — three zeros above "No imports yet" is the empty state
+    twice, and the louder half says nothing. Mobile's session list gained a progress track and a
+    readable status instead of a raw `receiving · 41%`.
+  - **One byte formatter per surface, and both had the same bug.** Web's `fileSize` stopped at GB and
+    printed a hard `.0`; mobile had a second copy in `lib/duplicates.ts` alongside `lib/format.ts`.
+    Both now walk to PB, drop a trailing `.0`, and **promote a rounded boundary** — 1048575 bytes was
+    printing as `1024.0 KB`, which is not a unit anyone uses. The duplicate is deleted.
+  - **Verified:** `make check`, `make check-gen`, `make e2e` (94 passed), mobile `tsc --noEmit` +
+    `expo lint` + 266 unit tests + `check-tokens`. Screenshotted `/settings` and `/settings/activity`
+    at 1440 and 390 — which is what caught the empty disk bar and the three zeros; both were green
+    the whole time.
+  - **Not device-verified.** The mobile half is code-complete and unrun on hardware, like the rest of
+    the mobile ledger rows.
 
 - `feat/mobile-contact-sheet-ui` (2026-09-09, fifth pass) — **Pointed the app at the real container
   on the new port, and the address hint was wrong again — for the second time, in a new way.**

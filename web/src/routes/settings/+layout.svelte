@@ -94,29 +94,24 @@
     }
     .rail {
       position: static;
-      display: flex;
-      flex-wrap: nowrap;
-      overflow-x: auto;
+      /* Was a horizontal scroller with a fading trailing edge: Server and Users
+       * were cut off and you had to discover that the rail slid. Eight items
+       * fit as two rows of four, so nothing is hidden and nothing scrolls.
+       * `min-width: 0` still matters — it lets this grid child shrink instead
+       * of being floored by its content, which is what pushed 320px 3px wide. */
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 4px;
-      padding-bottom: 4px;
-      -webkit-overflow-scrolling: touch;
-      /* The rail becomes a scroller here, and the last item was cut mid-word
-       * with no cue — on a phone, Server and Users looked like they did not
-       * exist. The mask fades the trailing edge so the cut reads as "more this
-       * way" rather than as a rendering accident, and it costs no element and
-       * no scroll listener. */
-      mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-      /* The document must not be draggable sideways at the narrowest supported
-       * width: `min-width: 0` lets this grid child actually shrink instead of
-       * being floored by its content, which is what pushed 320px 3px wide. */
       min-width: 0;
     }
-    .rail::-webkit-scrollbar {
-      display: none;
-    }
     .rail a {
-      flex: none;
-      white-space: nowrap;
+      min-width: 0;
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+      padding: 6px 2px;
+      text-align: center;
+      font-size: 11px;
+      white-space: normal;
     }
   }
 </style>

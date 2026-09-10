@@ -50,10 +50,13 @@
   // rather than claiming something untrue.
   $: diskFree = stats?.disk_free_bytes ?? 0;
   $: diskTotal = stats?.disk_total_bytes ?? 0;
-  $: diskPercent = diskTotal > 0 ? Math.round(((diskTotal - diskFree) / diskTotal) * 100) : 0;
+  $: libraryDiskPercent = diskTotal > 0 ? Math.min(100, (stats?.total_bytes ?? 0) / diskTotal * 100) : 0;
+  $: libraryDiskLabel = libraryDiskPercent > 0 && libraryDiskPercent < 1
+    ? '<1%'
+    : `${Math.round(libraryDiskPercent)}%`;
 </script>
 
-<PageHeader title="Overview" subtitle="Library stats, integrity, and backup status.">
+<PageHeader title="Overview" subtitle="Library health at a glance.">
   <Button variant="outline" href="/api/export" download>Export library (.zip)</Button>
 </PageHeader>
 
@@ -63,27 +66,40 @@
   <div class="cards">
     <StatCard value={stats.total.toLocaleString()} label="Photos & videos" />
     <StatCard value={fileSize(stats.total_bytes)} label="Total size" />
-    <StatCard value={stats.images.toLocaleString()} label="Photos" />
-    <StatCard value={stats.videos.toLocaleString()} label="Videos" />
-    <StatCard value={stats.favorites.toLocaleString()} label="Favorites" />
-    <StatCard value={stats.albums.toLocaleString()} label="Albums" />
-    <StatCard value={stats.places.toLocaleString()} label="Places" />
-    <StatCard value={stats.trashed.toLocaleString()} label="In trash" />
     {#if diskTotal > 0}
       <StatCard value={fileSize(diskFree)} label="Free on disk" />
     {/if}
   </div>
+
+  <details class="more-stats">
+    <summary>More library details</summary>
+    <div class="detail-cards">
+      <StatCard value={stats.images.toLocaleString()} label="Photos" />
+      <StatCard value={stats.videos.toLocaleString()} label="Videos" />
+      <StatCard value={stats.favorites.toLocaleString()} label="Favorites" />
+      <StatCard value={stats.albums.toLocaleString()} label="Albums" />
+      <StatCard value={stats.places.toLocaleString()} label="Places" />
+      <StatCard value={stats.trashed.toLocaleString()} label="In trash" />
+    </div>
+  </details>
 
   {#if diskTotal > 0}
     <!-- The library's share of the disk, not the disk's used share: the point
          is how much room is left for photos, and on a NAS most of what is used
          may be nothing to do with Kuraki. -->
     <section class="disk">
-      <div class="disk-bar" role="img" aria-label="{diskPercent}% of the disk is in use">
-        <div class="disk-fill" style="width: {Math.min(100, diskPercent)}%"></div>
+      <div class="disk-bar" role="img" aria-label="{libraryDiskLabel} of storage is used by this Kuraki library">
+        <!-- A library that is a rounding error against a NAS volume computes to
+             0% and drew nothing at all, which reads as a bar that failed to
+             render rather than as "barely any of this disk is photos". The
+             floor keeps a visible sliver whenever there is anything at all. -->
+        <div
+          class="disk-fill"
+          style="width: {libraryDiskPercent > 0 ? `max(3px, ${libraryDiskPercent}%)` : '0'}"
+        ></div>
       </div>
       <span class="muted">
-        {fileSize(stats.total_bytes)} of library in {fileSize(diskTotal)} of storage ·
+        {fileSize(stats.total_bytes)} library · {fileSize(diskTotal)} disk ·
         {fileSize(diskFree)} free
       </span>
     </section>
@@ -140,6 +156,21 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 12px;
+  }
+  .more-stats {
+    margin-top: calc(var(--space-step) * 3);
+  }
+  .more-stats summary {
+    width: fit-content;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .detail-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 8px;
+    margin-top: calc(var(--space-step) * 2);
   }
   /* Spacing comes from --space-step throughout, so the same expressions land
    * on a 4px rhythm here and would land on 8px if this page were ever Kura.

@@ -15,6 +15,7 @@ describe('formatBytes', () => {
     expect(formatBytes(1024 ** 2)).toBe('1 MB');
     expect(formatBytes(1024 ** 3)).toBe('1 GB');
     expect(formatBytes(1024 ** 4)).toBe('1 TB');
+    expect(formatBytes(1024 ** 5)).toBe('1 PB');
   });
 
   it('keeps one decimal where it carries information', () => {
@@ -22,13 +23,16 @@ describe('formatBytes', () => {
     expect(formatBytes(2.25 * 1024 ** 3)).toBe('2.3 GB');
   });
 
+  it('promotes a rounded boundary instead of showing 1024 of the smaller unit', () => {
+    expect(formatBytes(1024 ** 2 - 1)).toBe('1 MB');
+  });
+
   it('drops a trailing .0 rather than showing it', () => {
     expect(formatBytes(2 * 1024 ** 2)).toBe('2 MB');
   });
 
   it('does not fall off the end of the unit list', () => {
-    // A petabyte library is absurd, but the formatter must not print undefined.
-    expect(formatBytes(1024 ** 6)).toMatch(/TB$/);
+    expect(formatBytes(1024 ** 6)).toMatch(/PB$/);
   });
 
   it('treats negative or non-finite input as zero', () => {

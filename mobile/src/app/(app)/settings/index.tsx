@@ -1,4 +1,4 @@
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { useCallback, useState } from 'react';
 import { AppState, ScrollView, StyleSheet, View } from 'react-native';
@@ -6,12 +6,11 @@ import { AppState, ScrollView, StyleSheet, View } from 'react-native';
 import LibraryStatsCard from '@/components/library-stats';
 import { SettingsRow, SettingsSection } from '@/components/settings-ui';
 import { Spacing, useTokens } from '@/constants/theme';
-import { clearMutations } from '@/lib/cache/mutations';
 import { connectionView } from '@/lib/connection-view';
 import { serverHost } from '@/lib/url';
 import { classifyPermission, type PermissionStatus } from '@/lib/permissions';
 import { isAuthLost } from '@/lib/session';
-import { clearDeviceToken, clearSetupComplete, loadCaptureSettings } from '@/lib/settings';
+import { loadCaptureSettings } from '@/lib/settings';
 
 // The settings index is a directory, not a dumping ground: every control lives
 // on a subpage, and this screen answers "how big is my library" and "where do I
@@ -62,13 +61,6 @@ export default function SettingsIndex() {
   const permissionsDetail =
     photos === 'granted' ? undefined : photos === 'limited' ? 'Limited' : 'Photo access off';
 
-  async function disconnect() {
-    await clearDeviceToken();
-    await clearSetupComplete();
-    await clearMutations();
-    router.replace('/(setup)/welcome');
-  }
-
   return (
     // The ScrollView is the screen's direct child on purpose. Wrapped in a
     // ThemedView, react-native-screens never applied the large-title content
@@ -90,14 +82,14 @@ export default function SettingsIndex() {
           href="/(app)/settings/connection"
         />
         <SettingsRow label="Activity" icon="waveform.path.ecg" href="/(app)/settings/activity" />
-        <SettingsRow
-          label="Permissions"
-          icon="lock.shield"
-          detail={permissionsDetail}
-          href="/(app)/settings/permissions"
-        />
-        <SettingsRow label="Notifications" icon="bell" href="/(app)/settings/notifications" />
-        <SettingsRow label="Photo Grid" icon="square.grid.3x3" href="/(app)/settings/grid" />
+        {permissionsDetail ? (
+          <SettingsRow
+            label="Permissions"
+            icon="lock.shield"
+            detail={permissionsDetail}
+            href="/(app)/settings/permissions"
+          />
+        ) : null}
       </SettingsSection>
 
       <SettingsSection title="Library">
@@ -106,10 +98,8 @@ export default function SettingsIndex() {
         <SettingsRow label="Duplicates" icon="square.on.square" href="/(app)/settings/duplicates" />
       </SettingsSection>
 
-      <SettingsSection
-        title="Danger zone"
-        footer="Disconnecting removes this device’s pairing and sends it back through setup. Backed-up photos on the server are unaffected.">
-        <SettingsRow label="Disconnect this device" destructive onPress={() => void disconnect()} />
+      <SettingsSection title="More">
+        <SettingsRow label="Advanced" icon="gearshape.2" href="/(app)/settings/advanced" />
       </SettingsSection>
 
       <View style={styles.spacer} />

@@ -158,7 +158,7 @@ export default function FreeUpSpaceSettings() {
       contentContainerStyle={styles.content}>
       <SettingsSection
         title="Keep on this device"
-        footer="Photos newer than this stay on your phone even once they are on the server. Keep all never removes anything.">
+        info={{ message: 'Newer items stay on this phone after backup. Keep all never removes a local copy.' }}>
         <View style={styles.choiceRow}>
           {RETENTION_DAYS.map((days) => {
             const active = days === keepLocalDays;
@@ -184,7 +184,7 @@ export default function FreeUpSpaceSettings() {
 
       <SettingsSection
         title="Safe to remove"
-        footer="Only photos your server has confirmed it holds are ever listed here. Anything still waiting to upload is left alone.">
+        info={{ message: 'Only items confirmed by the server are eligible. Anything waiting to upload stays on this phone.' }}>
         {error ? (
           <ThemedText type="small" style={{ color: tokens.destructive }} selectable>
             {error}

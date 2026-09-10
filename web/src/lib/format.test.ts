@@ -99,9 +99,17 @@ describe('groupAssets', () => {
 describe('fileSize', () => {
   it('scales units', () => {
     expect(fileSize(512)).toBe('512 B');
-    expect(fileSize(2048)).toBe('2.0 KB');
-    expect(fileSize(5 * 1024 * 1024)).toBe('5.0 MB');
-    expect(fileSize(3 * 1024 * 1024 * 1024)).toBe('3.0 GB');
+    expect(fileSize(2048)).toBe('2 KB');
+    expect(fileSize(5 * 1024 * 1024)).toBe('5 MB');
+    expect(fileSize(3 * 1024 * 1024 * 1024)).toBe('3 GB');
+    expect(fileSize(2.5 * 1024 ** 4)).toBe('2.5 TB');
+    expect(fileSize(1024 ** 5)).toBe('1 PB');
+    expect(fileSize(1024 ** 2 - 1)).toBe('1 MB');
+  });
+
+  it('handles invalid values without leaking NaN into the UI', () => {
+    expect(fileSize(-1)).toBe('0 B');
+    expect(fileSize(Number.NaN)).toBe('0 B');
   });
 });
 

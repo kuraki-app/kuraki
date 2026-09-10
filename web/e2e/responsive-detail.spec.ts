@@ -45,20 +45,25 @@ test('pairing steps show their numbers', async ({ page }) => {
   expect(style).toBe('decimal');
 });
 
-test('the settings rail shows that it scrolls', async ({ page }) => {
+test('the settings rail shows every section on a phone', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await gotoApp(page, '/settings');
 
   const rail = page.getByRole('navigation', { name: 'Settings sections' });
-  const state = await rail.evaluate((el) => ({
-    scrollable: el.scrollWidth > el.clientWidth,
-    mask: getComputedStyle(el).maskImage
-  }));
+  // It used to be a horizontal scroller, and Server and Users were cut off the
+  // trailing edge — a fade told you they existed but you still had to find
+  // them. A wrapping grid just shows all eight, so nothing is hidden and the
+  // rail cannot be scrolled past the viewport.
+  const links = rail.locator('a');
+  await expect(links).toHaveCount(8);
+  for (const link of await links.all()) await expect(link).toBeVisible();
 
-  // Below the seam the rail is a horizontal scroller and the last item is cut
-  // mid-word. Without a cue, Server and Users look like they do not exist.
-  expect(state.scrollable).toBe(true);
-  expect(state.mask, 'the trailing edge has no fade to signal more').not.toBe('none');
+  const state = await rail.evaluate((el) => ({
+    overflows: el.scrollWidth > el.clientWidth,
+    rows: new Set([...el.querySelectorAll('a')].map((a) => a.getBoundingClientRect().top)).size
+  }));
+  expect(state.overflows, 'the rail still runs off the side').toBe(false);
+  expect(state.rows, 'the rail did not wrap into rows').toBeGreaterThan(1);
 });
 
 test('the integrity readout keeps its separators', async ({ page }) => {

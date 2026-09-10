@@ -22,10 +22,23 @@ const monthFormatter = new Intl.DateTimeFormat(undefined, {
 });
 
 export function fileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+
+  const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'] as const;
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+
+  let rounded = Math.round(value * 10) / 10;
+  if (rounded >= 1024 && unit < units.length - 1) {
+    rounded = Math.round((rounded / 1024) * 10) / 10;
+    unit += 1;
+  }
+  const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  return `${text} ${units[unit]}`;
 }
 
 // A capture instant, for the viewer's detail panel.

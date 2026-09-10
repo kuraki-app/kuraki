@@ -20,6 +20,7 @@ export default function SettingsLayout() {
       <Stack.Screen name="backup" options={headerOptions({ title: 'Backup' })} />
       <Stack.Screen name="connection" options={headerOptions({ title: 'Connection' })} />
       <Stack.Screen name="activity" options={headerOptions({ title: 'Activity' })} />
+      <Stack.Screen name="advanced" options={headerOptions({ title: 'Advanced' })} />
       <Stack.Screen name="permissions" options={headerOptions({ title: 'Permissions' })} />
       <Stack.Screen name="notifications" options={headerOptions({ title: 'Notifications' })} />
       <Stack.Screen name="grid" options={headerOptions({ title: 'Photo Grid' })} />

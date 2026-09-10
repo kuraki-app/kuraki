@@ -145,7 +145,7 @@ export default function ConnectionSettings() {
         contentContainerStyle={styles.content}>
         <SettingsSection
           title="Server address"
-          footer="Change this if your server moved to a new address. Use its address on your network, not localhost.">
+          info={{ message: 'Use the address reachable from this phone. Localhost points back to the phone, not the server.' }}>
           <View style={styles.field}>
             <TextInput
               autoCapitalize="none"
@@ -195,11 +195,11 @@ export default function ConnectionSettings() {
 
         <SettingsSection
           title="Pairing"
-          footer={
-            showsCodeInput(view)
-              ? 'Pair this phone with your Kuraki server to back up and browse your library.'
-              : 'Re-pairing replaces this device’s credentials. Your backed-up photos are unaffected.'
-          }>
+          info={{
+            message: showsCodeInput(view)
+              ? 'Pair this phone to back up and browse your library.'
+              : 'Re-pairing replaces this phone’s credentials. Backed-up photos are not affected.',
+          }}>
           <SettingsRow
             label={showsCodeInput(view) ? 'Pair this device' : 'Re-pair this device'}
             icon="qrcode.viewfinder"
