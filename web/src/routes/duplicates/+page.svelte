@@ -150,7 +150,7 @@
     <section class="group">
       <div class="row">
         {#each group as a (a.id)}
-          <button class="tile" class:sel={selected.has(a.id)} type="button" on:click={() => toggle(a.id)}>
+          <button class="tile" class:sel={selected.has(a.id)} aria-pressed={selected.has(a.id)} type="button" on:click={() => toggle(a.id)}>
             {#if a.thumbnail_url}
               <img src={a.thumbnail_url} alt={a.filename} loading="lazy" />
             {/if}
@@ -215,7 +215,7 @@
     text-align: left;
   }
   .tile.sel {
-    border-color: #d1483a;
+    border-color: var(--stamp);
   }
   .tile img {
     width: 150px;
@@ -232,7 +232,7 @@
     width: 22px;
     height: 22px;
     border-radius: 999px;
-    background: #a33a2a;
+    background: var(--stamp);
     color: #fff;
   }
   .meta {
@@ -251,6 +251,9 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    flex-wrap: wrap;
+    width: max-content;
+    max-width: calc(100vw - 32px);
     padding: 8px 14px;
     border-radius: 12px;
     background: var(--chrome);
@@ -276,5 +279,8 @@
     color: var(--chrome-muted);
     cursor: pointer;
     font-size: 13px;
+  }
+  @media (max-width: 820px) {
+    .bar { bottom: calc(76px + env(safe-area-inset-bottom, 0)); }
   }
 </style>

@@ -21,9 +21,10 @@ export function galleryTitle(view: GalleryView): string {
   return GALLERY_VIEWS.find((v) => v.key === view)?.label ?? 'Photos';
 }
 
-export type GroupBy = 'month' | 'year' | 'off';
+export type GroupBy = 'day' | 'month' | 'year' | 'off';
 
 export const GROUP_OPTIONS: { key: GroupBy; label: string }[] = [
+  { key: 'day', label: 'Day' },
   { key: 'month', label: 'Month' },
   { key: 'year', label: 'Year' },
   { key: 'off', label: 'Off' },
@@ -57,6 +58,10 @@ const UNDATED = 'Undated';
  */
 export function groupLabel(iso: string, groupBy: GroupBy): string {
   const [y, m] = iso.split('-');
+  if (groupBy === 'day') {
+    const date = new Date(`${iso}T00:00:00Z`);
+    return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  }
   if (groupBy === 'year') return y;
   const month = MONTHS[Number(m) - 1];
   return month ? `${month} ${y}` : y;

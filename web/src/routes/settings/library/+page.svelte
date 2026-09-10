@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import LoadError from '$lib/components/LoadError.svelte';
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
   import type { SettingInfo } from '$lib/types';
@@ -15,17 +16,22 @@
   let pendingRestart: string[] = [];
   let saving: Record<string, boolean> = {};
   let loading = true;
+  let loadError = '';
 
   onMount(load);
 
-  async function load() {
+  async function load(savedKey?: string) {
+    loadError = '';
     try {
       const resp = await api.settings();
+      const previous = new Map(settings.map(s => [s.key, s.value ?? '']));
       settings = resp.settings.filter((s) => (KEYS as readonly string[]).includes(s.key));
       pendingRestart = resp.restart_pending ?? [];
-      for (const s of settings) drafts[s.key] = s.value ?? '';
+      for (const s of settings) {
+        if (s.key === savedKey || !(s.key in drafts) || String(drafts[s.key]) === previous.get(s.key)) drafts[s.key] = s.value ?? '';
+      }
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Failed to load settings');
+      loadError = e instanceof Error ? e.message : 'Failed to load settings';
     } finally {
       loading = false;
     }
@@ -38,6 +44,7 @@
   }
 
   async function save(s: SettingInfo) {
+    if (Object.values(saving).some(Boolean)) return;
     saving = { ...saving, [s.key]: true };
     try {
       const resp = await api.patchSettings({ [s.key]: String(drafts[s.key]) });
@@ -53,7 +60,8 @@
       } else {
         showToast('Saved — takes effect after restart');
       }
-      await load();
+      await load(s.key);
+      return true;
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Save failed');
     } finally {
@@ -62,16 +70,19 @@
   }
 
   async function toggleOCR(s: SettingInfo) {
-    drafts[s.key] = drafts[s.key] === '1' ? '0' : '1';
-    await save(s);
+    const previous = drafts[s.key];
+    drafts[s.key] = previous === '1' ? '0' : '1';
+    if (!(await save(s))) drafts[s.key] = previous;
   }
 </script>
 
 <PageHeader title="Library" subtitle="Storage, thumbnails, and text search." />
 
+{#if loadError}<LoadError message={loadError} retry={() => load()} />{/if}
+
 {#if loading}
   <p class="muted">Loading…</p>
-{:else}
+{:else if settings.length > 0}
   <section class="group">
     {#each settings as s (s.key)}
       <SettingRow
@@ -90,14 +101,15 @@
         }[s.key] ?? ''}
         status={statusFor(s)}
         envVar={s.env_var}
-        disabled={s.pinned_by_env}
+        disabled={s.pinned_by_env || saving[s.key]}
       >
         {#if s.type === 'bool'}
           <Button
             id={s.key}
+            aria-pressed={drafts[s.key] === '1'}
             variant="outline"
             size="sm"
-            disabled={s.pinned_by_env || saving[s.key]}
+            disabled={s.pinned_by_env || Object.values(saving).some(Boolean)}
             onclick={() => toggleOCR(s)}
           >
             {drafts[s.key] === '1' ? 'On' : 'Off'}
@@ -107,16 +119,16 @@
             <Input
               id={s.key}
               type="number"
-              min={s.min || undefined}
-              max={s.max || undefined}
-              disabled={s.pinned_by_env}
+              min={s.min ?? undefined}
+              max={s.max ?? undefined}
+              disabled={s.pinned_by_env || saving[s.key]}
               bind:value={drafts[s.key]}
             />
             {#if s.unit}<span class="unit">{s.unit}</span>{/if}
             <Button
               variant="outline"
               size="sm"
-              disabled={s.pinned_by_env || saving[s.key] || String(drafts[s.key]) === (s.value ?? '')}
+              disabled={s.pinned_by_env || Object.values(saving).some(Boolean) || String(drafts[s.key]) === (s.value ?? '')}
               onclick={() => save(s)}
             >
               Save

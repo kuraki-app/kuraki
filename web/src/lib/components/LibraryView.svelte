@@ -464,6 +464,7 @@
   <div in:fade={fadeParams()}>
     <AssetGrid
       {assets}
+      hasMore={!!cursor}
       {selectMode}
       {selected}
       {density}

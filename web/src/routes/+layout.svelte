@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { get } from 'svelte/store';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
@@ -94,13 +94,28 @@
     }
   }
 
+  let signingOut = false;
+  onDestroy(() => stopSync?.());
+
   async function logout() {
-    await api.logout();
-    session.set({ checking: false, setupRequired: false, user: null });
+    if (signingOut) return;
+    signingOut = true;
+    try {
+      await api.logout();
+      session.set({ checking: false, setupRequired: false, user: null });
+    } catch {
+      showToast('Could not sign out. Check your connection and try again.');
+    } finally {
+      signingOut = false;
+    }
   }
 
   async function doUpload(files: File[]) {
     if (!files.length) return;
+    if (uploadPct >= 0 || importStatus) {
+      showToast('An upload is already in progress. Add more files when it finishes.');
+      return;
+    }
     uploadPct = 0;
     try {
       const { job_id } = await uploadFiles(files, (p) => (uploadPct = p));
@@ -126,6 +141,7 @@
       try {
         job = await api.job(id);
       } catch {
+        showToast('Upload received. Open Settings → Activity to check import progress.');
         return;
       }
       importStatus = `Importing ${job.imported}/${job.total}`;
@@ -170,6 +186,8 @@
       <h1>{$session.setupRequired ? 'Welcome to Kuraki' : 'Sign in'}</h1>
       {#if $session.setupRequired}
         <p class="auth-sub">Create the owner account for this server. You can change the password later in Settings.</p>
+      {:else}
+        <p class="auth-sub">Your photos, in your own space.</p>
       {/if}
       <label class="sr-only" for="auth-username">Username</label>
       <Input id="auth-username" bind:value={username} autocomplete="username" placeholder="Username" />
@@ -206,7 +224,7 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="app"
-    on:dragover|preventDefault={() => (dragging = true)}
+    on:dragover|preventDefault={(e) => (dragging = !!e.dataTransfer?.types.includes('Files'))}
     on:dragleave={() => (dragging = false)}
     on:drop={onDrop}
   >
@@ -260,7 +278,7 @@
             </DropdownMenu.Item>
           </DropdownMenu.Content>
         </DropdownMenu.Root>
-        <Button variant="outline" size="icon" onclick={logout} aria-label="Sign out">
+        <Button variant="outline" size="icon" onclick={logout} disabled={signingOut} aria-label="Sign out">
           <LogOut size={18} aria-hidden="true" />
         </Button>
       </div>
@@ -306,8 +324,12 @@
   }
   .auth form {
     display: grid;
-    width: min(360px, 90vw);
-    gap: 12px;
+    width: min(420px, 92vw);
+    padding: 32px;
+    border: 1px solid var(--border);
+    border-radius: var(--collection-radius);
+    background: var(--card);
+    gap: 16px;
     color: var(--foreground);
   }
   .auth h1 {
@@ -333,7 +355,7 @@
 
   .app {
     display: grid;
-    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-columns: 232px minmax(0, 1fr);
     min-height: 100vh;
   }
   .side {
@@ -343,8 +365,8 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    height: 100vh;
-    padding: 18px 14px;
+    height: 100dvh;
+    padding: 24px 16px;
     border-right: 1px solid var(--border);
     background: var(--sidebar);
   }
@@ -352,8 +374,10 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 10px 14px;
-    font-size: 20px;
+    padding: 4px 10px 20px;
+    flex: none;
+    font-size: 24px;
+    letter-spacing: -0.04em;
     font-weight: 700;
     color: var(--foreground);
     text-decoration: none;
@@ -368,7 +392,13 @@
   }
   nav {
     display: grid;
+    align-content: start;
     gap: 3px;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    flex: 1;
   }
   .group {
     display: grid;
@@ -384,6 +414,7 @@
     text-decoration: none;
     font-weight: 500;
   }
+  nav a:hover { background: var(--accent); color: var(--foreground); }
   nav a.active {
     background: var(--accent);
     color: var(--foreground);
@@ -401,6 +432,9 @@
     color: var(--text-faint);
   }
   .side-foot {
+    flex: none;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
     display: flex;
     gap: 8px;
     margin-top: auto;

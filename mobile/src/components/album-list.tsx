@@ -109,6 +109,8 @@ export default function AlbumList({ creating, onCreatingChange }: Props) {
             return (
               <Pressable
                 style={styles.card}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.name}, ${formatCount(item.count)} items`}
                 onPress={() =>
                   router.push({
                     pathname: '/(app)/(albums)/album',
@@ -132,7 +134,7 @@ export default function AlbumList({ creating, onCreatingChange }: Props) {
                           style={styles.mosaicTile}
                           contentFit="cover"
                           transition={120}
-                          cachePolicy="disk"
+                          cachePolicy="memory-disk"
                         />
                       ))}
                     </View>
@@ -142,7 +144,7 @@ export default function AlbumList({ creating, onCreatingChange }: Props) {
                       style={styles.coverImage}
                       contentFit="cover"
                       transition={120}
-                      cachePolicy="disk"
+                      cachePolicy="memory-disk"
                     />
                   ) : null}
                 </View>
@@ -198,7 +200,7 @@ export default function AlbumList({ creating, onCreatingChange }: Props) {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   grid: { gap: Spacing.three, paddingBottom: Spacing.four },
-  card: { flex: 1, gap: 2 },
+  card: { flex: 1, maxWidth: '48.5%', gap: 2 },
   // Radius.md, not sm: an album cover is a card in a two-up grid, and at 8pt
   // the corner barely read against the square mosaic inside it.
   cover: { width: '100%', aspectRatio: 1, borderRadius: Radius.md, overflow: 'hidden', marginBottom: 6 },

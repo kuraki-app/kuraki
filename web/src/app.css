@@ -11,6 +11,11 @@
  * dark overrides live under .dark. Extra semantic tokens (--ok/--warn/--chrome…)
  * carry Kuraki-specific meaning shadcn does not model. */
 :root {
+  --media-radius: 8px;
+  --collection-radius: 12px;
+  --media-gap: 4px;
+  --memory-width: 132px;
+  --memory-height: 176px;
   --radius: 0.625rem;
 
   --background: #ffffff;

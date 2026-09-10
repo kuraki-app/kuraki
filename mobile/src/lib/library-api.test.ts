@@ -1,3 +1,5 @@
+import { videoSource, fullImageSource, type LibraryAsset } from '@/lib/library-api';
+import type { CaptureSettings } from '@/lib/settings';
 import { describe, expect, it } from 'vitest';
 import { isUnfiltered, routeForMutation } from '@/lib/library-api';
 
@@ -47,4 +49,21 @@ describe('isUnfiltered', () => {
     expect(isUnfiltered({ favorite: true })).toBe(false);
     expect(isUnfiltered({ tag: 'beach' })).toBe(false);
   });
+});
+
+
+const connection: CaptureSettings = { baseURL: 'https://photos.example.test', deviceToken: 'test-device' };
+const video: LibraryAsset = { id: 'video', filename: 'clip.mov', media_type: 'video', favorite: false, web_viewable: true };
+
+it('plays the authenticated server derivative for an incompatible original', () => {
+  expect(videoSource(connection, { ...video, preview_url: '/api/assets/video/preview' })).toEqual({
+    uri: 'https://photos.example.test/api/assets/video/preview',
+    headers: { Authorization: 'Bearer test-device' },
+  });
+  expect(videoSource(connection, video)?.uri).toMatch(/\/original$/);
+  expect(videoSource(connection, { ...video, web_viewable: false })).toBeNull();
+});
+
+it('keeps a thumbnail fallback for an image without a full preview', () => {
+  expect(fullImageSource(connection, { ...video, media_type: 'image', web_viewable: false, thumbnail_url: '/thumb' })?.uri).toMatch(/\/thumb$/);
 });

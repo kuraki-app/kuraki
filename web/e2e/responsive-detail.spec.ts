@@ -45,20 +45,15 @@ test('pairing steps show their numbers', async ({ page }) => {
   expect(style).toBe('decimal');
 });
 
-test('the settings rail shows that it scrolls', async ({ page }) => {
+test('mobile settings offers every section without a clipped rail', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await gotoApp(page, '/settings');
-
-  const rail = page.getByRole('navigation', { name: 'Settings sections' });
-  const state = await rail.evaluate((el) => ({
-    scrollable: el.scrollWidth > el.clientWidth,
-    mask: getComputedStyle(el).maskImage
-  }));
-
-  // Below the seam the rail is a horizontal scroller and the last item is cut
-  // mid-word. Without a cue, Server and Users look like they do not exist.
-  expect(state.scrollable).toBe(true);
-  expect(state.mask, 'the trailing edge has no fade to signal more').not.toBe('none');
+  const sections = page.getByLabel('Settings', { exact: true });
+  await expect(sections).toBeVisible();
+  await sections.selectOption('/settings/server');
+  await expect(page.getByRole('heading', { name: 'Server', exact: true })).toBeVisible();
+  await sections.selectOption('/settings/users');
+  await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible();
 });
 
 test('the integrity readout keeps its separators', async ({ page }) => {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { coverLayout } from '../../../../shared/album-cover';
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { Plus, FolderOpen } from '@lucide/svelte';
@@ -65,8 +66,15 @@
 {:else}
   <div class="grid">
     {#each albums as album (album.id)}
+      {@const cover = coverLayout(album.cover_asset_ids)}
       <a class="card" href={`/albums/${album.id}`}>
-        <div class="thumb"><FolderOpen size={26} /></div>
+        <div class="thumb" class:mosaic={cover.kind === 'mosaic'}>
+          {#each cover.ids as id (id)}
+            <img src={`/api/assets/${encodeURIComponent(id)}/thumb`} alt="" loading="lazy" decoding="async" />
+          {:else}
+            <FolderOpen size={26} aria-hidden="true" />
+          {/each}
+        </div>
         <div class="meta">
           <strong>{album.name}</strong>
           <span>{album.asset_count ?? 0} items</span>
@@ -79,27 +87,30 @@
 <style>
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 160px), 1fr));
+    gap: 24px 12px;
   }
   .card {
     display: grid;
     gap: 10px;
-    padding: 12px;
-    border: 1px solid var(--border);
+    padding: 0;
+    min-width: 0;
     border-radius: 12px;
-    background: var(--card);
+    background: transparent;
     color: var(--foreground);
     text-decoration: none;
   }
   .thumb {
     display: grid;
     place-items: center;
-    aspect-ratio: 16 / 10;
-    border-radius: 8px;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: var(--collection-radius);
     background: var(--accent);
     color: var(--text-faint);
   }
+  .thumb img { width: 100%; height: 100%; min-height: 0; object-fit: cover; }
+  .thumb.mosaic { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 2px; }
   .meta strong {
     display: block;
     overflow-wrap: anywhere;

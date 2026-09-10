@@ -83,4 +83,14 @@ const body =
   `export const darkTokens: Record<TokenName, string> = ${JSON.stringify(dark, null, 2)};\n`;
 
 await writeFile(outPath, body);
+// Unitless geometry for both renderers. Values still originate in app.css.
+const gallery = Object.fromEntries(
+  ['mediaRadius', 'collectionRadius', 'mediaGap', 'memoryWidth', 'memoryHeight']
+    .map((key) => [key, Number.parseFloat(light[key])])
+);
+if (Object.values(gallery).some((value) => !Number.isFinite(value))) {
+  throw new Error('sync-tokens: gallery geometry must have numeric values');
+}
+await writeFile(resolve(here, '../../shared/gallery-tokens.ts'),
+  `${banner}\nexport const galleryTokens = ${JSON.stringify(gallery, null, 2)} as const;\n`);
 console.log(`sync-tokens: wrote ${Object.keys(light).length} tokens (from ${darkBlockCount} .dark block(s)) to ${outPath}`);

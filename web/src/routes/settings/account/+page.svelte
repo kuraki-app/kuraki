@@ -39,7 +39,7 @@
 <section class="card">
   <SectionHeading><KeyRound size={14} aria-hidden="true" /> Change password</SectionHeading>
   <p class="hint">
-    Changing your password signs out every other browser and device session. Your
+    Changing your password signs out every other browser session. Your
     paired phones keep their own device tokens and are unaffected.
   </p>
   <form on:submit={submit}>

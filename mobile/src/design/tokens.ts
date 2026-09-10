@@ -2,6 +2,11 @@
 // Do NOT edit by hand. Run: npm run sync-tokens
 
 export const lightTokens = {
+  "mediaRadius": "8px",
+  "collectionRadius": "12px",
+  "mediaGap": "4px",
+  "memoryWidth": "132px",
+  "memoryHeight": "176px",
   "radius": "0.625rem",
   "background": "#ffffff",
   "foreground": "#111111",
@@ -76,6 +81,11 @@ export const lightTokens = {
 export type TokenName = keyof typeof lightTokens;
 
 export const darkTokens: Record<TokenName, string> = {
+  "mediaRadius": "8px",
+  "collectionRadius": "12px",
+  "mediaGap": "4px",
+  "memoryWidth": "132px",
+  "memoryHeight": "176px",
   "radius": "0.625rem",
   "background": "#000000",
   "foreground": "#f5f5f5",

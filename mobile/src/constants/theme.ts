@@ -50,7 +50,7 @@ export const Spacing = {
 export const Radius = {
   sm: 8,
   md: 12,
-  lg: 16,
+  lg: 12,
 } as const;
 
 // There is deliberately no BottomTabInset here any more. It was a hardcoded
