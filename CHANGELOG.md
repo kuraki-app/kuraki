@@ -38,6 +38,9 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Fixed
 
+- **The host development launcher now starts under strict Bash mode.** Unicode punctuation directly
+  after two unbraced port variables was parsed as part of each variable name on this machine, so
+  `make dev` exited before starting Go or Vite. The variables are now explicitly braced.
 - **A transient database error unpaired every phone.** `resolveDevice` gave the same answer for "no
   such device" and for "the lookup failed", and both became `401` — which is the client's
   instruction to delete its credential, because that is what a revoked device means. So a momentary

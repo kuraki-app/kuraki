@@ -104,11 +104,11 @@ if holder="$(lsof -nP -iTCP:"$KURAKI_PORT" -sTCP:LISTEN 2>/dev/null | awk 'NR==2
   exit 1
 fi
 
-echo "==> Starting Go API server on :$KURAKI_PORT…"
+echo "==> Starting Go API server on :${KURAKI_PORT}…"
 go run ./cmd/kuraki serve --addr ":$KURAKI_PORT" "$@" &
 api_pid=$!
 
-echo "==> Starting Vite dev server on :$KURAKI_WEB_PORT…"
+echo "==> Starting Vite dev server on :${KURAKI_WEB_PORT}…"
 (cd web && npm run dev) &
 ui_pid=$!
 

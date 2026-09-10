@@ -421,7 +421,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | **One port block, generated from Go** (2026-09-09): default moved off the contested `3000` to `39170`, with separate uncommon ports for the dev API, dev web, Metro and e2e so all of them run at once; declared in `internal/config/ports.go`, generated to `ports.env` + a mobile constant, and gated by `ports_test.go` for every file that cannot read them | ✅ done; five servers up simultaneously, 94/94 e2e green, mobile onboarding reads the generated port |
 
 | **Operator runbook** (2026-09-09): `RUNNING.md` gives verified direct-source development paths plus private-LAN and Caddy-backed production deployment, including port/config precedence, full environment reference, storage permissions, health/logging, imports, integrity checks, backup/restore, upgrades, account recovery, phone pairing, and troubleshooting | ✅ done; documentation links checked |
-| **Direct local development** (2026-09-10): `make dev`/`make start` are the only development paths; Docker consumes released images for release/prod only; `make clean` covers all disposable build and test output without deleting library data or installed JavaScript dependencies | ✅ done |
+| **Direct local development** (2026-09-10): `make dev`/`make start` are the only development paths; Docker consumes released images for release/prod only; `make clean` covers all disposable build and test output without deleting library data or installed JavaScript dependencies | ✅ done; Go + Vite + Expo live-verified together |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
@@ -449,6 +449,13 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/settings-activity-polish` (2026-09-10, live development verification) — **Go, Vite and Expo
+  now run together directly on the host.** `make dev` exposed a strict-Bash parsing bug: the Unicode
+  ellipsis directly after `$KURAKI_PORT` and `$KURAKI_WEB_PORT` was treated as part of each variable
+  name. Both expansions are braced. The API (`39175`), web UI (`39176`) and Metro (`39177`) were then
+  started together; `/healthz`, the web root and Metro `/status` all responded successfully, and the
+  mobile bundle opened on the iPhone 17 Pro simulator.
 
 - `codex/settings-activity-polish` (2026-09-10, direct-development follow-up) — **Local development
   no longer has a Docker path.** `scripts/dev.sh` runs Go + Vite with hot reload and
