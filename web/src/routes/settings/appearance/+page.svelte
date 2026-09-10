@@ -19,7 +19,7 @@
   ];
 
   const views = [
-    { value: '/', label: 'Timeline' },
+    { value: '/', label: 'Photos' },
     { value: '/favorites', label: 'Favorites' },
     { value: '/albums', label: 'Albums' },
     { value: '/places', label: 'Places' }

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { Activity, CheckCircle2, XCircle, Loader, Clock } from '@lucide/svelte';
+  import LoadError from '$lib/components/LoadError.svelte';
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
   import { relativeTime } from '$lib/format';
@@ -11,6 +12,9 @@
   let jobs: Job[] = [];
   let mediaIssues: MediaIssue[] = [];
   let loading = true;
+  let refreshing = false;
+  let loadError = '';
+  let stopped = false;
   let timer: ReturnType<typeof setInterval>;
   let open: Record<string, boolean> = {};
   let details: Record<string, JobError[]> = {};
@@ -46,28 +50,32 @@
   }
 
   async function load() {
-    try {
-      const [jobList, issueList] = await Promise.all([api.jobs(), api.mediaIssues()]);
-      jobs = jobList.jobs;
-      mediaIssues = issueList.issues;
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Failed to load activity');
-    } finally {
+    if (refreshing || stopped) return;
+    refreshing = true;
+    const [jobList, issueList] = await Promise.allSettled([api.jobs(), api.mediaIssues()]);
+    if (!stopped) {
+      if (jobList.status === 'fulfilled') jobs = jobList.value.jobs;
+      if (issueList.status === 'fulfilled') mediaIssues = issueList.value.issues;
+      loadError = jobList.status === 'rejected' || issueList.status === 'rejected'
+        ? 'Some activity could not be refreshed. Displayed results may be out of date.' : '';
       loading = false;
     }
+    refreshing = false;
   }
 
   onMount(() => {
     load();
     timer = setInterval(load, 2000);
   });
-  onDestroy(() => clearInterval(timer));
+  onDestroy(() => { stopped = true; clearInterval(timer); });
 
   const kindLabel = (k: string) => (k === 'upload' ? 'Upload' : 'Import');
   const pct = (j: Job) => (j.total ? Math.round((j.imported / j.total) * 100) : 0);
 </script>
 
 <PageHeader title="Activity" subtitle="Recent imports" />
+
+{#if loadError}<LoadError message={loadError} retry={load} busy={refreshing} />{/if}
 
 {#if loading}
   <p class="muted">Loading…</p>
@@ -96,7 +104,7 @@
     </section>
   {/if}
 
-  {#if jobs.length === 0}
+  {#if jobs.length === 0 && !loadError}
     {#if mediaIssues.length === 0}
       <EmptyState
         title="No imports yet"
@@ -205,7 +213,7 @@
     gap: calc(var(--space-step) * 3);
     padding: calc(var(--space-step) * 3);
     border: 1px solid var(--frame-border-color, var(--border));
-    border-radius: var(--frame-radius);
+    border-radius: var(--media-radius);
     box-shadow: var(--frame-shadow);
     background: var(--card);
   }
@@ -214,7 +222,7 @@
     place-items: center;
     width: 36px;
     height: 36px;
-    border-radius: var(--frame-radius);
+    border-radius: var(--media-radius);
     background: var(--accent);
     color: var(--muted-foreground);
   }
@@ -237,6 +245,7 @@
   }
   .row1 {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
   }
@@ -247,7 +256,7 @@
      to match the panel it sits in rather than a pill from the photo side. */
   .pill {
     padding: 2px calc(var(--space-step) * 2);
-    border-radius: var(--frame-radius);
+    border-radius: var(--media-radius);
     background: var(--muted);
     color: var(--text-dim);
     font-family: var(--frame-label-font);

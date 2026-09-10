@@ -3,13 +3,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing, useTokens } from '@/constants/theme';
+import { lightTokens } from '@/design/tokens';
+import { Spacing, useTokens } from '@/constants/theme';
 import { memoryGroups, type MemoryGroup } from '@/lib/memories';
 import { thumbSource, type LibraryAsset } from '@/lib/library-api';
 import type { CaptureSettings } from '@/lib/settings';
 
-const CARD_WIDTH = 108;
-const CARD_HEIGHT = 146;
+const CARD_WIDTH = Number.parseFloat(lightTokens.memoryWidth);
+const CARD_HEIGHT = Number.parseFloat(lightTokens.memoryHeight);
 
 /**
  * MemoriesRail is the row of "on this day" cards above the timeline.
@@ -43,6 +44,13 @@ export default function MemoriesRail({ assets, settings, onPress, now }: Memorie
   if (groups.length === 0 || !settings) return null;
 
   return (
+    <View>
+    <View style={styles.heading}>
+      <ThemedText style={styles.headingText}>On this day</ThemedText>
+      <Pressable accessibilityRole="button" onPress={() => onPress?.(groups[0])} hitSlop={8}>
+        <ThemedText type="small" themeColor="mutedForeground">See all</ThemedText>
+      </Pressable>
+    </View>
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
@@ -55,6 +63,7 @@ export default function MemoriesRail({ assets, settings, onPress, now }: Memorie
         <MemoryCard key={group.key} group={group} settings={settings} onPress={onPress} />
       ))}
     </ScrollView>
+    </View>
   );
 }
 
@@ -79,7 +88,7 @@ function MemoryCard({
       accessibilityLabel={`${group.title}, ${group.subtitle}`}
       onPress={() => onPress?.(group)}
       style={[styles.card, { backgroundColor: tokens.thumb }]}>
-      {source ? <Image source={source} style={styles.cover} contentFit="cover" transition={160} cachePolicy="disk" /> : null}
+      {source ? <Image source={source} style={styles.cover} contentFit="cover" transition={160} cachePolicy="memory-disk" recyclingKey={source.uri} /> : null}
 
       {/* The caption sits on the photograph, so it carries its own darkness
           rather than trusting whatever happens to be in the frame. */}
@@ -103,11 +112,13 @@ function MemoryCard({
 }
 
 const styles = StyleSheet.create({
-  rail: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two, gap: Spacing.one },
+  heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.two, paddingTop: 12 },
+  headingText: { fontSize: 16, fontWeight: '600' },
+  rail: { paddingHorizontal: Spacing.two, paddingTop: Spacing.two, gap: Spacing.one },
   card: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
-    borderRadius: Radius.lg,
+    borderRadius: Number.parseFloat(lightTokens.collectionRadius),
     overflow: 'hidden',
     justifyContent: 'flex-end',
   },

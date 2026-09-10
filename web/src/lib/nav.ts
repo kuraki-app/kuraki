@@ -32,7 +32,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Library',
     items: [
-      { href: '/', label: 'Timeline', icon: Images, register: 'kura' },
+      { href: '/', label: 'Photos', icon: Images, register: 'kura' },
       { href: '/favorites', label: 'Favorites', icon: Star, register: 'kura' },
       { href: '/albums', label: 'Albums', icon: FolderOpen, register: 'kura' },
       { href: '/memories', label: 'On this day', icon: CalendarClock, register: 'kura' },
@@ -85,7 +85,7 @@ export const MOBILE_TABS: NavItem[] = [
 ];
 
 export function isActive(href: string, pathname: string): boolean {
-  return href === '/' ? pathname === '/' : pathname.startsWith(href);
+  return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/');
 }
 
 export function registerFor(pathname: string): Register {

@@ -60,7 +60,7 @@
     "lint": "expo lint",
     "test": "vitest run",
     "sync-tokens": "node scripts/sync-tokens.mjs",
-    "check-tokens": "node scripts/sync-tokens.mjs && git diff --exit-code src/design/tokens.ts"
+    "check-tokens": "node scripts/sync-tokens.mjs && git diff --exit-code -- src/design/tokens.ts ../shared/gallery-tokens.ts"
   },
   "private": true
 }

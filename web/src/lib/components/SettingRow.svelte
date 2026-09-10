@@ -68,7 +68,7 @@
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: start;
     gap: calc(var(--space-step) * 3);
-    padding: calc(var(--space-step) * 2) 0;
+    padding: calc(var(--space-step) * 4) 0;
     border-bottom: 1px solid var(--frame-border-color, var(--border));
   }
   .row:last-child {
@@ -101,14 +101,17 @@
     display: flex;
     align-items: center;
     flex: none;
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
   }
   .row.disabled .text {
     opacity: 0.7;
   }
-  @media (max-width: 640px) {
+  @container settings (max-width: 620px) {
     .row {
       grid-template-columns: 1fr;
-      gap: var(--space-step);
+      gap: calc(var(--space-step) * 2);
     }
   }
 </style>

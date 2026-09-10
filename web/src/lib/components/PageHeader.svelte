@@ -48,10 +48,10 @@
   .page-subtitle {
     margin-top: var(--space-step);
     color: var(--muted-foreground);
-    font-family: var(--frame-label-font);
-    font-size: var(--frame-label-size);
-    letter-spacing: var(--frame-label-tracking);
-    text-transform: var(--frame-label-transform);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    max-width: 65ch;
   }
   /* Below the sidebar breakpoint the title and its actions cannot share one
    * line. Wrapping is what keeps the header's min-content width off the page:

@@ -41,9 +41,9 @@ export const test = base.extend<{ consoleGuard: ConsoleGuard }>({
       const ok = (text: string) => ignorable(text) || expected.some((p) => p.test(text));
 
       page.on('console', (message) => {
-        if (message.type() !== 'error') return;
+        if (message.type() !== 'error' && message.type() !== 'warning') return;
         const text = message.text();
-        if (!ok(text)) problems.push(`console.error: ${text}`);
+        if (!ok(text)) problems.push(`console.${message.type()}: ${text}`);
       });
 
       // An uncaught exception is strictly worse than a logged error: it means a

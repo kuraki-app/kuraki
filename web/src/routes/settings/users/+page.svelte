@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { UserPlus, Trash2, ShieldCheck, Ban, Undo2 } from '@lucide/svelte';
+  import LoadError from '$lib/components/LoadError.svelte';
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
   import type { UserSummary } from '$lib/types';
@@ -11,6 +12,7 @@
 
   let users: UserSummary[] = [];
   let loading = true;
+  let loadError = '';
   /** Non-admins get 403 from every route on this page; show that plainly. */
   let forbidden = false;
   let busy: Record<string, boolean> = {};
@@ -23,12 +25,14 @@
   onMount(load);
 
   async function load() {
+    loadError = '';
+    loading = true;
     try {
       users = (await api.users()).users;
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to load accounts';
       if (message.includes('admin_required')) forbidden = true;
-      else showToast(message);
+      else loadError = message;
     } finally {
       loading = false;
     }
@@ -134,6 +138,8 @@
 
 <PageHeader title="Users" subtitle="Accounts on this server" />
 
+{#if loadError}<LoadError message={loadError} retry={load} busy={loading} />{/if}
+
 {#if forbidden}
   <p class="empty">Only an admin can manage accounts.</p>
 {:else if loading}
@@ -213,6 +219,10 @@
     font-size: 14px;
   }
   .add {
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--collection-radius);
+    background: var(--card);
     margin-bottom: calc(var(--space-step) * 4);
   }
   .hint {
@@ -228,9 +238,10 @@
   }
   input,
   select {
-    padding: 7px 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--frame-radius);
+    min-height: 40px;
+    padding: 8px 12px;
+    border: 1px solid var(--input);
+    border-radius: var(--media-radius);
     background: var(--background);
     color: var(--foreground);
     font-size: 13px;
@@ -254,7 +265,7 @@
        rhythm is what makes it read as one. */
     gap: calc(var(--space-step) * 3);
     padding: calc(var(--space-step) * 2) calc(var(--space-step) * 3);
-    border-radius: var(--frame-radius);
+    border-radius: var(--media-radius);
     border: 1px solid var(--border);
   }
   .list li.disabled .name {
@@ -300,7 +311,7 @@
     gap: 2px;
     flex-wrap: wrap;
   }
-  @media (max-width: 640px) {
+  @container settings (max-width: 640px) {
     .list li {
       grid-template-columns: minmax(0, 1fr) auto;
     }

@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { lightTokens } from '@/design/tokens';
 import type { GroupBy } from '@/lib/gallery';
 import { RETENTION_DAYS } from '@/lib/reclaim';
 
@@ -38,14 +39,14 @@ export const DEFAULT_PREFS: Prefs = {
   notifyBackupFailed: true,
   notifyDisconnected: true,
   gridColumns: 3,
-  gridGap: 2,
-  groupBy: 'month',
+  gridGap: Number.parseFloat(lightTokens.mediaGap),
+  groupBy: 'day',
   showGroupHeaders: true,
   showSizeBadge: false,
   keepLocalDays: -1,
 };
 
-const GROUP_VALUES: GroupBy[] = ['month', 'year', 'off'];
+const GROUP_VALUES: GroupBy[] = ['day', 'month', 'year', 'off'];
 
 function bool(value: unknown, fallback: boolean): boolean {
   // Only a real boolean is honoured. A truthy string like 'no' from an older

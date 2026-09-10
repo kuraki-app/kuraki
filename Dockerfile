@@ -25,6 +25,7 @@ WORKDIR /src
 COPY web/package.json web/package-lock.json ./web/
 RUN cd web && npm ci
 COPY web ./web
+COPY shared ./shared
 COPY internal/httpapi/assets ./internal/httpapi/assets
 RUN cd web && npm run build
 

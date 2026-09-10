@@ -8,7 +8,7 @@ import { test, expect, gotoApp } from './support/fixtures';
 /** href → the heading that route is expected to render, and the register its
  *  page frame should be in (nav.ts is the source of truth for the register). */
 const ROUTES = [
-  { path: '/', heading: 'Timeline', register: 'kura' },
+  { path: '/', heading: 'Photos', register: 'kura' },
   { path: '/favorites', heading: 'Favorites', register: 'kura' },
   { path: '/albums', heading: 'Albums', register: 'kura' },
   { path: '/memories', heading: 'On this day', register: 'kura' },
@@ -55,5 +55,5 @@ test('the sidebar marks the current route', async ({ page }) => {
   await expect(nav.getByRole('link', { name: 'Favorites' })).toHaveAttribute('aria-current', 'page');
   // Timeline is `/`, which every path starts with — isActive() special-cases it,
   // and this is the assertion that keeps that special case honest.
-  await expect(nav.getByRole('link', { name: 'Timeline' })).not.toHaveAttribute('aria-current', 'page');
+  await expect(nav.getByRole('link', { name: 'Photos' })).not.toHaveAttribute('aria-current', 'page');
 });

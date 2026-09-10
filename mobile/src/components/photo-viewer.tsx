@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Animated,
-  Dimensions,
+  useWindowDimensions,
   FlatList,
   Modal,
   Platform,
@@ -32,6 +32,7 @@ import {
   fetchAssetDetail,
   fetchAssetTags,
   fullImageSource,
+  thumbSource,
   videoSource,
   type LibraryAsset,
   type Tag,
@@ -88,7 +89,7 @@ export default function PhotoViewer({
 }: Props) {
   const tokens = useTokens();
   const insets = useSafeAreaInsets();
-  const width = Dimensions.get('window').width;
+  const { width } = useWindowDimensions();
   const [active, setActive] = useState(initialIndex);
   const [chrome, setChrome] = useState(true);
   const [info, setInfo] = useState(false);
@@ -119,7 +120,7 @@ export default function PhotoViewer({
   // the effect, matching the pattern used across the app.
   const currentId = current?.id;
   useEffect(() => {
-    if (!currentId) return;
+    if (!info || !currentId) return;
     let cancelled = false;
     const timer = setTimeout(() => {
       setTags([]);
@@ -133,7 +134,7 @@ export default function PhotoViewer({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [settings, currentId, editingTags]);
+  }, [settings, currentId, editingTags, info]);
 
   // Fetched when the sheet opens rather than as the pager settles: swiping
   // through a hundred photographs should not fire a hundred detail requests for
@@ -201,14 +202,18 @@ export default function PhotoViewer({
       */}
       <GestureHandlerRootView style={styles.fill}>
         <FlatList
+          key={width}
           data={assets}
+          initialNumToRender={1}
+          maxToRenderPerBatch={2}
+          windowSize={3}
           keyExtractor={(a) => a.id}
           horizontal
           pagingEnabled
           // A zoomed photo owns the pan: without this, dragging to look around
           // a magnified image would flick to the next photo instead.
           scrollEnabled={!zoomed}
-          initialScrollIndex={initialIndex}
+          initialScrollIndex={active}
           getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
           showsHorizontalScrollIndicator={false}
           onViewableItemsChanged={onViewable}
@@ -558,6 +563,9 @@ function ImageCell({
               style={[styles.layer, { transform: [{ scale }, { translateX }, { translateY }] }]}>
               <Image
                 source={source}
+                placeholder={thumbSource(settings, asset)}
+                placeholderContentFit="contain"
+                recyclingKey={source.uri}
                 style={styles.media}
                 contentFit="contain"
                 transition={150}
@@ -585,16 +593,23 @@ function VideoCell({
   active: boolean;
 }) {
   const src = videoSource(settings, asset);
-  const player = useVideoPlayer(src ? { uri: src.uri, headers: src.headers } : null, (p) => {
+  const player = useVideoPlayer(active && src ? { uri: src.uri, headers: src.headers } : null, (p) => {
     p.loop = false;
   });
   // Play only while this cell is the visible page.
-  if (active) player.play();
-  else player.pause();
+  const playable = !!src;
+  useEffect(() => {
+    if (active && playable) player.play();
+    else player.pause();
+  }, [active, player, playable]);
 
   return (
     <View style={[styles.cell, { width }]}>
-      <VideoView player={player} style={styles.media} contentFit="contain" nativeControls />
+      {src ? (
+        <VideoView player={player} style={styles.media} contentFit="contain" nativeControls />
+      ) : (
+        <ThemedText style={styles.chromeGlyph}>Playback unavailable. The original is stored on your server.</ThemedText>
+      )}
     </View>
   );
 }

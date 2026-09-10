@@ -4,6 +4,8 @@
   import { cubicOut } from 'svelte/easing';
   import {
     X,
+    Info,
+    Heart,
     Download,
     Star,
     Trash2,
@@ -18,6 +20,7 @@
   import { api } from '$lib/api';
   import { captureTime, fileSize, placeLabel } from '$lib/format';
   import { MORPH_NAME, viewerShowsImage, prefersReducedMotion } from '$lib/motion';
+  import { viewerGestures } from '$lib/viewer-gestures';
   import { trapFocus } from '$lib/focus';
 
   export let assets: Asset[] = [];
@@ -28,6 +31,8 @@
   const dispatch = createEventDispatcher();
   $: asset = assets[index];
   let imgLoaded = false;
+  let imgFailed = false;
+  let detailsOpen = typeof window !== 'undefined' && window.innerWidth > 820;
   let editing = false;
   let editDate = '';
   let editCaption = '';
@@ -35,6 +40,7 @@
   let editLon = '';
   $: if (index >= 0) {
     imgLoaded = false;
+    imgFailed = false;
     editing = false;
   }
 
@@ -236,6 +242,8 @@
   }
   function key(e: KeyboardEvent) {
     if (e.key === 'Escape') dispatch('close');
+    else if ((e.target as HTMLElement).closest('input,textarea,select')) return;
+    else if (e.key === 'i' || e.key === 'I') detailsOpen = !detailsOpen;
     else if (e.key === 'ArrowRight') move(1);
     else if (e.key === 'ArrowLeft') move(-1);
   }
@@ -246,10 +254,15 @@
 {#if asset}
   <!-- tabindex allows the container itself to hold focus if a photo-only
        viewer ever has no focusable control inside it. -->
-  <div class="viewer" role="dialog" aria-modal="true" aria-label="Photo viewer" tabindex="-1" use:trapFocus>
+  <div class="viewer" class:details-open={detailsOpen} role="dialog" aria-modal="true" aria-label="Photo viewer" tabindex="-1" use:trapFocus>
     <button class="icon close" type="button" on:click={() => dispatch('close')} aria-label="Close">
       <X size={22} />
     </button>
+    <div class="viewer-tools">
+      <button class="icon" type="button" aria-label={asset.favorite ? 'Remove favorite' : 'Favorite photo'} aria-pressed={asset.favorite} on:click={() => dispatch('favorite', asset)}><Heart size={20} fill={asset.favorite ? 'currentColor' : 'none'} /></button>
+      <button class="icon" type="button" aria-label="Photo details" aria-expanded={detailsOpen} aria-controls="photo-details" on:click={() => (detailsOpen = !detailsOpen)}><Info size={20} /></button>
+    </div>
+    <div class="viewer-caption"><span>{asset.filename}</span><small>{index + 1} / {assets.length}</small></div>
     {#if index > 0}
       <button class="icon nav left" type="button" on:click={() => move(-1)} aria-label="Previous">
         <ChevronLeft size={26} />
@@ -275,7 +288,7 @@
            block leaves behind is covered by `slideOutFrame`, which releases the
            name in the same flush the key changes. -->
       {#key asset.id}
-        <div class="frame" in:fly={slideIn()} out:slideOutFrame={slideOut()}>
+        <div class="frame" use:viewerGestures={{ move, close: () => dispatch('close') }} in:fly={slideIn()} out:slideOutFrame={slideOut()}>
           {#if !asset.web_viewable}
             <div class="unsupported">
               <strong>Preview unavailable</strong>
@@ -287,7 +300,7 @@
                  must tag a grid tile only for assets that land in *this* branch, and
                  sharing the predicate is what stops the two rules from drifting.
                  Equivalent here — the branch above already excludes !web_viewable. -->
-            {#if asset.thumbnail_url && !imgLoaded}
+            {#if asset.thumbnail_url && (!imgLoaded || imgFailed)}
               <img class="preview" src={asset.thumbnail_url} alt="" aria-hidden="true" />
             {/if}
             <!-- Only this image is tagged: the blurred `preview` behind it must stay
@@ -302,17 +315,22 @@
               style:view-transition-name={MORPH_NAME}
               src={asset.view_url}
               alt={asset.filename}
+              draggable="false"
+              decoding="async"
+              fetchpriority="high"
+              on:error={() => (imgFailed = true)}
               on:load={() => (imgLoaded = true)}
             />
+            {#if imgFailed}<p class="media-error" role="status">Full preview could not load. <a href={asset.original_url} download>Download original</a></p>{/if}
           {:else}
             <!-- svelte-ignore a11y_media_has_caption -->
-            <video src={asset.view_url} poster={asset.thumbnail_url} controls autoplay></video>
+            <video src={asset.view_url} poster={asset.thumbnail_url} controls autoplay playsinline preload="metadata"></video>
           {/if}
         </div>
       {/key}
     </div>
 
-    <aside class="info">
+    <aside class="info" id="photo-details" hidden={!detailsOpen}>
       <div class="head">
         <h2>{asset.filename}</h2>
         <p>{fileSize(asset.size_bytes)} · {asset.width}×{asset.height}</p>
@@ -459,7 +477,7 @@
     gap: 4px;
     padding: 3px 8px;
     border: 1px solid #ffffff2e;
-    border-radius: 999px;
+    border-radius: var(--collection-radius);
     background: transparent;
     color: inherit;
     font-size: 12px;
@@ -475,7 +493,7 @@
   .chip {
     padding: 3px 10px;
     border: 1px solid #ffffff2e;
-    border-radius: 999px;
+    border-radius: var(--collection-radius);
     font-size: 12px;
     color: inherit;
     text-decoration: none;
@@ -486,7 +504,7 @@
   .pick {
     padding: 3px 10px;
     border: 1px dashed #ffffff3d;
-    border-radius: 999px;
+    border-radius: var(--collection-radius);
     background: transparent;
     color: inherit;
     font-size: 12px;
@@ -510,17 +528,17 @@
     inset: 0;
     z-index: 30;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 340px;
-    background: #111;
-    color: #f7f3ec;
+    grid-template-columns: minmax(0, 1fr);
+    background: var(--chrome);
+    color: var(--chrome-text);
   }
   .icon {
     display: grid;
     place-items: center;
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     border: 0;
-    border-radius: 999px;
+    border-radius: var(--collection-radius);
     background: #ffffff22;
     color: #fff;
     cursor: pointer;
@@ -528,7 +546,7 @@
   .close {
     position: fixed;
     top: 16px;
-    right: 16px;
+    left: 16px;
     z-index: 32;
   }
   .nav {
@@ -541,7 +559,7 @@
     left: 16px;
   }
   .nav.right {
-    right: 356px;
+    right: 16px;
   }
   .stage {
     position: relative;
@@ -549,7 +567,7 @@
     place-items: center;
     min-width: 0;
     min-height: 0;
-    padding: 18px;
+    padding: 72px 16px;
     overflow: hidden;
   }
   /* `grid-area: 1 / 1` pins both the outgoing and incoming frame to the same
@@ -562,11 +580,15 @@
     place-items: center;
     width: 100%;
     height: 100%;
+    touch-action: none;
   }
   .stage img,
   .stage video {
     max-width: 100%;
-    max-height: calc(100vh - 36px);
+    max-height: calc(100dvh - 144px);
+    grid-area: 1 / 1;
+    transform: translate(var(--viewer-x, 0px), var(--viewer-y, 0px)) scale(var(--viewer-scale, 1));
+    user-select: none;
     object-fit: contain;
   }
   .stage img:not(.preview) {
@@ -577,14 +599,18 @@
     opacity: 1;
   }
   .stage .preview {
-    position: absolute;
-    width: min(100%, 1000px);
-    height: min(100%, 1000px);
-    filter: blur(20px);
-    opacity: 0.4;
-    transform: scale(1.05);
-    object-fit: contain;
+    width: 100%; height: 100%; object-fit: contain;
   }
+  .media-error { position: absolute; bottom: 72px; padding: 12px; background: var(--chrome); color: var(--chrome-text); }
+  .media-error a { text-decoration: underline; }
+  .viewer.details-open { grid-template-columns: minmax(0, 1fr) 340px; }
+  .details-open .nav.right { right: 356px; }
+  .viewer-tools { position: fixed; display: flex; gap: 8px; top: 16px; right: 16px; z-index: 32; }
+  .viewer-caption { position: absolute; bottom: 20px; left: 72px; right: 72px; display: flex; justify-content: center; align-items: baseline; gap: 12px; pointer-events: none; }
+  .viewer-caption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .viewer-caption small { flex: none; color: var(--chrome-muted); }
+  .details-open .viewer-caption { right: 412px; }
+  .info[hidden] { display: none; }
   .unsupported {
     max-width: 420px;
     padding: 28px;
@@ -618,7 +644,7 @@
     gap: 18px;
     padding: 68px 22px 22px;
     border-left: 1px solid #ffffff1f;
-    background: #1b1815;
+    background: var(--chrome);
     overflow: auto;
   }
   .head h2 {
@@ -687,7 +713,7 @@
     border: 1px solid #ffffff2a;
     border-radius: 8px;
     background: #ffffff12;
-    color: #f7f3ec;
+    color: var(--chrome-text);
     cursor: pointer;
     font-size: 14px;
   }
@@ -708,7 +734,7 @@
     border: 1px solid #ffffff2a;
     border-radius: 8px;
     background: #ffffff10;
-    color: #f7f3ec;
+    color: var(--chrome-text);
     font-size: 14px;
     text-transform: none;
   }
@@ -733,11 +759,11 @@
   }
   .edit-actions .ghost {
     background: #ffffff14;
-    color: #f7f3ec;
+    color: var(--chrome-text);
   }
   .act.on {
-    color: #ffd35c;
-    border-color: #ffd35c55;
+    color: var(--chrome-text);
+    border-color: var(--chrome-muted);
   }
   .star-icon {
     display: inline-flex;
@@ -800,15 +826,22 @@
     font-weight: 700;
   }
   @media (max-width: 820px) {
-    .viewer {
+    .viewer, .viewer.details-open {
       grid-template-columns: 1fr;
       grid-template-rows: minmax(0, 1fr) auto;
     }
-    .nav.right {
+    .nav.right, .details-open .nav.right {
       right: 16px;
     }
+    .details-open .viewer-caption { right: 72px; }
     .info {
-      max-height: 44vh;
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 33;
+      border-radius: 12px 12px 0 0;
+      max-height: 60dvh;
       padding: 18px;
       border-left: 0;
       border-top: 1px solid #ffffff1f;

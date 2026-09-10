@@ -1,9 +1,9 @@
 import { Image } from 'expo-image';
 import { SymbolView } from 'expo-symbols';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
-  Dimensions,
+  useWindowDimensions,
   Pressable,
   SectionList,
   StyleSheet,
@@ -18,6 +18,7 @@ import ScrollScrubber from '@/components/scroll-scrubber';
 import SectionHeading from '@/components/section-heading';
 import TileBadges from '@/components/tile-badges';
 import { ThemedText } from '@/components/themed-text';
+import { lightTokens } from '@/design/tokens';
 import { useTokens } from '@/constants/theme';
 import { usePrefs } from '@/hooks/use-prefs';
 import { applyPaint, paintMode, tileAt, type PaintMode, type TileFrame } from '@/lib/drag-select';
@@ -161,10 +162,11 @@ export default function PhotoGrid({
   // the right photo and page through the whole library rather than one group.
   const flat = useMemo(() => sections.flatMap((s) => s.data.flat()), [sections]);
 
-  const tile = useMemo(() => {
-    const width = Dimensions.get('window').width;
-    return (width - gap * (columns - 1)) / columns;
-  }, [columns, gap]);
+  const { width: windowWidth } = useWindowDimensions();
+  const [layoutWidth, setLayoutWidth] = useState(windowWidth);
+  const tile = Math.max(0, (layoutWidth - gap * (columns - 1) - 24) / columns);
+  const flatIndex = useMemo(() => new Map(flat.map((asset, index) => [asset.id, index])), [flat]);
+  useEffect(() => () => { if (idleTimer.current) clearTimeout(idleTimer.current); }, []);
 
   // Fade in on movement, out after a pause. `hold` keeps it pinned while a
   // finger is down so the thumb cannot vanish mid-drag.
@@ -359,9 +361,12 @@ export default function PhotoGrid({
 
   return (
     <GestureDetector gesture={gestures}>
-      <View style={styles.fill} onLayout={(e) => setTrackHeight(e.nativeEvent.layout.height)}>
+      <View style={styles.fill} onLayout={(e) => { setTrackHeight(e.nativeEvent.layout.height); setLayoutWidth(e.nativeEvent.layout.width); }}>
       <SectionList
         ref={listRef}
+        initialNumToRender={8}
+        maxToRenderPerBatch={6}
+        windowSize={7}
         // Held still while a drag is painting, so the list cannot slide out from
         // under the finger that is selecting on it.
         scrollEnabled={!painting}
@@ -422,9 +427,12 @@ export default function PhotoGrid({
               return (
                 <Pressable
                   key={item.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.filename}
+                  accessibilityState={{ selected }}
                   ref={(node) => {
                     if (node) tileNodes.current.set(item.id, node);
-                    else tileNodes.current.delete(item.id);
+                    else { tileNodes.current.delete(item.id); frames.current.delete(item.id); }
                   }}
                   // Re-measured on every layout, which covers the column count
                   // changing under a pinch as well as the first mount.
@@ -433,7 +441,7 @@ export default function PhotoGrid({
                   onPress={() =>
                     selectionActive
                       ? onToggleSelect?.(item.id)
-                      : setViewerIndex(flat.findIndex((a) => a.id === item.id))
+                      : setViewerIndex(flatIndex.get(item.id) ?? -1)
                   }
                   onLongPress={() => onLongPressItem?.(item.id)}>
                   {source ? (
@@ -442,7 +450,8 @@ export default function PhotoGrid({
                       style={styles.thumb}
                       contentFit="cover"
                       transition={120}
-                      cachePolicy="disk"
+                      cachePolicy="memory-disk"
+                      recyclingKey={source.uri}
                     />
                   ) : (
                     <ThemedText type="small" themeColor="mutedForeground">
@@ -539,8 +548,8 @@ const styles = StyleSheet.create({
   // gap/marginBottom are applied inline because they come from preferences.
   // No right padding: the scrubber floats over the edge of the grid (and only
   // while the list is moving), so tiles keep the full screen width.
-  row: { flexDirection: 'row' },
-  tile: { alignItems: 'center', justifyContent: 'center' },
+  row: { flexDirection: 'row', paddingHorizontal: 12 },
+  tile: { alignItems: 'center', justifyContent: 'center', borderRadius: Number.parseFloat(lightTokens.mediaRadius), overflow: 'hidden' },
   thumb: { width: '100%', height: '100%' },
   // 0.28 stamp over the photograph — enough to read as chosen, not so much
   // that the picture underneath stops being identifiable.

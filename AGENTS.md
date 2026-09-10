@@ -23,6 +23,20 @@ Phase 1 = single-owner personal backup.
 
 ## 2. Current state
 
+- **Web app and Settings redesign (2026-09-10).** Shared photo-first shell,
+  grouped Settings navigation and responsive cards; fixed lost drafts, partial
+  load failures, short-screen navigation and sign-out rejection. See
+  [WEB_REDESIGN.md](./WEB_REDESIGN.md) before changing Settings loading/saving or
+  assessing Web verification coverage.
+
+- **Cross-platform gallery modernization (2026-09-09).** Gallery geometry comes from
+  `web/src/app.css`, generated into Mobile tokens and `shared/gallery-tokens.ts`.
+  Web now has the shared memories rail and album-cover mosaics; media tiles use
+  8px corners and 4px default gaps. Six-row Web windows bound rendering even within
+  one large month. Mobile adds day grouping, responsive sizing, thumbnail-first
+  images and compatible video derivatives. See [UI_PARITY.md](./UI_PARITY.md) when
+  changing gallery presentation or assessing remaining functional/release parity.
+
 - **Phase 1 (single-owner) is feature-complete and pushed** to `github.com/kuraki-app/kuraki`.
   Implemented and verified: zero-config server; CLI + drag-and-drop import via a background **queue**
   (retries, crash recovery, an **Activity** view with per-file errors); BLAKE3 dedup; **watch-folder**;
@@ -310,6 +324,8 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 
 | Area | Status |
 |---|---|
+| Web shell and all Settings sections: shared cards/controls, mobile section picker, draft preservation and retry states | ✅ implemented; verification in WEB_REDESIGN.md |
+| Shared gallery geometry, memories and album covers; rounded Web controls; row-window virtualization; Mobile day grouping/resizing and progressive playback; Go media cache validators | ✅ implemented; Web/Go regression-tested, native visual certification pending (see UI_PARITY.md) |
 | Server foundation, import, media pipeline, web UI, auth, trash, verify, video | ✅ done |
 | Places (map + offline geocoding), Takeout import, favorites/albums/memories, stats | ✅ done |
 | Import queue + Activity + per-file errors, metadata editing, config options, serving perf | ✅ done |
@@ -441,6 +457,44 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- Working tree (2026-09-10, Codex) — **Whole Web shell and Settings.**
+  Photos navigation, scrollable sidebar, grouped role-aware Settings rail with a
+  phone selector, reading-width cards and shared form geometry. Overview loads
+  its three resources independently; failed reads offer retry; saves retain
+  unrelated drafts and rejected OCR toggles revert. Activity preserves successful
+  responses instead of repeatedly toasting. Sign-out failures remain recoverable;
+  upload tracking failures point to Activity. Tag cards, duplicate toolbar and
+  mobile keyboard focus were revalidated. Details: [WEB_REDESIGN.md](./WEB_REDESIGN.md).
+  - Validation: 107 Chromium tests, 21 Web unit tests, Svelte check (zero
+    errors/warnings), production Web/pure-Go builds, Go vet/race suite and both
+    contrast palettes pass. All Settings sections exercised at 1440/390/320px
+    in both themes; visual review caught and fixed a four-column phone stats
+    regression, now asserted explicitly. No unexpected browser warnings/errors.
+    No new dependency or migration; Safari/Firefox and native certification
+    remain outside this pass.
+
+- Working tree (2026-09-09, Codex) — **Gallery parity and media rendering.** Added
+  `UI_PARITY.md` with the reference-image audit, three-priority roadmap, evidence
+  boundaries and remaining Mobile editing/search/export differences. Shared pure
+  memory/cover functions live in `shared/`; numeric geometry is generated from CSS
+  alongside Mobile tokens. Docker copies shared code and Metro watches it. Web
+  windows six complete rows, preserves focus/morph targets, and uses matching
+  rounded loading placeholders. Mobile measures its container, clears recycled
+  drag targets, bounds list/pager windows and plays the server's compatible video
+  derivative only on the active page. Web gains details toggling and pointer
+  zoom/pan/swipe; both viewers show thumbnails while full images load. Stored media
+  supports conditional GET/HEAD and retains ranges, with credential-varying private
+  caches. The stats principal test now excludes volatile free-space readings from
+  equality (a concurrent build changed free space by 4KB between requests).
+  - Verification: Web checks/build and 21 unit tests; Mobile checks/lint and 269
+    unit tests; iOS export; Go vet and full race suite. The 10k single-month renderer
+    fixture mounted 168 tiles on desktop at all sampled positions and 54 on phone,
+    with stable scroll height. Full browser verification and limits: UI_PARITY.md.
+  - Native visual/gesture verification remains pending: the available simulator
+    exposed its accessibility tree, but the computer-use tool could not capture
+    screenshots or operate it reliably. Existing physical-device, Android and
+    real 10k/50k backend capacity gates remain open. No migration or new dependency.
 
 - `feat/mobile-contact-sheet-ui` (2026-09-09, fifth pass) — **Pointed the app at the real container
   on the new port, and the address hint was wrong again — for the second time, in a new way.**

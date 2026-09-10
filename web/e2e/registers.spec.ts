@@ -90,7 +90,7 @@ test('a Vault frame hosting photographs leaves the photographs alone', async ({ 
 
   const tile = page.locator('button.tile').first();
   await expect(tile).toBeVisible();
-  // The tile is square and gapless whatever register the frame is in — the
+  // The tile is square with soft corners whatever register the frame is in — the
   // photo components read none of the --frame-* tokens.
   const shape = await tile.evaluate((el) => {
     const r = el.getBoundingClientRect();
@@ -98,7 +98,7 @@ test('a Vault frame hosting photographs leaves the photographs alone', async ({ 
   });
   expect(shape.ratio).toBeGreaterThan(0.95);
   expect(shape.ratio).toBeLessThan(1.05);
-  expect(shape.radius).toBe('0px');
+  expect(shape.radius).toBe('8px');
 
   // Put the library back.
   await page.getByRole('button', { name: 'Select', exact: true }).click();

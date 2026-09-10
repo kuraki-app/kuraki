@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { createEventDispatcher, tick } from 'svelte';
+  import { createEventDispatcher } from 'svelte';
   import { page } from '$app/stores';
-  import { Menu, Upload, LogOut, Monitor, Sun, Moon } from '@lucide/svelte';
+  import { X, Menu, Upload, LogOut, Monitor, Sun, Moon } from '@lucide/svelte';
   import { setMode, userPrefersMode } from 'mode-watcher';
   import { MOBILE_TABS, NAV_GROUPS, isActive } from '$lib/nav';
+  import { trapFocus } from '$lib/focus';
   import SegmentedControl from './SegmentedControl.svelte';
 
   // The sidebar is hidden below 820px, so the sheet is the only place Upload,
@@ -34,9 +35,7 @@
   // `sheetOpen`.
   let previousOpen = false;
   $: {
-    if (sheetOpen && !previousOpen) {
-      tick().then(() => sheetEl?.focus());
-    } else if (!sheetOpen && previousOpen) {
+    if (!sheetOpen && previousOpen) {
       triggerEl?.focus();
     }
     previousOpen = sheetOpen;
@@ -82,7 +81,8 @@
 </nav>
 
 {#if sheetOpen}
-  <div class="sheet" role="dialog" aria-label="More sections" tabindex="-1" bind:this={sheetEl}>
+  <div class="sheet" use:trapFocus role="dialog" aria-label="More sections" tabindex="-1" bind:this={sheetEl}>
+    <div class="sheet-title"><strong>Browse your library</strong><button type="button" aria-label="Close navigation" on:click={() => (sheetOpen = false)}><X size={20} aria-hidden="true" /></button></div>
     {#each NAV_GROUPS as group (group.label)}
       <h2>{group.label}</h2>
       <div class="sheet-items">
@@ -166,10 +166,14 @@
     max-height: 60vh;
     overflow-y: auto;
     padding: 14px 16px 18px;
-    border-top: 1px solid var(--border);
+    border: 1px solid var(--border);
+    border-radius: var(--collection-radius) var(--collection-radius) 0 0;
     background: var(--popover);
     box-shadow: var(--shadow);
   }
+  .sheet-title { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .sheet-title strong { font-size: 16px; }
+  .sheet-title button { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 8px; background: var(--accent); color: var(--foreground); cursor: pointer; }
   .sheet h2 {
     margin: 12px 0 6px;
     font-size: 11px;

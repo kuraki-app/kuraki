@@ -1,0 +1,4 @@
+# Svelte's generated runtime includes a JavaScript string that intentionally
+# enumerates space, tab, and newline characters. Do not report that embedded
+# runtime data as source-code trailing whitespace.
+internal/httpapi/assets/_app/immutable/** -whitespace
