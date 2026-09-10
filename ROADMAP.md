@@ -95,6 +95,12 @@ existing promise works.
   Browser-smoked at 390×844; the broader cross-browser release matrix remains
   part of the media/capacity evidence gates.
 
+- **[done] Direct local-development workflow — Contributors — S.** Hot-reload and full-app source
+  runs use host Go/Node processes. Docker consumes released images only for release verification or
+  production deployment; the working-tree Docker helper is gone, and one safe cleanup target removes
+  generated builds and test caches without touching installed JavaScript dependencies or library
+  data.
+
 - **[new feature] Smart albums — Organizers — M.** Build on saved searches with
   explicit ownership, preview, and reversible membership semantics.
 

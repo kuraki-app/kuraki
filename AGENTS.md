@@ -67,6 +67,12 @@ Phase 1 = single-owner personal backup.
   suite can all be up at once. `make ports` generates `ports.env` and `mobile/src/design/ports.ts`;
   `ports_test.go` holds every file that can read neither (Dockerfile, both Compose files, the
   Caddyfile, `package.json`) to the same numbers. `KURAKI_ADDR=:3000` restores the old default.
+- **Local development runs directly on the host (2026-09-10).** `make dev` is the hot-reload path;
+  `make start` rebuilds and runs the embedded app from source. Docker is only for released-image
+  verification and production deployment: the root Compose file pulls the published image instead
+  of building the checkout, and `scripts/docker-dev.sh` was removed. `make clean` removes disposable
+  build/test output but deliberately preserves installed JavaScript dependencies, `kuraki-data*`,
+  and operator APKs.
 - **The three surfaces were connected to each other and driven (2026-09-09).** Server in Docker on a
   LAN address, the web UI in a browser against it, and the Expo client on a simulator paired to it —
   the first time the mobile↔server link has been exercised over a real network address rather than
@@ -414,7 +420,8 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 
 | **One port block, generated from Go** (2026-09-09): default moved off the contested `3000` to `39170`, with separate uncommon ports for the dev API, dev web, Metro and e2e so all of them run at once; declared in `internal/config/ports.go`, generated to `ports.env` + a mobile constant, and gated by `ports_test.go` for every file that cannot read them | ✅ done; five servers up simultaneously, 94/94 e2e green, mobile onboarding reads the generated port |
 
-| **Operator runbook** (2026-09-09): `RUNNING.md` now gives one verified path from local hot reload through a production-like source run to local Docker and private-behind-Caddy production, including port/config precedence, full environment reference, storage permissions, health/logging, imports, integrity checks, backup/restore, upgrades, account recovery, phone pairing, and troubleshooting | ✅ done; documentation links checked |
+| **Operator runbook** (2026-09-09): `RUNNING.md` gives verified direct-source development paths plus private-LAN and Caddy-backed production deployment, including port/config precedence, full environment reference, storage permissions, health/logging, imports, integrity checks, backup/restore, upgrades, account recovery, phone pairing, and troubleshooting | ✅ done; documentation links checked |
+| **Direct local development** (2026-09-10): `make dev`/`make start` are the only development paths; Docker consumes released images for release/prod only; `make clean` covers all disposable build and test output without deleting library data or installed JavaScript dependencies | ✅ done |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
@@ -442,6 +449,19 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/settings-activity-polish` (2026-09-10, direct-development follow-up) — **Local development
+  no longer has a Docker path.** `scripts/dev.sh` runs Go + Vite with hot reload and
+  `scripts/start.sh` builds/runs the complete app directly; the latter now reads the generated
+  `39170` default instead of retaining a stale `3000` banner fallback. Root Compose pulls the
+  published image and is documented only as private-LAN production, while the working-tree
+  `scripts/docker-dev.sh` helper is removed. `make clean` now removes binaries, cross-builds,
+  generated mobile native trees, mobile/web/site build state, coverage, browser-test state and
+  locally built APKs without deleting `node_modules`, `kuraki-data*`, the operator-supplied download
+  APK, or generated embedded assets.
+  The cleanup was run; unused `kuraki:worktree-*`, `kuraki:test`, `kuraki:local`, and
+  `kuraki:published-*` image tags were removed. The running published-image container and its
+  `kuraki-data` mount were deliberately preserved.
 
 - `codex/settings-activity-polish` (2026-09-10) — **Settings said too much at once, on both clients,
   and the byte formatter disagreed with itself.**

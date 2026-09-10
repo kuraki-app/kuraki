@@ -15,8 +15,8 @@
 # started the server on. Passing `--addr` directly would move the server without
 # moving the proxy, and the UI would then quietly talk to whatever else is there.
 #
-# They are deliberately NOT the server's shipped default: a hot-reload session
-# has to be able to run beside a container already serving the real library.
+# They are deliberately NOT the server's shipped default, so a hot-reload
+# session cannot collide with a separately deployed production service.
 #
 # For a single production-like process instead (built UI embedded in one binary
 # on one port), use scripts/start.sh.

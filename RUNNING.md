@@ -1,9 +1,9 @@
 # Running Kuraki
 
-This is the operator runbook for starting Kuraki during local development and
-running it in production with Docker. Kuraki is one Go server: in a production
-build it serves the API, media, and embedded SvelteKit web UI from the same
-address.
+This is the operator runbook for running Kuraki directly from source during
+local development and deploying released builds with Docker. Kuraki is one Go
+server: in a production build it serves the API, media, and embedded SvelteKit
+web UI from the same address.
 
 For application behavior after it is running, see [USER_GUIDE.md](USER_GUIDE.md).
 For the shorter security-focused deployment reference, see
@@ -14,9 +14,14 @@ For the shorter security-focused deployment reference, see
 | Use case | Command | Open in a browser |
 |---|---|---|
 | Web development with hot reload | `./scripts/dev.sh` | `http://localhost:39176` |
-| Production-like run from source | `./scripts/start.sh` | `http://localhost:39170` |
-| Local Docker from this checkout | `docker compose up -d --build` | `http://localhost:39170` |
+| Full app directly from source | `./scripts/start.sh` | `http://localhost:39170` |
+| Private-LAN production | `docker compose pull && docker compose up -d` | `http://localhost:39170` |
 | Internet production with Docker and HTTPS | `docker compose -f deploy/docker-compose.caddy.yml up -d` | Your HTTPS domain |
+
+Local development always runs directly on the host with `scripts/dev.sh`,
+`scripts/start.sh`, or `go run`. Docker is reserved for released-image checks
+and production deployment; the root Compose file no longer builds a working
+tree.
 
 The Go server defaults to `:39170`. A leading colon means it listens on all
 interfaces, not only localhost.
@@ -56,8 +61,9 @@ ffmpeg -version
 ```
 
 The default source build is deliberately pure Go. It handles the core image
-formats without libvips. The Docker image is the full media build and includes
-libvips, ffmpeg, and Tesseract.
+formats without libvips. Install libvips and use `make build-vips` when local
+development needs the broader image pipeline. Released Docker images include
+libvips, ffmpeg, and Tesseract for production.
 
 ### Hot-reload development
 
@@ -181,20 +187,22 @@ make e2e                             # browser tests against a real server
 
 `make e2e` needs its Playwright browser installed.
 
-## Local Docker
+## Production with Docker
 
 ### Requirements
 
 - Docker Engine or Docker Desktop
 - Docker Compose v2 (`docker compose`, with a space)
 
-### Build and start this checkout
+### Private-LAN production
 
-The root Compose file builds the current checkout, publishes host port 39170,
-and stores the library in the host directory `./kuraki-data`:
+The root Compose file runs the published image, exposes plain HTTP on a trusted
+private network, and stores the library in `./kuraki-data`. It never builds the
+current checkout:
 
 ```sh
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 Open `http://localhost:39170` and create the first admin account.
@@ -225,27 +233,7 @@ Keep `KURAKI_ADDR: ":39170"` inside the container. Open
 `http://localhost:39180`, and set `KURAKI_PUBLIC_URL` to the externally reachable
 address if a phone will pair with this server.
 
-### Rebuild a local Docker image safely
-
-The repository also provides a helper that builds the full image from the
-working tree, replaces the existing local container only after preserving the
-old one for rollback, and waits for the health check:
-
-```sh
-PORT=4000 KURAKI_DATA_DIR="$PWD/kuraki-data-dev" ./scripts/docker-dev.sh
-```
-
-Other forms:
-
-```sh
-./scripts/docker-dev.sh --no-build
-./scripts/docker-dev.sh --published
-```
-
-The second command uses an already-built local image; the third switches back
-to `ghcr.io/kuraki-app/kuraki:latest`.
-
-## Production with Docker and HTTPS
+### Internet production with HTTPS
 
 Do not expose Kuraki's plain HTTP port directly to the internet. The supported
 example places Caddy in front of Kuraki. Caddy owns public ports 80 and 443,
@@ -393,12 +381,13 @@ Then use the web app's Devices page to create a single-use pairing code or QR.
 ## Routine operations
 
 Commands in this section that include
-`-f deploy/docker-compose.caddy.yml` target the production Caddy stack. Remove
-that option to run the equivalent command against the root local Compose stack.
+`-f deploy/docker-compose.caddy.yml` target the internet-facing Caddy stack.
+Remove that option to run the equivalent command against the private-LAN
+production stack.
 
 ### View status and logs
 
-Local Compose:
+Private-LAN production:
 
 ```sh
 docker compose ps
@@ -640,6 +629,6 @@ show an ACME challenge failure.
 ### Embedded UI looks stale
 
 A Go binary or Docker image contains the web UI that existed when it was built.
-Use `./scripts/start.sh` for a fresh source build, `docker compose up -d --build`
-for a fresh local image, or pull and recreate the production image. Use
-`./scripts/dev.sh` while actively editing the UI.
+Use `./scripts/start.sh` for a fresh source build or pull and recreate the
+production image. Use `./scripts/dev.sh` while actively editing the UI; do not
+build a Docker image to preview working-tree changes.

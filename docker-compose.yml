@@ -1,6 +1,7 @@
-# Kuraki — one-command self-hosting (simple local host, plain HTTP).
+# Kuraki — single-host production deployment for a trusted private network.
 #
-#   docker compose up -d      # build + start, then open http://localhost:39170
+#   docker compose pull
+#   docker compose up -d      # start the released image, then open http://localhost:39170
 #
 # One container, one process: `kuraki serve` on :39170 serves the API, media, and
 # the web UI (including first-run admin setup) from a single origin.
@@ -15,10 +16,6 @@
 
 services:
   kuraki:
-    build:
-      context: .
-      args:
-        VERSION: compose
     image: ghcr.io/kuraki-app/kuraki:latest
     container_name: kuraki
     restart: unless-stopped

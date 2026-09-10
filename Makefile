@@ -66,7 +66,7 @@ tidy: ## Tidy go.mod / go.sum
 check: fmt vet test ## Format, vet, and test
 
 .PHONY: docker
-docker: ## Build the Docker image
+docker: ## Build the release/production image (not for local development)
 	docker build --build-arg VERSION=$(VERSION) -t $(IMAGE):$(VERSION) -t $(IMAGE):latest .
 
 .PHONY: cross
@@ -119,6 +119,11 @@ check-gen: gen ## Fail if the committed contract/client types are stale (CI gate
 		exit 1; \
 	}
 
+CLEAN_DIRS := $(BIN_DIR) dist prod-builds \
+	web/.svelte-kit web/build web/dist web/coverage web/e2e/.tmp web/playwright-report web/test-results web/scripts/__pycache__ \
+	mobile/.expo mobile/dist mobile/web-build mobile/coverage mobile/ios mobile/android \
+	site/.astro site/dist site/coverage
+
 .PHONY: clean
-clean: ## Remove build artifacts
-	rm -rf $(BIN_DIR) dist
+clean: ## Remove generated local builds and test caches (keeps JS dependencies and data)
+	rm -rf $(CLEAN_DIRS)

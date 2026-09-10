@@ -11,6 +11,12 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Changed
 
+- **Local development now runs directly on the host.** `make dev` / `scripts/dev.sh` remains the
+  hot-reload path, `scripts/start.sh` runs the complete app from source, and Docker is reserved for
+  published-image verification and production deployment. The root Compose file no longer builds
+  the working tree, and the obsolete local Docker development helper was removed. `make clean` now
+  removes all disposable build/test output while preserving installed JavaScript dependencies and
+  library data.
 - **Kuraki's default port is now `39170`, not `3000`.** 3000 is the most contested port on a
   developer's machine, and losing that race is not loud: a container on this project's own machine
   published a port it never actually held, for 22 hours, while reporting healthy. Every port Kuraki
