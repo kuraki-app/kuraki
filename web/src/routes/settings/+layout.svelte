@@ -99,17 +99,24 @@
        * and the whole document could be dragged sideways at 320px. The same
        * `minmax(0, 1fr)` idiom AssetGrid documents for the same reason. */
       grid-template-columns: minmax(0, 1fr);
+      gap: 16px;
     }
     .rail {
       display: none;
     }
     .mobile-back {
       display: inline-flex;
+      min-height: 44px;
+      align-items: center;
       width: fit-content;
       color: var(--stamp);
       text-decoration: none;
       font-size: 14px;
       font-weight: 600;
+    }
+    .panel {
+      width: 100%;
+      min-width: 0;
     }
   }
 </style>

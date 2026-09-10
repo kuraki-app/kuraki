@@ -143,7 +143,13 @@
   @media (max-width: 640px) {
     .row {
       grid-template-columns: 1fr;
-      gap: var(--space-step);
+      gap: 8px;
+      padding: 12px 0;
+    }
+    .control {
+      width: 100%;
+      min-width: 0;
+      flex-wrap: wrap;
     }
   }
 </style>

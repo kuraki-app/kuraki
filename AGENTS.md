@@ -72,6 +72,10 @@ Phase 1 = single-owner personal backup.
   IndexedDB, resume on reconnect/reopen, and use Background Sync when the browser supports it. The
   service worker caches only the application shell; authenticated API and media responses are never
   placed in CacheStorage. Automatic camera-roll access remains native-app-only.
+- **Web page spacing is viewport-consistent (2026-09-10).** The outer content frame no longer
+  inherits route density: every phone route gets 16px gutters and every desktop route gets 24px.
+  Mobile Settings cards, groups, rows, headers, and subpage controls use a shared 8/12/16px rhythm;
+  the responsive browser suite covers 320px through 1440px.
 - **Every port Kuraki binds is declared once, in `internal/config/ports.go` (2026-09-09).** The
   shipped default is `:39170`, not `:3000` — 3000 is the most contested port on a developer's
   machine, and losing that race is silent (a container here published a port it never held, for 22
@@ -437,6 +441,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | **Direct local development** (2026-09-10): `make dev`/`make start` are the only development paths; Docker consumes released images for release/prod only; `make clean` covers all disposable build and test output without deleting library data or installed JavaScript dependencies | ✅ done; Go + Vite + Expo live-verified together |
 | **Mobile refresh + Settings hierarchy** (2026-09-10): pull-to-refresh re-probes and reloads active photo views; thumbnail cells have stable recycle keys; server stats are concise; Notifications/Photo Grid are top-level and Activity is Advanced | ✅ done; simulator-verified |
 | **Mobile web + PWA upload queue** (2026-09-10): native-aligned four-tab phone navigation, three-column photo grid, grouped non-collapsible Settings, install manifest/offline shell, and account-scoped IndexedDB upload retry with Background Sync + foreground fallback | ✅ done; focused Chromium offline/reconnect flow verified |
+| **Responsive web spacing** (2026-09-10): route-independent 16px phone / 24px desktop gutters, consistent mobile Settings group and row spacing, full-width safe subpage controls | ✅ done; 17 responsive/spacing browser checks green at 320–1440px |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
@@ -464,6 +469,12 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/settings-activity-polish` (2026-09-10, responsive spacing) — **Page padding now follows the
+  viewport instead of the route's density register.** All routes use 16px phone gutters and 24px
+  desktop gutters. Mobile Settings uses consistent 8/12/16px spacing, 48px rows, equal-width summary
+  columns, and wrapping full-width subpage controls. Seventeen Chromium checks cover gutter values,
+  settings structure, breakpoint switching, and horizontal overflow from 320px through 1440px.
 
 - `codex/settings-activity-polish` (2026-09-10, mobile web Settings correction) — **Phone Settings
   is now a grouped settings page, not a collapsible dashboard.** Account & preferences, Photos,

@@ -529,9 +529,10 @@
      * (see `.settings-shell`): a line of prose has an ideal length, a contact
      * sheet does not. */
     width: 100%;
-    /* This element carries data-register, so it reads its own step: the frame
-     * itself tightens from 24px to 12px as you cross into the Vault. */
-    padding: calc(var(--space-step) * 3);
+    /* Page gutters belong to the viewport, not the Kura/Vault density register.
+     * Using --space-step here made operational pages 12px from the edge while
+     * photo pages got 24px at the same width. */
+    padding: 24px;
   }
   .drop {
     position: fixed;
@@ -600,10 +601,7 @@
       display: none;
     }
     .content {
-      /* Thumb reach beats rhythm at the bottom edge, but the horizontal step
-       * still carries the register. */
-      padding: calc(var(--space-step) * 2) calc(var(--space-step) * 2)
-        calc(70px + env(safe-area-inset-bottom, 0));
+      padding: 16px 16px calc(70px + env(safe-area-inset-bottom, 0));
     }
     /* The tab bar now owns the bottom edge; lift the progress toast clear of it
      * rather than let it sit over the tabs. */

@@ -393,12 +393,12 @@
     }
     .mobile-settings {
       display: grid;
-      gap: 20px;
+      gap: 16px;
     }
     .server-summary {
       display: grid;
       gap: 12px;
-      padding: 14px;
+      padding: 16px;
       border: 1px solid var(--border);
       border-radius: 12px;
       background: var(--card);
@@ -426,8 +426,9 @@
       font-size: 12px;
     }
     .summary-counts {
-      display: flex;
-      gap: 28px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
     }
     .summary-counts div {
       display: grid;
@@ -443,7 +444,7 @@
     }
     .mobile-directory {
       display: grid;
-      gap: 20px;
+      gap: 16px;
     }
     .mobile-directory section {
       overflow: hidden;
@@ -452,7 +453,7 @@
       background: var(--card);
     }
     .mobile-directory h2 {
-      padding: 10px 14px 6px;
+      padding: 12px 16px 8px;
     }
     .mobile-row {
       display: grid;
@@ -460,8 +461,8 @@
       align-items: center;
       gap: 10px;
       width: 100%;
-      min-height: 46px;
-      padding: 10px 14px;
+      min-height: 48px;
+      padding: 12px 16px;
       border: 0;
       border-top: 1px solid var(--border);
       background: transparent;

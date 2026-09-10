@@ -11,6 +11,9 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Changed
 
+- **Web spacing now follows the viewport consistently.** Every route uses 16px page gutters on
+  phones and 24px on larger screens, independent of its visual register. Mobile Settings cards,
+  groups, rows, headings, and subpage controls use a consistent 8/12/16px rhythm.
 - **Mobile web now matches the app's primary structure.** Phone widths use Gallery, Albums,
   Settings, and Search tabs, a three-column default photo grid, search controls only when requested,
   and an always-visible grouped Settings page instead of an eight-control rail or collapsible

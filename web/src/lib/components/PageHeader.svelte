@@ -64,8 +64,8 @@
    * groups into full-width slabs. */
   @media (max-width: 820px) {
     .page-header {
-      gap: var(--space-step);
-      margin-bottom: calc(var(--space-step) * 2);
+      gap: 8px;
+      margin-bottom: 16px;
     }
   }
 </style>

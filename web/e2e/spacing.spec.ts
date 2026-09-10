@@ -72,3 +72,22 @@ test('settings are held to a reading measure, and photos are not', async ({ page
   ).toBeGreaterThan(available * 0.9);
   expect(shell?.width ?? 0).toBeGreaterThan(available * 0.95);
 });
+
+test('page gutters stay consistent across routes and viewport sizes', async ({ page }) => {
+  for (const width of [320, 390, 640, 820, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const path of ['/', '/settings', '/settings/library']) {
+      await gotoApp(page, path);
+      const padding = await page.locator('main#main').evaluate((el) => {
+        const style = getComputedStyle(el);
+        return {
+          left: parseFloat(style.paddingLeft),
+          right: parseFloat(style.paddingRight)
+        };
+      });
+      const expected = width <= 820 ? 16 : 24;
+      expect(padding.left, `${path} left padding at ${width}px`).toBe(expected);
+      expect(padding.right, `${path} right padding at ${width}px`).toBe(expected);
+    }
+  }
+});
