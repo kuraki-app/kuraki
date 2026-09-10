@@ -62,7 +62,12 @@ test.describe('responsive', () => {
     await expect(page.getByRole('searchbox')).toBeFocused();
 
     await tabs.getByRole('link', { name: 'Settings' }).click();
-    await expect(page.getByRole('navigation', { name: 'Settings and library shortcuts' })).toBeVisible();
+    const settings = page.getByRole('navigation', { name: 'Settings and library shortcuts' });
+    await expect(settings).toBeVisible();
+    await expect(settings.locator('details')).toHaveCount(0);
+    for (const heading of ['Account & preferences', 'Photos', 'Server', 'Advanced']) {
+      await expect(settings.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+    }
     await expect(page.getByRole('navigation', { name: 'Settings sections' })).toBeHidden();
   });
 });

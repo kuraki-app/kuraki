@@ -26,28 +26,56 @@
     Copy,
     Trash2,
     Download,
-    ChevronRight
+    ChevronRight,
+    type Icon
   } from '@lucide/svelte';
 
-  const mobilePrimary = [
-    { href: '/settings/account', label: 'Account', icon: User },
-    { href: '/settings/appearance', label: 'Appearance', icon: Palette },
-    { href: '/settings/library', label: 'Library', icon: SlidersHorizontal },
-    { href: '/settings/server', label: 'Server & backup', icon: Server },
-    { href: '/settings/devices', label: 'Devices', icon: Smartphone }
-  ];
+  type MobileSetting = {
+    href?: string;
+    action?: 'upload';
+    download?: boolean;
+    label: string;
+    icon: typeof Icon;
+  };
 
-  const mobileMore = [
-    { href: '/favorites', label: 'Favorites', icon: Star },
-    { href: '/memories', label: 'On this day', icon: CalendarClock },
-    { href: '/places', label: 'Places', icon: MapPin },
-    { href: '/tags', label: 'Tags', icon: Tags },
-    { href: '/archive', label: 'Archive', icon: Archive },
-    { href: '/hidden', label: 'Hidden', icon: EyeOff },
-    { href: '/duplicates', label: 'Duplicates', icon: Copy },
-    { href: '/trash', label: 'Trash', icon: Trash2 },
-    { href: '/settings/activity', label: 'Activity', icon: Activity },
-    { href: '/settings/users', label: 'Users', icon: Users }
+  const mobileGroups: Array<{ label: string; items: MobileSetting[] }> = [
+    {
+      label: 'Account & preferences',
+      items: [
+        { href: '/settings/account', label: 'Account', icon: User },
+        { href: '/settings/appearance', label: 'Appearance', icon: Palette },
+        { href: '/settings/library', label: 'Library', icon: SlidersHorizontal }
+      ]
+    },
+    {
+      label: 'Photos',
+      items: [
+        { action: 'upload', label: 'Upload photos', icon: Upload },
+        { href: '/favorites', label: 'Favorites', icon: Star },
+        { href: '/memories', label: 'On this day', icon: CalendarClock },
+        { href: '/places', label: 'Places', icon: MapPin },
+        { href: '/tags', label: 'Tags', icon: Tags },
+        { href: '/duplicates', label: 'Duplicates', icon: Copy },
+        { href: '/trash', label: 'Trash', icon: Trash2 }
+      ]
+    },
+    {
+      label: 'Server',
+      items: [
+        { href: '/settings/server', label: 'Server & backup', icon: Server },
+        { href: '/settings/devices', label: 'Devices', icon: Smartphone }
+      ]
+    },
+    {
+      label: 'Advanced',
+      items: [
+        { href: '/archive', label: 'Archive', icon: Archive },
+        { href: '/hidden', label: 'Hidden', icon: EyeOff },
+        { href: '/settings/activity', label: 'Activity', icon: Activity },
+        { href: '/settings/users', label: 'Users', icon: Users },
+        { href: '/api/export', label: 'Export library', icon: Download, download: true }
+      ]
+    }
   ];
 
   let stats: LibraryStats | null = null;
@@ -101,36 +129,45 @@
   <span class="desktop-export"><Button variant="outline" href="/api/export" download>Export library (.zip)</Button></span>
 </PageHeader>
 
-<nav class="mobile-directory" aria-label="Settings and library shortcuts">
-  <section>
-    <h2>This device</h2>
-    <button type="button" class="mobile-row" on:click={requestUpload}>
-      <Upload size={18} aria-hidden="true" /><span>Upload photos</span><ChevronRight size={16} aria-hidden="true" />
-    </button>
-    {#each mobilePrimary as item (item.href)}
-      <a class="mobile-row" href={item.href}>
-        <svelte:component this={item.icon} size={18} aria-hidden="true" />
-        <span>{item.label}</span><ChevronRight size={16} aria-hidden="true" />
-      </a>
-    {/each}
+<div class="mobile-settings">
+  <section class="server-summary" aria-label="Library summary">
+    <div class="summary-top">
+      <h2>On the server</h2>
+      <span>{loading ? 'Checking…' : stats ? 'Connected' : 'Unavailable'}</span>
+    </div>
+    <div class="summary-counts">
+      <div><strong>{stats ? stats.images.toLocaleString() : '—'}</strong><span>Photos</span></div>
+      <div><strong>{stats ? stats.videos.toLocaleString() : '—'}</strong><span>Videos</span></div>
+      <div><strong>{stats ? stats.albums.toLocaleString() : '—'}</strong><span>Albums</span></div>
+    </div>
+    {#if stats}
+      <p>{fileSize(stats.total_bytes)} stored{#if diskTotal > 0} · {fileSize(diskFree)} free{/if}</p>
+    {/if}
   </section>
 
-  <details>
-    <summary>Advanced</summary>
-    <div class="mobile-more">
-      {#each mobileMore as item (item.href)}
-        <a class="mobile-row" href={item.href}>
-          <svelte:component this={item.icon} size={18} aria-hidden="true" />
-          <span>{item.label}</span><ChevronRight size={16} aria-hidden="true" />
-        </a>
-      {/each}
-      <a class="mobile-row" href="/api/export" download>
-        <Download size={18} aria-hidden="true" /><span>Export library</span><ChevronRight size={16} aria-hidden="true" />
-      </a>
-    </div>
-  </details>
-</nav>
+  <nav class="mobile-directory" aria-label="Settings and library shortcuts">
+    {#each mobileGroups as group (group.label)}
+      <section>
+        <h2>{group.label}</h2>
+        {#each group.items as item (item.label)}
+          {#if item.action === 'upload'}
+            <button type="button" class="mobile-row" on:click={requestUpload}>
+              <svelte:component this={item.icon} size={18} aria-hidden="true" />
+              <span>{item.label}</span><ChevronRight size={16} aria-hidden="true" />
+            </button>
+          {:else}
+            <a class="mobile-row" href={item.href} download={item.download || undefined}>
+              <svelte:component this={item.icon} size={18} aria-hidden="true" />
+              <span>{item.label}</span><ChevronRight size={16} aria-hidden="true" />
+            </a>
+          {/if}
+        {/each}
+      </section>
+    {/each}
+  </nav>
+</div>
 
+<div class="desktop-health">
 {#if loading}
   <p class="muted">Loading…</p>
 {:else if stats}
@@ -141,17 +178,6 @@
       <StatCard value={fileSize(diskFree)} label="Free on disk" />
     {/if}
   </div>
-
-  <details class="more-stats">
-    <summary>More library details</summary>
-    <div class="detail-cards">
-      <StatCard value={stats.images.toLocaleString()} label="Photos" />
-      <StatCard value={stats.videos.toLocaleString()} label="Videos" />
-      <StatCard value={stats.favorites.toLocaleString()} label="Favorites" />
-      <StatCard value={stats.albums.toLocaleString()} label="Albums" />
-      <StatCard value={stats.places.toLocaleString()} label="Places" />
-    </div>
-  </details>
 
   {#if diskTotal > 0}
     <!-- The library's share of the disk, not the disk's used share: the point
@@ -217,9 +243,10 @@
     </section>
   {/if}
 {/if}
+</div>
 
 <style>
-  .mobile-directory {
+  .mobile-settings {
     display: none;
   }
   .muted {
@@ -229,21 +256,6 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 12px;
-  }
-  .more-stats {
-    margin-top: calc(var(--space-step) * 3);
-  }
-  .more-stats summary {
-    width: fit-content;
-    color: var(--text-dim);
-    cursor: pointer;
-    font-size: 13px;
-  }
-  .detail-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-    gap: 8px;
-    margin-top: calc(var(--space-step) * 2);
   }
   /* Spacing comes from --space-step throughout, so the same expressions land
    * on a 4px rhythm here and would land on 8px if this page were ever Kura.
@@ -376,26 +388,71 @@
     .desktop-export {
       display: none;
     }
+    .desktop-health {
+      display: none;
+    }
+    .mobile-settings {
+      display: grid;
+      gap: 20px;
+    }
+    .server-summary {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--card);
+    }
+    .summary-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .summary-top h2,
+    .mobile-directory h2 {
+      margin: 0;
+      color: var(--text-faint);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .summary-top span,
+    .server-summary p,
+    .summary-counts span {
+      color: var(--muted-foreground);
+      font-size: 12px;
+    }
+    .summary-counts {
+      display: flex;
+      gap: 28px;
+    }
+    .summary-counts div {
+      display: grid;
+      gap: 2px;
+    }
+    .summary-counts strong {
+      font-family: var(--font-mono);
+      font-size: 20px;
+      font-variant-numeric: tabular-nums;
+    }
+    .server-summary p {
+      margin: 0;
+    }
     .mobile-directory {
       display: grid;
-      gap: 16px;
-      margin-top: 16px;
+      gap: 20px;
     }
-    .mobile-directory section,
-    .mobile-directory details {
+    .mobile-directory section {
       overflow: hidden;
       border: 1px solid var(--border);
       border-radius: 12px;
       background: var(--card);
     }
     .mobile-directory h2 {
-      margin: 0;
       padding: 10px 14px 6px;
-      color: var(--text-faint);
-      font-family: var(--font-mono);
-      font-size: 11px;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
     }
     .mobile-row {
       display: grid;
@@ -418,16 +475,6 @@
     }
     .mobile-row > :global(svg:last-child) {
       color: var(--text-faint);
-    }
-    .mobile-directory summary {
-      padding: 13px 14px;
-      color: var(--text-dim);
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 600;
-    }
-    .mobile-more {
-      display: grid;
     }
   }
 </style>

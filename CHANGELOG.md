@@ -13,8 +13,9 @@ line under `Unreleased` as part of the same change that introduces it.
 
 - **Mobile web now matches the app's primary structure.** Phone widths use Gallery, Albums,
   Settings, and Search tabs, a three-column default photo grid, search controls only when requested,
-  and drill-in settings instead of an eight-control rail. Secondary library and server tools live
-  under Advanced, and the overview no longer shows a trash total.
+  and an always-visible grouped Settings page instead of an eight-control rail or collapsible
+  dashboard. Account, Photos, Server, and Advanced sections keep related destinations together;
+  phone widths show only a compact server summary while detailed health charts remain on desktop.
 - **Mobile Settings now keeps common preferences one tap away.** Notifications and Photo Grid moved
   to the main page, while Activity moved under Advanced. The server summary no longer repeats the
   total beside its media counts or includes the trash count; it shows only the useful breakdown,

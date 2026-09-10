@@ -66,8 +66,9 @@ Phase 1 = single-owner personal backup.
   trash count. Verified in the running iPhone 17 Pro simulator against the host dev server.
 - **Mobile web now follows the native app's information architecture and installs as a PWA
   (2026-09-10).** At phone widths the browser uses the same Gallery / Albums / Settings / Search
-  tabs, a fixed three-column default grid, search-on-demand, and a drill-in Settings directory
-  instead of exposing every control at once. User-selected uploads are persisted per account in
+  tabs, a fixed three-column default grid, search-on-demand, and an always-visible grouped Settings
+  page. Account, Photos, Server, and Advanced replace the collapsible dashboard; only a compact
+  server summary remains above them on phones. User-selected uploads are persisted per account in
   IndexedDB, resume on reconnect/reopen, and use Background Sync when the browser supports it. The
   service worker caches only the application shell; authenticated API and media responses are never
   placed in CacheStorage. Automatic camera-roll access remains native-app-only.
@@ -435,7 +436,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | **Operator runbook** (2026-09-09): `RUNNING.md` gives verified direct-source development paths plus private-LAN and Caddy-backed production deployment, including port/config precedence, full environment reference, storage permissions, health/logging, imports, integrity checks, backup/restore, upgrades, account recovery, phone pairing, and troubleshooting | ✅ done; documentation links checked |
 | **Direct local development** (2026-09-10): `make dev`/`make start` are the only development paths; Docker consumes released images for release/prod only; `make clean` covers all disposable build and test output without deleting library data or installed JavaScript dependencies | ✅ done; Go + Vite + Expo live-verified together |
 | **Mobile refresh + Settings hierarchy** (2026-09-10): pull-to-refresh re-probes and reloads active photo views; thumbnail cells have stable recycle keys; server stats are concise; Notifications/Photo Grid are top-level and Activity is Advanced | ✅ done; simulator-verified |
-| **Mobile web + PWA upload queue** (2026-09-10): native-aligned four-tab phone navigation, three-column photo grid, drill-in Settings, install manifest/offline shell, and account-scoped IndexedDB upload retry with Background Sync + foreground fallback | ✅ done; focused Chromium offline/reconnect flow verified |
+| **Mobile web + PWA upload queue** (2026-09-10): native-aligned four-tab phone navigation, three-column photo grid, grouped non-collapsible Settings, install manifest/offline shell, and account-scoped IndexedDB upload retry with Background Sync + foreground fallback | ✅ done; focused Chromium offline/reconnect flow verified |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
@@ -463,6 +464,13 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/settings-activity-polish` (2026-09-10, mobile web Settings correction) — **Phone Settings
+  is now a grouped settings page, not a collapsible dashboard.** Account & preferences, Photos,
+  Server, and Advanced are always visible as separate inset groups. A compact server summary keeps
+  the useful counts and storage values at the top; disk charts, integrity, backup prose, and yearly
+  bars remain desktop-only. The 390x844 Chromium check asserts every group and the absence of
+  `details` elements.
 
 - `codex/settings-activity-polish` (2026-09-10, mobile web + PWA) — **The phone-sized web app now
   uses the native client's four destinations and keeps secondary controls inside Settings.** Gallery
