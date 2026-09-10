@@ -81,7 +81,6 @@ export default function SettingsIndex() {
           detail={connectionDetail}
           href="/(app)/settings/connection"
         />
-        <SettingsRow label="Activity" icon="waveform.path.ecg" href="/(app)/settings/activity" />
         {permissionsDetail ? (
           <SettingsRow
             label="Permissions"
@@ -90,6 +89,11 @@ export default function SettingsIndex() {
             href="/(app)/settings/permissions"
           />
         ) : null}
+      </SettingsSection>
+
+      <SettingsSection title="Preferences">
+        <SettingsRow label="Notifications" icon="bell" href="/(app)/settings/notifications" />
+        <SettingsRow label="Photo Grid" icon="square.grid.3x3" href="/(app)/settings/grid" />
       </SettingsSection>
 
       <SettingsSection title="Library">

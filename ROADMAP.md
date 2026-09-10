@@ -101,6 +101,11 @@ existing promise works.
   generated builds and test caches without touching installed JavaScript dependencies or library
   data.
 
+- **[done] Mobile library refresh and Settings hierarchy — Mobile owners — S.** Pull-to-refresh now
+  rechecks connectivity and reloads the active photo view, recycled thumbnails keep stable identities,
+  the server summary avoids duplicate/trash totals, common preferences stay on the main page, and
+  Activity lives under Advanced.
+
 - **[new feature] Smart albums — Organizers — M.** Build on saved searches with
   explicit ownership, preview, and reversible membership semantics.
 

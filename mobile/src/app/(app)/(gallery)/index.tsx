@@ -48,6 +48,7 @@ export default function LibraryScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   // On-this-day has no offline cache (it's a date-filtered resurfacing view,
   // not the plain recent one) — its own small state so a failure there can
   // never blank out the Timeline grid or vice versa.
@@ -446,6 +447,23 @@ export default function LibraryScreen() {
     }
   }
 
+  const refresh = useCallback(async () => {
+    if (!settings || refreshing) return;
+    setRefreshing(true);
+    try {
+      // A reachability probe only changes the banner. Refresh the active data
+      // too so thumbnail cells that failed while offline get a fresh source
+      // render as soon as the server is reachable again.
+      const reachability = probe(settings);
+      if (segment === 'memories') await loadMemories(settings);
+      else if (segment === 'archived') await loadArchived(settings);
+      else await load(settings, {});
+      await reachability;
+    } finally {
+      setRefreshing(false);
+    }
+  }, [load, loadArchived, loadMemories, probe, refreshing, segment, settings]);
+
   return (
     <ThemedView style={styles.fill}>
       {/* No title. The view's name is a toolbar item on the left (it doubles
@@ -513,7 +531,7 @@ export default function LibraryScreen() {
             Can’t reach your server.
           </ThemedText>
           <View style={styles.bannerActions}>
-            <Pressable onPress={() => void probe(settings)} hitSlop={8}>
+            <Pressable onPress={() => void refresh()} hitSlop={8}>
               <ThemedText type="smallBold" style={{ color: tokens.destructive }}>Retry</ThemedText>
             </Pressable>
             <Pressable onPress={() => router.push('/(app)/settings')} hitSlop={8}>
@@ -533,6 +551,8 @@ export default function LibraryScreen() {
             assets={assets}
             settings={settings}
             loading={loading}
+            refreshing={refreshing}
+            onRefresh={() => void refresh()}
             listHeader={
               // Hidden while selecting: the rail is a navigation affordance,
               // and tapping one mid-selection would abandon the selection to
@@ -577,6 +597,8 @@ export default function LibraryScreen() {
             assets={memories}
             settings={settings}
             loading={memoriesLoading}
+            refreshing={refreshing}
+            onRefresh={() => void refresh()}
             onEndReached={() => void loadMoreMemories()}
             hasMore={!!memoriesCursor}
             onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
@@ -596,6 +618,8 @@ export default function LibraryScreen() {
             assets={archived}
             settings={settings}
             loading={archivedLoading}
+            refreshing={refreshing}
+            onRefresh={() => void refresh()}
             onEndReached={() => void loadMoreArchived()}
             hasMore={!!archivedCursor}
             onToggleFavorite={(id, next) => void toggleFavorite(id, next)}

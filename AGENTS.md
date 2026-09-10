@@ -59,6 +59,11 @@ Phase 1 = single-owner personal backup.
   only.) **Three of the sheet's decisions were deliberately refused** — the
   custom floating tab bar (already deleted, see §11 2026-08-02), `headerLargeTitle` (already failed
   on device), and a floating selection action bar (selection lives in the native header). See §11.
+- **Mobile refresh and Settings hierarchy were tightened on device (2026-09-10).** Timeline,
+  Memories and Archive grids now pull to refresh both connection state and their active dataset;
+  recycled image cells carry stable asset keys. The main Settings page owns Notifications and Photo
+  Grid, Advanced owns Activity, and the server card no longer repeats the item total or reports the
+  trash count. Verified in the running iPhone 17 Pro simulator against the host dev server.
 - **Every port Kuraki binds is declared once, in `internal/config/ports.go` (2026-09-09).** The
   shipped default is `:39170`, not `:3000` — 3000 is the most contested port on a developer's
   machine, and losing that race is silent (a container here published a port it never held, for 22
@@ -422,6 +427,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 
 | **Operator runbook** (2026-09-09): `RUNNING.md` gives verified direct-source development paths plus private-LAN and Caddy-backed production deployment, including port/config precedence, full environment reference, storage permissions, health/logging, imports, integrity checks, backup/restore, upgrades, account recovery, phone pairing, and troubleshooting | ✅ done; documentation links checked |
 | **Direct local development** (2026-09-10): `make dev`/`make start` are the only development paths; Docker consumes released images for release/prod only; `make clean` covers all disposable build and test output without deleting library data or installed JavaScript dependencies | ✅ done; Go + Vite + Expo live-verified together |
+| **Mobile refresh + Settings hierarchy** (2026-09-10): pull-to-refresh re-probes and reloads active photo views; thumbnail cells have stable recycle keys; server stats are concise; Notifications/Photo Grid are top-level and Activity is Advanced | ✅ done; simulator-verified |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
@@ -449,6 +455,14 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/settings-activity-polish` (2026-09-10, mobile refresh follow-up) — **The photo grid now
+  recovers instead of remaining half blank after connectivity returns.** The simulator reproduced 21
+  grid slots with only cached thumbnails visible while the connection banner was active. Retry only
+  ran `probeServer`; it never reloaded the list. Retry and pull-to-refresh now perform both operations
+  for Timeline, Memories and Archive, and each `expo-image` cell has an asset-specific `recyclingKey`.
+  The same simulator pass simplified the server card (no repeated total, no trash count), promoted
+  Notifications and Photo Grid to the main Settings page, and moved Activity into Advanced.
 
 - `codex/settings-activity-polish` (2026-09-10, live development verification) — **Go, Vite and Expo
   now run together directly on the host.** `make dev` exposed a strict-Bash parsing bug: the Unicode

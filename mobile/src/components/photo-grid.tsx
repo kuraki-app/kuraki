@@ -34,6 +34,8 @@ type Props = {
   assets: LibraryAsset[];
   settings: CaptureSettings | null;
   loading?: boolean;
+  refreshing?: boolean;
+  onRefresh?: () => void;
   emptyMessage?: string;
   /**
    * Controls pinned above the tiles, rendered *inside* the list.
@@ -109,6 +111,8 @@ export default function PhotoGrid({
   assets,
   settings,
   loading,
+  refreshing = false,
+  onRefresh,
   emptyMessage,
   listHeader,
   onEndReached,
@@ -371,6 +375,8 @@ export default function PhotoGrid({
         // the OS when this is 'automatic'; hard-coding a bottom pad instead
         // double-counts on one platform or the other.
         contentInsetAdjustmentBehavior="automatic"
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={
           empty ? (
@@ -439,6 +445,7 @@ export default function PhotoGrid({
                   {source ? (
                     <Image
                       source={source}
+                      recyclingKey={item.id}
                       style={styles.thumb}
                       contentFit="cover"
                       transition={120}

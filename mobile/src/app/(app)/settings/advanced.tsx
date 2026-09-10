@@ -21,9 +21,8 @@ export default function AdvancedSettings() {
       contentInsetAdjustmentBehavior="automatic"
       style={[styles.fill, { backgroundColor: tokens.background }]}
       contentContainerStyle={styles.content}>
-      <SettingsSection title="Preferences">
-        <SettingsRow label="Notifications" icon="bell" href="/(app)/settings/notifications" />
-        <SettingsRow label="Photo Grid" icon="square.grid.3x3" href="/(app)/settings/grid" />
+      <SettingsSection title="Diagnostics">
+        <SettingsRow label="Activity" icon="waveform.path.ecg" href="/(app)/settings/activity" />
       </SettingsSection>
 
       <SettingsSection title="Device">

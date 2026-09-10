@@ -11,6 +11,10 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Changed
 
+- **Mobile Settings now keeps common preferences one tap away.** Notifications and Photo Grid moved
+  to the main page, while Activity moved under Advanced. The server summary no longer repeats the
+  total beside its media counts or includes the trash count; it shows only the useful breakdown,
+  stored size, address, and connection state.
 - **Local development now runs directly on the host.** `make dev` / `scripts/dev.sh` remains the
   hot-reload path, `scripts/start.sh` runs the complete app from source, and Docker is reserved for
   published-image verification and production deployment. The root Compose file no longer builds
@@ -38,6 +42,9 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Fixed
 
+- **The mobile library can now recover stale or blank thumbnails with Retry or pull-to-refresh.**
+  Both re-probe the server and reload the active Timeline, Memories, or Archive view, while stable
+  image recycling keys prevent virtualized cells from retaining another asset's failed image state.
 - **The host development launcher now starts under strict Bash mode.** Unicode punctuation directly
   after two unbraced port variables was parsed as part of each variable name on this machine, so
   `make dev` exited before starting Go or Vite. The variables are now explicitly braced.
