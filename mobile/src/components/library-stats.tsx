@@ -19,12 +19,9 @@ import { serverHost } from '@/lib/url';
 // This is the Vault register at its most literal: a cased mono label, figures
 // set in Geist Mono, a hairline panel.
 //
-// The card leads with how many items the library holds. An earlier pass led
-// with the byte total at 32pt, which makes storage the headline fact about a
-// photo library; correcting that dropped the item total altogether, which was
-// worse -- "21 photos, 0 videos, 1 album" does not add up to a library's size,
-// and nothing else on the screen stated it. Total leads, bytes are a footnote,
-// and the breakdown sits between them.
+// The card stays intentionally compact: the media breakdown already states the
+// library count, so repeating it as a larger total makes an all-photo library
+// read "21 items / 21 photos". Bytes and host are the only footer facts.
 //
 // Reachability is a word, not just a coloured dot. A dot alone cannot say
 // whether green means "fresh" or merely "we drew something", and a screen
@@ -94,16 +91,6 @@ export default function LibraryStatsCard() {
           </View>
         </View>
 
-        {/* The total, stated once and stated first. */}
-        <View style={styles.totalRow}>
-          <ThemedText style={[styles.total, { fontFamily: FontFamily.mono, color: tokens.foreground }]}>
-            {figure(stats?.total)}
-          </ThemedText>
-          <ThemedText type="small" themeColor="mutedForeground" style={styles.totalLabel}>
-            {stats?.total === 1 ? 'item' : 'items'}
-          </ThemedText>
-        </View>
-
         <View style={styles.counts}>
           <Stat label="Photos" value={figure(stats?.images)} />
           <Stat label="Videos" value={figure(stats?.videos)} />
@@ -111,7 +98,7 @@ export default function LibraryStatsCard() {
         </View>
 
         <ThemedText type="small" themeColor="mutedForeground" numberOfLines={1}>
-          {[stats ? formatBytes(stats.total_bytes) : null, stats ? `${formatCount(stats.trashed)} in trash` : null, host]
+          {[stats ? formatBytes(stats.total_bytes) : null, host]
             .filter(Boolean)
             .join(' · ')}
         </ThemedText>
@@ -143,11 +130,6 @@ const styles = StyleSheet.create({
   server: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   status: { fontSize: 11, lineHeight: 15, flexShrink: 1 },
-  totalRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-  // The one figure that answers "how big is my library", so it is the biggest
-  // thing on the card.
-  total: { fontSize: 34, lineHeight: 40, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  totalLabel: { paddingBottom: 2 },
   counts: { flexDirection: 'row', gap: Spacing.four },
   stat: { gap: 2 },
   // Tabular figures so the three columns line up and stay lined up as the

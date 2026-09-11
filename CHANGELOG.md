@@ -11,6 +11,32 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Changed
 
+- **Web and mobile now share one real design-system source.** `design/tokens.json` owns color,
+  spacing, radii, type scale, and responsive metrics; one generator writes the CSS and native
+  TypeScript outputs. Both clients now ship Inter, and common page gutters and mobile text styles
+  consume the shared metrics instead of maintaining look-alike constants. Both phone experiences
+  call the primary destinations Photos and Collections; native album grids adapt to phone/tablet
+  width, and Settings keeps a readable maximum width on larger devices. Collections now groups
+  Favorites, Albums, On this day, Places, and Tags, so the phone Settings page can replace four
+  browsing shortcuts with one destination.
+- **Web spacing now follows the viewport consistently.** Every route uses 16px page gutters on
+  phones and 24px on larger screens, independent of its visual register. Mobile Settings cards,
+  groups, rows, headings, and subpage controls use a consistent 8/12/16px rhythm.
+- **Mobile web now matches the app's primary structure.** Phone widths use Photos, Collections,
+  Settings, and Search tabs, a three-column default photo grid, search controls only when requested,
+  and an always-visible grouped Settings page instead of an eight-control rail or collapsible
+  dashboard. Account, Photos, Server, and Advanced sections keep related destinations together;
+  phone widths show only a compact server summary while detailed health charts remain on desktop.
+- **Mobile Settings now keeps common preferences one tap away.** Notifications and Photo Grid moved
+  to the main page, while Activity moved under Advanced. The server summary no longer repeats the
+  total beside its media counts or includes the trash count; it shows only the useful breakdown,
+  stored size, address, and connection state.
+- **Local development now runs directly on the host.** `make dev` / `scripts/dev.sh` remains the
+  hot-reload path, `scripts/start.sh` runs the complete app from source, and Docker is reserved for
+  published-image verification and production deployment. The root Compose file no longer builds
+  the working tree, and the obsolete local Docker development helper was removed. `make clean` now
+  removes all disposable build/test output while preserving installed JavaScript dependencies and
+  library data.
 - **Kuraki's default port is now `39170`, not `3000`.** 3000 is the most contested port on a
   developer's machine, and losing that race is not loud: a container on this project's own machine
   published a port it never actually held, for 22 hours, while reporting healthy. Every port Kuraki
@@ -23,6 +49,10 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Added
 
+- **The web client is installable as a PWA.** Its service worker keeps the application shell
+  available offline without caching authenticated API/media responses. User-selected photo and
+  video uploads are stored per account in IndexedDB, one file at a time, and resume on reconnect or
+  reopen; browsers with Background Sync can continue the queue after the page closes.
 - `KURAKI_PUBLIC_URL` — the address other devices should use to reach this server. The pairing screen
   previously derived candidates from the machine's own network interfaces, which is right for a
   bare-metal install and impossible in a container or behind a reverse proxy.
@@ -32,6 +62,16 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Fixed
 
+- **The adaptive web merge now preserves mainline behavior.** Photos keeps the memories rail;
+  Settings status cards fail and retry independently; admin-only pages remain role-gated; failed
+  sign-out keeps the current session; short desktop sidebars can scroll to their actions; and Server
+  controls fit a 320px viewport without horizontal dragging.
+- **The mobile library can now recover stale or blank thumbnails with Retry or pull-to-refresh.**
+  Both re-probe the server and reload the active Timeline, Memories, or Archive view, while stable
+  image recycling keys prevent virtualized cells from retaining another asset's failed image state.
+- **The host development launcher now starts under strict Bash mode.** Unicode punctuation directly
+  after two unbraced port variables was parsed as part of each variable name on this machine, so
+  `make dev` exited before starting Go or Vite. The variables are now explicitly braced.
 - **A transient database error unpaired every phone.** `resolveDevice` gave the same answer for "no
   such device" and for "the lookup failed", and both became `401` — which is the client's
   instruction to delete its credential, because that is what a revoked device means. So a momentary

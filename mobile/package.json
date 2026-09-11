@@ -3,8 +3,7 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
-    "@expo-google-fonts/fraunces": "^0.4.1",
-    "@expo-google-fonts/geist-mono": "^0.4.3",
+    "@expo-google-fonts/inter": "^0.4.2",
     "@expo/ui": "~56.0.21",
     "@maplibre/maplibre-react-native": "^11.3.6",
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -59,8 +58,10 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "vitest run",
-    "sync-tokens": "node scripts/sync-tokens.mjs",
-    "check-tokens": "node scripts/sync-tokens.mjs && git diff --exit-code -- src/design/tokens.ts ../shared/gallery-tokens.ts"
+    "sync-design": "node ../scripts/generate-design.mjs",
+    "check-design": "npm run sync-design && git diff --exit-code ../web/src/app.css src/design/tokens.ts",
+    "sync-tokens": "npm run sync-design",
+    "check-tokens": "npm run check-design"
   },
   "private": true
 }

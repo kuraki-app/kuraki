@@ -23,20 +23,6 @@ Phase 1 = single-owner personal backup.
 
 ## 2. Current state
 
-- **Web app and Settings redesign (2026-09-10).** Shared photo-first shell,
-  grouped Settings navigation and responsive cards; fixed lost drafts, partial
-  load failures, short-screen navigation and sign-out rejection. See
-  [WEB_REDESIGN.md](./WEB_REDESIGN.md) before changing Settings loading/saving or
-  assessing Web verification coverage.
-
-- **Cross-platform gallery modernization (2026-09-09).** Gallery geometry comes from
-  `web/src/app.css`, generated into Mobile tokens and `shared/gallery-tokens.ts`.
-  Web now has the shared memories rail and album-cover mosaics; media tiles use
-  8px corners and 4px default gaps. Six-row Web windows bound rendering even within
-  one large month. Mobile adds day grouping, responsive sizing, thumbnail-first
-  images and compatible video derivatives. See [UI_PARITY.md](./UI_PARITY.md) when
-  changing gallery presentation or assessing remaining functional/release parity.
-
 - **Phase 1 (single-owner) is feature-complete and pushed** to `github.com/kuraki-app/kuraki`.
   Implemented and verified: zero-config server; CLI + drag-and-drop import via a background **queue**
   (retries, crash recovery, an **Activity** view with per-file errors); BLAKE3 dedup; **watch-folder**;
@@ -73,6 +59,23 @@ Phase 1 = single-owner personal backup.
   only.) **Three of the sheet's decisions were deliberately refused** — the
   custom floating tab bar (already deleted, see §11 2026-08-02), `headerLargeTitle` (already failed
   on device), and a floating selection action bar (selection lives in the native header). See §11.
+- **Mobile refresh and Settings hierarchy were tightened on device (2026-09-10).** Timeline,
+  Memories and Archive grids now pull to refresh both connection state and their active dataset;
+  recycled image cells carry stable asset keys. The main Settings page owns Notifications and Photo
+  Grid, Advanced owns Activity, and the server card no longer repeats the item total or reports the
+  trash count. Verified in the running iPhone 17 Pro simulator against the host dev server.
+- **Mobile web now follows the native app's information architecture and installs as a PWA
+  (2026-09-10).** At phone widths the browser uses the same Photos / Collections / Settings / Search
+  tabs, a fixed three-column default grid, search-on-demand, and an always-visible grouped Settings
+  page. Account, Photos, Server, and Advanced replace the collapsible dashboard; only a compact
+  server summary remains above them on phones. User-selected uploads are persisted per account in
+  IndexedDB, resume on reconnect/reopen, and use Background Sync when the browser supports it. The
+  service worker caches only the application shell; authenticated API and media responses are never
+  placed in CacheStorage. Automatic camera-roll access remains native-app-only.
+- **Web page spacing is viewport-consistent (2026-09-10).** The outer content frame no longer
+  inherits route density: every phone route gets 16px gutters and every desktop route gets 24px.
+  Mobile Settings cards, groups, rows, headers, and subpage controls use a shared 8/12/16px rhythm;
+  the responsive browser suite covers 320px through 1440px.
 - **Every port Kuraki binds is declared once, in `internal/config/ports.go` (2026-09-09).** The
   shipped default is `:39170`, not `:3000` — 3000 is the most contested port on a developer's
   machine, and losing that race is silent (a container here published a port it never held, for 22
@@ -81,6 +84,12 @@ Phase 1 = single-owner personal backup.
   suite can all be up at once. `make ports` generates `ports.env` and `mobile/src/design/ports.ts`;
   `ports_test.go` holds every file that can read neither (Dockerfile, both Compose files, the
   Caddyfile, `package.json`) to the same numbers. `KURAKI_ADDR=:3000` restores the old default.
+- **Local development runs directly on the host (2026-09-10).** `make dev` is the hot-reload path;
+  `make start` rebuilds and runs the embedded app from source. Docker is only for released-image
+  verification and production deployment: the root Compose file pulls the published image instead
+  of building the checkout, and `scripts/docker-dev.sh` was removed. `make clean` removes disposable
+  build/test output but deliberately preserves installed JavaScript dependencies, `kuraki-data*`,
+  and operator APKs.
 - **The three surfaces were connected to each other and driven (2026-09-09).** Server in Docker on a
   LAN address, the web UI in a browser against it, and the Expo client on a simulator paired to it —
   the first time the mobile↔server link has been exercised over a real network address rather than
@@ -139,6 +148,14 @@ Phase 1 = single-owner personal backup.
   focus and mobile sheet all need a human pass. See §11 for the traps this work uncovered
   (`@theme inline` never emits custom properties; box-shadow paints under children;
   `view-transition-name` must be uniquely held; Svelte transitions ignore the CSS reduced-motion rule).
+- **Shared adaptive design foundation (2026-09-11, `codex/adaptive-design-system`).** Palette,
+  spacing, radii, type scale, and responsive metrics now originate in `design/tokens.json`; the root
+  `scripts/generate-design.mjs` writes the generated CSS token block and mobile TypeScript tokens.
+  Web bundles Inter Variable and mobile bundles matching Inter weights. Kura/Vault remain page-frame
+  density patterns, not separate visual identities. Use `npm run sync-design` from either client and
+  never hand-edit the generated regions. The branch was reconciled with the mainline gallery pass;
+  browser coverage pins the retained memories rail, role-gated settings, independent status retries,
+  resilient sign-out, short-height navigation, and 320px settings fit.
 - **Settings consolidation (2026-07-27, `feat/settings-consolidation`):** the former Stats, account,
   Devices, Activity, appearance, library, and server controls now live under one responsive
   `/settings` shell. Migration `00022` stores the owner-writable catalog; `config.Store` resolves
@@ -306,7 +323,7 @@ docs/                  PRD/BRD + local plans — gitignored, local only
 ```sh
 make build        # pure-Go binary -> ./bin/kuraki   (CGO_ENABLED=0)
 make build-vips   # libvips backend (needs libvips-dev; -tags vips)
-make run          # build + serve on :3000
+make run          # build + serve on :39170
 make test         # go test -race ./...
 make vet          # go vet ./...
 make fmt          # gofmt -w -s .
@@ -315,7 +332,7 @@ make cross        # release binaries for all platforms -> ./dist
 make docker       # build container image
 ```
 
-Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
+Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 `KURAKI_TRASH_RETENTION_DAYS` (`30`), `KURAKI_THUMBNAIL_SIZE` (`512`),
 `KURAKI_OCR` (`off`; `1` enables the local tesseract OCR worker),
 `KURAKI_SECURE_COOKIES` (`off`; `1` marks the session cookie Secure for HTTPS).
@@ -324,8 +341,6 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 
 | Area | Status |
 |---|---|
-| Web shell and all Settings sections: shared cards/controls, mobile section picker, draft preservation and retry states | ✅ implemented; verification in WEB_REDESIGN.md |
-| Shared gallery geometry, memories and album covers; rounded Web controls; row-window virtualization; Mobile day grouping/resizing and progressive playback; Go media cache validators | ✅ implemented; Web/Go regression-tested, native visual certification pending (see UI_PARITY.md) |
 | Server foundation, import, media pipeline, web UI, auth, trash, verify, video | ✅ done |
 | Places (map + offline geocoding), Takeout import, favorites/albums/memories, stats | ✅ done |
 | Import queue + Activity + per-file errors, metadata editing, config options, serving perf | ✅ done |
@@ -343,11 +358,12 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 | OS background scheduling (expo-background-task) + streamed large-file uploads (expo-file-system handle) | ✅ done (client) |
 | Android launch blockers (iOS-only `Image.configureCache` at module scope; cleartext HTTP unconfigured) | ✅ done |
 | Background sync completed: launch-time registration, background delta feed + queue drain, headless-safe permissions, locked-device keychain access, mid-file upload resume, Wi-Fi-only default, SQLite upload ledger | ✅ done |
-| Mobile cosmetic parity (font weights, Switch colors, video derivative, unused audio permissions, EAS `.aab` vs served `.apk`) | ⬜ deferred by decision |
+| Mobile cosmetic parity (Switch colors, video derivative, unused audio permissions, EAS `.aab` vs served `.apk`) | ⬜ deferred by decision; shared Inter weights done 2026-09-11 |
 | Mobile pairing repair: typed pairing-code path, loopback-address guard, copyable code on web, Places no longer crashes the library route | ✅ code-complete, not device-verified |
 | Mobile navigation redesign: split tab bar (collapsible pill + search button), search on its own route, Backup folded into Settings, safe areas app-wide, device tokens never rendered | ✅ code-complete, not device-verified |
 | Mobile on native controls: NativeTabs (minimizeBehavior + role=search), SwiftUI menu/picker/field, native settings Stack | ✅ code-complete, not device-verified |
 | Mobile settings tree: stats index + Backup/Connection/Activity/Notifications/Photo Grid subpages, preference store | ✅ code-complete, not device-verified |
+| Settings density pass (web + mobile): explanations moved behind an info affordance, settings rail wraps instead of scrolling, Activity gets a state summary, one byte formatter per surface | ✅ done |
 | Mobile local notifications (backup finished/failed, disconnected) for iOS + Android, guarded so Expo Go still runs | ✅ code-complete, needs a dev build to fire |
 | Mobile UI defects: 48pt type scale, duplicate headings, "Undated" grouping, media-library deprecation warnings | ✅ fixed |
 | One header for every screen (`components/screen-header.tsx`); per-tab route-group stacks; seven hand-rolled bars and all manual `insets.top` deleted | ✅ code-complete, not device-verified |
@@ -429,7 +445,15 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:3000`),
 
 | **One port block, generated from Go** (2026-09-09): default moved off the contested `3000` to `39170`, with separate uncommon ports for the dev API, dev web, Metro and e2e so all of them run at once; declared in `internal/config/ports.go`, generated to `ports.env` + a mobile constant, and gated by `ports_test.go` for every file that cannot read them | ✅ done; five servers up simultaneously, 94/94 e2e green, mobile onboarding reads the generated port |
 
-| **Operator runbook** (2026-09-09): `RUNNING.md` now gives one verified path from local hot reload through a production-like source run to local Docker and private-behind-Caddy production, including port/config precedence, full environment reference, storage permissions, health/logging, imports, integrity checks, backup/restore, upgrades, account recovery, phone pairing, and troubleshooting | ✅ done; documentation links checked |
+| **Operator runbook** (2026-09-09): `RUNNING.md` gives verified direct-source development paths plus private-LAN and Caddy-backed production deployment, including port/config precedence, full environment reference, storage permissions, health/logging, imports, integrity checks, backup/restore, upgrades, account recovery, phone pairing, and troubleshooting | ✅ done; documentation links checked |
+| **Direct local development** (2026-09-10): `make dev`/`make start` are the only development paths; Docker consumes released images for release/prod only; `make clean` covers all disposable build and test output without deleting library data or installed JavaScript dependencies | ✅ done; Go + Vite + Expo live-verified together |
+| **Mobile refresh + Settings hierarchy** (2026-09-10): pull-to-refresh re-probes and reloads active photo views; thumbnail cells have stable recycle keys; server stats are concise; Notifications/Photo Grid are top-level and Activity is Advanced | ✅ done; simulator-verified |
+| **Mobile web + PWA upload queue** (2026-09-10): native-aligned four-tab phone navigation, three-column photo grid, grouped non-collapsible Settings, install manifest/offline shell, and account-scoped IndexedDB upload retry with Background Sync + foreground fallback | ✅ done; focused Chromium offline/reconnect flow verified |
+| **Responsive web spacing** (2026-09-10): route-independent 16px phone / 24px desktop gutters, consistent mobile Settings group and row spacing, full-width safe subpage controls | ✅ done; 17 responsive/spacing browser checks green at 320–1440px |
+| **Shared adaptive design foundation** (2026-09-11): neutral JSON source generates web/mobile colors, spacing, radii, type scale and responsive metrics; both clients bundle Inter; common gutters and native text styles consume shared metrics | ✅ code-complete; web check/build/contrast + mobile typecheck/lint green |
+| **Adaptive primary destinations** (2026-09-11): web and native share primary vocabulary; native album cards reflow 2/3/4-up by shared width classes and large-screen Settings keeps a readable measure | ✅ code-complete; focused responsive web + mobile static gates green |
+| **Collections destination** (2026-09-11): web and native group Favorites, Albums, On this day, Places and Tags under a real Collections tab/page; Photos menu is reduced to Photos/Archived; phone web Settings replaces four browsing rows with one Collections row | ✅ code-complete; focused route/responsive + mobile gates green |
+| **Adaptive branch mainline integration** (2026-09-11): current `main` gallery modernization and the adaptive/PWA/settings series coexist; gallery sizing primitives now come from the shared design source; mainline memories, role gates, retry isolation, and session resilience are retained; embedded assets were rebuilt from resolved source | ✅ focused browser reconciliation plus full Go, web, mobile, and design gates green |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
@@ -458,43 +482,131 @@ audited baseline and release checklist.
 
 ## 11. Handoff log (append newest at top)
 
-- Working tree (2026-09-10, Codex) — **Whole Web shell and Settings.**
-  Photos navigation, scrollable sidebar, grouped role-aware Settings rail with a
-  phone selector, reading-width cards and shared form geometry. Overview loads
-  its three resources independently; failed reads offer retry; saves retain
-  unrelated drafts and rejected OCR toggles revert. Activity preserves successful
-  responses instead of repeatedly toasting. Sign-out failures remain recoverable;
-  upload tracking failures point to Activity. Tag cards, duplicate toolbar and
-  mobile keyboard focus were revalidated. Details: [WEB_REDESIGN.md](./WEB_REDESIGN.md).
-  - Validation: 107 Chromium tests, 21 Web unit tests, Svelte check (zero
-    errors/warnings), production Web/pure-Go builds, Go vet/race suite and both
-    contrast palettes pass. All Settings sections exercised at 1440/390/320px
-    in both themes; visual review caught and fixed a four-column phone stats
-    regression, now asserted explicitly. No unexpected browser warnings/errors.
-    No new dependency or migration; Safari/Firefox and native certification
-    remain outside this pass.
+- `codex/adaptive-design-system` (2026-09-11, browser reconciliation) — **The integrated UI keeps
+  mainline behavior as well as the new adaptive structure.** Photos retains its memories rail;
+  Settings resources load and retry independently; regular accounts never render or request admin
+  pages; failed sign-out preserves the session; and sidebar actions remain reachable on short
+  desktops. Browser contracts now describe the grouped, non-collapsible phone Settings page and
+  four primary destinations. Server setting controls shrink at 320px without horizontal overflow;
+  the focused 14-test Chromium regression set is green.
 
-- Working tree (2026-09-09, Codex) — **Gallery parity and media rendering.** Added
-  `UI_PARITY.md` with the reference-image audit, three-priority roadmap, evidence
-  boundaries and remaining Mobile editing/search/export differences. Shared pure
-  memory/cover functions live in `shared/`; numeric geometry is generated from CSS
-  alongside Mobile tokens. Docker copies shared code and Metro watches it. Web
-  windows six complete rows, preserves focus/morph targets, and uses matching
-  rounded loading placeholders. Mobile measures its container, clears recycled
-  drag targets, bounds list/pager windows and plays the server's compatible video
-  derivative only on the active page. Web gains details toggling and pointer
-  zoom/pan/swipe; both viewers show thumbnails while full images load. Stored media
-  supports conditional GET/HEAD and retains ranges, with credential-varying private
-  caches. The stats principal test now excludes volatile free-space readings from
-  equality (a concurrent build changed free space by 4KB between requests).
-  - Verification: Web checks/build and 21 unit tests; Mobile checks/lint and 269
-    unit tests; iOS export; Go vet and full race suite. The 10k single-month renderer
-    fixture mounted 168 tiles on desktop at all sampled positions and 54 on phone,
-    with stable scroll height. Full browser verification and limits: UI_PARITY.md.
-  - Native visual/gesture verification remains pending: the available simulator
-    exposed its accessibility tree, but the computer-use tool could not capture
-    screenshots or operate it reliably. Existing physical-device, Android and
-    real 10k/50k backend capacity gates remain open. No migration or new dependency.
+- `codex/adaptive-design-system` (2026-09-11, mainline integration) — **The branch is reconciled with
+  current `main` before PR creation.** Main's gallery virtualization, viewer, caching, and accessibility
+  changes remain in place; the branch's grouped mobile Settings, durable PWA upload queue, Collections
+  navigation, Inter typography, and adaptive tokens remain authoritative in their overlapping shells.
+  Media/collection radii, grid gap, and memory-card dimensions moved into `design/tokens.json`; the
+  album grid keeps adaptive widths plus the accessible label added on main. The embedded web bundle
+  was regenerated after resolving source, and web/mobile static checks pass.
+
+- `codex/adaptive-design-system` (2026-09-11, Collections) — **Collections now exists before the tab
+  claims it.** Both clients group Favorites, Albums, On this day, Places, and Tags behind the second
+  primary destination. Native pushes each collection inside the same Stack, keeps its real Albums
+  grid below the browse group, and moves the memories rail into that route; Photos' title menu is
+  reduced to Photos/Archived. Web adds `/collections`, keeps the Collections tab selected throughout
+  its child routes, and reduces phone Settings from four browsing shortcuts to one. `design/README.md`
+  records the Canvas, Collection, Grouped page, and Detail patterns plus the shared width classes.
+
+- `codex/adaptive-design-system` (2026-09-11, adaptive destinations) — **The two phone experiences
+  now name the same four destinations Photos, Albums, Settings, and Search.** The desktop sidebar and
+  default-view preference use Photos too, removing the Timeline/Gallery/Photos triple vocabulary.
+  Native album cards use the generated compact/medium width classes for 2/3/4-column layouts, cap at
+  the shared readable width, and recalculate card width without stretching incomplete rows. Settings
+  uses the same large-screen measure. This deliberately does not rename Albums to Collections yet:
+  the Collections hub and its routes must exist before the tab promises one.
+
+- `codex/adaptive-design-system` (2026-09-11, shared foundation) — **Web and mobile now derive their
+  visual primitives from one neutral source.** `design/tokens.json` owns semantic colors, spacing,
+  radii, type scale, and responsive metrics; `scripts/generate-design.mjs` writes the guarded CSS
+  region plus `mobile/src/design/tokens.ts`. Web bundles Inter Variable and Expo loads the matching
+  400/500/600/700 native weights before first render. Common web page gutters, mobile type styles,
+  and mobile constants consume generated metrics. The old mobile sync script remains only as a
+  compatibility entry point. Verified with web `svelte-check`, production build, contrast gate,
+  mobile TypeScript, and Expo lint. Next design slice: align Collections and Settings information
+  architecture without renaming a tab before its destination actually exists.
+
+- `codex/settings-activity-polish` (2026-09-10, responsive spacing) — **Page padding now follows the
+  viewport instead of the route's density register.** All routes use 16px phone gutters and 24px
+  desktop gutters. Mobile Settings uses consistent 8/12/16px spacing, 48px rows, equal-width summary
+  columns, and wrapping full-width subpage controls. Seventeen Chromium checks cover gutter values,
+  settings structure, breakpoint switching, and horizontal overflow from 320px through 1440px.
+
+- `codex/settings-activity-polish` (2026-09-10, mobile web Settings correction) — **Phone Settings
+  is now a grouped settings page, not a collapsible dashboard.** Account & preferences, Photos,
+  Server, and Advanced are always visible as separate inset groups. A compact server summary keeps
+  the useful counts and storage values at the top; disk charts, integrity, backup prose, and yearly
+  bars remain desktop-only. The 390x844 Chromium check asserts every group and the absence of
+  `details` elements.
+
+- `codex/settings-activity-polish` (2026-09-10, mobile web + PWA) — **The phone-sized web app now
+  uses the native client's four destinations and keeps secondary controls inside Settings.** Gallery
+  defaults to a three-column grid and does not render search/filter controls until Search is opened;
+  settings subpages expose one back affordance instead of an eight-control rail. A manifest and
+  shell-only service worker make the UI installable, while an account-scoped IndexedDB queue stores
+  each selected file independently and retries on reconnect, reopen, or Background Sync. Private
+  `/api` and media responses are excluded from CacheStorage. The focused browser flow queued a photo
+  offline and uploaded it after connectivity returned; typecheck and the production build pass.
+
+- `codex/settings-activity-polish` (2026-09-10, mobile refresh follow-up) — **The photo grid now
+  recovers instead of remaining half blank after connectivity returns.** The simulator reproduced 21
+  grid slots with only cached thumbnails visible while the connection banner was active. Retry only
+  ran `probeServer`; it never reloaded the list. Retry and pull-to-refresh now perform both operations
+  for Timeline, Memories and Archive, and each `expo-image` cell has an asset-specific `recyclingKey`.
+  The same simulator pass simplified the server card (no repeated total, no trash count), promoted
+  Notifications and Photo Grid to the main Settings page, and moved Activity into Advanced.
+
+- `codex/settings-activity-polish` (2026-09-10, live development verification) — **Go, Vite and Expo
+  now run together directly on the host.** `make dev` exposed a strict-Bash parsing bug: the Unicode
+  ellipsis directly after `$KURAKI_PORT` and `$KURAKI_WEB_PORT` was treated as part of each variable
+  name. Both expansions are braced. The API (`39175`), web UI (`39176`) and Metro (`39177`) were then
+  started together; `/healthz`, the web root and Metro `/status` all responded successfully, and the
+  mobile bundle opened on the iPhone 17 Pro simulator.
+
+- `codex/settings-activity-polish` (2026-09-10, direct-development follow-up) — **Local development
+  no longer has a Docker path.** `scripts/dev.sh` runs Go + Vite with hot reload and
+  `scripts/start.sh` builds/runs the complete app directly; the latter now reads the generated
+  `39170` default instead of retaining a stale `3000` banner fallback. Root Compose pulls the
+  published image and is documented only as private-LAN production, while the working-tree
+  `scripts/docker-dev.sh` helper is removed. `make clean` now removes binaries, cross-builds,
+  generated mobile native trees, mobile/web/site build state, coverage, browser-test state and
+  locally built APKs without deleting `node_modules`, `kuraki-data*`, the operator-supplied download
+  APK, or generated embedded assets.
+  The cleanup was run; unused `kuraki:worktree-*`, `kuraki:test`, `kuraki:local`, and
+  `kuraki:published-*` image tags were removed. The running published-image container and its
+  `kuraki-data` mount were deliberately preserved.
+
+- `codex/settings-activity-polish` (2026-09-10) — **Settings said too much at once, on both clients,
+  and the byte formatter disagreed with itself.**
+  - **Explanations were permanent furniture.** Every web `SettingRow` printed its description under
+    the label and every mobile `SettingsSection` printed a footer, so a page of six switches was a
+    page of twelve paragraphs and the controls were what you had to hunt for. Both are now one
+    affordance away — an `Info` button beside the web label, an `info.circle` beside the mobile
+    section title that opens an `Alert`. The text is unchanged; it is just no longer competing with
+    the thing it describes. `SettingsSwitch`'s per-row `help` prop had no consumers left afterwards
+    and is gone rather than left in the tree.
+  - **The settings rail hid two of its eight sections on a phone.** It was a horizontal scroller with
+    a fading trailing edge, so Server and Users were off-screen and you had to discover that the rail
+    slid at all. Two rows of four fit without scrolling. The e2e test that pinned the fade now pins
+    the opposite property: eight links, all visible, nothing overflowing.
+  - **The Overview disk bar was measuring the wrong thing and then drawing nothing.** It filled to the
+    *disk's* used share, which on a NAS is mostly not photos; it now shows the library's share, which
+    is the number the page is about. A 4.7 KB library against a 926 GB volume computes to 0% and drew
+    an empty track — indistinguishable from a bar that failed to render — so the fill has a 3px floor
+    whenever there is anything at all. Six of the nine stat cards moved into a `<details>`; the three
+    that answer "is my library fine" stay up top.
+  - **Activity now leads with a count of what needs attention**, on both clients, and hides that
+    summary when there is nothing to count — three zeros above "No imports yet" is the empty state
+    twice, and the louder half says nothing. Mobile's session list gained a progress track and a
+    readable status instead of a raw `receiving · 41%`.
+  - **One byte formatter per surface, and both had the same bug.** Web's `fileSize` stopped at GB and
+    printed a hard `.0`; mobile had a second copy in `lib/duplicates.ts` alongside `lib/format.ts`.
+    Both now walk to PB, drop a trailing `.0`, and **promote a rounded boundary** — 1048575 bytes was
+    printing as `1024.0 KB`, which is not a unit anyone uses. The duplicate is deleted.
+  - **Verified:** `make check`, `make check-gen`, `make e2e` (94 passed), mobile `tsc --noEmit` +
+    `expo lint` + 266 unit tests + `check-tokens`. Screenshotted `/settings` and `/settings/activity`
+    at 1440 and 390 — which is what caught the empty disk bar and the three zeros; both were green
+    the whole time.
+  - **Not device-verified.** The mobile half is code-complete and unrun on hardware, like the rest of
+    the mobile ledger rows.
 
 - `feat/mobile-contact-sheet-ui` (2026-09-09, fifth pass) — **Pointed the app at the real container
   on the new port, and the address hint was wrong again — for the second time, in a new way.**

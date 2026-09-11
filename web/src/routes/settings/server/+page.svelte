@@ -376,4 +376,15 @@
     flex: 1 1 160px;
     min-width: 0;
   }
+  @media (max-width: 640px) {
+    .num {
+      width: 100%;
+      min-width: 0;
+    }
+    .num :global(input) {
+      width: auto;
+      min-width: 0;
+      flex: 1 1 120px;
+    }
+  }
 </style>

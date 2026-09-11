@@ -1,21 +1,82 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
-  import { session } from '$lib/stores';
-  import LoadError from '$lib/components/LoadError.svelte';
-  import { Palette, Smartphone, Activity, ChevronRight } from '@lucide/svelte';
+  import { requestUpload } from '$lib/stores';
   import { fileSize, relativeTime } from '$lib/format';
   import type { BackupStatus, IntegrityRun, LibraryStats } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import SectionHeading from '$lib/components/SectionHeading.svelte';
   import StatCard from '$lib/components/StatCard.svelte';
+  import LoadError from '$lib/components/LoadError.svelte';
   import { Button } from '$lib/components/ui/button';
+  import {
+    Upload,
+    User,
+    Palette,
+    SlidersHorizontal,
+    Server,
+    Smartphone,
+    Activity,
+    Users,
+    FolderOpen,
+    Archive,
+    EyeOff,
+    Copy,
+    Trash2,
+    Download,
+    ChevronRight,
+    type Icon
+  } from '@lucide/svelte';
+
+  type MobileSetting = {
+    href?: string;
+    action?: 'upload';
+    download?: boolean;
+    label: string;
+    icon: typeof Icon;
+  };
+
+  const mobileGroups: Array<{ label: string; items: MobileSetting[] }> = [
+    {
+      label: 'Account & preferences',
+      items: [
+        { href: '/settings/account', label: 'Account', icon: User },
+        { href: '/settings/appearance', label: 'Appearance', icon: Palette },
+        { href: '/settings/library', label: 'Library', icon: SlidersHorizontal }
+      ]
+    },
+    {
+      label: 'Library',
+      items: [
+        { action: 'upload', label: 'Upload photos', icon: Upload },
+        { href: '/collections', label: 'Collections', icon: FolderOpen },
+        { href: '/duplicates', label: 'Duplicates', icon: Copy },
+        { href: '/trash', label: 'Trash', icon: Trash2 }
+      ]
+    },
+    {
+      label: 'Server',
+      items: [
+        { href: '/settings/server', label: 'Server & backup', icon: Server },
+        { href: '/settings/devices', label: 'Devices', icon: Smartphone }
+      ]
+    },
+    {
+      label: 'Advanced',
+      items: [
+        { href: '/archive', label: 'Archive', icon: Archive },
+        { href: '/hidden', label: 'Hidden', icon: EyeOff },
+        { href: '/settings/activity', label: 'Activity', icon: Activity },
+        { href: '/settings/users', label: 'Users', icon: Users },
+        { href: '/api/export', label: 'Export library', icon: Download, download: true }
+      ]
+    }
+  ];
 
   let stats: LibraryStats | null = null;
   let integrity: IntegrityRun | null = null;
   let backup: BackupStatus | null = null;
   let loading = true;
-
   type Resource = 'stats' | 'integrity' | 'backup';
   let errors: Record<Resource, boolean> = { stats: false, integrity: false, backup: false };
   let pending: Record<Resource, boolean> = { stats: false, integrity: false, backup: false };
@@ -40,9 +101,18 @@
     loading = false;
   });
 
-  // The status endpoint does not publish the configured schedule. Show the
-  // last run's age without inventing a deadline for weekly/monthly backups.
-  $: backupClass = backup?.last?.status === 'error' ? 'error' : 'off';
+  // A configured backup that has not run in over ~1.5 days is stale-ish; surface it.
+  $: backupStale =
+    !!backup?.enabled &&
+    !!backup.last?.finished_at &&
+    Date.now() - new Date(backup.last.finished_at).getTime() > 36 * 60 * 60 * 1000;
+  $: backupClass = !backup?.enabled
+    ? 'off'
+    : backup.last?.status === 'error'
+      ? 'error'
+      : backupStale
+        ? 'problems'
+        : 'ok';
 
   const integrityLabel = (s: string) =>
     s === 'clean' ? 'All originals verified' : s === 'problems' ? 'Problems found' : s === 'running' ? 'Verifying…' : 'Verification error';
@@ -54,55 +124,94 @@
   // rather than claiming something untrue.
   $: diskFree = stats?.disk_free_bytes ?? 0;
   $: diskTotal = stats?.disk_total_bytes ?? 0;
-  $: diskPercent = diskTotal > 0 ? Math.round(((diskTotal - diskFree) / diskTotal) * 100) : 0;
+  $: libraryDiskPercent = diskTotal > 0 ? Math.min(100, (stats?.total_bytes ?? 0) / diskTotal * 100) : 0;
+  $: libraryDiskLabel = libraryDiskPercent > 0 && libraryDiskPercent < 1
+    ? '<1%'
+    : `${Math.round(libraryDiskPercent)}%`;
 </script>
 
-<PageHeader title="Overview" subtitle="Your library, storage, and peace of mind.">
-  <Button variant="outline" href="/api/export" download>Export library (.zip)</Button>
+<PageHeader title="Settings">
+  <span class="desktop-export"><Button variant="outline" href="/api/export" download>Export library (.zip)</Button></span>
 </PageHeader>
 
-<div class="quick-links">
-  {#each [{ href: '/settings/appearance', title: 'Make it yours', detail: 'Theme and photo grid', icon: Palette }, { href: '/settings/devices', title: 'Connect a device', detail: 'Back up your phone', icon: Smartphone }, { href: '/settings/activity', title: 'Recent activity', detail: 'Imports and processing', icon: Activity }] as link}
-    <a href={link.href}><svelte:component this={link.icon} size={20} aria-hidden="true" /><span><strong>{link.title}</strong><small>{link.detail}</small></span><ChevronRight size={16} aria-hidden="true" /></a>
-  {/each}
+<div class="mobile-settings">
+  <section class="server-summary" aria-label="Library summary">
+    <div class="summary-top">
+      <h2>On the server</h2>
+      <span>{loading ? 'Checking…' : stats ? 'Connected' : 'Unavailable'}</span>
+    </div>
+    <div class="summary-counts">
+      <div><strong>{stats ? stats.images.toLocaleString() : '—'}</strong><span>Photos</span></div>
+      <div><strong>{stats ? stats.videos.toLocaleString() : '—'}</strong><span>Videos</span></div>
+      <div><strong>{stats ? stats.albums.toLocaleString() : '—'}</strong><span>Albums</span></div>
+    </div>
+    {#if stats}
+      <p>{fileSize(stats.total_bytes)} stored{#if diskTotal > 0} · {fileSize(diskFree)} free{/if}</p>
+    {/if}
+  </section>
+
+  <nav class="mobile-directory" aria-label="Settings and library shortcuts">
+    {#each mobileGroups as group (group.label)}
+      <section>
+        <h2>{group.label}</h2>
+        {#each group.items as item (item.label)}
+          {#if item.action === 'upload'}
+            <button type="button" class="mobile-row" on:click={requestUpload}>
+              <svelte:component this={item.icon} size={18} aria-hidden="true" />
+              <span>{item.label}</span><ChevronRight size={16} aria-hidden="true" />
+            </button>
+          {:else}
+            <a class="mobile-row" href={item.href} download={item.download || undefined}>
+              <svelte:component this={item.icon} size={18} aria-hidden="true" />
+              <span>{item.label}</span><ChevronRight size={16} aria-hidden="true" />
+            </a>
+          {/if}
+        {/each}
+      </section>
+    {/each}
+  </nav>
 </div>
 
+<div class="desktop-health">
 {#if loading}
-  <p class="muted" role="status">Loading your library…</p>
-{:else}
-  {#if errors.stats}<LoadError message="Library statistics unavailable" retryLabel="Retry library statistics" retry={() => load('stats')} busy={pending.stats} />{/if}
-  {#if stats}
+  <p class="muted">Loading…</p>
+{:else if errors.stats}
+  <LoadError message="Library statistics unavailable" retryLabel="Retry library statistics" retry={() => load('stats')} busy={pending.stats} />
+{:else if stats}
   <div class="cards">
     <StatCard value={stats.total.toLocaleString()} label="Photos & videos" />
     <StatCard value={fileSize(stats.total_bytes)} label="Total size" />
-    <StatCard value={stats.images.toLocaleString()} label="Photos" />
-    <StatCard value={stats.videos.toLocaleString()} label="Videos" />
-
+    {#if diskTotal > 0}
+      <StatCard value={fileSize(diskFree)} label="Free on disk" />
+    {/if}
   </div>
 
-  <div class="library-links">
-    <a href="/favorites">{stats.favorites.toLocaleString()} favorites</a>
-    <a href="/albums">{stats.albums.toLocaleString()} albums</a>
-    <a href="/places">{stats.places.toLocaleString()} places</a>
-    <a href="/trash">{stats.trashed.toLocaleString()} in trash</a>
-  </div>
   {#if diskTotal > 0}
-    <!-- Filesystem usage includes other applications; library size is shown
-         separately so this never claims all used storage belongs to Kuraki. -->
+    <!-- The library's share of the disk, not the disk's used share: the point
+         is how much room is left for photos, and on a NAS most of what is used
+         may be nothing to do with Kuraki. -->
     <section class="disk">
-      <div class="disk-bar" role="img" aria-label="{diskPercent}% of the disk is in use">
-        <div class="disk-fill" style="width: {Math.min(100, diskPercent)}%"></div>
+      <div class="disk-bar" role="img" aria-label="{libraryDiskLabel} of storage is used by this Kuraki library">
+        <!-- A library that is a rounding error against a NAS volume computes to
+             0% and drew nothing at all, which reads as a bar that failed to
+             render rather than as "barely any of this disk is photos". The
+             floor keeps a visible sliver whenever there is anything at all. -->
+        <div
+          class="disk-fill"
+          style="width: {libraryDiskPercent > 0 ? `max(3px, ${libraryDiskPercent}%)` : '0'}"
+        ></div>
       </div>
       <span class="muted">
-        {fileSize(diskFree)} free of {fileSize(diskTotal)} · {fileSize(stats.total_bytes)} in your library
+        {fileSize(stats.total_bytes)} library · {fileSize(diskTotal)} disk ·
+        {fileSize(diskFree)} free
       </span>
     </section>
   {/if}
 
-  {/if}
-  <div class="health-heading"><SectionHeading>Library health</SectionHeading></div>
-  {#if errors.integrity}<LoadError message="Integrity status unavailable" retryLabel="Retry integrity status" retry={() => load('integrity')} busy={pending.integrity} />
-  {:else}<section class="integrity {integrity?.status ?? ''}">
+  {#if errors.integrity}
+    <LoadError message="Integrity status unavailable" retryLabel="Retry integrity status" retry={() => load('integrity')} busy={pending.integrity} />
+  {:else}
+  <section class="integrity {integrity?.status ?? ''}">
     <div class="int-text">
       <strong>Integrity</strong>
       {#if integrity}
@@ -113,28 +222,28 @@
     </div>
   </section>
   {/if}
-  {#if $session.user?.role === 'admin'}<p class="see-server"><a href="/settings/server">Run a check or scan for duplicates →</a></p>{/if}
+  <p class="see-server"><a href="/settings/server">Run a check or scan for duplicates →</a></p>
 
-  {#if errors.backup}<LoadError message="Backup status unavailable" retryLabel="Retry backup status" retry={() => load('backup')} busy={pending.backup} />
-  {:else}<section class="integrity {backupClass}">
+  {#if errors.backup}
+    <LoadError message="Backup status unavailable" retryLabel="Retry backup status" retry={() => load('backup')} busy={pending.backup} />
+  {:else}
+  <section class="integrity {backupClass}">
     <div class="int-text">
       <strong>Backup</strong>
       {#if !backup?.enabled}
         <span class="prose">Automatic backup is off. Set a backup directory in <a href="/settings/server">Settings → Server</a> to keep scheduled copies, or run <code>kuraki backup</code> by hand.</span>
       {:else if backup.last?.status === 'error'}
         <span>Last automatic backup failed{#if backup.last.finished_at}{' · '}{relativeTime(backup.last.finished_at)}{/if}{#if backup.last.error}{' · '}{backup.last.error}{/if}</span>
-      {:else if backup.last?.status === 'running'}
-        <span>Automatic backup in progress · started {relativeTime(backup.last.started_at)}</span>
       {:else if backup.last}
-        <span>Last backup {fileSize(backup.last.bytes)}{#if backup.last.finished_at}{' · '}{relativeTime(backup.last.finished_at)}{/if}</span>
+        <span>Last backup {fileSize(backup.last.bytes)}{#if backup.last.finished_at}{' · '}{relativeTime(backup.last.finished_at)}{/if}{#if backupStale}{' · overdue'}{/if}</span>
       {:else}
         <span class="prose">Automatic backup is on; no backup has run yet.</span>
       {/if}
     </div>
   </section>
-
   {/if}
-  {#if stats && stats.by_year.length > 0}
+
+  {#if stats.by_year.length > 0}
     <section class="years">
       <SectionHeading>By year</SectionHeading>
       <div class="bars">
@@ -149,26 +258,18 @@
     </section>
   {/if}
 {/if}
+</div>
 
 <style>
-  .quick-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 24px; }
-  .quick-links a { display: flex; align-items: center; gap: 12px; border: 1px solid var(--border); border-radius: var(--collection-radius); padding: 16px; color: var(--foreground); text-decoration: none; }
-  .quick-links a:hover { background: var(--accent); }
-  .quick-links span { display: grid; gap: 4px; flex: 1; }
-  .quick-links strong { font-size: 14px; font-weight: 550; }
-  .quick-links small { color: var(--muted-foreground); font-size: 12px; }
-  .quick-links :global(svg) { flex-shrink: 0; }
-  .library-links { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 16px 0; font-size: 13px; color: var(--muted-foreground); }
-  .library-links a:hover { color: var(--foreground); text-decoration: underline; }
-  .health-heading { margin-top: 32px; }
-
-
+  .mobile-settings {
+    display: none;
+  }
   .muted {
     color: var(--muted-foreground);
   }
   .cards {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 12px;
   }
   /* Spacing comes from --space-step throughout, so the same expressions land
@@ -183,7 +284,7 @@
   }
   .disk-bar {
     height: 8px;
-    border-radius: var(--collection-radius);
+    border-radius: var(--frame-radius);
     background: var(--muted);
     overflow: hidden;
   }
@@ -199,8 +300,9 @@
     margin-top: calc(var(--space-step) * 4);
     padding: calc(var(--space-step) * 3) calc(var(--space-step) * 4);
     border: 1px solid var(--frame-border-color, var(--border));
-    /* Operational density with the same soft card geometry as the gallery. */
-    border-radius: var(--collection-radius);
+    /* 4px in the Vault: a panel, not a card. The shadow token is `0 0 #0000`
+     * here, so the hairline does the work instead of a lift. */
+    border-radius: var(--frame-radius);
     box-shadow: var(--frame-shadow);
     background: var(--card);
   }
@@ -230,9 +332,7 @@
   .int-text span {
     color: var(--muted-foreground);
     font-family: var(--frame-data-font);
-    font-size: 13px;
-    line-height: 1.6;
-    overflow-wrap: anywhere;
+    font-size: 12px;
     font-variant-numeric: tabular-nums;
   }
   /* Mono is for counts, sizes, paths and timestamps — the spec's "hashes,
@@ -283,13 +383,13 @@
   }
   .track {
     height: 10px;
-    border-radius: var(--collection-radius);
+    border-radius: var(--frame-radius);
     background: var(--muted);
     overflow: hidden;
   }
   .fill {
     height: 100%;
-    border-radius: var(--collection-radius);
+    border-radius: var(--frame-radius);
     background: var(--primary);
   }
   .n {
@@ -299,5 +399,98 @@
     font-size: 13px;
     font-variant-numeric: tabular-nums;
   }
-  @container settings (max-width: 700px) { .quick-links { grid-template-columns: 1fr; } .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 820px) {
+    .desktop-export {
+      display: none;
+    }
+    .desktop-health {
+      display: none;
+    }
+    .mobile-settings {
+      display: grid;
+      gap: 16px;
+    }
+    .server-summary {
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--card);
+    }
+    .summary-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .summary-top h2,
+    .mobile-directory h2 {
+      margin: 0;
+      color: var(--text-faint);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .summary-top span,
+    .server-summary p,
+    .summary-counts span {
+      color: var(--muted-foreground);
+      font-size: 12px;
+    }
+    .summary-counts {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .summary-counts div {
+      display: grid;
+      gap: 2px;
+    }
+    .summary-counts strong {
+      font-family: var(--font-mono);
+      font-size: 20px;
+      font-variant-numeric: tabular-nums;
+    }
+    .server-summary p {
+      margin: 0;
+    }
+    .mobile-directory {
+      display: grid;
+      gap: 16px;
+    }
+    .mobile-directory section {
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--card);
+    }
+    .mobile-directory h2 {
+      padding: 12px 16px 8px;
+    }
+    .mobile-row {
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr) 16px;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 48px;
+      padding: 12px 16px;
+      border: 0;
+      border-top: 1px solid var(--border);
+      background: transparent;
+      color: var(--foreground);
+      text-align: left;
+      text-decoration: none;
+      font: inherit;
+    }
+    .mobile-row > :global(svg:first-child) {
+      color: var(--stamp);
+    }
+    .mobile-row > :global(svg:last-child) {
+      color: var(--text-faint);
+    }
+  }
 </style>

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { Search, X, SlidersHorizontal, Bookmark, Trash2, Images, Upload } from '@lucide/svelte';
   import MemoriesRail from '$lib/components/MemoriesRail.svelte';
   import LibraryView from '$lib/components/LibraryView.svelte';
@@ -25,6 +25,7 @@
   ];
 
   let showFilters = false;
+  let searchInput: HTMLInputElement;
   // The rest of the server's filter language. `parseAssetFilters` has always
   // accepted these; the form exposed q/type/favorite/from/to and nothing else,
   // so a saved search could carry a filter the UI could neither show nor build.
@@ -47,7 +48,7 @@
 
   onMount(() => {
     loadSaved();
-    void api.memories().then((r) => { memories = r.assets; }).catch(() => {});
+    void api.memories().then((result) => (memories = result.assets)).catch(() => {});
     loadFilterSources();
     applyURLFilters();
   });
@@ -172,6 +173,8 @@
   // form doesn't expose — place, tag, camera, rating — still routes through
   // api.search rather than silently loading the unfiltered timeline.
   $: filtered = Object.values(applied).some((v) => v !== undefined && v !== null && v !== '');
+  $: searchMode = $page.url.searchParams.get('search') === '1' || filtered;
+  $: if (searchMode && searchInput) void tick().then(() => searchInput.focus());
 
   function apply() {
     applied = {
@@ -227,7 +230,7 @@
 {#key JSON.stringify(applied)}
   <LibraryView
     load={loader}
-    title={filtered ? 'Search' : 'Photos'}
+    title={searchMode ? 'Search' : 'Photos'}
     subtitle={filtered ? summary(applied) : ''}
     emptyText={filtered ? 'No photos match these filters' : 'Bring your photos home'}
     emptyBody={filtered
@@ -246,10 +249,10 @@
         </Button>
       {/if}
     </svelte:fragment>
-    <div slot="actions" class="filters">
+    <div slot="actions" class:mobile-search={searchMode} class="filters">
       <form class="search" on:submit|preventDefault={apply}>
         <Search size={16} aria-hidden="true" />
-        <input bind:value={query} type="search" placeholder="Search filename, camera, place" aria-label="Search" />
+        <input bind:this={searchInput} bind:value={query} type="search" placeholder="Search filename, camera, place" aria-label="Search" />
       </form>
       <IconButton
         label="Filters"
@@ -412,6 +415,9 @@
    * Fixed widths become flexible ones so nothing here can set a min-content
    * floor wider than the screen. */
   @media (max-width: 820px) {
+    .filters:not(.mobile-search) {
+      display: none;
+    }
     .filters {
       display: flex;
       flex-wrap: nowrap;

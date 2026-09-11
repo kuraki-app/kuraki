@@ -154,11 +154,16 @@ files in.
 
 ### 5.3 Browser upload
 
-**You supply:** files, dropped into the window.
+**You supply:** files, dropped into the window or chosen from Upload in Settings on a phone.
 
-**What happens:** each file is stored in a staging area and an import job is queued.
-The upload returns as soon as the bytes have landed — the work happens behind it.
-Progress, per-file errors, and retries are visible in the activity view.
+**What happens:** each selected file first enters an account-specific queue in browser storage, then
+uploads independently. If the connection drops, it resumes when connectivity returns or Kuraki is
+reopened; browsers that support Background Sync can retry after the page closes. Once the bytes land,
+the server stages the file and queues an import job. Progress and errors are visible in Activity.
+
+**Browser boundary:** a website cannot silently enumerate the phone's camera roll. You choose the
+files; automatic camera-roll backup is the native app's job. PWA installation and closed-page retry
+also require browser support and a secure origin. The foreground queue still resumes without them.
 
 **Why staging matters:** two uploads called `IMG_0001.jpg` do not collide. Each gets
 its own staging space, and both are imported.

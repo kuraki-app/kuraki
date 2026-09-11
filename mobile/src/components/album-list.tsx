@@ -1,12 +1,12 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useState, type ReactElement } from 'react';
+import { FlatList, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 
 import Dialog from '@/components/dialog';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radius, Spacing, useTokens } from '@/constants/theme';
+import { Layout, MaxContentWidth, Radius, Space, Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { coverLayout } from '@/lib/album-cover';
 import { formatCount } from '@/lib/format';
@@ -16,8 +16,7 @@ import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
 
 const reg = registerStyle('kura');
 const heading = { fontFamily: reg.heading };
-const columns = 2;
-const gap = 12;
+const gap = Space.two;
 
 // thumbSource() reads only `id` and `thumbnail_url` off a LibraryAsset; a
 // CachedAlbum only carries the cover's id, so this stub lets the cover art
@@ -34,6 +33,7 @@ type Props = {
    */
   creating: boolean;
   onCreatingChange: (next: boolean) => void;
+  header?: ReactElement;
 };
 
 // AlbumList is the grid of album cards in the Albums tab. Tapping a card pushes
@@ -41,8 +41,12 @@ type Props = {
 // which looked like navigation but was not -- no back button, no back gesture,
 // and Android's hardware back left the tab entirely instead of closing the
 // album.
-export default function AlbumList({ creating, onCreatingChange }: Props) {
+export default function AlbumList({ creating, onCreatingChange, header }: Props) {
   const tokens = useTokens();
+  const { width } = useWindowDimensions();
+  const frameWidth = Math.min(width, MaxContentWidth);
+  const columns = width >= Layout.mediumMax ? 4 : width >= Layout.compactMax ? 3 : 2;
+  const cardWidth = (frameWidth - Space.two * 2 - gap * (columns - 1)) / columns;
   const [settings, setSettings] = useState<CaptureSettings | null>(null);
   const [albums, setAlbums] = useState<CachedAlbum[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,17 +102,20 @@ export default function AlbumList({ creating, onCreatingChange }: Props) {
         </View>
       ) : (
         <FlatList
+          key={`album-grid-${columns}`}
           data={albums}
           keyExtractor={(a) => a.id}
           numColumns={columns}
-          columnWrapperStyle={{ gap, paddingHorizontal: Spacing.two }}
+          style={styles.list}
+          columnWrapperStyle={{ gap, paddingHorizontal: Space.two }}
           contentContainerStyle={styles.grid}
           contentInsetAdjustmentBehavior="automatic"
+          ListHeaderComponent={header}
           renderItem={({ item }) => {
             const layout = coverLayout(item.cover_asset_ids);
             return (
               <Pressable
-                style={styles.card}
+                style={[styles.card, { width: cardWidth }]}
                 accessibilityRole="button"
                 accessibilityLabel={`${item.name}, ${formatCount(item.count)} items`}
                 onPress={() =>
@@ -199,8 +206,9 @@ export default function AlbumList({ creating, onCreatingChange }: Props) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  list: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
   grid: { gap: Spacing.three, paddingBottom: Spacing.four },
-  card: { flex: 1, maxWidth: '48.5%', gap: 2 },
+  card: { gap: 2 },
   // Radius.md, not sm: an album cover is a card in a two-up grid, and at 8pt
   // the corner barely read against the square mosaic inside it.
   cover: { width: '100%', aspectRatio: 1, borderRadius: Radius.md, overflow: 'hidden', marginBottom: 6 },

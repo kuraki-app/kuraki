@@ -70,20 +70,37 @@
   onDestroy(() => { stopped = true; clearInterval(timer); });
 
   const kindLabel = (k: string) => (k === 'upload' ? 'Upload' : 'Import');
-  const pct = (j: Job) => (j.total ? Math.round((j.imported / j.total) * 100) : 0);
+  const pct = (j: Job) => (j.total ? Math.min(100, Math.max(0, Math.round((j.imported / j.total) * 100))) : 0);
+  $: runningCount = jobs.filter((job) => job.status === 'running' || job.status === 'queued').length;
+  $: failedCount = jobs.filter((job) => job.status === 'failed' || job.errors > 0).length + mediaIssues.length;
+  $: completedCount = jobs.filter((job) => job.status === 'succeeded').length;
 </script>
 
-<PageHeader title="Activity" subtitle="Recent imports" />
+<PageHeader title="Activity" subtitle="Imports and media that need attention." />
 
 {#if loadError}<LoadError message={loadError} retry={load} busy={refreshing} />{/if}
 
 {#if loading}
   <p class="muted">Loading…</p>
 {:else}
+  <!-- Three zeros stacked above an empty state that already says "No imports
+       yet" is the empty state twice, and the louder half says nothing. The
+       counts only exist once there is something to count. -->
+  {#if jobs.length > 0 || mediaIssues.length > 0}
+    <div class="summary" aria-label="Activity summary">
+      <div><strong>{runningCount}</strong><span>Active</span></div>
+      <div><strong>{completedCount}</strong><span>Complete</span></div>
+      <div class:has-issues={failedCount > 0}><strong>{failedCount}</strong><span>Needs attention</span></div>
+    </div>
+  {/if}
+
   {#if mediaIssues.length > 0}
     <section class="media-health" aria-labelledby="media-health-title">
       <h2 id="media-health-title">Media health</h2>
-      <p>These originals are safe, but need a compatible preview or playback derivative.</p>
+      <details>
+        <summary>What does this mean?</summary>
+        <p>Originals are safe. These items need a compatible preview or playback copy.</p>
+      </details>
       <ul>
         {#each mediaIssues as issue (issue.asset_id + issue.kind)}
           <li>
@@ -176,6 +193,32 @@
     display: grid;
     gap: 8px;
   }
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .summary > div {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--frame-border-color, var(--border));
+    border-radius: var(--frame-radius);
+    background: var(--card);
+  }
+  .summary strong {
+    color: var(--foreground);
+    font-family: var(--frame-data-font);
+    font-size: 20px;
+    font-variant-numeric: tabular-nums;
+  }
+  .summary span {
+    color: var(--muted-foreground);
+    font-size: 12px;
+  }
+  .summary .has-issues strong { color: var(--warn); }
   .media-health {
     margin-bottom: 20px;
     padding: 14px;
@@ -184,7 +227,9 @@
     background: var(--warn-bg);
   }
   .media-health h2 { margin: 0; font-size: 16px; }
-  .media-health p { margin: 5px 0 10px; color: var(--muted-foreground); font-size: 13px; }
+  .media-health details { margin: 5px 0 10px; }
+  .media-health summary { width: fit-content; color: var(--warn-text); cursor: pointer; font-size: 13px; }
+  .media-health p { margin: 5px 0 0; color: var(--muted-foreground); font-size: 13px; }
   /* Deliberately markerless: these are rows with their own actions, not
      prose bullets — the same reason the pairing steps above DO need theirs. */
   .media-health ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
@@ -347,5 +392,16 @@
     to {
       transform: rotate(360deg);
     }
+  }
+  @media (max-width: 520px) {
+    .summary { gap: 4px; }
+    .summary > div { padding: 8px; }
+    .summary span { font-size: 11px; }
+    .job { grid-template-columns: 28px minmax(0, 1fr); gap: 8px; padding: 10px; }
+    .icon { width: 28px; height: 28px; }
+    .row1 { flex-wrap: wrap; gap: 5px; }
+    .time { width: 100%; margin-left: 0; }
+    .media-health li { align-items: flex-start; flex-wrap: wrap; }
+    .media-health .rebuild { margin-left: 0; }
   }
 </style>

@@ -10,6 +10,7 @@ import {
   Copy,
   Trash2,
   Settings,
+  Search,
   type Icon
 } from '@lucide/svelte';
 
@@ -28,13 +29,18 @@ export interface NavGroup {
   items: NavItem[];
 }
 
+export interface MobileNavItem extends NavItem {
+  search?: boolean;
+  matches?: string[];
+}
+
 export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Library',
     items: [
       { href: '/', label: 'Photos', icon: Images, register: 'kura' },
       { href: '/favorites', label: 'Favorites', icon: Star, register: 'kura' },
-      { href: '/albums', label: 'Albums', icon: FolderOpen, register: 'kura' },
+      { href: '/collections', label: 'Collections', icon: FolderOpen, register: 'kura' },
       { href: '/memories', label: 'On this day', icon: CalendarClock, register: 'kura' },
       { href: '/places', label: 'Places', icon: MapPin, register: 'kura' },
       { href: '/tags', label: 'Tags', icon: Tags, register: 'kura' }
@@ -75,14 +81,27 @@ function requireNavItem(href: string): NavItem {
   return item;
 }
 
-/** Five is the ceiling: a sixth tab shrinks targets below a thumb hit area.
- *  Four routes here plus the More trigger in MobileNav makes five. */
-export const MOBILE_TABS: NavItem[] = [
+/** Mirrors the native app's four system tabs. Secondary library views live in
+ * Settings on a phone instead of competing with the primary destinations. */
+export const MOBILE_TABS: MobileNavItem[] = [
   requireNavItem('/'),
-  requireNavItem('/favorites'),
-  requireNavItem('/albums'),
-  requireNavItem('/places')
+  {
+    ...requireNavItem('/collections'),
+    matches: ['/collections', '/favorites', '/albums', '/memories', '/places', '/tags', '/archive']
+  },
+  {
+    ...requireNavItem('/settings'),
+    matches: ['/settings', '/duplicates', '/trash', '/hidden']
+  },
+  { href: '/?search=1', label: 'Search', icon: Search, register: 'kura', search: true }
 ];
+
+export function isMobileActive(item: MobileNavItem, pathname: string, search: string): boolean {
+  if (item.search) return pathname === '/' && search === '1';
+  if (item.matches?.some((href) => pathname === href || pathname.startsWith(`${href}/`))) return true;
+  if (item.href === '/') return pathname === '/' && search !== '1';
+  return pathname === item.href || pathname.startsWith(`${item.href}/`);
+}
 
 export function isActive(href: string, pathname: string): boolean {
   return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/');

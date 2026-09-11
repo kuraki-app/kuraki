@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { Children, Fragment, isValidElement, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -24,7 +24,19 @@ import { FontFamily } from '@/design/fonts';
 /** The icon column: a 22pt glyph plus the gap to the label. */
 const ICON_COLUMN = 22 + Spacing.two;
 
-export function SettingsSection({ title, footer, children }: { title?: string; footer?: string; children: ReactNode }) {
+type SectionInfo = { title?: string; message: string };
+
+export function SettingsSection({
+  title,
+  info,
+  footer,
+  children,
+}: {
+  title?: string;
+  info?: SectionInfo;
+  footer?: string;
+  children: ReactNode;
+}) {
   const tokens = useTokens();
   // Dividers belong between rows, not on them: a row cannot know whether it is
   // last, and a trailing hairline against the card's own edge draws a double
@@ -34,9 +46,12 @@ export function SettingsSection({ title, footer, children }: { title?: string; f
   return (
     <View style={styles.section}>
       {title ? (
-        <ThemedText style={[styles.sectionTitle, { fontFamily: FontFamily.mono, color: tokens.textFaint }]}>
-          {title.toUpperCase()}
-        </ThemedText>
+        <View style={styles.sectionHead}>
+          <ThemedText style={[styles.sectionTitle, { fontFamily: FontFamily.mono, color: tokens.textFaint }]}>
+            {title.toUpperCase()}
+          </ThemedText>
+          {info ? <InfoButton title={info.title ?? title} message={info.message} /> : null}
+        </View>
       ) : null}
       <ThemedView type="card" style={[styles.card, { borderColor: tokens.border }]}>
         {rows.map((row, index) => (
@@ -51,6 +66,51 @@ export function SettingsSection({ title, footer, children }: { title?: string; f
           {footer}
         </ThemedText>
       ) : null}
+    </View>
+  );
+}
+
+/** Keep optional explanations one tap away instead of filling every page. */
+export function InfoButton({ title, message }: { title: string; message: string }) {
+  const tokens = useTokens();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`About ${title}`}
+      hitSlop={10}
+      onPress={() => Alert.alert(title, message)}>
+      <SymbolView
+        name="info.circle"
+        size={17}
+        tintColor={tokens.mutedForeground}
+        fallback={<ThemedText themeColor="mutedForeground">ⓘ</ThemedText>}
+      />
+    </Pressable>
+  );
+}
+
+export function SettingsNotice({
+  message,
+  tone = 'info',
+}: {
+  message: string;
+  tone?: 'info' | 'warning' | 'error';
+}) {
+  const tokens = useTokens();
+  const tint = tone === 'error' ? tokens.destructive : tone === 'warning' ? tokens.warn : tokens.mutedForeground;
+  const symbol: SFSymbol = tone === 'error' ? 'xmark.circle' : tone === 'warning' ? 'exclamationmark.triangle' : 'info.circle';
+
+  return (
+    <View style={[styles.notice, { borderColor: tokens.border, backgroundColor: tokens.secondary }]}>
+      <SymbolView
+        name={symbol}
+        size={18}
+        tintColor={tint}
+        fallback={<ThemedText style={{ color: tint }}>!</ThemedText>}
+      />
+      <ThemedText type="small" style={styles.noticeText} selectable>
+        {message}
+      </ThemedText>
     </View>
   );
 }
@@ -105,15 +165,15 @@ export function SettingsRow({
   );
 }
 
+// No per-row help text: the explanation belongs to the section, one tap behind
+// its info button, rather than repeated under every switch.
 export function SettingsSwitch({
   label,
-  help,
   value,
   onValueChange,
   disabled,
 }: {
   label: string;
-  help?: string;
   value: boolean;
   onValueChange: (next: boolean) => void;
   disabled?: boolean;
@@ -122,11 +182,6 @@ export function SettingsSwitch({
     <View style={styles.row}>
       <View style={styles.switchText}>
         <ThemedText style={styles.rowLabel}>{label}</ThemedText>
-        {help ? (
-          <ThemedText type="small" themeColor="mutedForeground">
-            {help}
-          </ThemedText>
-        ) : null}
       </View>
       <Switch value={value} onValueChange={onValueChange} disabled={disabled} />
     </View>
@@ -135,7 +190,8 @@ export function SettingsSwitch({
 
 const styles = StyleSheet.create({
   section: { paddingHorizontal: Spacing.three, paddingTop: Spacing.three, gap: Spacing.one },
-  sectionTitle: { paddingHorizontal: Spacing.one, fontSize: 11, lineHeight: 15, fontWeight: '600', letterSpacing: 1.4 },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, paddingHorizontal: Spacing.one },
+  sectionTitle: { fontSize: 11, lineHeight: 17, fontWeight: '600', letterSpacing: 1.4 },
   // A hairline border rather than a shadow — Vault panels are drawn, not lifted.
   card: {
     borderRadius: Radius.lg,
@@ -162,4 +218,15 @@ const styles = StyleSheet.create({
   rowDetail: { fontSize: 13, lineHeight: 18, flexShrink: 1, textAlign: 'right' },
   switchText: { flex: 1, gap: 2 },
   iconSpacer: { width: 22 },
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.two,
+    marginHorizontal: Spacing.three,
+    marginTop: Spacing.two,
+    padding: Spacing.two,
+    borderRadius: Radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  noticeText: { flex: 1 },
 });

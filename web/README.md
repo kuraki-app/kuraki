@@ -26,16 +26,16 @@ here and rebuild.**
 From the **repo root** (recommended — runs the API and the UI together):
 
 ```sh
-./scripts/dev.sh      # Go API on :3000 + Vite UI on :5173 (hot reload) — open :5173
+./scripts/dev.sh      # Go API on :39175 + Vite UI on :39176 (hot reload) — open :39176
 ```
 
-Vite proxies `/api` to the Go server on `:3000`, so the UI needs that server
-running. To run just the front end (assuming the API is already up on `:3000`):
+Vite proxies `/api` to the Go server on `:39175`, so the UI needs that server
+running. To run just the front end (assuming the API is already up on `:39175`):
 
 ```sh
 cd web
 npm install
-npm run dev           # Vite dev server on :5173
+npm run dev           # Vite dev server; use KURAKI_WEB_PORT to override its port
 ```
 
 ## Build
@@ -54,7 +54,15 @@ hashed filename and produces a spurious full-tree diff in the committed assets.
 change under `src/` is not landed until `make web` has been run and its diff staged.
 
 After building, `./scripts/start.sh` (or `make start`) runs one production-like
-Go process on `:3000` serving the embedded UI.
+Go process on `:39170` serving the embedded UI.
+
+## PWA and resilient uploads
+
+The production web app ships a manifest and a service worker. It caches the application shell only;
+private `/api` and media responses remain network-only. Selected photos and videos are queued per
+account in IndexedDB and resume after reconnect or reopen. Background Sync continues the queue when
+the browser provides it; foreground retry is the universal fallback. A browser cannot automatically
+read a phone's camera roll, so unattended camera backup remains a native-app feature.
 
 ## Design system
 
@@ -67,7 +75,7 @@ The UI has a deliberate identity built around **two registers** driven by
   panels. Backs the operational surfaces (Overview, Devices, Activity, Settings,
   Trash, Duplicates).
 
-Both registers set type in one family — the platform's own sans. The split is
+Both registers set type in one family — Inter. The split is
 rhythm, density and treatment, not typeface; hierarchy comes from size and
 weight, which is what a photo app wants, since the type should seat the
 photographs rather than compete with them. `e2e/registers.spec.ts` pins that.
@@ -76,8 +84,8 @@ The rule: **the register belongs to the page frame, never the photo components**
 `AssetGrid` and `Viewer` always render as Kura, because a photograph is a memory
 even in Trash.
 
-The palette lives in **`src/app.css`** as CSS custom properties mapped onto
-shadcn-svelte's token names (renaming them would break every shadcn component).
+The shared palette and layout metrics live in **`../design/tokens.json`** and are generated into
+`src/app.css` as CSS custom properties mapped onto shadcn-svelte's token names (renaming them would break every shadcn component).
 `--stamp` (oxblood) is Kuraki's own mark, reserved for brand/active-nav/selection;
 `--primary` stays ink so buttons never compete with the photographs.
 
@@ -106,16 +114,15 @@ after any palette change:
 python3 scripts/check-contrast.py
 ```
 
-`src/app.css` is also the single source of truth for the **mobile** palette: the
-Expo app generates its tokens from this file (`mobile/scripts/sync-tokens.mjs`),
-and mobile CI fails if the two drift. Change a colour here and it flows to both
-surfaces.
+`design/tokens.json` is also the source of truth for the **mobile** palette,
+spacing, type scale, and responsive metrics. Run `npm run sync-design`; CI fails
+if either generated surface drifts.
 
 ## Stack
 
 - **SvelteKit** + `@sveltejs/adapter-static` (SPA, `go:embed`ed into the server)
 - **Tailwind v4** + **shadcn-svelte** components (`src/lib/components/ui`)
-- **No bundled fonts** — one system sans stack (`ui-sans-serif, system-ui, …`) for every register
+- **Inter Variable**, bundled locally; the native app ships matching Inter weights
 - **@lucide/svelte** icons · native **View Transitions** for the grid→viewer morph
 
 ## Layout
@@ -123,7 +130,7 @@ surfaces.
 ```
 web/
 ├── src/
-│   ├── app.css                 # palette (source of truth for web + mobile), registers, motion tokens
+│   ├── app.css                 # generated shared tokens plus web registers
 │   ├── lib/
 │   │   ├── nav.ts              # nav groups + per-route register; MOBILE_TABS
 │   │   ├── api.ts · types.ts   # API client + shared types

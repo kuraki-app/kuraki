@@ -56,20 +56,21 @@ Capture dates come from the camera roll's `creationTime` as a **fallback** — e
 EXIF still wins, because it travels with the file. Without it, screenshots and similar
 EXIF-less media imported with no date at all and grouped under "Undated" everywhere.
 
-## Library tab
+## Photos, albums, and search
 
-The **Library** tab browses the server's photos on the phone. It reads the
-device-authenticated `/api/*` routes (Bearer token) — the same one filter
-language the web app uses. A segment control switches between:
+The app reads the device-authenticated `/api/*` routes (Bearer token) — the same
+filter language the web app uses. Its four primary tabs match the phone web UI:
 
-- **Timeline** — a search box + All / Photos / Videos / Favorites chips and a
-  **Tags** browser, over an infinite grid with a full-screen swipeable viewer
-  (images and in-app video playback).
-- **Albums** — view, create, and add/remove.
-- **On this day** — the memories view.
-- **Places** — a native **MapLibre** map (OpenFreeMap vector tiles, no API key)
-  that clusters your geotagged photos; tap a cluster to zoom, a pin to open the
-  viewer, or a place in the sheet to see its grid.
+- **Photos** — an infinite grid with a full-screen swipeable viewer. Its native
+  title menu switches between Photos, On this day, Places, and Archived.
+- **Collections** — Favorites, Albums, On this day, Places, and Tags. Album cards
+  adapt from two to four columns on larger phones and tablets.
+- **Settings** — backup, connection, preferences, and library maintenance.
+- **Search** — text, media, favorites, and tag filters without crowding Photos.
+
+Places uses a native **MapLibre** map (OpenFreeMap vector tiles, no API key) that
+clusters geotagged photos; tap a cluster to zoom, a pin to open the viewer, or a
+place in the sheet to see its grid.
 
 **Tag** a photo from the viewer (pick existing tags or create one) and browse by
 tag. **Trash** and **Duplicate review** (resolve near-identical copies with native
@@ -125,7 +126,7 @@ Checks (also gated in CI):
 npx tsc --noEmit      # types
 npm run lint          # expo lint
 npm run test          # vitest — pure logic: url, connection, mutation queue, gestures, navigation
-npm run check-tokens  # regenerate design tokens from web/src/app.css and fail on drift
+npm run check-design  # regenerate from design/tokens.json and fail on drift
 ```
 
 **This directory is npm-only.** A stray `pnpm` run poisons `node_modules` and produces
@@ -140,11 +141,11 @@ server field and believing in it.
 
 ### Design tokens are generated
 
-`src/design/tokens.ts` is **generated** from the web palette by
-`scripts/sync-tokens.mjs` (which parses `web/src/app.css`), so the mobile palette
-can't drift from the web one — CI runs `check-tokens` to enforce it. Never edit
-`tokens.ts` by hand; change `web/src/app.css` and run `npm run sync-tokens`. The
-Kura/Vault registers live in `src/design/registers.ts`.
+`src/design/tokens.ts` is **generated** from the repository's
+`design/tokens.json`, so the mobile palette, spacing, type scale, and responsive
+metrics cannot drift from web. CI runs `check-design` to enforce it. Never edit
+`tokens.ts` by hand; change the JSON source and run `npm run sync-design`. The
+Kura/Vault registers live in `src/design/registers.ts`, and both platforms use Inter.
 
 ### Release builds
 

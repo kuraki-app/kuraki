@@ -9,7 +9,8 @@ import { Spacing, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { enqueueTrash } from '@/lib/cache/mutations';
 import { probeServer } from '@/lib/connection';
-import { formatSize, idsToTrash, removeIds } from '@/lib/duplicates';
+import { idsToTrash, removeIds } from '@/lib/duplicates';
+import { formatBytes } from '@/lib/format';
 import { fetchDuplicates, trashAsset, type DupAsset } from '@/lib/library-api';
 import { loadCaptureSettings, type CaptureSettings } from '@/lib/settings';
 
@@ -117,7 +118,7 @@ export default function DuplicatesScreen() {
               contentFit="cover"
             />
             <ThemedText type="small" themeColor="mutedForeground" style={styles.size}>
-              {formatSize(asset.size_bytes)}
+              {formatBytes(asset.size_bytes)}
             </ThemedText>
           </Pressable>
         )}

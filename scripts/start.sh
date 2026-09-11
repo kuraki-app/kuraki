@@ -5,7 +5,7 @@
 #
 #   1. Build the SvelteKit UI into internal/httpapi/assets  (embedded via go:embed)
 #   2. Build the Go binary  -> ./bin/kuraki
-#   3. Run it               -> http://localhost:3000  (UI + API from one process)
+#   3. Run it               -> http://localhost:39170  (UI + API from one process)
 #
 # This is the "just run it from source" path — no Node process stays running,
 # the compiled UI is served straight from the binary, exactly as in production.
@@ -38,7 +38,11 @@ CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o 
 # Report the address actually being used. The banner said 3000 unconditionally,
 # so `./scripts/start.sh --addr :4000` — the form RUNNING.md documents — sent
 # people to a port nothing was listening on.
-addr=":3000"
+# Use the same generated default as every other surface. Keep a literal fallback
+# only for a checkout whose generated ports file has not been created yet.
+default_port="$(awk -F= '$1 == "KURAKI_DEFAULT_PORT" { print $2; exit }' ports.env 2>/dev/null || true)"
+default_port="${default_port:-39170}"
+addr="${KURAKI_ADDR:-:${default_port}}"
 prev=""
 for arg in "$@"; do
   case "$arg" in

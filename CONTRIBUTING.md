@@ -44,7 +44,7 @@ fails the build.
    Front-end surfaces have their own gates, all of them run in CI:
    ```sh
    cd web    && npm run check                       # svelte-check — `npm run build` does NOT typecheck
-   cd mobile && npx tsc --noEmit && npm run lint && npm run test && npm run check-tokens
+   cd mobile && npx tsc --noEmit && npm run lint && npm run test && npm run check-design
    ```
 5. Update **[ROADMAP.md](./ROADMAP.md)** checkboxes and **[CHANGELOG.md](./CHANGELOG.md)** (`Unreleased`) when your change lands user-facing behavior.
 6. Open a PR against `main` and fill out the template.

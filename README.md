@@ -308,12 +308,12 @@ kuraki/
 
 Requires **Go 1.26+** and **Node 24** (`web/.nvmrc` — Vite's content hashes depend on the
 toolchain, so another Node version produces a spurious full-tree diff in the committed embedded
-assets). For the full media pipeline you also need libvips and ffmpeg — or just use Docker, which
-includes them.
+assets). For the full media pipeline you also need libvips and ffmpeg. Docker is reserved for
+released-image verification and production deployment, not local development.
 
 ### Run from source
 
-For the complete local and Docker production runbook, including ports,
+For the complete direct-development and Docker production runbook, including ports,
 configuration, backups, upgrades, and troubleshooting, see
 **[RUNNING.md](RUNNING.md)**.
 
@@ -336,10 +336,11 @@ server instead of being left pointing at whatever else holds 3000:
 KURAKI_PORT=4000 ./scripts/dev.sh
 ```
 
-### Deploy with Docker
+### Deploy released images with Docker
 
 ```sh
-docker compose up -d                                   # simple local host on :39170
+docker compose pull
+docker compose up -d                                   # private-LAN production on :39170
 docker compose -f deploy/docker-compose.caddy.yml up -d # production: automatic HTTPS via Caddy
 ```
 
@@ -356,7 +357,8 @@ make e2e          # Playwright against a real seeded server (the only gate that 
 make gen          # regenerate the OpenAPI contract + web/mobile TS types
 make check-gen    # what CI runs: gen, then fail if the committed artifacts moved
 make build-vips   # build with the libvips backend (-tags vips)
-make docker       # build the container image
+make docker       # build the release/production container image
+make clean        # remove local builds/test caches; keep JS dependencies and library data
 ```
 
 ### Generated artifacts — never hand-edit these
@@ -365,11 +367,11 @@ make docker       # build the container image
 |---|---|---|
 | `internal/httpapi/apispec/openapi.json` | swag annotations on the handlers + `apitypes` | `make openapi` |
 | `web/src/lib/api.gen.ts`, `mobile/src/lib/api.gen.ts` | that OpenAPI JSON | `make client-types` |
-| `mobile/src/design/tokens.ts` | `web/src/app.css` | `cd mobile && npm run sync-tokens` |
+| `web/src/app.css` token block, `mobile/src/design/tokens.ts` | `design/tokens.json` | `cd web && npm run sync-design` |
 | `internal/httpapi/assets/**` (the embedded UI — committed, because `go:embed` needs it in the tree) | `web/src` | `make web` |
 
 Touching a handler signature or an `apitypes` struct means running `make gen` and committing the
-diff; touching the palette means `npm run sync-tokens`; touching anything under `web/src` means
+diff; touching the shared design system means `npm run sync-design`; touching anything under `web/src` means
 `make web` and committing the embedded-asset diff. CI gates all four.
 
 ### Type and browser gates
@@ -391,8 +393,8 @@ The two front-end surfaces have their own guides:
   binary. Develop it with `./scripts/dev.sh` (API + hot-reloading UI).
 - **Mobile** ([mobile/README.md](./mobile/README.md)) — the Expo/React Native app. Develop with
   `cd mobile && npm install && npx expo start`, then pair it to a running server from the app's
-  setup flow. The two surfaces share one palette: `web/src/app.css` is the source of truth, and
-  the mobile app generates its design tokens from it (drift is CI-gated).
+  setup flow. The two surfaces share `design/tokens.json` for palette, spacing, type scale, and
+  responsive metrics; generated web/mobile outputs are drift-gated in CI.
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a PR.
 

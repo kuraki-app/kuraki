@@ -74,7 +74,7 @@ export default function PermissionsSettings() {
       contentContainerStyle={styles.content}>
       <SettingsSection
         title="Photo access"
-        footer="Kuraki reads your camera roll to back it up to your own server. Nothing is sent anywhere else.">
+        info={{ message: 'Kuraki reads the camera roll only to copy selected media to your own server.' }}>
         <PermissionRow
           label="Photo library"
           status={photos}
@@ -88,7 +88,7 @@ export default function PermissionsSettings() {
 
       <SettingsSection
         title="Background refresh"
-        footer="Lets Kuraki back up and sync while it is closed. Without it, both happen only while the app is open.">
+        info={{ message: 'Without background refresh, backup and sync run only while Kuraki is open.' }}>
         <PermissionRow
           label="Background refresh"
           status={background}
@@ -100,7 +100,7 @@ export default function PermissionsSettings() {
 
       <SettingsSection
         title="Notifications"
-        footer="Used only to tell you about this device’s own backup.">
+        info={{ message: 'Used only for backup and connection messages from this device.' }}>
         <PermissionRow
           label="Notifications"
           status={notifications}

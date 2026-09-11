@@ -15,8 +15,8 @@
 # started the server on. Passing `--addr` directly would move the server without
 # moving the proxy, and the UI would then quietly talk to whatever else is there.
 #
-# They are deliberately NOT the server's shipped default: a hot-reload session
-# has to be able to run beside a container already serving the real library.
+# They are deliberately NOT the server's shipped default, so a hot-reload
+# session cannot collide with a separately deployed production service.
 #
 # For a single production-like process instead (built UI embedded in one binary
 # on one port), use scripts/start.sh.
@@ -104,11 +104,11 @@ if holder="$(lsof -nP -iTCP:"$KURAKI_PORT" -sTCP:LISTEN 2>/dev/null | awk 'NR==2
   exit 1
 fi
 
-echo "==> Starting Go API server on :$KURAKI_PORT…"
+echo "==> Starting Go API server on :${KURAKI_PORT}…"
 go run ./cmd/kuraki serve --addr ":$KURAKI_PORT" "$@" &
 api_pid=$!
 
-echo "==> Starting Vite dev server on :$KURAKI_WEB_PORT…"
+echo "==> Starting Vite dev server on :${KURAKI_WEB_PORT}…"
 (cd web && npm run dev) &
 ui_pid=$!
 

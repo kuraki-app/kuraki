@@ -6,7 +6,7 @@ import AlbumPicker from '@/components/album-picker';
 import { uploadPhoto } from '@/lib/capture-api';
 import { loadCaptureSettings } from '@/lib/settings';
 import { BackupFailures, BackupProgressCard } from '@/components/backup-progress';
-import { SettingsRow, SettingsSection, SettingsSwitch } from '@/components/settings-ui';
+import { SettingsNotice, SettingsRow, SettingsSection, SettingsSwitch } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing, useTokens } from '@/constants/theme';
 import {
@@ -111,11 +111,7 @@ export default function BackupSettings() {
 
         <SettingsSection
           title="What to back up"
-          footer={
-            nothingSelected
-              ? 'Nothing will be backed up while both are off.'
-              : 'Choose which kinds of media leave this phone.'
-          }>
+          info={{ message: 'Choose which kinds of media are copied from this phone to your Kuraki server.' }}>
           <SettingsSwitch
             label="Photos"
             value={prefs.backupPhotos}
@@ -123,15 +119,16 @@ export default function BackupSettings() {
           />
           <SettingsSwitch
             label="Videos"
-            help="Videos are large; consider Wi-Fi only."
             value={prefs.backupVideos}
             onValueChange={(v) => void patch({ backupVideos: v })}
           />
         </SettingsSection>
 
+        {nothingSelected ? <SettingsNotice message="Turn on photos or videos to run a backup." tone="warning" /> : null}
+
         <SettingsSection
           title="Albums"
-          footer="With album sync off, everything in your camera roll is eligible.">
+          info={{ message: 'When selected-album sync is off, the whole camera roll is eligible.' }}>
           <SettingsSwitch
             label="Only sync selected albums"
             value={prefs.syncAlbums}
@@ -146,27 +143,24 @@ export default function BackupSettings() {
           ) : null}
         </SettingsSection>
 
-        <SettingsSection title="Automatic backup" footer={bgNote || undefined}>
+        <SettingsSection
+          title="Automatic backup"
+          info={{ message: 'Kuraki checks for new items in the background when the operating system allows it.' }}
+          footer={bgNote || undefined}>
           <SettingsSwitch
             label="Automatic backup"
-            help="Back up new items from this phone as they appear."
             value={autoOn}
             onValueChange={(v) => void toggleAuto(v)}
           />
           <SettingsSwitch
             label="Wi-Fi only"
-            help="Avoid using mobile data to upload."
             value={progress?.wifiOnly ?? true}
             onValueChange={(v) => void backupEngine.setWifiOnly(v)}
           />
         </SettingsSection>
 
         {progress?.permission === 'denied' ? (
-          <View style={styles.note}>
-            <ThemedText type="small" themeColor="mutedForeground" selectable>
-              Photo access is off. Enable it in system settings to back up automatically.
-            </ThemedText>
-          </View>
+          <SettingsNotice message="Photo access is off. Enable it in Settings › Permissions." tone="warning" />
         ) : null}
 
         <View style={styles.actions}>
@@ -195,18 +189,15 @@ export default function BackupSettings() {
             page argue with itself. `message` still carries everything else the
             engine says — a network gate, an idle summary, a stop reason. */}
         {progress?.message && !running ? (
-          <View style={styles.note}>
-            <ThemedText type="small" themeColor="mutedForeground" selectable>
-              {progress.message}
-            </ThemedText>
-          </View>
+          <SettingsNotice message={progress.message} />
         ) : null}
 
         <BackupFailures failed={progress?.failed ?? []} />
 
         <SettingsSection
           title="Manual upload"
-          footer={uploading || 'Send a single photo now, without waiting for a scheduled run.'}>
+          info={{ message: 'Send one photo immediately without changing automatic backup.' }}
+          footer={uploading || undefined}>
           <SettingsRow
             label={isUploading ? 'Uploading…' : 'Choose a photo'}
             icon="photo.badge.plus"
@@ -225,8 +216,7 @@ export default function BackupSettings() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   content: { paddingBottom: Spacing.five },
-  note: { paddingHorizontal: Spacing.four, paddingTop: Spacing.two },
-  actions: { flexDirection: 'row', gap: Spacing.two, paddingHorizontal: Spacing.three, paddingTop: Spacing.four },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, paddingHorizontal: Spacing.three, paddingTop: Spacing.four },
   button: { flex: 1, alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three },
   buttonGhost: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three, borderWidth: 1 },
 });

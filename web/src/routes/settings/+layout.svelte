@@ -1,81 +1,135 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { goto } from '$app/navigation';
   import { session } from '$lib/stores';
-  import { User, Users, Palette, SlidersHorizontal, Smartphone, Activity, Server, LayoutDashboard } from '@lucide/svelte';
+  import { User, Users, Palette, SlidersHorizontal, Smartphone, Activity, Server } from '@lucide/svelte';
 
   const items = [
-    { href: '/settings', label: 'Overview', icon: LayoutDashboard, group: 'Your library' },
-    { href: '/settings/account', label: 'Account', icon: User, group: 'Your library' },
-    { href: '/settings/appearance', label: 'Appearance', icon: Palette, group: 'Your library' },
-    { href: '/settings/devices', label: 'Devices', icon: Smartphone, group: 'Your library' },
-    { href: '/settings/activity', label: 'Activity', icon: Activity, group: 'Your library' },
-    { href: '/settings/library', label: 'Library', icon: SlidersHorizontal, group: 'Administration', admin: true },
-    { href: '/settings/server', label: 'Server', icon: Server, group: 'Administration', admin: true },
-    { href: '/settings/users', label: 'Users', icon: Users, group: 'Administration', admin: true }
+    { href: '/settings', label: 'Overview', icon: SlidersHorizontal, exact: true, admin: false },
+    { href: '/settings/account', label: 'Account', icon: User, admin: false },
+    { href: '/settings/appearance', label: 'Appearance', icon: Palette, admin: false },
+    { href: '/settings/library', label: 'Library', icon: SlidersHorizontal, admin: true },
+    { href: '/settings/devices', label: 'Devices', icon: Smartphone, admin: false },
+    { href: '/settings/activity', label: 'Activity', icon: Activity, admin: false },
+    { href: '/settings/server', label: 'Server', icon: Server, admin: true },
+    { href: '/settings/users', label: 'Users', icon: Users, admin: true }
   ];
-  $: visible = items.filter(item => !item.admin || $session.user?.role === 'admin');
-  $: current = items.find(item => item.href === $page.url.pathname);
-  $: restricted = current?.admin && $session.user?.role !== 'admin';
+
+  function active(href: string, exact: boolean | undefined, pathname: string) {
+    return exact ? pathname === href : pathname === href || pathname.startsWith(href + '/');
+  }
+
+  $: isIndex = $page.url.pathname === '/settings';
+  $: visible = items.filter((item) => !item.admin || $session.user?.role === 'admin');
+  $: current = items.find((item) => item.href === $page.url.pathname);
+  $: restricted = !!current?.admin && $session.user?.role !== 'admin';
 </script>
 
 <div class="settings-shell">
   <nav class="rail" aria-label="Settings sections">
-    <p class="settings-label">Settings</p>
-    {#each ['Your library', 'Administration'] as group}
-      {#if visible.some(item => item.group === group)}
-        <div class="nav-group">
-          <p class="group-label">{group}</p>
-          {#each visible.filter(item => item.group === group) as item (item.href)}
-            <a href={item.href} class:active={current === item} aria-current={current === item ? 'page' : undefined}>
-              <svelte:component this={item.icon} size={17} aria-hidden="true" />
-              {item.label}
-            </a>
-          {/each}
-        </div>
-      {/if}
+    {#each visible as item (item.href)}
+      <a
+        href={item.href}
+        class:active={active(item.href, item.exact, $page.url.pathname)}
+        aria-current={active(item.href, item.exact, $page.url.pathname) ? 'page' : undefined}
+      >
+        <svelte:component this={item.icon} size={16} aria-hidden="true" />
+        <span>{item.label}</span>
+      </a>
     {/each}
   </nav>
-  <div class="mobile-sections">
-    <label for="settings-section">Settings</label>
-    <select id="settings-section" value={$page.url.pathname} on:change={(event) => goto(event.currentTarget.value)}>
-      {#each visible as item (item.href)}<option value={item.href}>{item.label}</option>{/each}
-    </select>
-  </div>
+  {#if !isIndex}
+    <a class="mobile-back" href="/settings">← Settings</a>
+  {/if}
   <div class="panel">
     {#if restricted}
       <h1>{current?.label}</h1>
       <p class="access-note">Only an admin can manage {current?.label.toLowerCase()} settings.</p>
       <a href="/settings">Back to overview</a>
-    {:else}<slot />{/if}
+    {:else}
+      <slot />
+    {/if}
   </div>
 </div>
 
 <style>
-  .settings-shell { display: grid; grid-template-columns: 184px minmax(0, 1fr); gap: 32px; align-items: start; max-width: 1100px; margin: 12px auto; }
-  .panel { min-width: 0; container: settings / inline-size; }
-  .rail { display: grid; gap: 24px; position: sticky; top: 24px; }
-  .settings-label { padding: 0 12px; font-size: 20px; font-weight: 650; letter-spacing: -.03em; }
-  .nav-group { display: grid; gap: 4px; }
-  .group-label { padding: 0 12px 4px; font-size: 12px; color: var(--muted-foreground); }
-  .rail a { display: flex; align-items: center; gap: 12px; min-height: 40px; padding: 8px 12px; border-radius: var(--media-radius); color: var(--text-dim); text-decoration: none; font-size: 14px; font-weight: 500; }
-  .rail a:hover, .rail a.active { background: var(--accent); color: var(--foreground); }
-  .mobile-sections { display: none; }
-  .access-note { margin: 16px 0; color: var(--muted-foreground); }
-  h1 { font-size: 24px; font-weight: 600; }
-  /* The content measure, not the viewport, decides when setting controls wrap. */
-  .panel :global(section.group) { max-width: none; border: 1px solid var(--border); border-radius: var(--collection-radius); background: var(--card); padding: 8px 20px; margin-bottom: 20px; }
-  .panel :global(section.group > h2) { margin-top: 12px; }
-  .panel :global(.page-header) { margin-bottom: 24px; }
-  .panel :global(.page-title) { font-size: 28px; letter-spacing: -.035em; }
-  .panel :global(.num) { flex-wrap: wrap; max-width: 100%; }
-  @media (max-width: 1040px) { .settings-shell { gap: 20px; grid-template-columns: 160px minmax(0, 1fr); } }
+  .settings-shell {
+    display: grid;
+    grid-template-columns: 180px minmax(0, 1fr);
+    gap: calc(var(--space-step) * 6);
+    align-items: start;
+    /* The rail and the panel stay a single block. Without this the shell
+     * stretched to whatever the (now uncapped) content column offers, and the
+     * 180px rail ended up marooned a long way from the settings it labels. */
+    max-width: 1040px;
+  }
+  /* Settings are read, not browsed. Measured at 1440 the panel ran the full
+   * ~1200px with rows whose content stops after a third of it, so a setting's
+   * label sat a long way from its control and the page filled 31-77% of the
+   * fold as a wide, sparse field.
+   *
+   * A reading measure pulls label and control back together and gives the
+   * column an edge, which is what makes the remaining space read as margin
+   * rather than as something missing. The photo surfaces are deliberately NOT
+   * capped — a timeline should use every pixel it is given. */
+  .panel {
+    max-width: 68ch;
+    container: settings / inline-size;
+  }
+  .access-note {
+    margin: 16px 0;
+    color: var(--muted-foreground);
+  }
+  .rail {
+    display: grid;
+    gap: 2px;
+    position: sticky;
+    top: calc(var(--space-step) * 3);
+  }
+  .mobile-back {
+    display: none;
+  }
+  .rail a {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--space-step) * 2);
+    /* Was 7px/10px — two values on no scale at all. The Vault rhythm is 4px, so
+     * these are 2 and 3 steps. */
+    padding: calc(var(--space-step) * 2) calc(var(--space-step) * 3);
+    border-radius: var(--frame-radius);
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .rail a.active {
+    background: var(--accent);
+    color: var(--foreground);
+  }
   @media (max-width: 820px) {
-    .settings-shell { grid-template-columns: minmax(0, 1fr); gap: 24px; margin: 8px; }
-    .rail { display: none; }
-    .mobile-sections { display: flex; gap: 16px; align-items: center; justify-content: space-between; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
-    .mobile-sections label { font-weight: 600; font-size: 16px; }
-    select { min-height: 44px; max-width: 65%; padding: 8px 12px; border: 1px solid var(--input); border-radius: var(--media-radius); color: var(--foreground); background: var(--card); font: inherit; font-size: 14px; }
-    .panel :global(section.group) { padding: 4px 16px; }
+    .settings-shell {
+      /* `1fr` has an automatic minimum of min-content, so the single column was
+       * floored by the widest thing in it — the rail's row of nowrap links —
+       * and the whole document could be dragged sideways at 320px. The same
+       * `minmax(0, 1fr)` idiom AssetGrid documents for the same reason. */
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--ds-spacing-three);
+    }
+    .rail {
+      display: none;
+    }
+    .mobile-back {
+      display: inline-flex;
+      min-height: 44px;
+      align-items: center;
+      width: fit-content;
+      color: var(--stamp);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .panel {
+      width: 100%;
+      min-width: 0;
+    }
   }
 </style>

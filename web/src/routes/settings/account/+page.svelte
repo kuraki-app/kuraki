@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { KeyRound } from '@lucide/svelte';
+  import { KeyRound, LogOut } from '@lucide/svelte';
   import { api } from '$lib/api';
-  import { showToast } from '$lib/stores';
+  import { session, showToast } from '$lib/stores';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import SectionHeading from '$lib/components/SectionHeading.svelte';
   import { Button } from '$lib/components/ui/button';
@@ -32,6 +32,11 @@
       busy = false;
     }
   }
+
+  async function signOut() {
+    await api.logout();
+    session.set({ checking: false, setupRequired: false, user: null });
+  }
 </script>
 
 <PageHeader title="Account" subtitle="Manage your sign-in." />
@@ -61,6 +66,10 @@
   </form>
 </section>
 
+<section class="signout">
+  <Button variant="outline" onclick={signOut}><LogOut size={16} aria-hidden="true" /> Sign out</Button>
+</section>
+
 <style>
   .card {
     max-width: 420px;
@@ -86,5 +95,8 @@
   .err {
     color: var(--destructive);
     font-size: 12px;
+  }
+  .signout {
+    margin-top: 16px;
   }
 </style>

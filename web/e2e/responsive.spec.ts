@@ -9,7 +9,7 @@ import { test, expect, gotoApp } from './support/fixtures';
 // here deliberately. `body { min-width: 320px }` sets the floor.
 const WIDTHS = [320, 390, 640, 780, 800, 820, 1024, 1440];
 
-const PATHS = ['/', '/albums', '/tags', '/duplicates', '/trash', '/settings', '/settings/users'];
+const PATHS = ['/', '/collections', '/albums', '/tags', '/duplicates', '/trash', '/settings', '/settings/users'];
 
 test.describe('responsive', () => {
   for (const width of WIDTHS) {
@@ -46,5 +46,34 @@ test.describe('responsive', () => {
     await page.setViewportSize({ width: 820, height: 900 });
     await expect(sidebar).toBeHidden();
     await expect(tabBar).toBeVisible();
+  });
+
+  test('mobile uses the same four destinations as the native app', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await gotoApp(page, '/');
+
+    const tabs = page.getByRole('navigation', { name: 'Primary' });
+    await expect(tabs.getByRole('link')).toHaveCount(4);
+    await expect(tabs.getByRole('link')).toHaveText(['Photos', 'Collections', 'Settings', 'Search']);
+    await expect(page.getByRole('searchbox')).toBeHidden();
+
+    await tabs.getByRole('link', { name: 'Collections' }).click();
+    await expect(page.getByRole('heading', { name: 'Collections' })).toBeVisible();
+    await expect(tabs.getByRole('link', { name: 'Collections' })).toHaveAttribute('aria-current', 'page');
+
+    await tabs.getByRole('link', { name: 'Search' }).click();
+    await expect(page.getByRole('heading', { name: 'Search' })).toBeVisible();
+    await expect(page.getByRole('searchbox')).toBeFocused();
+
+    await tabs.getByRole('link', { name: 'Settings' }).click();
+    const settings = page.getByRole('navigation', { name: 'Settings and library shortcuts' });
+    await expect(settings).toBeVisible();
+    await expect(settings.locator('details')).toHaveCount(0);
+    for (const heading of ['Account & preferences', 'Library', 'Server', 'Advanced']) {
+      await expect(settings.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+    }
+    await expect(settings.getByRole('link', { name: 'Collections' })).toBeVisible();
+    await expect(settings.getByRole('link', { name: 'Favorites' })).toHaveCount(0);
+    await expect(page.getByRole('navigation', { name: 'Settings sections' })).toBeHidden();
   });
 });

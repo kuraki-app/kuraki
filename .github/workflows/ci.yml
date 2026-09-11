@@ -132,7 +132,7 @@ jobs:
       - run: cd mobile && npx tsc --noEmit
       - run: cd mobile && npx expo lint
       - run: cd mobile && npm run test
-      - run: cd mobile && npm run check-tokens
+      - run: cd mobile && npm run check-design
 
   build:
     name: Cross-compile (pure-Go)

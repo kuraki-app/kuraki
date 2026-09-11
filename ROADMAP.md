@@ -102,6 +102,35 @@ existing promise works.
   Browser-smoked at 390×844; the broader cross-browser release matrix remains
   part of the media/capacity evidence gates.
 
+- **[done] Direct local-development workflow — Contributors — S.** Hot-reload and full-app source
+  runs use host Go/Node processes. Docker consumes released images only for release verification or
+  production deployment; the working-tree Docker helper is gone, and one safe cleanup target removes
+  generated builds and test caches without touching installed JavaScript dependencies or library
+  data.
+
+- **[done] Mobile library refresh and Settings hierarchy — Mobile owners — S.** Pull-to-refresh now
+  rechecks connectivity and reloads the active photo view, recycled thumbnails keep stable identities,
+  the server summary avoids duplicate/trash totals, common preferences stay on the main page, and
+  Activity lives under Advanced.
+
+- **[done] Native-aligned mobile web and resilient PWA uploads — Phone browser users — S.** The
+  phone layout now uses Photos, Collections, Settings, and Search like the native app, presents settings
+  as four always-visible groups with a compact server summary, and installs with an offline
+  application shell. Files a
+  person selects are queued per account in browser storage and resume after reconnect/reopen, with
+  Background Sync where supported. Browsers still cannot silently enumerate a camera roll; that
+  automatic backup job remains in the native app.
+
+- **[done] Consistent responsive web spacing — Web users — S.** Page gutters are 16px on phone
+  widths and 24px with the desktop sidebar, regardless of route density. Mobile Settings uses one
+  8/12/16px spacing rhythm, and the browser suite checks gutters and horizontal overflow from
+  320px through 1440px.
+
+- **[done] Shared adaptive design foundation — Web and mobile users — S.** One neutral token source
+  now generates both clients' palette, spacing, radii, type scale, and responsive metrics. Inter is
+  bundled on both surfaces, and existing Kura/Vault registers remain density patterns rather than
+  separate visual identities.
+
 - **[new feature] Smart albums — Organizers — M.** Build on saved searches with
   explicit ownership, preview, and reversible membership semantics.
 

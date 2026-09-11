@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount } from 'svelte';
   import { get } from 'svelte/store';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
@@ -9,7 +9,14 @@
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-  import { api, uploadFiles } from '$lib/api';
+  import { api, uploadFiles, UploadHTTPError } from '$lib/api';
+  import {
+    drainUploads,
+    enqueueUploads,
+    PermanentUploadError,
+    uploadQueueState,
+    UPLOAD_SYNC_TAG
+  } from '$lib/upload-queue';
   import { session, bumpLibrary, showToast, uploadRequest } from '$lib/stores';
   import { startSync } from '$lib/sync';
   import { defaultView } from '$lib/prefs';
@@ -31,14 +38,44 @@
   };
   let dragging = false;
   let uploadPct = -1;
+  let uploadBatchFiles = 0;
+  let queuedFiles = 0;
+  let drainingUploads = false;
   let importStatus = '';
   let fileInput: HTMLInputElement;
+  let signingOut = false;
 
   // Dark mode is owned by mode-watcher: it toggles `.dark` on <html>, persists
   // the choice, and prevents the flash of the wrong theme on load.
   const themeIcon = { system: Monitor, light: Sun, dark: Moon } as const;
 
-  onMount(init);
+  onMount(() => {
+    let active = true;
+    const online = () => void resumeQueuedUploads();
+    const serviceWorkerMessage = (event: MessageEvent) => {
+      const message = event.data as { type?: string; uploaded?: number; failed?: number; pending?: number };
+      if (message.type !== 'kuraki-upload-result') return;
+      queuedFiles = message.pending ?? queuedFiles;
+      if (message.uploaded) {
+        bumpLibrary();
+        showToast(`${message.uploaded} ${message.uploaded === 1 ? 'file' : 'files'} uploaded in the background`);
+      }
+      if (message.failed) showToast(`${message.failed} unsupported ${message.failed === 1 ? 'file was' : 'files were'} skipped`);
+    };
+
+    void init().then(async () => {
+      if (!active) return;
+      await refreshUploadCount();
+      await resumeQueuedUploads();
+    });
+    window.addEventListener('online', online);
+    if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', serviceWorkerMessage);
+    return () => {
+      active = false;
+      window.removeEventListener('online', online);
+      if ('serviceWorker' in navigator) navigator.serviceWorker.removeEventListener('message', serviceWorkerMessage);
+    };
+  });
 
   // Delta-sync poller: runs only while signed in. Reacts to login/logout by
   // starting on the first authenticated user and stopping when it clears.
@@ -83,6 +120,8 @@
       if (s.user) {
         const target = get(defaultView);
         if (target !== '/' && $page.url.pathname === '/') goto(target);
+        void refreshUploadCount();
+        void resumeQueuedUploads();
       }
       password = '';
       confirmPassword = '';
@@ -93,9 +132,6 @@
       authBusy = false;
     }
   }
-
-  let signingOut = false;
-  onDestroy(() => stopSync?.());
 
   async function logout() {
     if (signingOut) return;
@@ -110,28 +146,98 @@
     }
   }
 
-  async function doUpload(files: File[]) {
-    if (!files.length) return;
-    if (uploadPct >= 0 || importStatus) {
-      showToast('An upload is already in progress. Add more files when it finishes.');
-      return;
-    }
-    uploadPct = 0;
+  type SyncRegistration = ServiceWorkerRegistration & {
+    sync?: { register(tag: string): Promise<void> };
+  };
+
+  async function requestBackgroundUpload(): Promise<boolean> {
+    if (!('serviceWorker' in navigator)) return false;
     try {
-      const { job_id } = await uploadFiles(files, (p) => (uploadPct = p));
-      uploadPct = -1;
-      if (!job_id) {
-        bumpLibrary();
-        return;
+      const registration = (await navigator.serviceWorker.getRegistration()) as SyncRegistration | undefined;
+      if (!registration?.sync) return false;
+      await registration.sync.register(UPLOAD_SYNC_TAG);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async function refreshUploadCount() {
+    const user = get(session).user;
+    if (!user) return;
+    queuedFiles = (await uploadQueueState(user.id)).files;
+  }
+
+  async function resumeQueuedUploads() {
+    const user = get(session).user;
+    if (!user || drainingUploads) return;
+    drainingUploads = true;
+    try {
+      const before = await uploadQueueState(user.id);
+      queuedFiles = before.files;
+      if (!before.files) return;
+
+      const result = await drainUploads(user.id, async (files) => {
+        uploadBatchFiles = files.length;
+        uploadPct = 0;
+        try {
+          return await uploadFiles(files, (progress) => (uploadPct = progress));
+        } catch (error) {
+          if (
+            error instanceof UploadHTTPError &&
+            error.status >= 400 &&
+            error.status < 500 &&
+            error.status !== 401 &&
+            error.status !== 403
+          ) {
+            throw new PermanentUploadError(error.message);
+          }
+          throw error;
+        }
+      });
+
+      queuedFiles = result.files;
+      const uploaded = result.sent.reduce((total, item) => total + item.files, 0);
+      if (result.failedFiles) {
+        showToast(`${result.failedFiles} unsupported ${result.failedFiles === 1 ? 'file was' : 'files were'} skipped`);
       }
-      importStatus = 'Importing…';
-      await pollJob(job_id);
-      bumpLibrary();
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Upload failed');
+      if (uploaded) {
+        const jobs = result.sent.map((item) => item.value.job_id).filter(Boolean);
+        importStatus = `Importing ${uploaded} ${uploaded === 1 ? 'file' : 'files'}…`;
+        for (const job of jobs) await pollJob(job);
+        bumpLibrary();
+      }
+      if (result.retry && result.files) {
+        const background = await requestBackgroundUpload();
+        showToast(
+          `${result.files} ${result.files === 1 ? 'upload' : 'uploads'} queued — ${background ? 'retrying in the background' : 'will resume when Kuraki reopens'}`
+        );
+      }
     } finally {
       uploadPct = -1;
+      uploadBatchFiles = 0;
       importStatus = '';
+      drainingUploads = false;
+    }
+  }
+
+  async function doUpload(files: File[]) {
+    const user = get(session).user;
+    if (!files.length || !user) return;
+    try {
+      queuedFiles = (await enqueueUploads(files, user.id)).files;
+      // Register before the foreground attempt. If the page closes mid-upload,
+      // the worker still knows there is durable work to resume.
+      await requestBackgroundUpload();
+      await resumeQueuedUploads();
+    } catch (error) {
+      showToast(
+        error instanceof DOMException && error.name === 'QuotaExceededError'
+          ? 'Not enough browser storage to queue those files'
+          : error instanceof Error
+            ? error.message
+            : 'Could not queue uploads'
+      );
     }
   }
 
@@ -141,7 +247,6 @@
       try {
         job = await api.job(id);
       } catch {
-        showToast('Upload received. Open Settings → Activity to check import progress.');
         return;
       }
       importStatus = `Importing ${job.imported}/${job.total}`;
@@ -186,8 +291,6 @@
       <h1>{$session.setupRequired ? 'Welcome to Kuraki' : 'Sign in'}</h1>
       {#if $session.setupRequired}
         <p class="auth-sub">Create the owner account for this server. You can change the password later in Settings.</p>
-      {:else}
-        <p class="auth-sub">Your photos, in your own space.</p>
       {/if}
       <label class="sr-only" for="auth-username">Username</label>
       <Input id="auth-username" bind:value={username} autocomplete="username" placeholder="Username" />
@@ -224,7 +327,7 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="app"
-    on:dragover|preventDefault={(e) => (dragging = !!e.dataTransfer?.types.includes('Files'))}
+    on:dragover|preventDefault={() => (dragging = true)}
     on:dragleave={() => (dragging = false)}
     on:drop={onDrop}
   >
@@ -286,9 +389,9 @@
 
     <main class="content" id="main" data-register={registerFor($page.url.pathname)}><slot /></main>
 
-    <!-- Below 820px `.side` is hidden, so this is the only route to Upload,
-         theme and sign-out; both actions are owned here and handed down. -->
-    <MobileNav on:upload={() => fileInput.click()} on:signout={logout} />
+    <!-- Mobile web uses the same four primary destinations as the native app.
+         Upload, appearance, and sign-out live under Settings. -->
+    <MobileNav />
 
     <input
       bind:this={fileInput}
@@ -304,9 +407,11 @@
     />
     {#if dragging}<div class="drop" aria-hidden="true">Drop to upload</div>{/if}
     {#if uploadPct >= 0}
-      <div class="uploading" role="status"><div class="ubar" style="width:{uploadPct}%"></div><span>Uploading {uploadPct}%</span></div>
+      <div class="uploading" role="status"><div class="ubar" style="width:{uploadPct}%"></div><span>Uploading {uploadBatchFiles} {uploadBatchFiles === 1 ? 'file' : 'files'} · {uploadPct}%</span></div>
     {:else if importStatus}
       <div class="uploading" role="status"><div class="ubar indet"></div><span>{importStatus}</span></div>
+    {:else if queuedFiles > 0}
+      <div class="uploading" role="status"><span>{queuedFiles} {queuedFiles === 1 ? 'upload' : 'uploads'} queued</span></div>
     {/if}
   </div>
 {/if}
@@ -324,12 +429,8 @@
   }
   .auth form {
     display: grid;
-    width: min(420px, 92vw);
-    padding: 32px;
-    border: 1px solid var(--border);
-    border-radius: var(--collection-radius);
-    background: var(--card);
-    gap: 16px;
+    width: min(360px, 90vw);
+    gap: 12px;
     color: var(--foreground);
   }
   .auth h1 {
@@ -355,7 +456,7 @@
 
   .app {
     display: grid;
-    grid-template-columns: 232px minmax(0, 1fr);
+    grid-template-columns: 220px minmax(0, 1fr);
     min-height: 100vh;
   }
   .side {
@@ -365,8 +466,8 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    height: 100dvh;
-    padding: 24px 16px;
+    height: 100vh;
+    padding: 18px 14px;
     border-right: 1px solid var(--border);
     background: var(--sidebar);
   }
@@ -374,10 +475,8 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 4px 10px 20px;
-    flex: none;
-    font-size: 24px;
-    letter-spacing: -0.04em;
+    padding: 6px 10px 14px;
+    font-size: 20px;
     font-weight: 700;
     color: var(--foreground);
     text-decoration: none;
@@ -392,13 +491,12 @@
   }
   nav {
     display: grid;
-    align-content: start;
     gap: 3px;
+  }
+  .side > nav {
+    flex: 1;
     min-height: 0;
     overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-    flex: 1;
   }
   .group {
     display: grid;
@@ -414,7 +512,6 @@
     text-decoration: none;
     font-weight: 500;
   }
-  nav a:hover { background: var(--accent); color: var(--foreground); }
   nav a.active {
     background: var(--accent);
     color: var(--foreground);
@@ -432,9 +529,6 @@
     color: var(--text-faint);
   }
   .side-foot {
-    flex: none;
-    padding-top: 12px;
-    border-top: 1px solid var(--border);
     display: flex;
     gap: 8px;
     margin-top: auto;
@@ -449,9 +543,10 @@
      * (see `.settings-shell`): a line of prose has an ideal length, a contact
      * sheet does not. */
     width: 100%;
-    /* This element carries data-register, so it reads its own step: the frame
-     * itself tightens from 24px to 12px as you cross into the Vault. */
-    padding: calc(var(--space-step) * 3);
+    /* Page gutters belong to the viewport, not the Kura/Vault density register.
+     * Using --space-step here made operational pages 12px from the edge while
+     * photo pages got 24px at the same width. */
+    padding: var(--ds-layout-gutter-expanded);
   }
   .drop {
     position: fixed;
@@ -520,9 +615,7 @@
       display: none;
     }
     .content {
-      /* Thumb reach beats rhythm at the bottom edge, but the horizontal step
-       * still carries the register. */
-      padding: calc(var(--space-step) * 2) calc(var(--space-step) * 2)
+      padding: var(--ds-layout-gutter-compact) var(--ds-layout-gutter-compact)
         calc(70px + env(safe-area-inset-bottom, 0));
     }
     /* The tab bar now owns the bottom edge; lift the progress toast clear of it

@@ -49,16 +49,14 @@ export default function NotificationSettings() {
 
       <SettingsSection
         title="Backup"
-        footer="Kuraki only notifies you about this device’s own backup. Nothing is sent anywhere.">
+        info={{ message: 'Notifications describe this phone’s backup only.' }}>
         <SettingsSwitch
           label="Backup finished"
-          help="When a run finishes uploading everything waiting."
           value={prefs.notifyBackupComplete}
           onValueChange={(v) => void patch({ notifyBackupComplete: v })}
         />
         <SettingsSwitch
           label="Backup failed"
-          help="When an item could not be uploaded after retrying."
           value={prefs.notifyBackupFailed}
           onValueChange={(v) => void patch({ notifyBackupFailed: v })}
         />
@@ -66,10 +64,9 @@ export default function NotificationSettings() {
 
       <SettingsSection
         title="Connection"
-        footer="A disconnected device stops backing up silently, so this one is worth leaving on.">
+        info={{ message: 'A disconnected device cannot browse or back up until it is paired again.' }}>
         <SettingsSwitch
           label="Device disconnected"
-          help="When the server revokes this device’s access."
           value={prefs.notifyDisconnected}
           onValueChange={(v) => void patch({ notifyDisconnected: v })}
         />

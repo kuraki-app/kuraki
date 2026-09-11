@@ -15,7 +15,7 @@ const ROUTES = [
   '/settings/users'
 ];
 
-// 320 is the floor (`body { min-width: 320px }`) and the width where every
+// 320 is the narrowest supported viewport and the width where every
 // too-wide row shows up first. "Run integrity check" and "Scan for duplicates"
 // side by side need ~330px, so at 320 the document could be dragged sideways.
 test('nothing overflows at the narrowest supported width', async ({ page }) => {
@@ -45,15 +45,23 @@ test('pairing steps show their numbers', async ({ page }) => {
   expect(style).toBe('decimal');
 });
 
-test('mobile settings offers every section without a clipped rail', async ({ page }) => {
+test('phone settings keeps every group visible without collapsing', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await gotoApp(page, '/settings');
-  const sections = page.getByLabel('Settings', { exact: true });
-  await expect(sections).toBeVisible();
-  await sections.selectOption('/settings/server');
-  await expect(page.getByRole('heading', { name: 'Server', exact: true })).toBeVisible();
-  await sections.selectOption('/settings/users');
-  await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible();
+
+  const directory = page.getByRole('navigation', { name: 'Settings and library shortcuts' });
+  await expect(directory).toBeVisible();
+  for (const name of ['Account & preferences', 'Library', 'Server', 'Advanced']) {
+    await expect(directory.getByRole('heading', { name, exact: true })).toBeVisible();
+  }
+  await expect(directory.locator('details')).toHaveCount(0);
+
+  const state = await directory.evaluate((el) => ({
+    overflows: el.scrollWidth > el.clientWidth,
+    actions: el.querySelectorAll('a, button').length
+  }));
+  expect(state.overflows, 'the grouped settings page runs off the side').toBe(false);
+  expect(state.actions).toBeGreaterThan(8);
 });
 
 test('the integrity readout keeps its separators', async ({ page }) => {

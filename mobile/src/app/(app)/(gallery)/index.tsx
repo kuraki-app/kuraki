@@ -5,7 +5,6 @@ import { AppState, Pressable, StyleSheet, View } from 'react-native';
 import AlbumTargetPicker from '@/components/album-target-picker';
 import MemoriesRail from '@/components/memories-rail';
 import PhotoGrid from '@/components/photo-grid';
-import PlacesScreen from '@/components/places-screen';
 import { headerOptions } from '@/components/screen-header';
 import GalleryHeader from '@/components/gallery-header';
 import ProfileDialog from '@/components/profile-dialog';
@@ -48,13 +47,10 @@ export default function LibraryScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  // On-this-day has no offline cache (it's a date-filtered resurfacing view,
-  // not the plain recent one) — its own small state so a failure there can
-  // never blank out the Timeline grid or vice versa.
+  const [refreshing, setRefreshing] = useState(false);
+  // The Photos rail previews On this day, whose complete view lives in
+  // Collections. It has no offline cache and can never blank the main grid.
   const [memories, setMemories] = useState<LibraryAsset[]>([]);
-  const [memoriesCursor, setMemoriesCursor] = useState<string | undefined>(undefined);
-  const [memoriesLoading, setMemoriesLoading] = useState(false);
-  const [memoriesError, setMemoriesError] = useState('');
   // The three-state connection machine: a 401 revoke is `disconnected` (only a
   // re-pair clears it), a network/address failure is `unreachable` (a probe can
   // recover it). Seed disconnected from the process-wide auth-lost signal.
@@ -71,8 +67,8 @@ export default function LibraryScreen() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  // Archived has its own state for the same reason On-this-day does: it is a
-  // different page of the library, and letting it share `assets` would put it
+  // Archived has its own state because it is a different page of the library,
+  // and letting it share `assets` would put it
   // at the mercy of syncAndRefresh, which repaints from the unfiltered filter.
   const [archived, setArchivedAssets] = useState<LibraryAsset[]>([]);
   const [archivedCursor, setArchivedCursor] = useState<string | undefined>(undefined);
@@ -80,10 +76,7 @@ export default function LibraryScreen() {
   const [archivedError, setArchivedError] = useState('');
   // Null until the engine's first snapshot lands; the header item stays hidden.
   const [progress, setProgress] = useState<BackupProgress | null>(null);
-  // Timeline and Archived select. On-this-day is a resurfacing view and Places
-  // is a map — neither has a grid the bulk actions could apply to.
-  const selectable = segment === 'timeline' || segment === 'archived';
-  const selecting = selectable && (selectionMode || selected.size > 0);
+  const selecting = selectionMode || selected.size > 0;
   // Whichever grid is on screen. The selection actions read this, so they act
   // on what the user can actually see rather than always on the timeline.
   const visible = segment === 'archived' ? archived : assets;
@@ -382,26 +375,16 @@ export default function LibraryScreen() {
   }
 
   const loadMemories = useCallback(async (active: CaptureSettings) => {
-    setMemoriesLoading(true);
-    setMemoriesError('');
     try {
       const page = await fetchMemories(active);
       setMemories(page.assets);
-      setMemoriesCursor(page.next_cursor);
-    } catch (cause) {
-      // fetchMemories has no offline cache — it's a date-filtered resurfacing
-      // view, not the plain recent one, so there's nothing sane to fall back
-      // to. Show a message instead of crashing or displaying stale photos
-      // that don't correspond to "on this day".
+    } catch {
+      // The rail is optional; its full collection page reports load failures.
       setMemories([]);
-      setMemoriesError(cause instanceof Error ? cause.message : "Couldn't load memories.");
-    } finally {
-      setMemoriesLoading(false);
     }
   }, []);
 
-  // Reload whenever the segment switches to On-this-day (cheap and keeps the
-  // resurfacing view fresh rather than caching a load-once snapshot). Deferred
+  // Reload the rail while Photos is active so it stays fresh. Deferred
   // a tick (matching the Backup tab's refresh-on-mount pattern) so the first
   // setState inside loadMemories doesn't fire synchronously within the effect.
   //
@@ -409,7 +392,7 @@ export default function LibraryScreen() {
   // grid, and a rail that only populated after visiting the segment it exists
   // to replace would never appear for the users it is for.
   useEffect(() => {
-    if ((segment !== 'memories' && segment !== 'timeline') || !settings) return;
+    if (segment !== 'timeline' || !settings) return;
     const timer = setTimeout(() => void loadMemories(settings), 0);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -435,16 +418,21 @@ export default function LibraryScreen() {
     }
   }
 
-  async function loadMoreMemories() {
-    if (!settings || !memoriesCursor) return;
+  const refresh = useCallback(async () => {
+    if (!settings || refreshing) return;
+    setRefreshing(true);
     try {
-      const page = await fetchMemories(settings, memoriesCursor);
-      setMemories((prev) => [...prev, ...page.assets]);
-      setMemoriesCursor(page.next_cursor);
-    } catch {
-      /* keep what we have */
+      // A reachability probe only changes the banner. Refresh the active data
+      // too so thumbnail cells that failed while offline get a fresh source
+      // render as soon as the server is reachable again.
+      const reachability = probe(settings);
+      if (segment === 'archived') await loadArchived(settings);
+      else await Promise.all([load(settings, {}), loadMemories(settings)]);
+      await reachability;
+    } finally {
+      setRefreshing(false);
     }
-  }
+  }, [load, loadArchived, loadMemories, probe, refreshing, segment, settings]);
 
   return (
     <ThemedView style={styles.fill}>
@@ -513,7 +501,7 @@ export default function LibraryScreen() {
             Can’t reach your server.
           </ThemedText>
           <View style={styles.bannerActions}>
-            <Pressable onPress={() => void probe(settings)} hitSlop={8}>
+            <Pressable onPress={() => void refresh()} hitSlop={8}>
               <ThemedText type="smallBold" style={{ color: tokens.destructive }}>Retry</ThemedText>
             </Pressable>
             <Pressable onPress={() => router.push('/(app)/settings')} hitSlop={8}>
@@ -533,6 +521,8 @@ export default function LibraryScreen() {
             assets={assets}
             settings={settings}
             loading={loading}
+            refreshing={refreshing}
+            onRefresh={() => void refresh()}
             listHeader={
               // Hidden while selecting: the rail is a navigation affordance,
               // and tapping one mid-selection would abandon the selection to
@@ -543,7 +533,7 @@ export default function LibraryScreen() {
                   settings={settings}
                   onPress={() => {
                     cancelSelection();
-                    setSegment('memories');
+                    router.push('/(app)/(albums)/memories');
                   }}
                 />
               )
@@ -566,25 +556,6 @@ export default function LibraryScreen() {
         )
       )}
 
-      {segment === 'memories' && (
-        memoriesError ? (
-          <View style={styles.center}>
-            <ThemedText type="subtitle" style={heading}>Nothing to show</ThemedText>
-            <ThemedText themeColor="mutedForeground" style={styles.msg} selectable>{memoriesError}</ThemedText>
-          </View>
-        ) : (
-          <PhotoGrid
-            assets={memories}
-            settings={settings}
-            loading={memoriesLoading}
-            onEndReached={() => void loadMoreMemories()}
-            hasMore={!!memoriesCursor}
-            onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
-            emptyMessage="No memories from this day yet."
-          />
-        )
-      )}
-
       {segment === 'archived' && (
         archivedError ? (
           <View style={styles.center}>
@@ -596,6 +567,8 @@ export default function LibraryScreen() {
             assets={archived}
             settings={settings}
             loading={archivedLoading}
+            refreshing={refreshing}
+            onRefresh={() => void refresh()}
             onEndReached={() => void loadMoreArchived()}
             hasMore={!!archivedCursor}
             onToggleFavorite={(id, next) => void toggleFavorite(id, next)}
@@ -612,8 +585,6 @@ export default function LibraryScreen() {
           />
         )
       )}
-
-      {segment === 'places' && settings && <PlacesScreen settings={settings} />}
 
       <AlbumTargetPicker
         visible={pickerOpen}

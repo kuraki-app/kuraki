@@ -9,6 +9,7 @@ import { test, expect, gotoApp } from './support/fixtures';
  *  page frame should be in (nav.ts is the source of truth for the register). */
 const ROUTES = [
   { path: '/', heading: 'Photos', register: 'kura' },
+  { path: '/collections', heading: 'Collections', register: 'kura' },
   { path: '/favorites', heading: 'Favorites', register: 'kura' },
   { path: '/albums', heading: 'Albums', register: 'kura' },
   { path: '/memories', heading: 'On this day', register: 'kura' },
@@ -18,9 +19,7 @@ const ROUTES = [
   { path: '/hidden', heading: 'Hidden', register: 'kura' },
   { path: '/duplicates', heading: 'Duplicates', register: 'vault' },
   { path: '/trash', heading: 'Trash', register: 'vault' },
-  // Titled "Overview", matching its label in the settings rail — /settings is
-  // the section's index, not a page called Settings.
-  { path: '/settings', heading: 'Overview', register: 'vault' },
+  { path: '/settings', heading: 'Settings', register: 'vault' },
   { path: '/settings/account', heading: 'Account', register: 'vault' },
   { path: '/settings/appearance', heading: 'Appearance', register: 'vault' },
   { path: '/settings/library', heading: 'Library', register: 'vault' },
@@ -53,7 +52,7 @@ test('the sidebar marks the current route', async ({ page }) => {
   await gotoApp(page, '/favorites');
   const nav = page.getByRole('navigation', { name: 'Library sections' });
   await expect(nav.getByRole('link', { name: 'Favorites' })).toHaveAttribute('aria-current', 'page');
-  // Timeline is `/`, which every path starts with — isActive() special-cases it,
+  // Photos is `/`, which every path starts with — isActive() special-cases it,
   // and this is the assertion that keeps that special case honest.
   await expect(nav.getByRole('link', { name: 'Photos' })).not.toHaveAttribute('aria-current', 'page');
 });
