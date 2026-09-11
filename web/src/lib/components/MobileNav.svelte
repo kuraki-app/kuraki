@@ -39,9 +39,21 @@
     text-decoration: none;
     font-size: 11px;
     font-weight: 600;
+    transition:
+      color var(--t-crisp) var(--e-vault),
+      transform var(--t-instant) var(--e-vault);
+  }
+  .tabs a:active {
+    transform: scale(var(--press-scale));
+  }
+  .tabs a :global(svg) {
+    transition: transform var(--t-crisp) var(--e-kura);
   }
   .tabs a.active {
     color: var(--stamp);
+  }
+  .tabs a.active :global(svg) {
+    transform: translateY(-2px) scale(1.08);
   }
 
   @media (min-width: 821px) {

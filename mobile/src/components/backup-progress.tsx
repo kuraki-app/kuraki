@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import MotionProgress from '@/components/motion-progress';
 import { Radius, Spacing, useTokens } from '@/constants/theme';
 import { FontFamily } from '@/design/fonts';
 import { backupProgress } from '@/lib/backup-indicator';
@@ -47,7 +48,7 @@ export function BackupProgressCard({ progress }: { progress: BackupProgress | nu
           accessibilityRole="progressbar"
           accessibilityValue={{ min: 0, max: 100, now: Math.round(fraction * 100) }}
           style={[styles.track, { backgroundColor: tokens.secondary }]}>
-          <View style={[styles.fill, { width: `${fraction * 100}%`, backgroundColor: tokens.highlight }]} />
+          <MotionProgress fraction={fraction} color={tokens.highlight} />
         </View>
 
         {progress.currentFile ? (
@@ -121,7 +122,6 @@ const styles = StyleSheet.create({
   heading: { fontSize: 17, lineHeight: 22, fontWeight: '600' },
   count: { fontSize: 13, lineHeight: 18, fontVariant: ['tabular-nums'] },
   track: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  fill: { height: '100%', borderRadius: 3 },
   caps: { paddingHorizontal: Spacing.one, fontSize: 11, lineHeight: 15, fontWeight: '600', letterSpacing: 1.4 },
   failedList: { gap: Spacing.one },
   failedRow: {

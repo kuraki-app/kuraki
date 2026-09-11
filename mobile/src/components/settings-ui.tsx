@@ -1,8 +1,9 @@
 import { router } from 'expo-router';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { Children, Fragment, isValidElement, type ReactNode } from 'react';
-import { Alert, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Alert, StyleSheet, Switch, View } from 'react-native';
 
+import MotionPressable from '@/components/motion-pressable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Radius, Spacing, useTokens } from '@/constants/theme';
@@ -74,10 +75,11 @@ export function SettingsSection({
 export function InfoButton({ title, message }: { title: string; message: string }) {
   const tokens = useTokens();
   return (
-    <Pressable
+    <MotionPressable
       accessibilityRole="button"
       accessibilityLabel={`About ${title}`}
       hitSlop={10}
+      pressedScale={0.9}
       onPress={() => Alert.alert(title, message)}>
       <SymbolView
         name="info.circle"
@@ -85,7 +87,7 @@ export function InfoButton({ title, message }: { title: string; message: string 
         tintColor={tokens.mutedForeground}
         fallback={<ThemedText themeColor="mutedForeground">ⓘ</ThemedText>}
       />
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -134,9 +136,10 @@ export function SettingsRow({
   const color = destructive ? tokens.destructive : tokens.foreground;
 
   return (
-    <Pressable
+    <MotionPressable
       accessibilityRole="button"
       style={styles.row}
+      pressedScale={0.985}
       // `href` is a plain string prop, which typed routes cannot narrow at this
       // boundary; the routes themselves are still checked at every call site.
       onPress={onPress ?? (href ? () => router.push(href as Parameters<typeof router.push>[0]) : undefined)}>
@@ -161,7 +164,7 @@ export function SettingsRow({
           fallback={<ThemedText themeColor="textFaint">›</ThemedText>}
         />
       ) : null}
-    </Pressable>
+    </MotionPressable>
   );
 }
 

@@ -1,9 +1,10 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
-import { FlatList, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
+import { FlatList, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 
 import Dialog from '@/components/dialog';
+import MotionPressable from '@/components/motion-pressable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Layout, MaxContentWidth, Radius, Space, Spacing, useTokens } from '@/constants/theme';
@@ -114,8 +115,9 @@ export default function AlbumList({ creating, onCreatingChange, header }: Props)
           renderItem={({ item }) => {
             const layout = coverLayout(item.cover_asset_ids);
             return (
-              <Pressable
+              <MotionPressable
                 style={[styles.card, { width: cardWidth }]}
+                pressedScale={0.98}
                 accessibilityRole="button"
                 accessibilityLabel={`${item.name}, ${formatCount(item.count)} items`}
                 onPress={() =>
@@ -163,7 +165,7 @@ export default function AlbumList({ creating, onCreatingChange, header }: Props)
                 <ThemedText style={[styles.cardCount, { color: tokens.textFaint }]}>
                   {formatCount(item.count)} item{item.count === 1 ? '' : 's'}
                 </ThemedText>
-              </Pressable>
+              </MotionPressable>
             );
           }}
           ListEmptyComponent={
@@ -192,12 +194,12 @@ export default function AlbumList({ creating, onCreatingChange, header }: Props)
           {createError ? (
             <ThemedText type="small" style={{ color: tokens.destructive }} selectable>{createError}</ThemedText>
           ) : null}
-          <Pressable
+          <MotionPressable
             style={[styles.button, { backgroundColor: tokens.primary }, !name.trim() && styles.disabled]}
             disabled={!name.trim()}
             onPress={() => void submitCreate()}>
             <ThemedText type="smallBold" themeColor="primaryForeground">Create</ThemedText>
-          </Pressable>
+          </MotionPressable>
         </View>
       </Dialog>
     </ThemedView>
