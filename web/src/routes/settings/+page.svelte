@@ -17,10 +17,7 @@
     Smartphone,
     Activity,
     Users,
-    Star,
-    CalendarClock,
-    MapPin,
-    Tags,
+    FolderOpen,
     Archive,
     EyeOff,
     Copy,
@@ -48,13 +45,10 @@
       ]
     },
     {
-      label: 'Photos',
+      label: 'Library',
       items: [
         { action: 'upload', label: 'Upload photos', icon: Upload },
-        { href: '/favorites', label: 'Favorites', icon: Star },
-        { href: '/memories', label: 'On this day', icon: CalendarClock },
-        { href: '/places', label: 'Places', icon: MapPin },
-        { href: '/tags', label: 'Tags', icon: Tags },
+        { href: '/collections', label: 'Collections', icon: FolderOpen },
         { href: '/duplicates', label: 'Duplicates', icon: Copy },
         { href: '/trash', label: 'Trash', icon: Trash2 }
       ]

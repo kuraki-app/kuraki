@@ -29,7 +29,7 @@ export default function AppLayout() {
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="(albums)">
-        <NativeTabs.Trigger.Label>Albums</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>Collections</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="rectangle.stack" md="collections" />
       </NativeTabs.Trigger>
 

@@ -9,6 +9,7 @@ import { test, expect, gotoApp } from './support/fixtures';
  *  page frame should be in (nav.ts is the source of truth for the register). */
 const ROUTES = [
   { path: '/', heading: 'Photos', register: 'kura' },
+  { path: '/collections', heading: 'Collections', register: 'kura' },
   { path: '/favorites', heading: 'Favorites', register: 'kura' },
   { path: '/albums', heading: 'Albums', register: 'kura' },
   { path: '/memories', heading: 'On this day', register: 'kura' },

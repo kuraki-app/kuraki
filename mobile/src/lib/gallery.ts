@@ -1,9 +1,8 @@
 import type { LibraryAsset } from '@/lib/library-api';
 
-// The three things the Gallery can show. These used to be a row of segment
-// buttons across the top; they are now entries in the header's native menu, so
-// the grid keeps the width the buttons were taking.
-export type GalleryView = 'timeline' | 'memories' | 'places' | 'archived';
+// Photos stays focused on the timeline and its archive. Memories, Places and
+// Tags belong to the Collections tab, so they do not duplicate this menu.
+export type GalleryView = 'timeline' | 'archived';
 
 // Archived is here rather than in Settings because it is a *view of photos*,
 // and because archiving from the selection header would otherwise make photos
@@ -11,8 +10,6 @@ export type GalleryView = 'timeline' | 'memories' | 'places' | 'archived';
 // since the organization migration; only the client was missing.
 export const GALLERY_VIEWS: { key: GalleryView; label: string }[] = [
   { key: 'timeline', label: 'Photos' },
-  { key: 'memories', label: 'On this day' },
-  { key: 'places', label: 'Places' },
   { key: 'archived', label: 'Archived' },
 ];
 

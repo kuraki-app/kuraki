@@ -1,0 +1,1 @@
+import"./DlagoCvV.js";import{s,r as p}from"./3POa-VCj.js";import{I as a}from"./DolqYL1g.js";var n=new Set(["$$slots","$$events","$$legacy"]);function i(r,e){let o=p(e,n);const t=[["path",{d:"m12 19-7-7 7-7"}],["path",{d:"M19 12H5"}]];a(r,s({name:"arrow-left"},()=>o,{get iconNode(){return t}}))}export{i as A};

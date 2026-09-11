@@ -1,1 +1,0 @@
-import{x as y,E as v,q as o,y as f,F as l,G as m,H as p,I as i,J as T,K as A}from"./DoLNI3dD.js";import{B as E}from"./ThbG16I7.js";function x(d,_,e){var s;o&&(s=A,f());var r=new E(d);y(()=>{var a=_()??null;if(o){var h=l(s),c=h===T,u=a!==null;if(c!==u){var t=m();p(t),r.anchor=t,i(!1),r.ensure(a,a&&(n=>e(n,a))),i(!0);return}}r.ensure(a,a&&(n=>e(n,a)))},v)}export{x as c};

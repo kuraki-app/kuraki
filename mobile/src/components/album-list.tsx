@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { FlatList, Pressable, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 
 import Dialog from '@/components/dialog';
@@ -33,6 +33,7 @@ type Props = {
    */
   creating: boolean;
   onCreatingChange: (next: boolean) => void;
+  header?: ReactElement;
 };
 
 // AlbumList is the grid of album cards in the Albums tab. Tapping a card pushes
@@ -40,7 +41,7 @@ type Props = {
 // which looked like navigation but was not -- no back button, no back gesture,
 // and Android's hardware back left the tab entirely instead of closing the
 // album.
-export default function AlbumList({ creating, onCreatingChange }: Props) {
+export default function AlbumList({ creating, onCreatingChange, header }: Props) {
   const tokens = useTokens();
   const { width } = useWindowDimensions();
   const frameWidth = Math.min(width, MaxContentWidth);
@@ -109,6 +110,7 @@ export default function AlbumList({ creating, onCreatingChange }: Props) {
           columnWrapperStyle={{ gap, paddingHorizontal: Space.two }}
           contentContainerStyle={styles.grid}
           contentInsetAdjustmentBehavior="automatic"
+          ListHeaderComponent={header}
           renderItem={({ item }) => {
             const layout = coverLayout(item.cover_asset_ids);
             return (

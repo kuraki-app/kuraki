@@ -63,8 +63,8 @@ filter language the web app uses. Its four primary tabs match the phone web UI:
 
 - **Photos** — an infinite grid with a full-screen swipeable viewer. Its native
   title menu switches between Photos, On this day, Places, and Archived.
-- **Albums** — view, create, add, and remove. The grid adapts from two to four
-  columns on larger phones and tablets.
+- **Collections** — Favorites, Albums, On this day, Places, and Tags. Album cards
+  adapt from two to four columns on larger phones and tablets.
 - **Settings** — backup, connection, preferences, and library maintenance.
 - **Search** — text, media, favorites, and tag filters without crowding Photos.
 

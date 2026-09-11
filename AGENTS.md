@@ -65,7 +65,7 @@ Phase 1 = single-owner personal backup.
   Grid, Advanced owns Activity, and the server card no longer repeats the item total or reports the
   trash count. Verified in the running iPhone 17 Pro simulator against the host dev server.
 - **Mobile web now follows the native app's information architecture and installs as a PWA
-  (2026-09-10).** At phone widths the browser uses the same Photos / Albums / Settings / Search
+  (2026-09-10).** At phone widths the browser uses the same Photos / Collections / Settings / Search
   tabs, a fixed three-column default grid, search-on-demand, and an always-visible grouped Settings
   page. Account, Photos, Server, and Advanced replace the collapsible dashboard; only a compact
   server summary remains above them on phones. User-selected uploads are persisted per account in
@@ -449,7 +449,8 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | **Mobile web + PWA upload queue** (2026-09-10): native-aligned four-tab phone navigation, three-column photo grid, grouped non-collapsible Settings, install manifest/offline shell, and account-scoped IndexedDB upload retry with Background Sync + foreground fallback | ✅ done; focused Chromium offline/reconnect flow verified |
 | **Responsive web spacing** (2026-09-10): route-independent 16px phone / 24px desktop gutters, consistent mobile Settings group and row spacing, full-width safe subpage controls | ✅ done; 17 responsive/spacing browser checks green at 320–1440px |
 | **Shared adaptive design foundation** (2026-09-11): neutral JSON source generates web/mobile colors, spacing, radii, type scale and responsive metrics; both clients bundle Inter; common gutters and native text styles consume shared metrics | ✅ code-complete; web check/build/contrast + mobile typecheck/lint green |
-| **Adaptive primary destinations** (2026-09-11): web and native use Photos/Albums/Settings/Search vocabulary; native album cards reflow 2/3/4-up by shared width classes and large-screen Settings keeps a readable measure | ✅ code-complete; focused responsive web + mobile static gates green |
+| **Adaptive primary destinations** (2026-09-11): web and native share primary vocabulary; native album cards reflow 2/3/4-up by shared width classes and large-screen Settings keeps a readable measure | ✅ code-complete; focused responsive web + mobile static gates green |
+| **Collections destination** (2026-09-11): web and native group Favorites, Albums, On this day, Places and Tags under a real Collections tab/page; Photos menu is reduced to Photos/Archived; phone web Settings replaces four browsing rows with one Collections row | ✅ code-complete; focused route/responsive + mobile gates green |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
@@ -477,6 +478,14 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/adaptive-design-system` (2026-09-11, Collections) — **Collections now exists before the tab
+  claims it.** Both clients group Favorites, Albums, On this day, Places, and Tags behind the second
+  primary destination. Native pushes each collection inside the same Stack, keeps its real Albums
+  grid below the browse group, and moves the memories rail into that route; Photos' title menu is
+  reduced to Photos/Archived. Web adds `/collections`, keeps the Collections tab selected throughout
+  its child routes, and reduces phone Settings from four browsing shortcuts to one. `design/README.md`
+  records the Canvas, Collection, Grouped page, and Detail patterns plus the shared width classes.
 
 - `codex/adaptive-design-system` (2026-09-11, adaptive destinations) — **The two phone experiences
   now name the same four destinations Photos, Albums, Settings, and Search.** The desktop sidebar and

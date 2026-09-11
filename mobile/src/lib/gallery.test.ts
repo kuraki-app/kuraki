@@ -15,8 +15,6 @@ const asset = (id: string, taken_day?: string): LibraryAsset => ({
 describe('galleryTitle', () => {
   it('names each view', () => {
     expect(galleryTitle('timeline')).toBe('Photos');
-    expect(galleryTitle('memories')).toBe('On this day');
-    expect(galleryTitle('places')).toBe('Places');
   });
 
   it('covers every view listed in the menu', () => {
@@ -108,6 +106,6 @@ describe('the Archived view', () => {
   });
 
   it('is offered alongside the other views', () => {
-    expect(GALLERY_VIEWS.map((v) => v.key)).toEqual(['timeline', 'memories', 'places', 'archived']);
+    expect(GALLERY_VIEWS.map((v) => v.key)).toEqual(['timeline', 'archived']);
   });
 });
