@@ -107,7 +107,7 @@ existing promise works.
   Activity lives under Advanced.
 
 - **[done] Native-aligned mobile web and resilient PWA uploads — Phone browser users — S.** The
-  phone layout now uses Gallery, Albums, Settings, and Search like the native app, presents settings
+  phone layout now uses Photos, Albums, Settings, and Search like the native app, presents settings
   as four always-visible groups with a compact server summary, and installs with an offline
   application shell. Files a
   person selects are queued per account in browser storage and resume after reconnect/reopen, with

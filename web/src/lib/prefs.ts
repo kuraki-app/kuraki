@@ -47,9 +47,9 @@ function readDefaultView(): string {
 }
 
 // The route the app opens to after sign-in. Deliberately not a redirect away
-// from "/" — "/" IS the Timeline route (see nav.ts NAV_GROUPS), and
+// from "/" — "/" IS the Photos route (see nav.ts NAV_GROUPS), and
 // isActive('/', pathname) there is an exact-equality match, so a redirect
-// would make Timeline permanently unreachable and its nav item permanently
+// would make Photos permanently unreachable and its nav item permanently
 // un-highlighted. This value is applied once, in +layout.svelte, right after
 // a successful login/setup — never as routing logic.
 export const defaultView = writable<string>(readDefaultView());

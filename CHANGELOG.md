@@ -14,11 +14,13 @@ line under `Unreleased` as part of the same change that introduces it.
 - **Web and mobile now share one real design-system source.** `design/tokens.json` owns color,
   spacing, radii, type scale, and responsive metrics; one generator writes the CSS and native
   TypeScript outputs. Both clients now ship Inter, and common page gutters and mobile text styles
-  consume the shared metrics instead of maintaining look-alike constants.
+  consume the shared metrics instead of maintaining look-alike constants. Both phone experiences
+  call the primary destination Photos; native album grids adapt to phone/tablet width, and Settings
+  keeps a readable maximum width on larger devices.
 - **Web spacing now follows the viewport consistently.** Every route uses 16px page gutters on
   phones and 24px on larger screens, independent of its visual register. Mobile Settings cards,
   groups, rows, headings, and subpage controls use a consistent 8/12/16px rhythm.
-- **Mobile web now matches the app's primary structure.** Phone widths use Gallery, Albums,
+- **Mobile web now matches the app's primary structure.** Phone widths use Photos, Albums,
   Settings, and Search tabs, a three-column default photo grid, search controls only when requested,
   and an always-visible grouped Settings page instead of an eight-control rail or collapsible
   dashboard. Account, Photos, Server, and Advanced sections keep related destinations together;

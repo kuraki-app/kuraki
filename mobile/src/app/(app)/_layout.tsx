@@ -24,7 +24,7 @@ export default function AppLayout() {
       indicatorColor={tokens.card}
       labelStyle={{ selected: { color: tokens.foreground } }}>
       <NativeTabs.Trigger name="(gallery)">
-        <NativeTabs.Trigger.Label>Gallery</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>Photos</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="photo.on.rectangle" md="photo_library" />
       </NativeTabs.Trigger>
 

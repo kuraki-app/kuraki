@@ -5,7 +5,7 @@ import { AppState, ScrollView, StyleSheet, View } from 'react-native';
 
 import LibraryStatsCard from '@/components/library-stats';
 import { SettingsRow, SettingsSection } from '@/components/settings-ui';
-import { Spacing, useTokens } from '@/constants/theme';
+import { MaxContentWidth, Spacing, useTokens } from '@/constants/theme';
 import { connectionView } from '@/lib/connection-view';
 import { serverHost } from '@/lib/url';
 import { classifyPermission, type PermissionStatus } from '@/lib/permissions';
@@ -113,6 +113,6 @@ export default function SettingsIndex() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  content: { paddingBottom: Spacing.four },
+  content: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', paddingBottom: Spacing.four },
   spacer: { height: Spacing.four },
 });

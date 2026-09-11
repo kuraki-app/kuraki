@@ -54,7 +54,7 @@ test.describe('responsive', () => {
 
     const tabs = page.getByRole('navigation', { name: 'Primary' });
     await expect(tabs.getByRole('link')).toHaveCount(4);
-    await expect(tabs.getByRole('link')).toHaveText(['Gallery', 'Albums', 'Settings', 'Search']);
+    await expect(tabs.getByRole('link')).toHaveText(['Photos', 'Albums', 'Settings', 'Search']);
     await expect(page.getByRole('searchbox')).toBeHidden();
 
     await tabs.getByRole('link', { name: 'Search' }).click();

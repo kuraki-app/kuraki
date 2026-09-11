@@ -51,7 +51,7 @@ test('the sidebar marks the current route', async ({ page }) => {
   await gotoApp(page, '/favorites');
   const nav = page.getByRole('navigation', { name: 'Library sections' });
   await expect(nav.getByRole('link', { name: 'Favorites' })).toHaveAttribute('aria-current', 'page');
-  // Timeline is `/`, which every path starts with — isActive() special-cases it,
+  // Photos is `/`, which every path starts with — isActive() special-cases it,
   // and this is the assertion that keeps that special case honest.
-  await expect(nav.getByRole('link', { name: 'Timeline' })).not.toHaveAttribute('aria-current', 'page');
+  await expect(nav.getByRole('link', { name: 'Photos' })).not.toHaveAttribute('aria-current', 'page');
 });

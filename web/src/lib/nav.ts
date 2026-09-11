@@ -37,7 +37,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Library',
     items: [
-      { href: '/', label: 'Timeline', icon: Images, register: 'kura' },
+      { href: '/', label: 'Photos', icon: Images, register: 'kura' },
       { href: '/favorites', label: 'Favorites', icon: Star, register: 'kura' },
       { href: '/albums', label: 'Albums', icon: FolderOpen, register: 'kura' },
       { href: '/memories', label: 'On this day', icon: CalendarClock, register: 'kura' },
@@ -83,7 +83,7 @@ function requireNavItem(href: string): NavItem {
 /** Mirrors the native app's four system tabs. Secondary library views live in
  * Settings on a phone instead of competing with the primary destinations. */
 export const MOBILE_TABS: MobileNavItem[] = [
-  { ...requireNavItem('/'), label: 'Gallery' },
+  requireNavItem('/'),
   requireNavItem('/albums'),
   requireNavItem('/settings'),
   { href: '/?search=1', label: 'Search', icon: Search, register: 'kura', search: true }
