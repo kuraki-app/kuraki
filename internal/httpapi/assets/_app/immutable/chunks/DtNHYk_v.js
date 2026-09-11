@@ -1,0 +1,1 @@
+import"./nFNZ4TmC.js";import{s as t,r as p}from"./B2xBg_p2.js";import{I as n}from"./B274eBQF.js";var c=new Set(["$$slots","$$events","$$legacy"]);function m(o,e){let r=p(e,c);const s=[["circle",{cx:"12",cy:"12",r:"10"}],["path",{d:"M12 16v-4"}],["path",{d:"M12 8h.01"}]];n(o,t({name:"info"},()=>r,{get iconNode(){return s}}))}export{m as I};

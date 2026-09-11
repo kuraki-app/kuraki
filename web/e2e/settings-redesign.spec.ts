@@ -69,8 +69,9 @@ test('every settings page fits desktop and phone in both themes', async ({ page 
         await expect(page.locator('main').getByText(/^Loading/)).toHaveCount(0);
         await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         if (section === '' && width < 700) {
-          const columns = await page.locator('.cards').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length);
-          expect(columns).toBe(2);
+          await expect(page.locator('.mobile-settings')).toBeVisible();
+          await expect(page.locator('.summary-counts > div')).toHaveCount(3);
+          await expect(page.locator('.mobile-directory details')).toHaveCount(0);
         }
         if (width !== 320 && ['', '/appearance', '/server'].includes(section)) {
           await page.screenshot({ path: `/tmp/kuraki-web-${theme}-${width}-${section.slice(1) || 'overview'}.png`, fullPage: true, animations: 'disabled' });
@@ -110,18 +111,15 @@ test('regular accounts do not request admin settings when opening a restricted p
   expect(adminRequests).toEqual([]);
 });
 
-test('mobile navigation contains keyboard focus and restores its trigger', async ({ page }) => {
+test('mobile navigation exposes the four primary destinations', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await gotoApp(page, '/');
-  const more = page.getByRole('button', { name: 'More', exact: true });
-  await more.click();
-  const sheet = page.getByRole('dialog', { name: 'More sections' });
-  const close = sheet.getByRole('button', { name: 'Close navigation' });
-  await expect(close).toBeFocused();
-  await page.keyboard.press('Shift+Tab');
-  await expect(sheet.getByRole('button', { name: 'Sign out' })).toBeFocused();
-  await page.keyboard.press('Tab');
-  await expect(close).toBeFocused();
-  await page.keyboard.press('Escape');
-  await expect(more).toBeFocused();
+  const nav = page.getByRole('navigation', { name: 'Primary' });
+  for (const name of ['Photos', 'Collections', 'Settings', 'Search']) {
+    await expect(nav.getByRole('link', { name, exact: true })).toBeVisible();
+  }
+  await expect(nav.getByRole('link')).toHaveCount(4);
+  await nav.getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Upload photos', exact: true })).toBeVisible();
 });

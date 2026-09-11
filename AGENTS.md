@@ -153,7 +153,9 @@ Phase 1 = single-owner personal backup.
   `scripts/generate-design.mjs` writes the generated CSS token block and mobile TypeScript tokens.
   Web bundles Inter Variable and mobile bundles matching Inter weights. Kura/Vault remain page-frame
   density patterns, not separate visual identities. Use `npm run sync-design` from either client and
-  never hand-edit the generated regions.
+  never hand-edit the generated regions. The branch was reconciled with the mainline gallery pass;
+  browser coverage pins the retained memories rail, role-gated settings, independent status retries,
+  resilient sign-out, short-height navigation, and 320px settings fit.
 - **Settings consolidation (2026-07-27, `feat/settings-consolidation`):** the former Stats, account,
   Devices, Activity, appearance, library, and server controls now live under one responsive
   `/settings` shell. Migration `00022` stores the owner-writable catalog; `config.Store` resolves
@@ -451,7 +453,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | **Shared adaptive design foundation** (2026-09-11): neutral JSON source generates web/mobile colors, spacing, radii, type scale and responsive metrics; both clients bundle Inter; common gutters and native text styles consume shared metrics | ✅ code-complete; web check/build/contrast + mobile typecheck/lint green |
 | **Adaptive primary destinations** (2026-09-11): web and native share primary vocabulary; native album cards reflow 2/3/4-up by shared width classes and large-screen Settings keeps a readable measure | ✅ code-complete; focused responsive web + mobile static gates green |
 | **Collections destination** (2026-09-11): web and native group Favorites, Albums, On this day, Places and Tags under a real Collections tab/page; Photos menu is reduced to Photos/Archived; phone web Settings replaces four browsing rows with one Collections row | ✅ code-complete; focused route/responsive + mobile gates green |
-| **Adaptive branch mainline integration** (2026-09-11): current `main` gallery modernization and the adaptive/PWA/settings series coexist; gallery sizing primitives now come from the shared design source and embedded assets were rebuilt from resolved source | ✅ full Go, web, mobile, and design gates green |
+| **Adaptive branch mainline integration** (2026-09-11): current `main` gallery modernization and the adaptive/PWA/settings series coexist; gallery sizing primitives now come from the shared design source; mainline memories, role gates, retry isolation, and session resilience are retained; embedded assets were rebuilt from resolved source | ✅ focused browser reconciliation plus full Go, web, mobile, and design gates green |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
@@ -479,6 +481,14 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/adaptive-design-system` (2026-09-11, browser reconciliation) — **The integrated UI keeps
+  mainline behavior as well as the new adaptive structure.** Photos retains its memories rail;
+  Settings resources load and retry independently; regular accounts never render or request admin
+  pages; failed sign-out preserves the session; and sidebar actions remain reachable on short
+  desktops. Browser contracts now describe the grouped, non-collapsible phone Settings page and
+  four primary destinations. Server setting controls shrink at 320px without horizontal overflow;
+  the focused 14-test Chromium regression set is green.
 
 - `codex/adaptive-design-system` (2026-09-11, mainline integration) — **The branch is reconciled with
   current `main` before PR creation.** Main's gallery virtualization, viewer, caching, and accessibility

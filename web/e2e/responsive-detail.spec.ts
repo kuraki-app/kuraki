@@ -15,7 +15,7 @@ const ROUTES = [
   '/settings/users'
 ];
 
-// 320 is the floor (`body { min-width: 320px }`) and the width where every
+// 320 is the narrowest supported viewport and the width where every
 // too-wide row shows up first. "Run integrity check" and "Scan for duplicates"
 // side by side need ~330px, so at 320 the document could be dragged sideways.
 test('nothing overflows at the narrowest supported width', async ({ page }) => {
@@ -45,25 +45,23 @@ test('pairing steps show their numbers', async ({ page }) => {
   expect(style).toBe('decimal');
 });
 
-test('the settings rail shows every section on a phone', async ({ page }) => {
+test('phone settings keeps every group visible without collapsing', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await gotoApp(page, '/settings');
 
-  const rail = page.getByRole('navigation', { name: 'Settings sections' });
-  // It used to be a horizontal scroller, and Server and Users were cut off the
-  // trailing edge — a fade told you they existed but you still had to find
-  // them. A wrapping grid just shows all eight, so nothing is hidden and the
-  // rail cannot be scrolled past the viewport.
-  const links = rail.locator('a');
-  await expect(links).toHaveCount(8);
-  for (const link of await links.all()) await expect(link).toBeVisible();
+  const directory = page.getByRole('navigation', { name: 'Settings and library shortcuts' });
+  await expect(directory).toBeVisible();
+  for (const name of ['Account & preferences', 'Library', 'Server', 'Advanced']) {
+    await expect(directory.getByRole('heading', { name, exact: true })).toBeVisible();
+  }
+  await expect(directory.locator('details')).toHaveCount(0);
 
-  const state = await rail.evaluate((el) => ({
+  const state = await directory.evaluate((el) => ({
     overflows: el.scrollWidth > el.clientWidth,
-    rows: new Set([...el.querySelectorAll('a')].map((a) => a.getBoundingClientRect().top)).size
+    actions: el.querySelectorAll('a, button').length
   }));
-  expect(state.overflows, 'the rail still runs off the side').toBe(false);
-  expect(state.rows, 'the rail did not wrap into rows').toBeGreaterThan(1);
+  expect(state.overflows, 'the grouped settings page runs off the side').toBe(false);
+  expect(state.actions).toBeGreaterThan(8);
 });
 
 test('the integrity readout keeps its separators', async ({ page }) => {

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { Search, X, SlidersHorizontal, Bookmark, Trash2, Images, Upload } from '@lucide/svelte';
+  import MemoriesRail from '$lib/components/MemoriesRail.svelte';
   import LibraryView from '$lib/components/LibraryView.svelte';
   import FilterChip from '$lib/components/FilterChip.svelte';
   import SegmentedControl from '$lib/components/SegmentedControl.svelte';
@@ -8,9 +9,10 @@
   import { Button } from '$lib/components/ui/button';
   import { api, type SearchParams } from '$lib/api';
   import { requestUpload, showToast } from '$lib/stores';
-  import type { Album, SavedSearch, Tag } from '$lib/types';
+  import type { Album, Asset, SavedSearch, Tag } from '$lib/types';
   import { page } from '$app/stores';
 
+  let memories: Asset[] = [];
   let query = '';
   let type: '' | 'image' | 'video' = '';
   let favorite = false;
@@ -46,6 +48,7 @@
 
   onMount(() => {
     loadSaved();
+    void api.memories().then((result) => (memories = result.assets)).catch(() => {});
     loadFilterSources();
     applyURLFilters();
   });
@@ -272,6 +275,7 @@
       {/if}
     </div>
     <svelte:fragment slot="subheader">
+    {#if !filtered}<MemoriesRail assets={memories} />{/if}
     {#if showSaved}
       <div class="panel saved">
         {#if filtered}

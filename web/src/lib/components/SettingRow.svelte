@@ -150,6 +150,7 @@
       width: 100%;
       min-width: 0;
       flex-wrap: wrap;
+      gap: 8px;
     }
   }
 </style>

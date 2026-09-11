@@ -1,18 +1,17 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { session } from '$lib/stores';
   import { User, Users, Palette, SlidersHorizontal, Smartphone, Activity, Server } from '@lucide/svelte';
 
   const items = [
-    { href: '/settings', label: 'Overview', icon: SlidersHorizontal, exact: true },
-    { href: '/settings/account', label: 'Account', icon: User },
-    { href: '/settings/appearance', label: 'Appearance', icon: Palette },
-    { href: '/settings/library', label: 'Library', icon: SlidersHorizontal },
-    { href: '/settings/devices', label: 'Devices', icon: Smartphone },
-    { href: '/settings/activity', label: 'Activity', icon: Activity },
-    { href: '/settings/server', label: 'Server', icon: Server },
-    // Admin-only server-side; the page itself renders a plain "admins only"
-    // message on 403 rather than the nav guessing at the caller's role.
-    { href: '/settings/users', label: 'Users', icon: Users }
+    { href: '/settings', label: 'Overview', icon: SlidersHorizontal, exact: true, admin: false },
+    { href: '/settings/account', label: 'Account', icon: User, admin: false },
+    { href: '/settings/appearance', label: 'Appearance', icon: Palette, admin: false },
+    { href: '/settings/library', label: 'Library', icon: SlidersHorizontal, admin: true },
+    { href: '/settings/devices', label: 'Devices', icon: Smartphone, admin: false },
+    { href: '/settings/activity', label: 'Activity', icon: Activity, admin: false },
+    { href: '/settings/server', label: 'Server', icon: Server, admin: true },
+    { href: '/settings/users', label: 'Users', icon: Users, admin: true }
   ];
 
   function active(href: string, exact: boolean | undefined, pathname: string) {
@@ -20,11 +19,14 @@
   }
 
   $: isIndex = $page.url.pathname === '/settings';
+  $: visible = items.filter((item) => !item.admin || $session.user?.role === 'admin');
+  $: current = items.find((item) => item.href === $page.url.pathname);
+  $: restricted = !!current?.admin && $session.user?.role !== 'admin';
 </script>
 
 <div class="settings-shell">
   <nav class="rail" aria-label="Settings sections">
-    {#each items as item (item.href)}
+    {#each visible as item (item.href)}
       <a
         href={item.href}
         class:active={active(item.href, item.exact, $page.url.pathname)}
@@ -39,7 +41,13 @@
     <a class="mobile-back" href="/settings">← Settings</a>
   {/if}
   <div class="panel">
-    <slot />
+    {#if restricted}
+      <h1>{current?.label}</h1>
+      <p class="access-note">Only an admin can manage {current?.label.toLowerCase()} settings.</p>
+      <a href="/settings">Back to overview</a>
+    {:else}
+      <slot />
+    {/if}
   </div>
 </div>
 
@@ -65,6 +73,11 @@
    * capped — a timeline should use every pixel it is given. */
   .panel {
     max-width: 68ch;
+    container: settings / inline-size;
+  }
+  .access-note {
+    margin: 16px 0;
+    color: var(--muted-foreground);
   }
   .rail {
     display: grid;

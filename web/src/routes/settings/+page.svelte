@@ -1,12 +1,13 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
-  import { requestUpload, showToast } from '$lib/stores';
+  import { requestUpload } from '$lib/stores';
   import { fileSize, relativeTime } from '$lib/format';
   import type { BackupStatus, IntegrityRun, LibraryStats } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import SectionHeading from '$lib/components/SectionHeading.svelte';
   import StatCard from '$lib/components/StatCard.svelte';
+  import LoadError from '$lib/components/LoadError.svelte';
   import { Button } from '$lib/components/ui/button';
   import {
     Upload,
@@ -76,18 +77,28 @@
   let integrity: IntegrityRun | null = null;
   let backup: BackupStatus | null = null;
   let loading = true;
+  type Resource = 'stats' | 'integrity' | 'backup';
+  let errors: Record<Resource, boolean> = { stats: false, integrity: false, backup: false };
+  let pending: Record<Resource, boolean> = { stats: false, integrity: false, backup: false };
+
+  async function load(resource: Resource) {
+    if (pending[resource]) return;
+    pending = { ...pending, [resource]: true };
+    try {
+      if (resource === 'stats') stats = await api.stats();
+      else if (resource === 'integrity') integrity = (await api.integrity()).last;
+      else backup = await api.backup();
+      errors = { ...errors, [resource]: false };
+    } catch {
+      errors = { ...errors, [resource]: true };
+    } finally {
+      pending = { ...pending, [resource]: false };
+    }
+  }
 
   onMount(async () => {
-    try {
-      const [s, i, b] = await Promise.all([api.stats(), api.integrity(), api.backup()]);
-      stats = s;
-      integrity = i.last;
-      backup = b;
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Failed to load stats');
-    } finally {
-      loading = false;
-    }
+    await Promise.all([load('stats'), load('integrity'), load('backup')]);
+    loading = false;
   });
 
   // A configured backup that has not run in over ~1.5 days is stale-ish; surface it.
@@ -164,6 +175,8 @@
 <div class="desktop-health">
 {#if loading}
   <p class="muted">Loading…</p>
+{:else if errors.stats}
+  <LoadError message="Library statistics unavailable" retryLabel="Retry library statistics" retry={() => load('stats')} busy={pending.stats} />
 {:else if stats}
   <div class="cards">
     <StatCard value={stats.total.toLocaleString()} label="Photos & videos" />
@@ -195,6 +208,9 @@
     </section>
   {/if}
 
+  {#if errors.integrity}
+    <LoadError message="Integrity status unavailable" retryLabel="Retry integrity status" retry={() => load('integrity')} busy={pending.integrity} />
+  {:else}
   <section class="integrity {integrity?.status ?? ''}">
     <div class="int-text">
       <strong>Integrity</strong>
@@ -205,8 +221,12 @@
       {/if}
     </div>
   </section>
+  {/if}
   <p class="see-server"><a href="/settings/server">Run a check or scan for duplicates →</a></p>
 
+  {#if errors.backup}
+    <LoadError message="Backup status unavailable" retryLabel="Retry backup status" retry={() => load('backup')} busy={pending.backup} />
+  {:else}
   <section class="integrity {backupClass}">
     <div class="int-text">
       <strong>Backup</strong>
@@ -221,6 +241,7 @@
       {/if}
     </div>
   </section>
+  {/if}
 
   {#if stats.by_year.length > 0}
     <section class="years">

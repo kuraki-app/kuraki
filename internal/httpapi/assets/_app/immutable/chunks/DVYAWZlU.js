@@ -1,0 +1,1 @@
+import"./nFNZ4TmC.js";import{s,r as p}from"./B2xBg_p2.js";import{I as c}from"./B274eBQF.js";var n=new Set(["$$slots","$$events","$$legacy"]);function m(e,o){let r=p(o,n);const t=[["rect",{width:"14",height:"14",x:"8",y:"8",rx:"2",ry:"2"}],["path",{d:"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"}]];c(e,s({name:"copy"},()=>r,{get iconNode(){return t}}))}export{m as C};

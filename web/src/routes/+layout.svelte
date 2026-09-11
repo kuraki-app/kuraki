@@ -43,6 +43,7 @@
   let drainingUploads = false;
   let importStatus = '';
   let fileInput: HTMLInputElement;
+  let signingOut = false;
 
   // Dark mode is owned by mode-watcher: it toggles `.dark` on <html>, persists
   // the choice, and prevents the flash of the wrong theme on load.
@@ -133,8 +134,16 @@
   }
 
   async function logout() {
-    await api.logout();
-    session.set({ checking: false, setupRequired: false, user: null });
+    if (signingOut) return;
+    signingOut = true;
+    try {
+      await api.logout();
+      session.set({ checking: false, setupRequired: false, user: null });
+    } catch {
+      showToast('Could not sign out. Check your connection and try again.');
+    } finally {
+      signingOut = false;
+    }
   }
 
   type SyncRegistration = ServiceWorkerRegistration & {
@@ -372,7 +381,7 @@
             </DropdownMenu.Item>
           </DropdownMenu.Content>
         </DropdownMenu.Root>
-        <Button variant="outline" size="icon" onclick={logout} aria-label="Sign out">
+        <Button variant="outline" size="icon" onclick={logout} disabled={signingOut} aria-label="Sign out">
           <LogOut size={18} aria-hidden="true" />
         </Button>
       </div>
@@ -483,6 +492,11 @@
   nav {
     display: grid;
     gap: 3px;
+  }
+  .side > nav {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
   }
   .group {
     display: grid;

@@ -62,6 +62,10 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Fixed
 
+- **The adaptive web merge now preserves mainline behavior.** Photos keeps the memories rail;
+  Settings status cards fail and retry independently; admin-only pages remain role-gated; failed
+  sign-out keeps the current session; short desktop sidebars can scroll to their actions; and Server
+  controls fit a 320px viewport without horizontal dragging.
 - **The mobile library can now recover stale or blank thumbnails with Retry or pull-to-refresh.**
   Both re-probe the server and reload the active Timeline, Memories, or Archive view, while stable
   image recycling keys prevent virtualized cells from retaining another asset's failed image state.
