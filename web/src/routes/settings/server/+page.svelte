@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import LoadError from '$lib/components/LoadError.svelte';
   import { api } from '$lib/api';
   import { bumpLibrary, showToast } from '$lib/stores';
   import type { SettingInfo, ExternalLibrary } from '$lib/types';
@@ -19,6 +20,9 @@
   let touched: Record<string, boolean> = {};
   let saving: Record<string, boolean> = {};
   let loading = true;
+  let loadError = '';
+  let librariesError = '';
+  let librariesLoading = false;
 
   let verifying = false;
   let scanningDuplicates = false;
@@ -34,24 +38,32 @@
     loading = false;
   });
 
-  async function loadSettings() {
+  async function loadSettings(savedKey?: string) {
+    loadError = '';
     try {
       const resp = await api.settings();
       version = resp.version;
       restartPending = resp.restart_pending ?? [];
+      const previous = new Map(backupSettings.map(s => [s.key, s.value ?? '']));
       backupSettings = resp.settings.filter((s) => (BACKUP_KEYS as readonly string[]).includes(s.key));
-      for (const s of backupSettings) drafts[s.key] = s.value ?? '';
-      touched = {};
+      for (const s of backupSettings) {
+        if (s.key === savedKey || !(s.key in drafts) || String(drafts[s.key]) === previous.get(s.key)) drafts[s.key] = s.value ?? '';
+      }
+      if (savedKey) touched = { ...touched, [savedKey]: false };
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Failed to load settings');
+      loadError = e instanceof Error ? e.message : 'Failed to load settings';
     }
   }
 
   async function loadLibraries() {
+    librariesError = '';
+    librariesLoading = true;
     try {
       libraries = (await api.externalLibraries()).libraries;
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Failed to load external libraries');
+      librariesError = e instanceof Error ? e.message : 'Failed to load external libraries';
+    } finally {
+      librariesLoading = false;
     }
   }
 
@@ -62,6 +74,7 @@
   }
 
   async function save(s: SettingInfo) {
+    if (Object.values(saving).some(Boolean)) return;
     saving = { ...saving, [s.key]: true };
     try {
       const resp = await api.patchSettings({ [s.key]: String(drafts[s.key]) });
@@ -77,7 +90,8 @@
       } else {
         showToast('Saved — takes effect after restart');
       }
-      await loadSettings();
+      await loadSettings(s.key);
+      return true;
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Save failed');
     } finally {
@@ -171,6 +185,8 @@
 
 <PageHeader title="Server" subtitle="Backup, maintenance, and external libraries." />
 
+{#if loadError}<LoadError message={loadError} retry={() => loadSettings()} />{/if}
+
 {#if loading}
   <p class="muted">Loading…</p>
 {:else}
@@ -200,14 +216,16 @@
         }[s.key] ?? ''}
         status={statusFor(s)}
         envVar={s.env_var}
-        disabled={s.pinned_by_env}
+        disabled={s.pinned_by_env || saving[s.key]}
       >
         <div class="num">
           <Input
             id={s.key}
+            min={s.min ?? undefined}
+            max={s.max ?? undefined}
             type={s.secret ? 'password' : s.type === 'int' ? 'number' : 'text'}
             placeholder={s.secret && s.is_set ? '••••••••' : ''}
-            disabled={s.pinned_by_env}
+            disabled={s.pinned_by_env || saving[s.key]}
             bind:value={drafts[s.key]}
             oninput={() => (touched[s.key] = true)}
           />
@@ -216,7 +234,7 @@
             variant="outline"
             size="sm"
             disabled={s.pinned_by_env ||
-              saving[s.key] ||
+              Object.values(saving).some(Boolean) ||
               (s.secret ? !touched[s.key] : String(drafts[s.key]) === (s.value ?? ''))}
             onclick={() => save(s)}
           >
@@ -242,6 +260,7 @@
 
   <section class="group">
     <SectionHeading>External libraries</SectionHeading>
+    {#if librariesError}<LoadError message={librariesError} retry={loadLibraries} busy={librariesLoading} />{/if}
     {#if libraries.length > 0}
       <ul class="libs">
         {#each libraries as lib (lib.id)}
@@ -261,8 +280,8 @@
       </ul>
     {/if}
     <div class="add-lib">
-      <Input placeholder="Name" bind:value={libName} />
-      <Input placeholder="/path/on/server" bind:value={libPath} />
+      <Input aria-label="External library name" placeholder="Name" bind:value={libName} />
+      <Input aria-label="External library path" placeholder="/path/on/server" bind:value={libPath} />
       <Button variant="outline" disabled={addingLibrary || !libName.trim() || !libPath.trim()} onclick={addLibrary}>
         {addingLibrary ? 'Adding…' : 'Add'}
       </Button>
@@ -328,6 +347,7 @@
   }
   .libs li {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
@@ -338,6 +358,8 @@
     display: grid;
     gap: 2px;
     min-width: 0;
+    flex: 1 1 180px;
+    overflow-wrap: anywhere;
   }
   .lib-text span {
     color: var(--muted-foreground);
@@ -346,10 +368,12 @@
   }
   .add-lib {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
     margin-top: 8px;
   }
   .add-lib :global(input) {
-    flex: 1;
+    flex: 1 1 160px;
+    min-width: 0;
   }
 </style>

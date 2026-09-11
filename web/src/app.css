@@ -14,6 +14,11 @@
 /* GENERATED DESIGN TOKENS:START — run `npm run sync-design` in web or mobile. */
 :root {
   --radius: 0.75rem;
+  --media-radius: 8px;
+  --collection-radius: 12px;
+  --media-gap: 4px;
+  --memory-width: 132px;
+  --memory-height: 176px;
   --highlight: #ffd35c;
   --chrome: #111111;
   --chrome-text: #f5f5f5;

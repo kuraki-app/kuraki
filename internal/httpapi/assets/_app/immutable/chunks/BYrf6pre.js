@@ -1,0 +1,1 @@
+import"./DwJOBqur.js";import{s as r,r as s}from"./m6oBLQyM.js";import{I as a}from"./q5H6Yfri.js";var n=new Set(["$$slots","$$events","$$legacy"]);function i(o,e){let t=s(e,n);const p=[["path",{d:"M12 3v12"}],["path",{d:"m17 8-5-5-5 5"}],["path",{d:"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"}]];a(o,r({name:"upload"},()=>t,{get iconNode(){return p}}))}export{i as U};

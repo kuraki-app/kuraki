@@ -116,6 +116,8 @@ export default function AlbumList({ creating, onCreatingChange, header }: Props)
             return (
               <Pressable
                 style={[styles.card, { width: cardWidth }]}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.name}, ${formatCount(item.count)} items`}
                 onPress={() =>
                   router.push({
                     pathname: '/(app)/(albums)/album',
@@ -139,7 +141,7 @@ export default function AlbumList({ creating, onCreatingChange, header }: Props)
                           style={styles.mosaicTile}
                           contentFit="cover"
                           transition={120}
-                          cachePolicy="disk"
+                          cachePolicy="memory-disk"
                         />
                       ))}
                     </View>
@@ -149,7 +151,7 @@ export default function AlbumList({ creating, onCreatingChange, header }: Props)
                       style={styles.coverImage}
                       contentFit="cover"
                       transition={120}
-                      cachePolicy="disk"
+                      cachePolicy="memory-disk"
                     />
                   ) : null}
                 </View>

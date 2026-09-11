@@ -451,6 +451,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | **Shared adaptive design foundation** (2026-09-11): neutral JSON source generates web/mobile colors, spacing, radii, type scale and responsive metrics; both clients bundle Inter; common gutters and native text styles consume shared metrics | ✅ code-complete; web check/build/contrast + mobile typecheck/lint green |
 | **Adaptive primary destinations** (2026-09-11): web and native share primary vocabulary; native album cards reflow 2/3/4-up by shared width classes and large-screen Settings keeps a readable measure | ✅ code-complete; focused responsive web + mobile static gates green |
 | **Collections destination** (2026-09-11): web and native group Favorites, Albums, On this day, Places and Tags under a real Collections tab/page; Photos menu is reduced to Photos/Archived; phone web Settings replaces four browsing rows with one Collections row | ✅ code-complete; focused route/responsive + mobile gates green |
+| **Adaptive branch mainline integration** (2026-09-11): current `main` gallery modernization and the adaptive/PWA/settings series coexist; gallery sizing primitives now come from the shared design source and embedded assets were rebuilt from resolved source | ✅ full Go, web, mobile, and design gates green |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
@@ -478,6 +479,14 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/adaptive-design-system` (2026-09-11, mainline integration) — **The branch is reconciled with
+  current `main` before PR creation.** Main's gallery virtualization, viewer, caching, and accessibility
+  changes remain in place; the branch's grouped mobile Settings, durable PWA upload queue, Collections
+  navigation, Inter typography, and adaptive tokens remain authoritative in their overlapping shells.
+  Media/collection radii, grid gap, and memory-card dimensions moved into `design/tokens.json`; the
+  album grid keeps adaptive widths plus the accessible label added on main. The embedded web bundle
+  was regenerated after resolving source, and web/mobile static checks pass.
 
 - `codex/adaptive-design-system` (2026-09-11, Collections) — **Collections now exists before the tab
   claims it.** Both clients group Favorites, Albums, On this day, Places, and Tags behind the second

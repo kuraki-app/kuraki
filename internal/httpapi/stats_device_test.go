@@ -81,6 +81,13 @@ func TestStatsAgreesAcrossPrincipals(t *testing.T) {
 		t.Fatal(err)
 	}
 	// LibraryStats carries a []YearCount, so it is not comparable with !=.
+	// Free space is a live filesystem sample; concurrent builds can change it
+	// between requests even though both principals see identical library data.
+	if viaDevice.DiskFreeBytes < 0 || viaSession.DiskFreeBytes < 0 {
+		t.Fatal("disk free bytes must not be negative")
+	}
+	viaDevice.DiskFreeBytes = 0
+	viaSession.DiskFreeBytes = 0
 	if !reflect.DeepEqual(viaDevice, viaSession) {
 		t.Fatalf("device stats %+v != session stats %+v", viaDevice, viaSession)
 	}

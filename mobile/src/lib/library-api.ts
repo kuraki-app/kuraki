@@ -697,8 +697,8 @@ export function fullImageSource(settings: CaptureSettings, asset: LibraryAsset):
   return thumbSource(settings, asset);
 }
 
-/** videoSource returns the authenticated original for playback. */
+/** Use the server-certified playback derivative when the original needs transcoding. */
 export function videoSource(settings: CaptureSettings, asset: LibraryAsset): AuthedSource | null {
-  if (!settings.baseURL) return null;
-  return authed(settings, asset.id, 'original');
+  if (!settings.baseURL || !asset.web_viewable) return null;
+  return authed(settings, asset.id, asset.preview_url ? 'preview' : 'original');
 }

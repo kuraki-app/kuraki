@@ -136,10 +136,11 @@
   }
   .create input {
     flex: 1;
-    min-height: 38px;
+    min-width: 0;
+    min-height: 40px;
     padding: 0 10px;
     border: 1px solid var(--border);
-    border-radius: var(--frame-radius);
+    border-radius: var(--collection-radius);
     background: var(--card);
     color: var(--foreground);
     font-size: 14px;
@@ -149,8 +150,8 @@
   }
   .list {
     display: grid;
-    gap: 4px;
-    max-width: 560px;
+    grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+    gap: 12px;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -160,7 +161,7 @@
     align-items: center;
     gap: 4px;
     border: 1px solid var(--border);
-    border-radius: var(--frame-radius);
+    border-radius: var(--collection-radius);
     background: var(--card);
   }
   .list a {
@@ -168,7 +169,9 @@
     flex: 1;
     align-items: center;
     gap: 10px;
-    padding: 10px 12px;
+    padding: 20px 16px;
+    min-width: 0;
+    overflow-wrap: anywhere;
     color: var(--foreground);
     text-decoration: none;
     font-weight: 500;
@@ -179,11 +182,12 @@
   .del {
     display: grid;
     place-items: center;
-    width: 38px;
-    height: 38px;
+    width: 44px;
+    height: 44px;
+    flex: none;
     margin-right: 6px;
     border: 0;
-    border-radius: var(--frame-radius);
+    border-radius: var(--collection-radius);
     background: transparent;
     color: var(--muted-foreground);
     cursor: pointer;

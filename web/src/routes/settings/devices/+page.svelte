@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import QRCode from 'qrcode';
   import { Smartphone, RefreshCw, Download, Trash2, Copy, Check, TriangleAlert } from '@lucide/svelte';
+  import LoadError from '$lib/components/LoadError.svelte';
   import { api } from '$lib/api';
   import { showToast } from '$lib/stores';
   import { relativeTime } from '$lib/format';
@@ -25,6 +26,7 @@
 
   let devices: DeviceInfo[] = [];
   let devicesLoading = true;
+  let loadError = '';
   let revoking: Record<string, boolean> = {};
 
   /** Addresses the SERVER reports for itself, which the browser cannot know. */
@@ -71,10 +73,12 @@
   $: addressUsable = host !== '' && !loopback;
 
   async function loadDevices() {
+    loadError = '';
+    devicesLoading = true;
     try {
       devices = (await api.devices()).devices;
     } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Failed to load devices');
+      loadError = e instanceof Error ? e.message : 'Failed to load devices';
     } finally {
       devicesLoading = false;
     }
@@ -134,6 +138,8 @@
 </script>
 
 <PageHeader title="Devices" subtitle="Pair a phone to back up its camera roll to this server." />
+
+{#if loadError}<LoadError message={loadError} retry={loadDevices} busy={devicesLoading} />{/if}
 
 {#if !devicesLoading && devices.length > 0}
   <section class="card">
@@ -312,7 +318,7 @@
   .pick {
     padding: 2px calc(var(--space-step) * 2);
     border: 1px solid var(--border);
-    border-radius: var(--frame-radius);
+    border-radius: var(--media-radius);
     background: var(--card);
     color: var(--foreground);
     font-family: var(--font-mono);

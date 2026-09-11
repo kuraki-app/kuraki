@@ -109,3 +109,10 @@ describe('the Archived view', () => {
     expect(GALLERY_VIEWS.map((v) => v.key)).toEqual(['timeline', 'archived']);
   });
 });
+
+it('groups by capture day without mixing adjacent days in a row', () => {
+  const sections = groupAssets([asset('a', '2026-08-02'), asset('b', '2026-08-01'), asset('c', '2026-08-01')], 'day', 3);
+  expect(sections).toHaveLength(2);
+  expect(sections.map((s) => s.data.flat().map((a) => a.id))).toEqual([['a'], ['b', 'c']]);
+  expect(groupLabel('2026-01-01', 'day')).toContain('2026');
+});

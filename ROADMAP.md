@@ -76,16 +76,23 @@ existing promise works.
   `localStorage` under `kuraki:grid-density`. Progressive image loading also
   shipped: shimmer placeholder plus an opacity fade on decode in `AssetGrid`.)
 
-- **[done] Timeline virtualization — all users — M.** README advertises a
-  "virtualized, day/month-grouped timeline that stays smooth at large
-  libraries". **Now implemented** (`AssetGrid.svelte`): day-group sections
-  materialize only when near the viewport (an `IntersectionObserver` with a tall
-  `rootMargin` buffer) and are replaced by a measured, fixed-height spacer
-  otherwise, so on-screen DOM stays bounded regardless of library size.
-  Browser-verified at 579 assets / 40 days (held at ~81 tiles / 6 live
-  sections across all scroll positions). The *capacity budgets* at 10k/50k/500k
-  remain owed under "Capacity and regression evidence" below — the mechanism
-  exists; the large-library evidence does not yet.
+- **[done] Shared gallery design and bounded timeline rendering — all users.**
+  The [UI audit and parity plan](./UI_PARITY.md) records shared Web/Mobile geometry,
+  memories, album covers, progressive viewers and existing feature differences.
+  `AssetGrid` now windows six complete rows inside each group, preserving exact
+  gutter-aware spacer heights even for a single month containing 10,000 photos.
+  The renderer fixture held 168 mounted tiles on desktop and 54 on phone. This
+  proves renderer bounds; real 10k/50k/500k database, device and network budgets
+  remain under the release capacity gate above.
+  - [x] Shared reference-inspired gallery presentation and authenticated media integration.
+  - [x] Web single-month 10k renderer, resize and existing-flow regressions.
+  - [ ] Native visual/gesture and physical-device certification.
+  - [ ] Complete Mobile metadata editing, saved-search/filter and export parity.
+
+- **[done] Whole Web shell and Settings reliability — all Web users.**
+  [Web redesign evidence](./WEB_REDESIGN.md): familiar Photos navigation,
+  consistent cards/forms, accessible mobile Settings selection, preserved drafts,
+  partial-load recovery and console-warning regression coverage.
 
 - **[done] Consolidated responsive settings and mobile timeline controls —
   Self-hosters and phone users — S.** Stats, account, appearance, library,

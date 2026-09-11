@@ -14,9 +14,9 @@
   .stat {
     display: grid;
     gap: var(--space-step);
-    padding: calc(var(--space-step) * 3);
+    padding: calc(var(--space-step) * 5);
     border: 1px solid var(--frame-border-color);
-    border-radius: var(--frame-radius);
+    border-radius: var(--collection-radius);
     background: var(--card);
     box-shadow: var(--frame-shadow);
   }

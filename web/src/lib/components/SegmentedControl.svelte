@@ -60,6 +60,7 @@
 <style>
   .seg {
     display: flex;
+    flex-wrap: wrap;
     gap: 4px;
   }
   .seg.fill {
@@ -80,7 +81,7 @@
     /* --frame-radius so the control takes the register of the page it is on:
      * 8px on a Kura page, 4px in the Vault. It was hardcoded differently in
      * three of the four originals. */
-    border-radius: var(--frame-radius, 8px);
+    border-radius: var(--media-radius);
     background: var(--card);
     color: var(--text-dim);
     font: inherit;

@@ -3,6 +3,11 @@
 
 export const lightTokens = {
   "radius": "0.75rem",
+  "mediaRadius": "8px",
+  "collectionRadius": "12px",
+  "mediaGap": "4px",
+  "memoryWidth": "132px",
+  "memoryHeight": "176px",
   "highlight": "#ffd35c",
   "chrome": "#111111",
   "chromeText": "#f5f5f5",
@@ -77,6 +82,11 @@ export type TokenName = keyof typeof lightTokens;
 
 export const darkTokens: Record<TokenName, string> = {
   "radius": "0.75rem",
+  "mediaRadius": "8px",
+  "collectionRadius": "12px",
+  "mediaGap": "4px",
+  "memoryWidth": "132px",
+  "memoryHeight": "176px",
   "highlight": "#ffd35c",
   "chrome": "#111111",
   "chromeText": "#f5f5f5",

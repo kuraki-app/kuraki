@@ -104,7 +104,7 @@ export function isMobileActive(item: MobileNavItem, pathname: string, search: st
 }
 
 export function isActive(href: string, pathname: string): boolean {
-  return href === '/' ? pathname === '/' : pathname.startsWith(href);
+  return href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/');
 }
 
 export function registerFor(pathname: string): Register {

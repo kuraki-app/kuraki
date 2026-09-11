@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -407,13 +408,23 @@ func serveStored(w http.ResponseWriter, r *http.Request, d Deps, rel, contentTyp
 	if cacheControl != "" {
 		w.Header().Set("Cache-Control", cacheControl)
 	}
+	// A browser can switch accounts on one origin. Cache media per credential,
+	// and revalidate expired entries without transferring the image again.
+	w.Header().Add("Vary", "Cookie, Authorization")
+	var modified time.Time
+	if file, ok := rc.(interface{ Stat() (fs.FileInfo, error) }); ok {
+		if info, err := file.Stat(); err == nil {
+			modified = info.ModTime()
+			w.Header().Set("ETag", fmt.Sprintf(`W/"%x-%x"`, modified.UnixNano(), info.Size()))
+		}
+	}
 	if filename != "" {
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, sanitizeHeaderFilename(filename)))
 	}
 	// When the backend yields a seeker (the filesystem does), use ServeContent so
 	// HTTP Range requests work — required for in-browser video seeking (F-13).
 	if rs, ok := rc.(io.ReadSeeker); ok {
-		http.ServeContent(w, r, filename, time.Time{}, rs)
+		http.ServeContent(w, r, filename, modified, rs)
 		return
 	}
 	if size, err := d.Store.Size(r.Context(), rel); err == nil {
