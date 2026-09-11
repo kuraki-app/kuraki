@@ -11,6 +11,10 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Changed
 
+- **Web and mobile now share one real design-system source.** `design/tokens.json` owns color,
+  spacing, radii, type scale, and responsive metrics; one generator writes the CSS and native
+  TypeScript outputs. Both clients now ship Inter, and common page gutters and mobile text styles
+  consume the shared metrics instead of maintaining look-alike constants.
 - **Web spacing now follows the viewport consistently.** Every route uses 16px page gutters on
   phones and 24px on larger screens, independent of its visual register. Mobile Settings cards,
   groups, rows, headings, and subpage controls use a consistent 8/12/16px rhythm.

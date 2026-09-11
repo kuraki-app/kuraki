@@ -532,7 +532,7 @@
     /* Page gutters belong to the viewport, not the Kura/Vault density register.
      * Using --space-step here made operational pages 12px from the edge while
      * photo pages got 24px at the same width. */
-    padding: 24px;
+    padding: var(--ds-layout-gutter-expanded);
   }
   .drop {
     position: fixed;
@@ -601,7 +601,8 @@
       display: none;
     }
     .content {
-      padding: 16px 16px calc(70px + env(safe-area-inset-bottom, 0));
+      padding: var(--ds-layout-gutter-compact) var(--ds-layout-gutter-compact)
+        calc(70px + env(safe-area-inset-bottom, 0));
     }
     /* The tab bar now owns the bottom edge; lift the progress toast clear of it
      * rather than let it sit over the tabs. */

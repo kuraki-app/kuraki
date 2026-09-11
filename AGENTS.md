@@ -148,6 +148,12 @@ Phase 1 = single-owner personal backup.
   focus and mobile sheet all need a human pass. See §11 for the traps this work uncovered
   (`@theme inline` never emits custom properties; box-shadow paints under children;
   `view-transition-name` must be uniquely held; Svelte transitions ignore the CSS reduced-motion rule).
+- **Shared adaptive design foundation (2026-09-11, `codex/adaptive-design-system`).** Palette,
+  spacing, radii, type scale, and responsive metrics now originate in `design/tokens.json`; the root
+  `scripts/generate-design.mjs` writes the generated CSS token block and mobile TypeScript tokens.
+  Web bundles Inter Variable and mobile bundles matching Inter weights. Kura/Vault remain page-frame
+  density patterns, not separate visual identities. Use `npm run sync-design` from either client and
+  never hand-edit the generated regions.
 - **Settings consolidation (2026-07-27, `feat/settings-consolidation`):** the former Stats, account,
   Devices, Activity, appearance, library, and server controls now live under one responsive
   `/settings` shell. Migration `00022` stores the owner-writable catalog; `config.Store` resolves
@@ -350,7 +356,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | OS background scheduling (expo-background-task) + streamed large-file uploads (expo-file-system handle) | ✅ done (client) |
 | Android launch blockers (iOS-only `Image.configureCache` at module scope; cleartext HTTP unconfigured) | ✅ done |
 | Background sync completed: launch-time registration, background delta feed + queue drain, headless-safe permissions, locked-device keychain access, mid-file upload resume, Wi-Fi-only default, SQLite upload ledger | ✅ done |
-| Mobile cosmetic parity (font weights, Switch colors, video derivative, unused audio permissions, EAS `.aab` vs served `.apk`) | ⬜ deferred by decision |
+| Mobile cosmetic parity (Switch colors, video derivative, unused audio permissions, EAS `.aab` vs served `.apk`) | ⬜ deferred by decision; shared Inter weights done 2026-09-11 |
 | Mobile pairing repair: typed pairing-code path, loopback-address guard, copyable code on web, Places no longer crashes the library route | ✅ code-complete, not device-verified |
 | Mobile navigation redesign: split tab bar (collapsible pill + search button), search on its own route, Backup folded into Settings, safe areas app-wide, device tokens never rendered | ✅ code-complete, not device-verified |
 | Mobile on native controls: NativeTabs (minimizeBehavior + role=search), SwiftUI menu/picker/field, native settings Stack | ✅ code-complete, not device-verified |
@@ -442,6 +448,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | **Mobile refresh + Settings hierarchy** (2026-09-10): pull-to-refresh re-probes and reloads active photo views; thumbnail cells have stable recycle keys; server stats are concise; Notifications/Photo Grid are top-level and Activity is Advanced | ✅ done; simulator-verified |
 | **Mobile web + PWA upload queue** (2026-09-10): native-aligned four-tab phone navigation, three-column photo grid, grouped non-collapsible Settings, install manifest/offline shell, and account-scoped IndexedDB upload retry with Background Sync + foreground fallback | ✅ done; focused Chromium offline/reconnect flow verified |
 | **Responsive web spacing** (2026-09-10): route-independent 16px phone / 24px desktop gutters, consistent mobile Settings group and row spacing, full-width safe subpage controls | ✅ done; 17 responsive/spacing browser checks green at 320–1440px |
+| **Shared adaptive design foundation** (2026-09-11): neutral JSON source generates web/mobile colors, spacing, radii, type scale and responsive metrics; both clients bundle Inter; common gutters and native text styles consume shared metrics | ✅ code-complete; web check/build/contrast + mobile typecheck/lint green |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
@@ -469,6 +476,16 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/adaptive-design-system` (2026-09-11, shared foundation) — **Web and mobile now derive their
+  visual primitives from one neutral source.** `design/tokens.json` owns semantic colors, spacing,
+  radii, type scale, and responsive metrics; `scripts/generate-design.mjs` writes the guarded CSS
+  region plus `mobile/src/design/tokens.ts`. Web bundles Inter Variable and Expo loads the matching
+  400/500/600/700 native weights before first render. Common web page gutters, mobile type styles,
+  and mobile constants consume generated metrics. The old mobile sync script remains only as a
+  compatibility entry point. Verified with web `svelte-check`, production build, contrast gate,
+  mobile TypeScript, and Expo lint. Next design slice: align Collections and Settings information
+  architecture without renaming a tab before its destination actually exists.
 
 - `codex/settings-activity-polish` (2026-09-10, responsive spacing) — **Page padding now follows the
   viewport instead of the route's density register.** All routes use 16px phone gutters and 24px

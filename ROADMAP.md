@@ -119,6 +119,11 @@ existing promise works.
   8/12/16px spacing rhythm, and the browser suite checks gutters and horizontal overflow from
   320px through 1440px.
 
+- **[done] Shared adaptive design foundation — Web and mobile users — S.** One neutral token source
+  now generates both clients' palette, spacing, radii, type scale, and responsive metrics. Inter is
+  bundled on both surfaces, and existing Kura/Vault registers remain density patterns rather than
+  separate visual identities.
+
 - **[new feature] Smart albums — Organizers — M.** Build on saved searches with
   explicit ownership, preview, and reversible membership semantics.
 

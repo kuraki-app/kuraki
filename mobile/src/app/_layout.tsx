@@ -1,4 +1,11 @@
 import { DarkTheme, DefaultTheme, Redirect, Slot, ThemeProvider, useSegments } from 'expo-router';
+import {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+  useFonts,
+} from '@expo-google-fonts/inter';
 import { Image } from 'expo-image';
 import { AppState, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -37,6 +44,12 @@ export default function RootLayout() {
   const tokens = useTokens();
   const [ready, setReady] = useState<boolean | null>(setupCompleteSnapshot());
   const segments = useSegments();
+  const [fontsLoaded, fontError] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+  });
 
   // The navigation theme has to be built from the Kuraki tokens, not taken
   // from react-navigation's stock DefaultTheme/DarkTheme.
@@ -127,9 +140,7 @@ export default function RootLayout() {
     return () => sub.remove();
   }, []);
 
-  // No font gate any more: the app uses the platform sans, which is already
-  // resident, so there is nothing to wait for but the setup flag.
-  if (ready === null) {
+  if (ready === null || (!fontsLoaded && !fontError)) {
     return <View style={{ flex: 1 }} />; // splash stays up
   }
 

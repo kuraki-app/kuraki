@@ -4,7 +4,7 @@
  * hand-rolled palette, so mobile and web always render the same brand.
  */
 
-import { darkTokens, lightTokens, type TokenName } from '@/design/tokens';
+import { darkTokens, designMetrics, lightTokens, type TokenName } from '@/design/tokens';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export type ThemeTokens = Record<TokenName, string>;
@@ -38,6 +38,12 @@ export const Spacing = {
   six: 64,
 } as const;
 
+// New work should use this shared scale. `Spacing` remains temporarily for
+// existing screens whose current rhythm is being migrated page by page.
+export const Space = designMetrics.spacing;
+export const TypeScale = designMetrics.type;
+export const Layout = designMetrics.layout;
+
 /**
  * Corner radii, in points.
  *
@@ -48,9 +54,7 @@ export const Spacing = {
  * are separate now, and these values are exactly what those radii already were.
  */
 export const Radius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
+  ...designMetrics.radius,
 } as const;
 
 // There is deliberately no BottomTabInset here any more. It was a hardcoded
@@ -61,4 +65,4 @@ export const Radius = {
 // the bar's actions. Nothing floats over the tab bar now; selection lives in
 // the native header (see selection-toolbar.tsx). If something ever must, ask
 // the platform (`useSafeAreaInsets`), do not guess again.
-export const MaxContentWidth = 800;
+export const MaxContentWidth = designMetrics.layout.readableMax;

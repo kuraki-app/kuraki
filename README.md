@@ -367,11 +367,11 @@ make clean        # remove local builds/test caches; keep JS dependencies and li
 |---|---|---|
 | `internal/httpapi/apispec/openapi.json` | swag annotations on the handlers + `apitypes` | `make openapi` |
 | `web/src/lib/api.gen.ts`, `mobile/src/lib/api.gen.ts` | that OpenAPI JSON | `make client-types` |
-| `mobile/src/design/tokens.ts` | `web/src/app.css` | `cd mobile && npm run sync-tokens` |
+| `web/src/app.css` token block, `mobile/src/design/tokens.ts` | `design/tokens.json` | `cd web && npm run sync-design` |
 | `internal/httpapi/assets/**` (the embedded UI — committed, because `go:embed` needs it in the tree) | `web/src` | `make web` |
 
 Touching a handler signature or an `apitypes` struct means running `make gen` and committing the
-diff; touching the palette means `npm run sync-tokens`; touching anything under `web/src` means
+diff; touching the shared design system means `npm run sync-design`; touching anything under `web/src` means
 `make web` and committing the embedded-asset diff. CI gates all four.
 
 ### Type and browser gates
@@ -393,8 +393,8 @@ The two front-end surfaces have their own guides:
   binary. Develop it with `./scripts/dev.sh` (API + hot-reloading UI).
 - **Mobile** ([mobile/README.md](./mobile/README.md)) — the Expo/React Native app. Develop with
   `cd mobile && npm install && npx expo start`, then pair it to a running server from the app's
-  setup flow. The two surfaces share one palette: `web/src/app.css` is the source of truth, and
-  the mobile app generates its design tokens from it (drift is CI-gated).
+  setup flow. The two surfaces share `design/tokens.json` for palette, spacing, type scale, and
+  responsive metrics; generated web/mobile outputs are drift-gated in CI.
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a PR.
 

@@ -1,7 +1,7 @@
-import { Platform, StyleSheet, Text, type TextProps } from 'react-native';
+import { StyleSheet, Text, type TextProps } from 'react-native';
 
 import { FontFamily } from '@/design/fonts';
-import type { TokenName } from '@/design/tokens';
+import { designMetrics, type TokenName } from '@/design/tokens';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ThemedTextProps = TextProps & {
@@ -15,7 +15,7 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
   return (
     <Text
       style={[
-        { color: tokens[themeColor ?? 'foreground'] },
+        { color: tokens[themeColor ?? 'foreground'], fontFamily: FontFamily.regular },
         type === 'default' && styles.default,
         type === 'title' && { ...styles.title, fontFamily: FontFamily.heading },
         type === 'small' && styles.small,
@@ -33,18 +33,21 @@ export function ThemedText({ style, type = 'default', themeColor, ...rest }: The
 
 const styles = StyleSheet.create({
   small: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontFamily: FontFamily.medium,
+    fontSize: designMetrics.type.label.size,
+    lineHeight: designMetrics.type.label.lineHeight,
     fontWeight: 500,
   },
   smallBold: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontFamily: FontFamily.bold,
+    fontSize: designMetrics.type.label.size,
+    lineHeight: designMetrics.type.label.lineHeight,
     fontWeight: 700,
   },
   default: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontFamily: FontFamily.medium,
+    fontSize: designMetrics.type.body.size,
+    lineHeight: designMetrics.type.body.lineHeight,
     fontWeight: 500,
   },
   // Phone sizes. These were 48/32, which is a desktop display scale: at 48pt a
@@ -52,25 +55,29 @@ const styles = StyleSheet.create({
   // heading as short as "Automatic backup" wrapped onto two lines. 28/20 keeps
   // the same visual hierarchy while leaving the screen for content.
   title: {
-    fontSize: 28,
+    fontFamily: FontFamily.semibold,
+    fontSize: designMetrics.type.title.size,
     fontWeight: 600,
-    lineHeight: 34,
+    lineHeight: designMetrics.type.title.lineHeight,
   },
   subtitle: {
-    fontSize: 20,
-    lineHeight: 26,
+    fontFamily: FontFamily.semibold,
+    fontSize: designMetrics.type.subtitle.size,
+    lineHeight: designMetrics.type.subtitle.lineHeight,
     fontWeight: 600,
   },
   link: {
+    fontFamily: FontFamily.medium,
     lineHeight: 30,
-    fontSize: 14,
+    fontSize: designMetrics.type.label.size,
   },
   linkPrimary: {
+    fontFamily: FontFamily.medium,
     lineHeight: 30,
-    fontSize: 14,
+    fontSize: designMetrics.type.label.size,
   },
   code: {
-    fontWeight: Platform.select({ android: 700 }) ?? 500,
-    fontSize: 12,
+    fontFamily: FontFamily.medium,
+    fontSize: designMetrics.type.meta.size,
   },
 });

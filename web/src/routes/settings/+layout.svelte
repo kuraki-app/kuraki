@@ -99,7 +99,7 @@
        * and the whole document could be dragged sideways at 320px. The same
        * `minmax(0, 1fr)` idiom AssetGrid documents for the same reason. */
       grid-template-columns: minmax(0, 1fr);
-      gap: 16px;
+      gap: var(--ds-spacing-three);
     }
     .rail {
       display: none;
