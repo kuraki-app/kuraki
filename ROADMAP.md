@@ -136,6 +136,11 @@ existing promise works.
   They provide feedback on high-value controls and stop when the system Reduce Motion preference is
   enabled.
 
+- **[done] Guided mobile onboarding — New mobile users — S.** The four setup pages now share a
+  responsive visual system, clear primary actions, lightweight page motion, and a persistent thin
+  progress indicator. Server discovery, QR/manual pairing, and optional photo permission retain
+  their existing behavior while showing less copy.
+
 - **[new feature] Smart albums — Organizers — M.** Build on saved searches with
   explicit ownership, preview, and reversible membership semantics.
 
