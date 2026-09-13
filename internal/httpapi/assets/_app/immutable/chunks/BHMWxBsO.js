@@ -1,0 +1,1 @@
+import"./ZfpS-05N.js";import{s as t,r as p}from"./Bo9ojsOp.js";import{I as n}from"./BXu6p-kV.js";var c=new Set(["$$slots","$$events","$$legacy"]);function m(o,e){let r=p(e,c);const s=[["circle",{cx:"12",cy:"12",r:"10"}],["path",{d:"M12 16v-4"}],["path",{d:"M12 8h.01"}]];n(o,t({name:"info"},()=>r,{get iconNode(){return s}}))}export{m as I};

@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
+import MotionPressable from '@/components/motion-pressable';
 import { ThemedText } from '@/components/themed-text';
 import { lightTokens } from '@/design/tokens';
 import { Spacing, useTokens } from '@/constants/theme';
@@ -47,9 +48,9 @@ export default function MemoriesRail({ assets, settings, onPress, now }: Memorie
     <View>
     <View style={styles.heading}>
       <ThemedText style={styles.headingText}>On this day</ThemedText>
-      <Pressable accessibilityRole="button" onPress={() => onPress?.(groups[0])} hitSlop={8}>
+      <MotionPressable accessibilityRole="button" onPress={() => onPress?.(groups[0])} hitSlop={8} pressedScale={0.94}>
         <ThemedText type="small" themeColor="mutedForeground">See all</ThemedText>
-      </Pressable>
+      </MotionPressable>
     </View>
     <ScrollView
       horizontal
@@ -80,7 +81,7 @@ function MemoryCard({
   const source = thumbSource(settings, group.cover);
 
   return (
-    <Pressable
+    <MotionPressable
       accessibilityRole="button"
       // No count in the label. `count` is how many of that year have *loaded*,
       // and the memories feed is paginated, so speaking it aloud would assert a
@@ -107,7 +108,7 @@ function MemoryCard({
           {group.subtitle}
         </ThemedText>
       </View>
-    </Pressable>
+    </MotionPressable>
   );
 }
 

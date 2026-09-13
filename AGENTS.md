@@ -156,6 +156,18 @@ Phase 1 = single-owner personal backup.
   never hand-edit the generated regions. The branch was reconciled with the mainline gallery pass;
   browser coverage pins the retained memories rail, role-gated settings, independent status retries,
   resilient sign-out, short-height navigation, and 320px settings fit.
+- **Shared micro-interactions (2026-09-11, `codex/micro-interactions`).** `design/MOTION.md` defines
+  the cross-client motion contract. Web and native use the same press scale and timing tokens for
+  controls, navigation, collection/memory cards, optional help, transient upload state, and backup
+  progress. Motion is feedback, not decoration: no new looping animation was added, transforms do
+  not reflow content, and both platforms follow the system Reduce Motion preference.
+- **Mobile onboarding redesign (2026-09-13, `codex/micro-interactions`).** The existing setup gate
+  remains four routes (welcome → server → pair → permissions), but they now render through one
+  responsive 520pt frame with shared fields, cards, notices, and animated buttons. The setup layout
+  owns a persistent full-width progress rail so it animates between routes rather than restarting per
+  page. Page entrance travel and navigation motion follow Reduce Motion. Photo permission remains
+  skippable; pairing behavior and stored credentials are unchanged. This improves first-run quality
+  but does **not** close the mobile release-certification blocker in ROADMAP.md.
 - **Settings consolidation (2026-07-27, `feat/settings-consolidation`):** the former Stats, account,
   Devices, Activity, appearance, library, and server controls now live under one responsive
   `/settings` shell. Migration `00022` stores the owner-writable catalog; `config.Store` resolves
@@ -454,6 +466,8 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | **Adaptive primary destinations** (2026-09-11): web and native share primary vocabulary; native album cards reflow 2/3/4-up by shared width classes and large-screen Settings keeps a readable measure | ✅ code-complete; focused responsive web + mobile static gates green |
 | **Collections destination** (2026-09-11): web and native group Favorites, Albums, On this day, Places and Tags under a real Collections tab/page; Photos menu is reduced to Photos/Archived; phone web Settings replaces four browsing rows with one Collections row | ✅ code-complete; focused route/responsive + mobile gates green |
 | **Adaptive branch mainline integration** (2026-09-11): current `main` gallery modernization and the adaptive/PWA/settings series coexist; gallery sizing primitives now come from the shared design source; mainline memories, role gates, retry isolation, and session resilience are retained; embedded assets were rebuilt from resolved source | ✅ focused browser reconciliation plus full Go, web, mobile, and design gates green |
+| **Shared micro-interactions** (2026-09-11): press, lift, enter, reveal, progress, and continuity patterns share tokens across web/native; high-value navigation, settings, collection, memory, album, place, and tag controls provide immediate feedback; Reduce Motion removes travel and delay | ✅ code-complete; focused motion/responsive browser suite + web/mobile static gates green |
+| **Guided mobile onboarding** (2026-09-13): responsive shared setup frame, concise welcome/server/pairing/permission pages, focus-aware fields, animated controls/page entrances, and a persistent accessible rounded progress rail | ✅ code-complete; focused Vitest + mobile typecheck/lint green, native visual pass pending |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
@@ -481,6 +495,23 @@ audited baseline and release checklist.
 - Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/micro-interactions` (2026-09-13, onboarding) — **Mobile setup is now a modern guided flow
+  without changing its security or persistence behavior.** One shared frame gives all four routes a
+  responsive readable width, consistent cards/fields/notices/buttons, and short entrance motion;
+  the layout owns an accessible, label-free rounded progress rail. Welcome copy is
+  shorter, server errors are contained, pairing clearly separates QR from manual code, and the final
+  permission step promotes the ready state without blocking a deliberate skip. Reduce Motion turns
+  off page travel and progress interpolation. This was statically verified, not visually certified
+  on a physical device; ROADMAP.md's mobile release gate remains open.
+
+- `codex/micro-interactions` (2026-09-11) — **Both clients now use one restrained interaction
+  language.** The web adds consistent button/tab presses, active-nav icon movement, staggered
+  collection and memory entrances, pointer-only card lift/image zoom, optional-help reveal, and
+  upload-status entry. Native adds one reusable Animated press primitive to settings, collections,
+  memories, albums, places, and tags, plus interpolated backup progress. A process-wide accessibility
+  store prevents one Reduce Motion listener per rendered card. No dependency was added; the motion
+  contract and guardrails live in `design/MOTION.md`.
 
 - `codex/adaptive-design-system` (2026-09-11, browser reconciliation) — **The integrated UI keeps
   mainline behavior as well as the new adaptive structure.** Photos retains its memories rail;

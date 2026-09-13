@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { slide } from 'svelte/transition';
   import { Label } from '$lib/components/ui/label';
   import { Badge } from '$lib/components/ui/badge';
+  import { prefersReducedMotion } from '$lib/motion';
   import { Info } from '@lucide/svelte';
 
   export let label: string;
@@ -52,7 +54,9 @@
         ><Info size={15} aria-hidden="true" /></button>
       {/if}
     </div>
-    {#if description && infoOpen}<p class="desc">{description}</p>{/if}
+    {#if description && infoOpen}
+      <p class="desc" transition:slide={{ duration: prefersReducedMotion() ? 0 : 140 }}>{description}</p>
+    {/if}
     <!-- These three were hand-rolled coloured paragraphs while `ui/badge` sat in
          the tree with zero consumers. A status pill is precisely what a badge
          is, and the shadcn variants already carry the semantic colours. -->
@@ -113,6 +117,12 @@
   .info:focus-visible {
     background: var(--accent);
     color: var(--foreground);
+  }
+  .info :global(svg) {
+    transition: transform var(--t-crisp) var(--e-kura);
+  }
+  .info[aria-expanded='true'] :global(svg) {
+    transform: rotate(90deg) scale(1.06);
   }
   .desc {
     margin: 0;

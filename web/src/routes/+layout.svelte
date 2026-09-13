@@ -511,10 +511,23 @@
     color: var(--text-dim);
     text-decoration: none;
     font-weight: 500;
+    transition:
+      color var(--t-crisp) var(--e-vault),
+      background-color var(--t-crisp) var(--e-vault),
+      transform var(--t-instant) var(--e-vault);
+  }
+  nav a:active {
+    transform: scale(var(--press-scale));
+  }
+  nav a :global(svg) {
+    transition: transform var(--t-crisp) var(--e-kura);
   }
   nav a.active {
     background: var(--accent);
     color: var(--foreground);
+  }
+  nav a.active :global(svg) {
+    transform: translateX(2px);
   }
   .group + .group {
     margin-top: 14px;
@@ -571,6 +584,7 @@
     background: var(--chrome);
     color: var(--chrome-text);
     box-shadow: var(--shadow);
+    animation: kuraki-item-enter var(--t-settle) var(--e-kura) both;
   }
   .uploading .ubar {
     height: 4px;

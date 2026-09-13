@@ -1,9 +1,10 @@
 import { Image } from 'expo-image';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { FlatList, StyleSheet, View } from 'react-native';
 
 import { SymbolView } from 'expo-symbols';
 
 import { ThemedText } from '@/components/themed-text';
+import MotionPressable from '@/components/motion-pressable';
 import { Spacing, useTokens } from '@/constants/theme';
 import { FontFamily } from '@/design/fonts';
 import { registerStyle } from '@/design/registers';
@@ -56,7 +57,7 @@ export default function PlaceList({ groups, settings, totalLocated, onPressPlace
           </View>
         }
         renderItem={({ item }) => (
-          <Pressable style={styles.row} onPress={() => onPressPlace(item)}>
+          <MotionPressable style={styles.row} pressedScale={0.985} onPress={() => onPressPlace(item)}>
             <Image
               style={styles.cover}
               source={{
@@ -86,7 +87,7 @@ export default function PlaceList({ groups, settings, totalLocated, onPressPlace
               tintColor={tokens.textFaint}
               fallback={<ThemedText themeColor="textFaint">›</ThemedText>}
             />
-          </Pressable>
+          </MotionPressable>
         )}
       />
     </View>

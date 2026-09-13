@@ -1,7 +1,8 @@
 import { router } from 'expo-router';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 
+import MotionPressable from '@/components/motion-pressable';
 import { ThemedText } from '@/components/themed-text';
 import { Layout, MaxContentWidth, Radius, Space, useTokens } from '@/constants/theme';
 
@@ -24,13 +25,12 @@ export default function CollectionLinks() {
       <ThemedText style={[styles.title, { color: tokens.textFaint }]}>BROWSE</ThemedText>
       <View style={styles.grid}>
         {links.map((item) => (
-          <Pressable
+          <MotionPressable
             key={item.href}
             accessibilityRole="button"
-            style={({ pressed }) => [
+            style={[
               styles.card,
               { width: cardWidth, borderColor: tokens.border, backgroundColor: tokens.card },
-              pressed && styles.pressed,
             ]}
             onPress={() => router.push(item.href as Parameters<typeof router.push>[0])}>
             <SymbolView
@@ -40,7 +40,7 @@ export default function CollectionLinks() {
               fallback={<ThemedText style={{ color: tokens.stamp }}>•</ThemedText>}
             />
             <ThemedText type="smallBold" numberOfLines={1}>{item.label}</ThemedText>
-          </Pressable>
+          </MotionPressable>
         ))}
       </View>
       <ThemedText style={[styles.title, { color: tokens.textFaint }]}>ALBUMS</ThemedText>
@@ -53,5 +53,4 @@ const styles = StyleSheet.create({
   title: { fontSize: 11, lineHeight: 15, fontWeight: '600', letterSpacing: 1.2 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.two },
   card: { minHeight: 76, justifyContent: 'space-between', padding: Space.two, borderRadius: Radius.md, borderWidth: StyleSheet.hairlineWidth },
-  pressed: { opacity: 0.65 },
 });

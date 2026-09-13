@@ -11,6 +11,15 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Changed
 
+- **Mobile onboarding is now a guided four-step flow.** Welcome, server discovery, secure pairing,
+  and photo access share a responsive visual frame, concise copy, animated controls and page
+  entrances, plus a subtle top progress rail. Reduce Motion disables travel and interpolation, and
+  photo permission remains skippable so setup cannot trap the user.
+- **Web and mobile interactions now share one motion language.** Buttons, tabs, settings rows,
+  collection and memory cards, albums, places, and tags respond on press; web cards use restrained
+  pointer-only lift and short staggered entrances; optional help reveals smoothly; and upload and
+  backup progress changes settle instead of jumping. The system Reduce Motion preference removes
+  travel, scale, stagger delays, and nonessential progress interpolation.
 - **Web and mobile now share one real design-system source.** `design/tokens.json` owns color,
   spacing, radii, type scale, and responsive metrics; one generator writes the CSS and native
   TypeScript outputs. Both clients now ship Inter, and common page gutters and mobile text styles

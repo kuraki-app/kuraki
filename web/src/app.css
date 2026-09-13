@@ -32,6 +32,9 @@
   --t-morph: 320ms;
   --e-kura: cubic-bezier(0.2, 0, 0, 1);
   --e-vault: cubic-bezier(0.4, 0, 0.2, 1);
+  --press-scale: 0.97;
+  --hover-lift: 2px;
+  --enter-distance: 6px;
   --font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-heading: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
@@ -269,8 +272,10 @@
     *::before,
     *::after {
       animation-duration: 0.001ms !important;
+      animation-delay: 0ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.001ms !important;
+      transition-delay: 0ms !important;
       scroll-behavior: auto !important;
     }
 
@@ -393,6 +398,45 @@
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* Small interaction primitives shared by component-level motion. They live
+ * here so a press on a Settings button and a collection card has the same
+ * weight even though the components are owned by different routes. */
+[data-slot='button'] {
+  transition-duration: var(--t-crisp);
+  transition-timing-function: var(--e-vault);
+}
+[data-slot='button']:active:not(:disabled):not([aria-disabled='true']):not([aria-haspopup]) {
+  transform: translateY(1px) scale(var(--press-scale));
+}
+
+@keyframes kuraki-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--enter-distance));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.motion-enter {
+  animation: kuraki-item-enter var(--t-settle) var(--e-kura) backwards;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .motion-lift {
+    transition:
+      transform var(--t-crisp) var(--e-kura),
+      box-shadow var(--t-crisp) var(--e-kura),
+      background-color var(--t-crisp) var(--e-kura);
+  }
+  .motion-lift:hover {
+    transform: translateY(calc(-1 * var(--hover-lift)));
+    box-shadow: var(--shadow);
   }
 }
 

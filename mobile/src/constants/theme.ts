@@ -44,6 +44,15 @@ export const Space = designMetrics.spacing;
 export const TypeScale = designMetrics.type;
 export const Layout = designMetrics.layout;
 
+/** Shared interaction values. CSS consumes these tokens directly; native
+ * converts the same source strings into numbers for Animated. */
+export const Motion = {
+  instant: Number.parseFloat(lightTokens.tInstant),
+  crisp: Number.parseFloat(lightTokens.tCrisp),
+  settle: Number.parseFloat(lightTokens.tSettle),
+  pressScale: Number.parseFloat(lightTokens.pressScale),
+} as const;
+
 /**
  * Corner radii, in points.
  *

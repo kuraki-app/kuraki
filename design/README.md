@@ -4,6 +4,10 @@ Web and mobile share identity and information architecture, while controls stay 
 platform. `tokens.json` is the source for color, spacing, radii, type, and width classes; run
 `npm run sync-design` from `web/` or `mobile/` after changing it.
 
+The interaction plan lives in [MOTION.md](./MOTION.md). Motion follows the same shared timing,
+distance, and press-scale tokens on both clients while each platform uses its native animation
+engine.
+
 ## Primary destinations
 
 1. **Photos** — the chronological library and archive.

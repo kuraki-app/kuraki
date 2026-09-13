@@ -131,6 +131,16 @@ existing promise works.
   bundled on both surfaces, and existing Kura/Vault registers remain density patterns rather than
   separate visual identities.
 
+- **[done] Shared micro-interactions — Web and mobile users — S.** Press, lift, enter, reveal,
+  progress, and viewer-continuity patterns use the same timing and distance tokens on both clients.
+  They provide feedback on high-value controls and stop when the system Reduce Motion preference is
+  enabled.
+
+- **[done] Guided mobile onboarding — New mobile users — S.** The four setup pages now share a
+  responsive visual system, clear primary actions, lightweight page motion, and a persistent thin
+  progress indicator. Server discovery, QR/manual pairing, and optional photo permission retain
+  their existing behavior while showing less copy.
+
 - **[new feature] Smart albums — Organizers — M.** Build on saved searches with
   explicit ownership, preview, and reversible membership semantics.
 

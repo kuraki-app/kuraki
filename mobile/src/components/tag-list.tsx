@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { FlatList, Pressable, StyleSheet } from 'react-native';
+import { FlatList, StyleSheet } from 'react-native';
 
 import Dialog from '@/components/dialog';
+import MotionPressable from '@/components/motion-pressable';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
@@ -44,9 +45,9 @@ export default function TagList({
         keyExtractor={(t) => t.id}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
-          <Pressable style={styles.row} onPress={() => onPressTag(item)}>
+          <MotionPressable style={styles.row} pressedScale={0.985} onPress={() => onPressTag(item)}>
             <ThemedText style={heading}>{item.name}</ThemedText>
-          </Pressable>
+          </MotionPressable>
         )}
         ListEmptyComponent={
           <ThemedText type="small" themeColor="mutedForeground" style={styles.row}>No tags yet.</ThemedText>
