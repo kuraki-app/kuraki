@@ -3887,6 +3887,9 @@
                     "thumbnail_url": {
                         "type": "string"
                     },
+                    "thumbnail_urls": {
+                        "$ref": "#/components/schemas/apitypes.ThumbnailURLs"
+                    },
                     "view_url": {
                         "type": "string"
                     },
@@ -4966,6 +4969,25 @@
                         "type": "string"
                     },
                     "parent_id": {
+                        "type": "string"
+                    }
+                }
+            },
+            "apitypes.ThumbnailURLs": {
+                "type": "object",
+                "required": [
+                    "l",
+                    "m",
+                    "s"
+                ],
+                "properties": {
+                    "l": {
+                        "type": "string"
+                    },
+                    "m": {
+                        "type": "string"
+                    },
+                    "s": {
                         "type": "string"
                     }
                 }
