@@ -16,6 +16,8 @@ const (
 	KeyTrashRetentionDays  SettingKey = "trash_retention_days"
 	KeyChangeLogKeep       SettingKey = "change_log_keep"
 	KeyThumbnailSize       SettingKey = "thumbnail_size"
+	KeyThumbWorkers        SettingKey = "thumb_workers"
+	KeyThumbQueue          SettingKey = "thumb_queue"
 	KeyOCREnabled          SettingKey = "ocr_enabled"
 	KeyBackupDir           SettingKey = "backup_dir"
 	KeyBackupIntervalHours SettingKey = "backup_interval_hours"
@@ -67,6 +69,8 @@ var Catalog = []SettingDescriptor{
 	{Key: KeyTrashRetentionDays, EnvVar: "KURAKI_TRASH_RETENTION_DAYS", Type: TypeInt, Unit: "days", Apply: ApplyLive, Min: 1},
 	{Key: KeyChangeLogKeep, EnvVar: "KURAKI_CHANGELOG_KEEP", Type: TypeInt, Unit: "rows", Apply: ApplyLive, Min: 1000},
 	{Key: KeyThumbnailSize, EnvVar: "KURAKI_THUMBNAIL_SIZE", Type: TypeInt, Unit: "px", Apply: ApplyRestart, Min: 64, Max: 4096},
+	{Key: KeyThumbWorkers, EnvVar: "KURAKI_THUMB_WORKERS", Type: TypeInt, Apply: ApplyRestart, Min: 1, Max: 32},
+	{Key: KeyThumbQueue, EnvVar: "KURAKI_THUMB_QUEUE", Type: TypeInt, Apply: ApplyRestart, Min: 1, Max: 4096},
 	{Key: KeyOCREnabled, EnvVar: "KURAKI_OCR", Type: TypeBool, Apply: ApplyRestart},
 	{Key: KeyBackupDir, EnvVar: "KURAKI_BACKUP_DIR", Type: TypePath, Apply: ApplyRestart},
 	{Key: KeyBackupIntervalHours, EnvVar: "KURAKI_BACKUP_INTERVAL_HOURS", Type: TypeInt, Unit: "hours", Apply: ApplyRestart, Min: 1},
@@ -154,6 +158,14 @@ func ApplyDB(cfg Config, rows map[string]string, envPresent map[string]bool) Con
 		case KeyThumbnailSize:
 			if n, pok := positiveInt(v); pok {
 				cfg.ThumbnailSize = n
+			}
+		case KeyThumbWorkers:
+			if n, pok := positiveInt(v); pok {
+				cfg.ThumbWorkers = n
+			}
+		case KeyThumbQueue:
+			if n, pok := positiveInt(v); pok {
+				cfg.ThumbQueue = n
 			}
 		case KeyOCREnabled:
 			if b, pok := parseStoredBool(v); pok {
@@ -246,6 +258,10 @@ func FieldString(c Config, key SettingKey) string {
 		return strconv.Itoa(c.ChangeLogKeep)
 	case KeyThumbnailSize:
 		return strconv.Itoa(c.ThumbnailSize)
+	case KeyThumbWorkers:
+		return strconv.Itoa(c.ThumbWorkers)
+	case KeyThumbQueue:
+		return strconv.Itoa(c.ThumbQueue)
 	case KeyOCREnabled:
 		if c.OCREnabled {
 			return "1"

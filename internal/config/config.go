@@ -8,6 +8,7 @@ package config
 
 import (
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -32,6 +33,13 @@ type Config struct {
 
 	// ThumbnailSize is the longest-edge pixel size for generated thumbnails.
 	ThumbnailSize int
+
+	// ThumbWorkers bounds concurrent on-demand thumbnail renders (KURAKI_THUMB_WORKERS).
+	ThumbWorkers int
+
+	// ThumbQueue bounds renders waiting for a worker; beyond it requests get 503
+	// with Retry-After instead of piling up memory (KURAKI_THUMB_QUEUE).
+	ThumbQueue int
 
 	// OCREnabled turns on the opt-in local OCR worker (requires the tesseract
 	// binary on PATH). Off by default; nothing leaves the machine.
@@ -91,6 +99,8 @@ func Default() Config {
 		TrashRetentionDays:  30,
 		ChangeLogKeep:       100000,
 		ThumbnailSize:       512,
+		ThumbWorkers:        max(1, runtime.GOMAXPROCS(0)/2),
+		ThumbQueue:          64,
 		BackupIntervalHours: 24,
 		BackupKeep:          7,
 	}
@@ -114,6 +124,12 @@ func Load(getenv func(string) string) Config {
 	}
 	if n, ok := positiveInt(getenv("KURAKI_THUMBNAIL_SIZE")); ok {
 		c.ThumbnailSize = n
+	}
+	if n, ok := positiveInt(getenv("KURAKI_THUMB_WORKERS")); ok {
+		c.ThumbWorkers = n
+	}
+	if n, ok := positiveInt(getenv("KURAKI_THUMB_QUEUE")); ok {
+		c.ThumbQueue = n
 	}
 	if boolEnv(getenv("KURAKI_OCR")) {
 		c.OCREnabled = true
