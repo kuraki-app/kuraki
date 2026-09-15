@@ -6,7 +6,7 @@
 </script>
 
 <LibraryView
-  load={(cursor) => api.hidden(cursor)}
+  load={(cursor, signal) => api.hidden(cursor, signal)}
   title="Hidden"
   subtitle="Hidden items stay out of everyday browsing"
   hiddenMode

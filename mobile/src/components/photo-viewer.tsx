@@ -1,10 +1,9 @@
 import { Image } from 'expo-image';
 import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
-  Animated,
   useWindowDimensions,
   FlatList,
   Modal,
@@ -15,19 +14,23 @@ import {
   type AlertButton,
   type ViewToken,
 } from 'react-native';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import Animated from 'react-native-reanimated';
+
 import Dialog from '@/components/dialog';
+import GlassSurface, { GlassScene } from '@/components/glass-surface';
+import { useViewerGestures } from '@/hooks/use-viewer-gestures';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import TagEditor from '@/components/tag-editor';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Space, useTokens } from '@/constants/theme';
 import { FontFamily } from '@/design/fonts';
 import { registerStyle } from '@/design/registers';
 import DetailFacts from '@/components/detail-facts';
 import { assetFacts, type AssetFact } from '@/lib/asset-facts';
 import { formatTakenAt } from '@/lib/format';
-import { backdropOpacity, clampZoom, shouldDismiss, ZOOM } from '@/lib/viewer-gestures';
 import {
   fetchAssetDetail,
   fetchAssetTags,
@@ -89,6 +92,7 @@ export default function PhotoViewer({
 }: Props) {
   const tokens = useTokens();
   const insets = useSafeAreaInsets();
+  const reduced = useReducedMotion();
   const { width } = useWindowDimensions();
   const [active, setActive] = useState(initialIndex);
   const [chrome, setChrome] = useState(true);
@@ -191,7 +195,7 @@ export default function PhotoViewer({
   // the picture rather than as a field.
   const caption = [takenAt, place].filter(Boolean).join(' · ');
   return (
-    <Modal visible animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible animationType={reduced ? 'none' : 'fade'} onRequestClose={onClose} statusBarTranslucent>
       {/*
         A second GestureHandlerRootView, restored. An RN Modal is its own native
         window, which the app-level root in _layout.tsx does not reach, so any
@@ -201,6 +205,7 @@ export default function PhotoViewer({
         without it they are silently dead on Android.
       */}
       <GestureHandlerRootView style={styles.fill}>
+        <GlassScene content={
         <FlatList
           key={width}
           data={assets}
@@ -230,9 +235,10 @@ export default function PhotoViewer({
             />
           )}
         />
+        }>
 
         {chrome && (
-          <View style={[styles.top, { top: insets.top + Spacing.one }]} pointerEvents="box-none">
+          <View style={[styles.top, { top: insets.top + Space.one }]} pointerEvents="box-none">
             <ChromeButton symbol="xmark" glyph="✕" label="Close" onPress={onClose} />
             <View style={styles.topActions}>
               {current && onToggleFavorite ? (
@@ -275,7 +281,7 @@ export default function PhotoViewer({
         */}
         {chrome && current && !info && !editingTags && (
           <View
-            style={[styles.caption, { paddingBottom: insets.bottom + Spacing.four }]}
+            style={[styles.caption, { paddingBottom: insets.bottom + Space.five }]}
             pointerEvents="none">
             <ThemedText style={[heading, styles.captionName]} numberOfLines={2}>
               {current.filename}
@@ -321,6 +327,7 @@ export default function PhotoViewer({
         {editingTags && current && (
           <TagEditor asset={current} settings={settings} onClose={() => setEditingTags(false)} />
         )}
+        </GlassScene>
       </GestureHandlerRootView>
     </Modal>
   );
@@ -352,12 +359,14 @@ function ChromeButton({
       onPress={onPress}
       hitSlop={12}
       style={styles.chromeButton}>
+      <GlassSurface variant="floating" appearance="dark" style={styles.chromeSurface}>
       <SymbolView
         name={symbol}
         size={20}
         tintColor={tint ?? '#fff'}
         fallback={<ThemedText style={[styles.chromeGlyph, tint ? { color: tint } : null]}>{glyph}</ThemedText>}
       />
+      </GlassSurface>
     </Pressable>
   );
 }
@@ -410,11 +419,8 @@ function ViewerCell({
  *     sideways drag still reaches the pager underneath and turns the page.
  *   - Double-tap toggles between fit and 2x.
  *
- * All of them run on the JS thread (`runOnJS`). This app has no Reanimated
- * worklet code anywhere and no babel config to enable it; the scrubber drives
- * its drag through Animated from JS in exactly the same way, and a viewer that
- * matches it is worth more than a marginally smoother pinch on a path that
- * would be the only worklet in the codebase.
+ * Gesture state lives in useViewerGestures. Expo configures the installed
+ * Reanimated/Worklets runtime through babel-preset-expo.
  */
 function ImageCell({
   asset,
@@ -431,121 +437,13 @@ function ImageCell({
   onZoomChange?: (zoomed: boolean) => void;
   onDismiss?: () => void;
 }) {
-  // useMemo, not useRef().current: reading a ref during render is the thing the
-  // React Compiler lint objects to, and this is the same shape the grid's
-  // scrubber fade already uses.
-  const scale = useMemo(() => new Animated.Value(1), []);
-  const translateX = useMemo(() => new Animated.Value(0), []);
-  const translateY = useMemo(() => new Animated.Value(0), []);
-  const opacity = useMemo(() => new Animated.Value(1), []);
-  // The committed values the next gesture starts from. Animated.Value has no
-  // readable current value, so they are tracked alongside it.
-  const zoom = useRef(1);
-  const origin = useRef({ x: 0, y: 0 });
-
-  const settle = useCallback(
-    (next: number) => {
-      zoom.current = next;
-      onZoomChange?.(next > 1);
-      if (next === 1) {
-        origin.current = { x: 0, y: 0 };
-        Animated.spring(translateX, { toValue: 0, useNativeDriver: false, bounciness: 0 }).start();
-        Animated.spring(translateY, { toValue: 0, useNativeDriver: false, bounciness: 0 }).start();
-      }
-    },
-    [onZoomChange, translateX, translateY],
-  );
-
-  const onPinch = useCallback(
-    (s: number) => scale.setValue(clampZoom(zoom.current * s)),
-    [scale],
-  );
-
-  const onPinchEnd = useCallback(
-    (s: number) => {
-      const next = clampZoom(zoom.current * s);
-      scale.setValue(next);
-      settle(next);
-    },
-    [scale, settle],
-  );
-
-  const onDoubleTap = useCallback(() => {
-    const next = zoom.current > 1 ? ZOOM.min : 2;
-    Animated.timing(scale, { toValue: next, duration: 180, useNativeDriver: false }).start();
-    settle(next);
-  }, [scale, settle]);
-
-  const onDrag = useCallback(
-    (dx: number, dy: number) => {
-      if (zoom.current > 1) {
-        translateX.setValue(origin.current.x + dx);
-        translateY.setValue(origin.current.y + dy);
-        return;
-      }
-      // At rest the drag is the dismissal: the photo follows the finger down and
-      // the black behind it thins out, so the gesture shows its own outcome.
-      translateY.setValue(dy);
-      opacity.setValue(backdropOpacity(dy));
-    },
-    [translateX, translateY, opacity],
-  );
-
-  const onDragEnd = useCallback(
-    (dx: number, dy: number, vy: number) => {
-      if (zoom.current > 1) {
-        origin.current = { x: origin.current.x + dx, y: origin.current.y + dy };
-        return;
-      }
-      if (shouldDismiss(dy, vy)) {
-        onDismiss?.();
-        return;
-      }
-      Animated.spring(translateY, { toValue: 0, useNativeDriver: false, bounciness: 0 }).start();
-      Animated.spring(opacity, { toValue: 1, useNativeDriver: false, bounciness: 0 }).start();
-    },
-    [translateY, opacity, onDismiss],
-  );
-
-  /* eslint-disable react-hooks/refs -- Same mismatch as photo-grid.tsx, and the
-     reasoning is written out in full there: the rule objects to the callbacks
-     being handed to `.onUpdate(...)` during render because they eventually
-     touch a ref, not to any read happening then. Nothing calls them until a
-     finger does, and every alternative (state mutation, Reanimated worklets) is
-     worse for this code. Note the rule did catch a real bug in this file --
-     `useRef(new Animated.Value()).current` genuinely reads a ref during render
-     -- which is fixed above rather than suppressed. */
-  const gestures = useMemo(
-    () =>
-      Gesture.Simultaneous(
-        Gesture.Pinch()
-          .runOnJS(true)
-          .onUpdate((e) => onPinch(e.scale))
-          .onEnd((e) => onPinchEnd(e.scale)),
-        Gesture.Race(
-          Gesture.Tap()
-            .numberOfTaps(2)
-            .runOnJS(true)
-            .onEnd(onDoubleTap),
-          Gesture.Pan()
-            // Vertical-first, and only far enough sideways to be sure: a
-            // horizontal drag has to reach the pager under this cell so the
-            // page still turns.
-            .activeOffsetY([-15, 15])
-            .failOffsetX([-20, 20])
-            .runOnJS(true)
-            .onUpdate((e) => onDrag(e.translationX, e.translationY))
-            .onEnd((e) => onDragEnd(e.translationX, e.translationY, e.velocityY)),
-        ),
-      ),
-    [onPinch, onPinchEnd, onDoubleTap, onDrag, onDragEnd],
-  );
-  /* eslint-enable react-hooks/refs */
+  const { gesture, cellStyle, imageStyle } = useViewerGestures({ onZoomChange, onDismiss });
+  const reduced = useReducedMotion();
 
   const source = fullImageSource(settings, asset);
   return (
-    <GestureDetector gesture={gestures}>
-      <Animated.View style={[styles.cell, { width, opacity }]}>
+    <GestureDetector gesture={gesture}>
+      <Animated.View style={[styles.cell, { width }, cellStyle]}>
         {/*
           `layer`, not `fill`. The cell centres its children (`alignItems:
           'center'`), which in a column flexbox means they size to their content
@@ -560,7 +458,7 @@ function ImageCell({
         <Pressable style={styles.layer} onPress={onPress}>
           {source ? (
             <Animated.View
-              style={[styles.layer, { transform: [{ scale }, { translateX }, { translateY }] }]}>
+              style={[styles.layer, imageStyle]}>
               <Image
                 source={source}
                 placeholder={thumbSource(settings, asset)}
@@ -568,7 +466,7 @@ function ImageCell({
                 recyclingKey={source.uri}
                 style={styles.media}
                 contentFit="contain"
-                transition={150}
+                transition={reduced ? 0 : 150}
                 cachePolicy="disk"
               />
             </Animated.View>
@@ -628,15 +526,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: Space.four,
   },
-  topActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: Space.two },
   caption: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: Space.four,
     gap: 2,
   },
   // Fixed light-on-dark rather than themed, and shadowed rather than boxed: it
@@ -664,19 +562,25 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  chromeSurface: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chromeGlyph: { color: '#fff' },
-  details: { padding: Spacing.three, gap: Spacing.one },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.one, paddingTop: Spacing.two },
-  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: Spacing.two, paddingVertical: Spacing.one },
+  details: { padding: Space.four, gap: Space.one },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.one, paddingTop: Space.two },
+  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: Space.two, paddingVertical: Space.one },
   factsLabel: {
     fontFamily: FontFamily.mono,
     fontSize: 11,
     lineHeight: 15,
     fontWeight: '600',
     letterSpacing: 1.4,
-    paddingTop: Spacing.one,
+    paddingTop: Space.one,
   },
   chipAction: { borderStyle: 'dashed' },
 });

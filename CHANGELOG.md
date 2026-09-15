@@ -11,6 +11,11 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Changed
 
+- **Server list reads now have a bounded private cache.** Frequently revisited
+  owner-scoped JSON lists use a five-second, 8 MiB LRU cache with immediate
+  successful-write invalidation and change-log versioning for importer/background
+  freshness. HTTP metric labels now bucket unknown extension methods, preventing
+  an untrusted request stream from growing metric memory without bound.
 - **Mobile onboarding is now a guided four-step flow.** Welcome, server discovery, secure pairing,
   and photo access share a responsive visual frame, concise copy, animated controls and page
   entrances, plus a subtle top progress rail. Reduce Motion disables travel and interpolation, and

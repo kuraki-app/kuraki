@@ -1,9 +1,10 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { glassSurface } from './GlassSurface';
   import { MOBILE_TABS, isMobileActive } from '$lib/nav';
 </script>
 
-<nav class="tabs" aria-label="Primary">
+<nav class="tabs" aria-label="Primary" use:glassSurface={'navigation'}>
   {#each MOBILE_TABS as item (item.href)}
     <a
       href={item.href}
@@ -24,9 +25,7 @@
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     border-top: 1px solid var(--border);
-    background: color-mix(in srgb, var(--sidebar) 92%, transparent);
     padding-bottom: env(safe-area-inset-bottom, 0);
-    backdrop-filter: blur(18px);
   }
   .tabs a {
     display: grid;

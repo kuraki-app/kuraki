@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"bytes"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -8,7 +10,34 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
+
+func TestServePrecompressedPrefersBrotliAndPreservesLogicalType(t *testing.T) {
+	files := fs.FS(fstest.MapFS{
+		"_app/immutable/app.js":    {Data: []byte("plain")},
+		"_app/immutable/app.js.br": {Data: []byte("brotli")},
+		"_app/immutable/app.js.gz": {Data: []byte("gzip")},
+	})
+	req := httptest.NewRequest(http.MethodGet, "/_app/immutable/app.js", nil)
+	req.Header.Set("Accept-Encoding", "gzip, br")
+	rec := httptest.NewRecorder()
+	if !servePrecompressed(rec, req, files, "_app/immutable/app.js") {
+		t.Fatal("precompressed sibling was not served")
+	}
+	if got := rec.Header().Get("Content-Encoding"); got != "br" {
+		t.Fatalf("content encoding = %q, want br", got)
+	}
+	if got := rec.Header().Get("Content-Type"); !strings.Contains(got, "javascript") {
+		t.Fatalf("content type = %q, want JavaScript type", got)
+	}
+	if !strings.Contains(rec.Header().Get("Vary"), "Accept-Encoding") {
+		t.Fatalf("Vary = %q, want Accept-Encoding", rec.Header().Get("Vary"))
+	}
+	if !bytes.Equal(rec.Body.Bytes(), []byte("brotli")) {
+		t.Fatalf("body = %q, want brotli sibling", rec.Body.Bytes())
+	}
+}
 
 // TestSPADocumentNonceCSP proves the embedded SPA document is served with a
 // per-request script nonce so SvelteKit's inline bootstrap runs under the strict

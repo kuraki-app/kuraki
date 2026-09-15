@@ -28,7 +28,7 @@
 
 {#key id}
   <LibraryView
-    load={(cursor) => api.search({ tag: id }, cursor)}
+    load={(cursor, signal) => api.search({ tag: id }, cursor, signal)}
     title={heading}
     subtitle="Everything tagged this way."
     emptyText="Nothing carries this tag yet"

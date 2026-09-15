@@ -77,23 +77,23 @@ export const api = {
   deleteUser: (id: string, purge = false) =>
     req<void>(`/api/users/${id}${purge ? '?purge=true' : ''}`, { method: 'DELETE' }),
 
-  assets: (cursor = '') =>
-    req<AssetList>(`/api/assets?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`),
-  search: (params: SearchParams, cursor?: string) => {
+  assets: (cursor = '', signal?: AbortSignal) =>
+    req<AssetList>(`/api/assets?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, { signal }),
+  search: (params: SearchParams, cursor?: string, signal?: AbortSignal) => {
     const p = new URLSearchParams({ limit: '100' });
     for (const [k, v] of Object.entries(params)) if (v) p.set(k, v);
     if (cursor) p.set('cursor', cursor);
-    return req<AssetList>(`/api/search?${p.toString()}`);
+    return req<AssetList>(`/api/search?${p.toString()}`, { signal });
   },
   // These all page. They used to ask for `limit=500` and ignore the
   // `next_cursor` that came back, so a library past 500 items simply stopped —
   // silently, with no "load more" and nothing to say the list was partial.
-  favorites: (cursor = '') => req<AssetList>(`/api/favorites?${pageParams(cursor)}`),
-  memories: (cursor = '', date = '') =>
-    req<AssetList>(`/api/memories?${pageParams(cursor)}${date ? `&date=${date}` : ''}`),
-  trash: (cursor = '') => req<AssetList>(`/api/trash?${pageParams(cursor)}`),
-  archived: (cursor = '') => req<AssetList>(`/api/assets?archived=1&${pageParams(cursor)}`),
-  hidden: (cursor = '') => req<AssetList>(`/api/assets?hidden=1&${pageParams(cursor)}`),
+  favorites: (cursor = '', signal?: AbortSignal) => req<AssetList>(`/api/favorites?${pageParams(cursor)}`, { signal }),
+  memories: (cursor = '', date = '', signal?: AbortSignal) =>
+    req<AssetList>(`/api/memories?${pageParams(cursor)}${date ? `&date=${date}` : ''}`, { signal }),
+  trash: (cursor = '', signal?: AbortSignal) => req<AssetList>(`/api/trash?${pageParams(cursor)}`, { signal }),
+  archived: (cursor = '', signal?: AbortSignal) => req<AssetList>(`/api/assets?archived=1&${pageParams(cursor)}`, { signal }),
+  hidden: (cursor = '', signal?: AbortSignal) => req<AssetList>(`/api/assets?hidden=1&${pageParams(cursor)}`, { signal }),
 
   setFavorite: (id: string, favorite: boolean) =>
     req<void>(`/api/assets/${id}/favorite`, jsonBody({ favorite })),
@@ -120,7 +120,7 @@ export const api = {
   ) => req<{ succeeded: number }>('/api/assets/batch', jsonBody({ op, ids })),
 
   albums: () => req<{ albums: Album[] }>('/api/albums'),
-  album: (id: string, cursor = '') => req<AssetList>(`/api/albums/${id}?${pageParams(cursor)}`),
+  album: (id: string, cursor = '', signal?: AbortSignal) => req<AssetList>(`/api/albums/${id}?${pageParams(cursor)}`, { signal }),
   stack: (id: string) => req<AssetList>(`/api/assets/${id}/stack`),
   createAlbum: (name: string) => req<Album>('/api/albums', jsonBody({ name })),
   renameAlbum: (id: string, name: string) =>
@@ -131,8 +131,8 @@ export const api = {
   removeFromAlbum: (id: string, ids: string[]) =>
     req<{ removed: number }>(`/api/albums/${id}/assets`, jsonBody({ ids }, 'DELETE')),
 
-  places: () => req<AssetList>('/api/places'),
-  placesSummary: () => req<{ places: PlaceGroup[] }>('/api/places/summary'),
+  places: (signal?: AbortSignal) => req<AssetList>('/api/places', { signal }),
+  placesSummary: (signal?: AbortSignal) => req<{ places: PlaceGroup[] }>('/api/places/summary', { signal }),
   stats: () => req<LibraryStats>('/api/stats'),
   jobs: () => req<{ jobs: Job[] }>('/api/jobs'),
   job: (id: string) => req<JobDetail>(`/api/jobs/${id}`),

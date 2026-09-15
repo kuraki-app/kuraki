@@ -5,7 +5,7 @@
 </script>
 
 <LibraryView
-  load={(cursor) => api.memories(cursor)}
+  load={(cursor, signal) => api.memories(cursor, '', signal)}
   title="On this day"
   emptyText="Nothing from this day yet"
   emptyBody="On this day gathers photos taken on today's date in earlier years. It fills in as your library grows — or as you import older photos."

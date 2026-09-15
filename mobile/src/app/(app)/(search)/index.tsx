@@ -9,7 +9,7 @@ import TagList from '@/components/tag-list';
 import TagPills from '@/components/tag-pills';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Space, useTokens } from '@/constants/theme';
 import { setCachedFavorite } from '@/lib/cache/assets';
 import { enqueueFavorite, pendingFavorites } from '@/lib/cache/mutations';
 import { fetchLibrary, fetchTags, setFavorite, type LibraryAsset, type Tag } from '@/lib/library-api';
@@ -280,10 +280,10 @@ export default function SearchScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  header: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two, gap: Spacing.two },
+  header: { paddingHorizontal: Space.four, paddingTop: Space.two, gap: Space.two },
   // An explicit height rather than leaving it to the control's own measurement.
   // It hosts a SwiftUI picker on iOS, and a host that reports a collapsed height
   // is exactly how this screen's controls ended up stacked on one line before.
   segments: { height: 32 },
-  count: { fontSize: 13, lineHeight: 18, paddingTop: Spacing.half },
+  count: { fontSize: 13, lineHeight: 18, paddingTop: Space.half },
 });

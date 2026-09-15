@@ -18,6 +18,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+const connectionPoolSize = 4
+
 // Open returns a WAL-mode SQLite handle at path. Pragmas are set via the DSN so
 // they apply to every connection in the pool.
 func Open(ctx context.Context, path string) (*sql.DB, error) {
@@ -34,6 +36,11 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("db: open: %w", err)
 	}
+	// WAL lets readers proceed during a write, but SQLite still has one writer.
+	// A small fixed pool gives web reads useful concurrency without amplifying
+	// lock contention when imports and maintenance jobs are active.
+	db.SetMaxOpenConns(connectionPoolSize)
+	db.SetMaxIdleConns(connectionPoolSize)
 	if err := db.PingContext(ctx); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("db: ping: %w", err)

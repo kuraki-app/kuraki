@@ -5,7 +5,7 @@ import { AppState, ScrollView, StyleSheet, View } from 'react-native';
 
 import LibraryStatsCard from '@/components/library-stats';
 import { SettingsRow, SettingsSection } from '@/components/settings-ui';
-import { MaxContentWidth, Spacing, useTokens } from '@/constants/theme';
+import { MaxContentWidth, Space, useTokens } from '@/constants/theme';
 import { connectionView } from '@/lib/connection-view';
 import { serverHost } from '@/lib/url';
 import { classifyPermission, type PermissionStatus } from '@/lib/permissions';
@@ -94,6 +94,7 @@ export default function SettingsIndex() {
       <SettingsSection title="Preferences">
         <SettingsRow label="Notifications" icon="bell" href="/(app)/settings/notifications" />
         <SettingsRow label="Photo Grid" icon="square.grid.3x3" href="/(app)/settings/grid" />
+        <SettingsRow label="Appearance" icon="circle.lefthalf.filled" href="/(app)/settings/appearance" />
       </SettingsSection>
 
       <SettingsSection title="Library">
@@ -113,6 +114,6 @@ export default function SettingsIndex() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  content: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', paddingBottom: Spacing.four },
-  spacer: { height: Spacing.four },
+  content: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', paddingBottom: Space.five },
+  spacer: { height: Space.five },
 });
