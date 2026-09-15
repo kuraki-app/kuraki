@@ -4069,6 +4069,7 @@ export interface components {
             taken_day?: string;
             taken_month?: string;
             thumbnail_url?: string;
+            thumbnail_urls?: components["schemas"]["apitypes.ThumbnailURLs"];
             view_url: string;
             web_viewable: boolean;
             width: number;
@@ -4383,6 +4384,11 @@ export interface components {
         "apitypes.TagRequest": {
             name?: string;
             parent_id?: string;
+        };
+        "apitypes.ThumbnailURLs": {
+            l: string;
+            m: string;
+            s: string;
         };
         "apitypes.User": {
             id: string;

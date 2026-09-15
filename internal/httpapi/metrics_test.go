@@ -141,3 +141,29 @@ func TestMetricsBucketsUnknownHTTPMethods(t *testing.T) {
 		t.Fatalf("raw extension method leaked into metric labels: %s", body)
 	}
 }
+
+func TestMetricsReportThumbnailCounters(t *testing.T) {
+	ctx := context.Background()
+	database, store, _ := seedHTTPAsset(t, ctx)
+	router := NewRouter(Deps{Version: "test", DB: database, Store: store, Logger: slog.Default()})
+	cookie := setupTestSession(t, router)
+
+	body := getJSONWithCookie[map[string]any](t, router, "/metrics", cookie)
+	thumbs, ok := body["thumbs"].(map[string]any)
+	if !ok {
+		t.Fatalf("metrics missing thumbs block: %v", body)
+	}
+	if _, ok := thumbs["generated_total"]; !ok {
+		t.Fatalf("thumbs block = %v, want generated_total", thumbs)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Accept", "text/plain")
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if text := rec.Body.String(); !strings.Contains(text, `kuraki_thumb_requests_total{result="generated"}`) ||
+		!strings.Contains(text, "kuraki_thumb_inflight ") {
+		t.Fatalf("prometheus text missing thumbnail series: %s", text)
+	}
+}

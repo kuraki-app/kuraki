@@ -428,7 +428,7 @@ export default function PhotoGrid({
         renderItem={({ item: row }) => (
           <View style={[styles.row, { gap, marginBottom: gap }]}>
             {row.map((item) => {
-              const source = settings ? thumbSource(settings, item) : null;
+              const source = settings ? thumbSource(settings, item, columns >= 5 ? 's' : 'm') : null;
               const selected = selectedIds?.has(item.id) ?? false;
               return (
                 <Pressable

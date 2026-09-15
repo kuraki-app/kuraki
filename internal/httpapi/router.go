@@ -20,6 +20,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/media"
 	"github.com/kuraki-app/kuraki/internal/queue"
 	"github.com/kuraki-app/kuraki/internal/storage"
+	"github.com/kuraki-app/kuraki/internal/thumbs"
 	"golang.org/x/time/rate"
 )
 
@@ -36,6 +37,11 @@ type Deps struct {
 	// most existing tests never set it.
 	Settings  *config.Store
 	ThumbSize int
+
+	// Thumbs resolves and lazily renders thumbnail tiers. NewRouter fills a
+	// default from DB/Store/Media/ThumbSize when nil, so tests need not wire it.
+	Thumbs *thumbs.Service
+
 	// ListenPort is the port the server is bound to, used to build the
 	// pairing address a phone should connect to.
 	ListenPort string
@@ -70,6 +76,9 @@ type Deps struct {
 
 // NewRouter builds the top-level HTTP handler.
 func NewRouter(d Deps) http.Handler {
+	if d.Thumbs == nil {
+		d.Thumbs = &thumbs.Service{DB: d.DB, Store: d.Store, Media: d.Media, Log: d.Logger, MediumEdge: d.ThumbSize}
+	}
 	if d.requests == nil {
 		d.requests = newRequestMetrics()
 	}

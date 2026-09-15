@@ -32,6 +32,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/serversettings"
 	"github.com/kuraki-app/kuraki/internal/stacks"
 	"github.com/kuraki-app/kuraki/internal/storage"
+	"github.com/kuraki-app/kuraki/internal/thumbs"
 	"github.com/kuraki-app/kuraki/internal/verify"
 
 	"database/sql"
@@ -459,6 +460,10 @@ func (a *App) Serve(ctx context.Context) error {
 		Queue:     a.Queue,
 		Settings:  a.Settings,
 		ThumbSize: booted.ThumbnailSize,
+		Thumbs: &thumbs.Service{
+			DB: a.DB, Store: a.Store, Media: a.Media, Log: a.Log,
+			MediumEdge: booted.ThumbnailSize, Workers: booted.ThumbWorkers, MaxQueue: booted.ThumbQueue,
+		},
 		// The port half of the configured listen address, so the pairing screen
 		// can offer a URL a phone can actually route to rather than whatever the
 		// browser happened to be typed with.

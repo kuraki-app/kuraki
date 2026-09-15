@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,6 +14,50 @@ import (
 
 	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
 )
+
+// TestServeThumbOwnerScoped proves /thumb is walled by owner and by trash, like
+// /preview and /original. It was not: serveThumb read derivatives by asset id
+// alone, and the owner-scope guard cannot see SQL that names only derivatives.
+func TestServeThumbOwnerScoped(t *testing.T) {
+	ctx := context.Background()
+	database, store, _ := seedHTTPAsset(t, ctx)
+	router := NewRouter(Deps{Version: "test", DB: database, Store: store, Logger: slog.Default()})
+	cookie := setupTestSession(t, router)
+
+	other := secondOwner(t, database)
+	seedOwnedAssetFor(t, database, "b1", other)
+	if _, err := database.Exec(
+		`INSERT INTO derivatives (asset_id, kind, format, path) VALUES ('b1', 'thumb', 'jpeg', 'b1/thumb.jpg')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Write(ctx, "derivatives/b1/thumb.jpg", strings.NewReader("secret")); err != nil {
+		t.Fatal(err)
+	}
+
+	get := func(path string) int {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.AddCookie(cookie)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	if code := get("/api/assets/b1/thumb"); code != http.StatusNotFound {
+		t.Fatalf("other owner's thumb = %d, want 404", code)
+	}
+
+	list := getJSONWithCookie[apitypes.AssetList](t, router, "/api/assets", cookie)
+	own := list.Assets[0].ID
+	if code := get("/api/assets/" + own + "/thumb"); code != http.StatusOK {
+		t.Fatalf("own thumb = %d, want 200", code)
+	}
+	if _, err := database.Exec(
+		`UPDATE assets SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?`, own); err != nil {
+		t.Fatal(err)
+	}
+	if code := get("/api/assets/" + own + "/thumb"); code != http.StatusNotFound {
+		t.Fatalf("trashed thumb = %d, want 404", code)
+	}
+}
 
 // secondOwner inserts a second users row (distinct id, non-empty
 // password_hash) so cross-owner isolation tests have two tenants, and

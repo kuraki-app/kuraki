@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kuraki-app/kuraki/internal/thumbs"
 )
 
 var processStart = time.Now()
@@ -101,6 +103,9 @@ func (d Deps) metrics(w http.ResponseWriter, r *http.Request) {
 	if d.responses != nil {
 		out["cache"] = d.responses.stats()
 	}
+	if d.Thumbs != nil {
+		out["thumbs"] = d.Thumbs.Snapshot()
+	}
 	if strings.Contains(r.Header.Get("Accept"), "text/plain") {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
 		for _, key := range []string{"uptime_seconds", "goroutines", "mem_alloc_bytes", "mem_sys_bytes", "mem_heap_objects", "gc_num", "assets_total", "assets_trashed", "library_bytes"} {
@@ -135,6 +140,18 @@ func (d Deps) metrics(w http.ResponseWriter, r *http.Request) {
 			_, _ = fmt.Fprintf(w, "kuraki_cache_misses_total %d\n", cache.Misses)
 			_, _ = fmt.Fprintf(w, "kuraki_cache_entries %d\n", cache.Entries)
 			_, _ = fmt.Fprintf(w, "kuraki_cache_bytes %d\n", cache.Bytes)
+		}
+		if stats, ok := out["thumbs"].(thumbs.Snapshot); ok {
+			for _, m := range []struct {
+				result string
+				n      int64
+			}{{"hit", stats.Hits}, {"generated", stats.Generated}, {"coalesced", stats.Coalesced},
+				{"busy", stats.Busy}, {"error", stats.Errors}} {
+				_, _ = fmt.Fprintf(w, "kuraki_thumb_requests_total{result=%s} %d\n", strconv.Quote(m.result), m.n)
+			}
+			_, _ = fmt.Fprintf(w, "kuraki_thumb_generate_seconds_sum %g\n", stats.GenerateSeconds)
+			_, _ = fmt.Fprintf(w, "kuraki_thumb_generate_seconds_count %d\n", stats.Generated)
+			_, _ = fmt.Fprintf(w, "kuraki_thumb_inflight %d\n", stats.Inflight)
 		}
 		return
 	}

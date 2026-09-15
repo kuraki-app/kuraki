@@ -1,4 +1,4 @@
-import { videoSource, fullImageSource, type LibraryAsset } from '@/lib/library-api';
+import { videoSource, fullImageSource, thumbSource, type LibraryAsset } from '@/lib/library-api';
 import type { CaptureSettings } from '@/lib/settings';
 import { describe, expect, it } from 'vitest';
 import { isUnfiltered, routeForMutation } from '@/lib/library-api';
@@ -66,4 +66,25 @@ it('plays the authenticated server derivative for an incompatible original', () 
 
 it('keeps a thumbnail fallback for an image without a full preview', () => {
   expect(fullImageSource(connection, { ...video, media_type: 'image', web_viewable: false, thumbnail_url: '/thumb' })?.uri).toMatch(/\/thumb$/);
+});
+
+it('uses the versioned tier URL the server sent', () => {
+  const photo: LibraryAsset = {
+    id: 'p', filename: 'p.jpg', media_type: 'image', favorite: false, web_viewable: true,
+    thumbnail_url: '/api/assets/p/thumb?v=abc',
+    thumbnail_urls: { s: '/api/assets/p/thumb?size=s&v=abc', m: '/api/assets/p/thumb?v=abc', l: '/api/assets/p/thumb?size=l&v=abc' },
+  };
+  expect(thumbSource(connection, photo, 'l')?.uri).toBe('https://photos.example.test/api/assets/p/thumb?size=l&v=abc');
+  expect(thumbSource(connection, photo)?.uri).toBe('https://photos.example.test/api/assets/p/thumb?v=abc');
+  expect(thumbSource(connection, photo, 's')?.headers).toEqual({ Authorization: 'Bearer test-device' });
+});
+
+it('falls back to the id route for synthetic cover stubs', () => {
+  const stub: LibraryAsset = { id: 'c', filename: '', media_type: 'image', favorite: false, web_viewable: false, thumbnail_url: 'c' };
+  expect(thumbSource(connection, stub, 'l')?.uri).toBe('https://photos.example.test/api/assets/c/thumb');
+});
+
+it('keeps the preview version for playback', () => {
+  expect(videoSource(connection, { ...video, preview_url: '/api/assets/video/preview?v=abc' })?.uri)
+    .toBe('https://photos.example.test/api/assets/video/preview?v=abc');
 });

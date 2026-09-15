@@ -4,6 +4,7 @@
   import type { Asset } from '$lib/types';
   import { groupAssets, type Grouping } from '$lib/format';
   import { gridGeometry, gridWindows } from '$lib/gallery-layout';
+  import { thumbSrcset } from '$lib/thumbs';
   import { galleryTokens } from '../../../../shared/gallery-tokens';
   import { MORPH_NAME } from '$lib/motion';
 
@@ -94,7 +95,8 @@
                         <span class="shimmer" class:done={loaded.has(asset.id)}></span>
                         <img class:loaded={loaded.has(asset.id)}
                           style:view-transition-name={morphId === asset.id ? MORPH_NAME : undefined}
-                          src={asset.thumbnail_url} alt="" loading="lazy" decoding="async"
+                          src={asset.thumbnail_url} srcset={thumbSrcset(asset)} sizes={`${Math.ceil(geometry.tile)}px`}
+                          alt="" loading="lazy" decoding="async"
                           on:load={() => { loaded.add(asset.id); loaded = loaded; }}
                           on:error={() => { failed.add(asset.id); failed = failed; }} />
                       {:else}
