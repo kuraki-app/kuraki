@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { glassSurface } from './GlassSurface';
   import { createEventDispatcher, onDestroy } from 'svelte';
   import { fly, type FlyParams } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
@@ -255,21 +256,21 @@
   <!-- tabindex allows the container itself to hold focus if a photo-only
        viewer ever has no focusable control inside it. -->
   <div class="viewer" class:details-open={detailsOpen} role="dialog" aria-modal="true" aria-label="Photo viewer" tabindex="-1" use:trapFocus>
-    <button class="icon close" type="button" on:click={() => dispatch('close')} aria-label="Close">
+    <button class="icon close" type="button" on:click={() => dispatch('close')} aria-label="Close" use:glassSurface={'floating'} data-glass-tone="chrome">
       <X size={22} />
     </button>
-    <div class="viewer-tools">
+    <div class="viewer-tools" use:glassSurface={'floating'} data-glass-tone="chrome">
       <button class="icon" type="button" aria-label={asset.favorite ? 'Remove favorite' : 'Favorite photo'} aria-pressed={asset.favorite} on:click={() => dispatch('favorite', asset)}><Heart size={20} fill={asset.favorite ? 'currentColor' : 'none'} /></button>
       <button class="icon" type="button" aria-label="Photo details" aria-expanded={detailsOpen} aria-controls="photo-details" on:click={() => (detailsOpen = !detailsOpen)}><Info size={20} /></button>
     </div>
-    <div class="viewer-caption"><span>{asset.filename}</span><small>{index + 1} / {assets.length}</small></div>
+    <div class="viewer-caption" use:glassSurface={'floating'} data-glass-tone="chrome"><span>{asset.filename}</span><small>{index + 1} / {assets.length}</small></div>
     {#if index > 0}
-      <button class="icon nav left" type="button" on:click={() => move(-1)} aria-label="Previous">
+      <button class="icon nav left" type="button" on:click={() => move(-1)} aria-label="Previous" use:glassSurface={'floating'} data-glass-tone="chrome">
         <ChevronLeft size={26} />
       </button>
     {/if}
     {#if index < assets.length - 1}
-      <button class="icon nav right" type="button" on:click={() => move(1)} aria-label="Next">
+      <button class="icon nav right" type="button" on:click={() => move(1)} aria-label="Next" use:glassSurface={'floating'} data-glass-tone="chrome">
         <ChevronRight size={26} />
       </button>
     {/if}
@@ -608,6 +609,8 @@
   .viewer-tools { position: fixed; display: flex; gap: 8px; top: 16px; right: 16px; z-index: 32; }
   .viewer-caption { position: absolute; bottom: 20px; left: 72px; right: 72px; display: flex; justify-content: center; align-items: baseline; gap: 12px; pointer-events: none; }
   .viewer-caption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .viewer-caption { padding: 8px 12px; border-radius: var(--collection-radius); }
+  .viewer-tools { border-radius: var(--collection-radius); }
   .viewer-caption small { flex: none; color: var(--chrome-muted); }
   .details-open .viewer-caption { right: 412px; }
   .info[hidden] { display: none; }

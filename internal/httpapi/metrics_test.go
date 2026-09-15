@@ -98,3 +98,46 @@ func TestMetricsPrometheusNegotiation(t *testing.T) {
 		t.Fatalf("missing uptime metric: %q", rec.Body.String())
 	}
 }
+
+func TestMetricsExposeNormalizedRequestRoutes(t *testing.T) {
+	router := newMetricsRouter(t, "s3cret-scrape-token")
+	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/healthz", nil))
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer s3cret-scrape-token")
+	req.Header.Set("Accept", "text/plain; version=0.0.4")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("metrics status = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `kuraki_http_requests_total{method="GET",route="/healthz",status="200"} 1`) {
+		t.Fatalf("missing normalized health request metric: %s", body)
+	}
+	if strings.Contains(body, "kuraki_http_requests_total{method=\"GET\",route=\"/metrics\"") {
+		t.Fatalf("metrics response must not include itself before its snapshot: %s", body)
+	}
+}
+
+func TestMetricsBucketsUnknownHTTPMethods(t *testing.T) {
+	router := newMetricsRouter(t, "s3cret-scrape-token")
+	for _, method := range []string{"PURGE", "FROB"} {
+		router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(method, "/healthz", nil))
+	}
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer s3cret-scrape-token")
+	req.Header.Set("Accept", "text/plain; version=0.0.4")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("metrics status = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `method="OTHER"`) {
+		t.Fatalf("unknown methods were not bucketed: %s", body)
+	}
+	if strings.Contains(body, `method="PURGE"`) || strings.Contains(body, `method="FROB"`) {
+		t.Fatalf("raw extension method leaked into metric labels: %s", body)
+	}
+}

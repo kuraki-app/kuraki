@@ -5,7 +5,7 @@ import PhotoGrid from '@/components/photo-grid';
 import SelectionHeader from '@/components/selection-header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { Space } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { deleteCachedAsset, setTrashed } from '@/lib/cache/albums';
 import { enqueuePurge, enqueueRestore } from '@/lib/cache/mutations';
@@ -235,7 +235,7 @@ export default function TrashScreen() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  hint: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.two },
+  hint: { paddingHorizontal: Space.four, paddingBottom: Space.two },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24, minHeight: 200 },
   msg: { textAlign: 'center' },
 });

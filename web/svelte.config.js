@@ -20,7 +20,7 @@ const config = {
       pages: '../internal/httpapi/assets',
       assets: '../internal/httpapi/assets',
       fallback: 'index.html',
-      precompress: false,
+      precompress: true,
       strict: true
     })
   }

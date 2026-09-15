@@ -2859,6 +2859,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/places/map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Map features for a viewport */
+        get: {
+            parameters: {
+                query: {
+                    /** @description min longitude,min latitude,max longitude,max latitude */
+                    bbox: string;
+                    /** @description map zoom (0-22) */
+                    zoom: number;
+                    /** @description maximum features (1-2000) */
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["apitypes.PlaceMap"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["apitypes.Error"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["apitypes.Error"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/places/summary": {
         parameters: {
             query?: never;
@@ -4221,6 +4282,29 @@ export interface components {
             country: string;
             cover_asset_id: string;
             cover_thumb_url: string;
+        };
+        "apitypes.PlaceMap": {
+            features: components["schemas"]["apitypes.PlaceMapFeature"][];
+            truncated: boolean;
+            /** @enum {string} */
+            type: "FeatureCollection";
+        };
+        "apitypes.PlaceMapFeature": {
+            geometry: components["schemas"]["apitypes.PlaceMapGeometry"];
+            properties: components["schemas"]["apitypes.PlaceMapProperties"];
+            /** @enum {string} */
+            type: "Feature";
+        };
+        "apitypes.PlaceMapGeometry": {
+            coordinates: number[];
+            /** @enum {string} */
+            type: "Point";
+        };
+        "apitypes.PlaceMapProperties": {
+            asset_id?: string;
+            count: number;
+            /** @enum {string} */
+            kind: "asset" | "cluster";
         };
         "apitypes.PlaceSummary": {
             places: components["schemas"]["apitypes.PlaceGroup"][];

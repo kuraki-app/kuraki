@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { SettingsRow, SettingsSection } from '@/components/settings-ui';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Space, useTokens } from '@/constants/theme';
 import { clearMutations } from '@/lib/cache/mutations';
 import { clearDeviceToken, clearSetupComplete } from '@/lib/settings';
 
@@ -45,6 +45,6 @@ export default function AdvancedSettings() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  content: { paddingBottom: Spacing.four },
-  spacer: { height: Spacing.four },
+  content: { paddingBottom: Space.five },
+  spacer: { height: Space.five },
 });

@@ -43,8 +43,10 @@ existing promise works.
   structured security/operation audit events.
   **Shipped foundation:** the owner console now has one DB-backed Settings area
   for operational controls, with explicit live/restart semantics and
-  environment/CLI pinning. This does not close the blocker: deployment
-  validation, scanning, and audit evidence remain required.
+  environment/CLI pinning. The current pass additionally adds authenticated
+  low-cardinality HTTP, database-pool, and import-job metrics plus structured
+  request logs. This does not close the blocker: deployment validation,
+  scanning, audit evidence, and alert thresholds remain required.
 
 - **[production blocker] Mobile release certification — Mobile users — M.** Add
   iOS/Android identifiers and signed release profiles, decide crash/error

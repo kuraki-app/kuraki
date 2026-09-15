@@ -27,7 +27,7 @@ const (
 // catalog is "restart": the value is baked into a constructor (queue.New,
 // httpapi.Deps) at Serve() time and is never re-read afterwards. Only two
 // keys are read per-call by their background worker and so can apply live —
-// see App.PurgeTrash / App.PruneChangeLog in internal/app.
+// see maintenance.Manager in internal/maintenance.
 type Apply string
 
 const (

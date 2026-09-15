@@ -20,6 +20,8 @@
   import { session, bumpLibrary, showToast, uploadRequest } from '$lib/stores';
   import { startSync } from '$lib/sync';
   import { defaultView } from '$lib/prefs';
+  import { startTransparency } from '$lib/glass';
+  import { glassSurface } from '$lib/components/GlassSurface';
   import { NAV_GROUPS, isActive, registerFor } from '$lib/nav';
   import MobileNav from '$lib/components/MobileNav.svelte';
   import '../app.css';
@@ -50,6 +52,7 @@
   const themeIcon = { system: Monitor, light: Sun, dark: Moon } as const;
 
   onMount(() => {
+    const stopTransparency = startTransparency();
     let active = true;
     const online = () => void resumeQueuedUploads();
     const serviceWorkerMessage = (event: MessageEvent) => {
@@ -71,6 +74,7 @@
     window.addEventListener('online', online);
     if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', serviceWorkerMessage);
     return () => {
+      stopTransparency();
       active = false;
       window.removeEventListener('online', online);
       if ('serviceWorker' in navigator) navigator.serviceWorker.removeEventListener('message', serviceWorkerMessage);
@@ -407,11 +411,11 @@
     />
     {#if dragging}<div class="drop" aria-hidden="true">Drop to upload</div>{/if}
     {#if uploadPct >= 0}
-      <div class="uploading" role="status"><div class="ubar" style="width:{uploadPct}%"></div><span>Uploading {uploadBatchFiles} {uploadBatchFiles === 1 ? 'file' : 'files'} · {uploadPct}%</span></div>
+      <div class="uploading" role="status" use:glassSurface={'floating'} data-glass-tone="chrome"><div class="ubar" style="width:{uploadPct}%"></div><span>Uploading {uploadBatchFiles} {uploadBatchFiles === 1 ? 'file' : 'files'} · {uploadPct}%</span></div>
     {:else if importStatus}
-      <div class="uploading" role="status"><div class="ubar indet"></div><span>{importStatus}</span></div>
+      <div class="uploading" role="status" use:glassSurface={'floating'} data-glass-tone="chrome"><div class="ubar indet"></div><span>{importStatus}</span></div>
     {:else if queuedFiles > 0}
-      <div class="uploading" role="status"><span>{queuedFiles} {queuedFiles === 1 ? 'upload' : 'uploads'} queued</span></div>
+      <div class="uploading" role="status" use:glassSurface={'floating'} data-glass-tone="chrome"><span>{queuedFiles} {queuedFiles === 1 ? 'upload' : 'uploads'} queued</span></div>
     {/if}
   </div>
 {/if}

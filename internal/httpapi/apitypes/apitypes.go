@@ -418,6 +418,33 @@ type PlaceSummary struct {
 	Places []PlaceGroup `json:"places" validate:"required"`
 }
 
+// PlaceMapGeometry is a GeoJSON point. Coordinates are longitude, latitude.
+type PlaceMapGeometry struct {
+	Type        string     `json:"type" validate:"required" enums:"Point"`
+	Coordinates [2]float64 `json:"coordinates" validate:"required"`
+}
+
+// PlaceMapProperties identifies either one asset or an aggregate map cell.
+type PlaceMapProperties struct {
+	Kind    string `json:"kind" validate:"required" enums:"asset,cluster"`
+	Count   int    `json:"count" validate:"required"`
+	AssetID string `json:"asset_id,omitempty"`
+}
+
+// PlaceMapFeature is a minimal GeoJSON feature for the map viewport.
+type PlaceMapFeature struct {
+	Type       string             `json:"type" validate:"required" enums:"Feature"`
+	Geometry   PlaceMapGeometry   `json:"geometry" validate:"required"`
+	Properties PlaceMapProperties `json:"properties" validate:"required"`
+}
+
+// PlaceMap is a bounded GeoJSON feature collection for one map viewport.
+type PlaceMap struct {
+	Type      string            `json:"type" validate:"required" enums:"FeatureCollection"`
+	Features  []PlaceMapFeature `json:"features" validate:"required"`
+	Truncated bool              `json:"truncated" validate:"required"`
+}
+
 // YearCount is one year's asset count for the library stats breakdown.
 type YearCount struct {
 	Year  string `json:"year" validate:"required"`

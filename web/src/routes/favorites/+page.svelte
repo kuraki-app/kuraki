@@ -6,7 +6,7 @@
 </script>
 
 <LibraryView
-  load={(cursor) => api.favorites(cursor)}
+  load={(cursor, signal) => api.favorites(cursor, signal)}
   title="Favorites"
   emptyText="Keep your best photos together"
   emptyBody="Star a photo while viewing it, or select several and choose Favorite. Favorites stay in your timeline too."

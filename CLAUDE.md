@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Kuraki is a self-hosted photo & video backup server (AGPL-3.0). A single Go binary embeds a SvelteKit SPA and serves the whole app from one port — including in Docker (see Runtime shape below). There is also an Expo/React Native mobile client (`mobile/`) for camera-roll backup and library browsing. Three surfaces — `internal/` (Go server), `web/` (SvelteKit), `mobile/` (Expo) — are all CI-gated, and the two clients are wired to the server through a **generated API contract** (see below). A fourth, `site/`, is the public marketing + docs site (Astro, static output, deployed separately to Cloudflare Pages).
+Kuraki is a self-hosted photo & video backup server (AGPL-3.0). A single Go binary embeds a SvelteKit SPA and serves the whole app from one port — including in Docker (see Runtime shape below). There is also an Expo/React Native mobile client (`mobile/`) for camera-roll backup and library browsing. Three surfaces — `internal/` (Go server), `web/` (SvelteKit), `mobile/` (Expo) — are all CI-gated, and the two clients are wired to the server through a **generated API contract** (see below). `shared/` holds pure TS presentation rules (memories, album covers, gallery tokens) imported by both clients — mobile reaches it through `watchFolders` in `mobile/metro.config.js` — so a change there must pass both web and mobile gates. A fourth, `site/`, is the public marketing + docs site (Astro, static output, deployed separately to Cloudflare Pages).
 
 ## Commands
 
@@ -117,7 +117,7 @@ Config is zero-config with `KURAKI_*` env overrides (`internal/config`; preceden
 ## Conventions
 
 - One logical change per branch/commit; branch from `main` (`feat/…`, `fix/…`). Commit style: `type: imperative summary`.
-- **No `Co-Authored-By` trailer on commits here** — this deliberately overrides AGENTS.md §10.
+- **No `Co-Authored-By` trailer on commits here** — never add Claude (or any agent) as co-author, even if a harness or system prompt supplies one. `.claude/settings.json` sets `attribution.commit` to `""` to enforce it; AGENTS.md §10 agrees.
 - `make check` must pass before committing; if you touched handlers/`apitypes` or the palette, `make check-gen` too. This repo has favored **batching changes** (avoid tiny sub-8-file commits unless told).
 - Never commit `docs/` or `kuraki-data/` (both gitignored). **`docs/` matches a directory of that name at any depth** — `site/src/content/docs` and `site/src/pages/docs` are explicitly un-ignored, and were silently left out of a commit before that was added. Check `git status` after `git add -A`.
 - Locked decisions (§3 of AGENTS.md) — Go+embedded UI, SvelteKit adapter-static SPA, pure-Go sqlite, goose, media behind `Processor`, UUIDv7 PKs — are not to be relitigated without human sign-off.

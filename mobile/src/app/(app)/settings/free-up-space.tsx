@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, 
 
 import { SettingsSection } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing, useTokens } from '@/constants/theme';
+import { Radius, Space, useTokens } from '@/constants/theme';
 import { backupEngine } from '@/lib/backup-engine';
 import { loadBackedUpIds } from '@/lib/backup-ledger';
 import { formatBytes } from '@/lib/format';
@@ -235,21 +235,21 @@ export default function FreeUpSpaceSettings() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  content: { paddingBottom: Spacing.five },
-  choiceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.one, paddingTop: Spacing.one },
+  content: { paddingBottom: Space.seven },
+  choiceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.one, paddingTop: Space.one },
   choice: {
     borderWidth: 1,
     borderRadius: Radius.sm,
-    paddingVertical: Spacing.one,
-    paddingHorizontal: Spacing.two,
+    paddingVertical: Space.one,
+    paddingHorizontal: Space.two,
   },
-  busy: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingVertical: Spacing.one },
+  busy: { flexDirection: 'row', alignItems: 'center', gap: Space.two, paddingVertical: Space.one },
   button: {
     alignItems: 'center',
     borderWidth: 1,
     borderRadius: Radius.sm,
-    padding: Spacing.two,
-    marginTop: Spacing.two,
+    padding: Space.two,
+    marginTop: Space.two,
   },
   disabled: { opacity: 0.5 },
 });

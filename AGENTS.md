@@ -168,6 +168,15 @@ Phase 1 = single-owner personal backup.
   page. Page entrance travel and navigation motion follow Reduce Motion. Photo permission remains
   skippable; pairing behavior and stored credentials are unchanged. This improves first-run quality
   but does **not** close the mobile release-certification blocker in ROADMAP.md.
+- **Selective material and performance hardening (2026-09-15, `codex/performance-material-pass`).**
+  A semantic glass seam now treats navigation, viewer chrome, dialogs, and transient controls as
+  material while preserving opaque surfaces by default and whenever the system/user requests reduced
+  transparency. Web ships negotiated Brotli/gzip assets and static compressed-size gates; the server
+  has bounded Places map features, operational metrics, safer HTTP limits, a maintenance owner, and
+  a bounded private read cache. Cache keys include the owner and `change_log` high-water mark, so
+  background changes bypass stale entries; successful writes clear it. Full Go/web/mobile static
+  suites and Chromium e2e pass. Physical-device material/gesture and live Core Web Vitals evidence
+  remain release certification work.
 - **Settings consolidation (2026-07-27, `feat/settings-consolidation`):** the former Stats, account,
   Devices, Activity, appearance, library, and server controls now live under one responsive
   `/settings` shell. Migration `00022` stores the owner-writable catalog; `config.Store` resolves
@@ -467,6 +476,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | **Collections destination** (2026-09-11): web and native group Favorites, Albums, On this day, Places and Tags under a real Collections tab/page; Photos menu is reduced to Photos/Archived; phone web Settings replaces four browsing rows with one Collections row | ✅ code-complete; focused route/responsive + mobile gates green |
 | **Adaptive branch mainline integration** (2026-09-11): current `main` gallery modernization and the adaptive/PWA/settings series coexist; gallery sizing primitives now come from the shared design source; mainline memories, role gates, retry isolation, and session resilience are retained; embedded assets were rebuilt from resolved source | ✅ focused browser reconciliation plus full Go, web, mobile, and design gates green |
 | **Shared micro-interactions** (2026-09-11): press, lift, enter, reveal, progress, and continuity patterns share tokens across web/native; high-value navigation, settings, collection, memory, album, place, and tag controls provide immediate feedback; Reduce Motion removes travel and delay | ✅ code-complete; focused motion/responsive browser suite + web/mobile static gates green |
+| **Selective material + performance hardening** (2026-09-15): generated glass tokens and one semantic material seam give web/mobile navigation, viewer chrome, dialogs, and transient controls a platform-aware translucent treatment with opaque Reduce Transparency fallbacks; native headers/tabs remain platform-owned. Web emits Brotli/gzip assets, enforces compressed bootstrap/font budgets, and bundles Latin Inter only. Go adds bounded map features, pool/request/job metrics, safer server limits, a maintenance coordinator, and an owner/version-scoped 8 MiB read cache with write invalidation. | ✅ code-complete; Go race/vet, web build/unit/e2e, mobile type/lint/unit green. Physical mobile material/gesture certification and live CWV remain release evidence gates. |
 | **Guided mobile onboarding** (2026-09-13): responsive shared setup frame, concise welcome/server/pairing/permission pages, focus-aware fields, animated controls/page entrances, and a persistent accessible rounded progress rail | ✅ code-complete; focused Vitest + mobile typecheck/lint green, native visual pass pending |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
@@ -492,9 +502,33 @@ audited baseline and release checklist.
 - **Don't** break the hard rules in §6, edit released migrations, or add CGO to
   the default build. If a decision in §3 seems wrong, flag it for the human;
   don't silently change it.
-- Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
+- **No co-author trailer** for AI commits — never add `Co-Authored-By: <agent>`
+  (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/performance-material-pass` (2026-09-15) — **Selective glass and performance
+  hardening now span all three product surfaces.** `design/tokens.json` generates semantic
+  material tokens for both clients; web has an opaque-first `GlassSurface` action plus a
+  local System/Reduced/Enabled preference, native has a capability-checked Glass/Blur/opaque
+  module that honours iOS Reduce Transparency and leaves NativeTabs/Stack chrome alone. The
+  photo viewer's continuous gestures now run on UI worklets and legacy mobile spacing was
+  consolidated onto generated tokens. The web build now emits precompressed assets, serves
+  them with negotiation, gates bootstrap/font budgets (137,719 gzip bootstrap bytes and
+  48,256 font bytes), and cancels stale library requests. Server maintenance is one module,
+  `/metrics` adds normalized request/database/job evidence, and `/api/places/map` provides
+  owner-scoped bounded GeoJSON clusters/points backed by migration `00026`. `make test`,
+  `go vet ./...`, web check/test/build + Chromium e2e, mobile typecheck/lint/Vitest, and the
+  static budget gate pass. The mobile client was subsequently migrated to Expo SDK 57 to remove
+  the SDK 56 Hermes V1 memory regression; Expo Doctor is 21/21 clean. Physical-device
+  material/gesture and release-build recertification still remain. `npm audit --omit=dev` reports
+  19 upstream Expo/tooling-chain advisories (3 high), but offers only incompatible downgrade/major
+  changes; do not apply `npm audit fix --force` blindly. The follow-up closes the review's metrics
+  cardinality finding by bucketing extension methods as `OTHER`, and adds a deep bounded response
+  cache: small owner-scoped JSON reads are keyed by owner, request, and `change_log` high-water
+  mark; HTTP writes clear it, while background imports naturally bypass prior versions. It is capped
+  at 256 entries / 8 MiB / 256 KiB per response and reports hit/miss/entry/byte counters in
+  `/metrics`.
 
 - `codex/micro-interactions` (2026-09-13, onboarding) — **Mobile setup is now a modern guided flow
   without changing its security or persistence behavior.** One shared frame gives all four routes a

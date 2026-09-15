@@ -68,6 +68,10 @@ jobs:
       # the timezone bug they pin is invisible at UTC or any positive offset.
       - run: cd web && npm run test
       - run: cd web && npm run build
+      # Keep the static SPA lightweight: this measures the resources referenced
+      # by the fallback document, the largest lazy chunk, and bundled fonts
+      # after Vite has produced the exact assets shipped in the Go binary.
+      - run: node scripts/check-web-budget.mjs
 
   e2e:
     name: Web end-to-end (browser)
