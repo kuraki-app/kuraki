@@ -253,11 +253,18 @@ func TestQueueOverflowReturnsBusy(t *testing.T) {
 	}
 	p := &gatedProcessor{Processor: media.NewPureGo(), release: make(chan struct{})}
 	s := newService(f, p, 1, 1)
-	defer close(p.release)
 
-	go func() { _, _ = s.Get(f.ctx, "u1", "a1", TierLarge) }()
+	// The gated renders write into the test's TempDir, so they must finish
+	// before the test returns or cleanup races them ("directory not empty").
+	var wg sync.WaitGroup
+	defer func() {
+		close(p.release)
+		wg.Wait()
+	}()
+	wg.Add(2)
+	go func() { defer wg.Done(); _, _ = s.Get(f.ctx, "u1", "a1", TierLarge) }()
 	waitFor(t, func() bool { return p.calls.Load() == 1 })
-	go func() { _, _ = s.Get(f.ctx, "u1", "a2", TierLarge) }()
+	go func() { defer wg.Done(); _, _ = s.Get(f.ctx, "u1", "a2", TierLarge) }()
 	waitFor(t, func() bool { return s.waiting.Load() == 1 })
 
 	if _, err := s.Get(f.ctx, "u1", "a3", TierLarge); !errors.Is(err, ErrBusy) {
