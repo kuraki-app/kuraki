@@ -31,3 +31,10 @@ type Storage interface {
 	// Remove deletes rel permanently (trash purge, F-10).
 	Remove(ctx context.Context, rel string) error
 }
+
+// LocalPather is implemented by backends whose blobs are plain local files, so
+// media tools that need a filesystem path can read them without a temp copy.
+// Callers must fall back to Open + a temp file when a backend does not implement it.
+type LocalPather interface {
+	LocalPath(rel string) (string, error)
+}
