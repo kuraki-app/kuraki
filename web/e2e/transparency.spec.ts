@@ -17,7 +17,9 @@ test('transparency persists, stays independent of motion, and covers navigation 
   expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true);
   await choices.getByRole('button', { name: 'Reduced', exact: true }).click();
   await page.goto('/albums');
-  await page.getByRole('button', { name: /new album/i }).click();
+  // With no albums the page also shows an empty-state "New album" button, so an
+  // unscoped locator matches twice whenever this runs before a test creates one.
+  await page.locator('header').getByRole('button', { name: 'New album' }).click();
   await expect(page.getByRole('dialog')).toHaveCSS('backdrop-filter', 'none');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);

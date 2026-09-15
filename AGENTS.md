@@ -485,7 +485,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | **Adaptive branch mainline integration** (2026-09-11): current `main` gallery modernization and the adaptive/PWA/settings series coexist; gallery sizing primitives now come from the shared design source; mainline memories, role gates, retry isolation, and session resilience are retained; embedded assets were rebuilt from resolved source | ✅ focused browser reconciliation plus full Go, web, mobile, and design gates green |
 | **Shared micro-interactions** (2026-09-11): press, lift, enter, reveal, progress, and continuity patterns share tokens across web/native; high-value navigation, settings, collection, memory, album, place, and tag controls provide immediate feedback; Reduce Motion removes travel and delay | ✅ code-complete; focused motion/responsive browser suite + web/mobile static gates green |
 | **Selective material + performance hardening** (2026-09-15): generated glass tokens and one semantic material seam give web/mobile navigation, viewer chrome, dialogs, and transient controls a platform-aware translucent treatment with opaque Reduce Transparency fallbacks; native headers/tabs remain platform-owned. Web emits Brotli/gzip assets, enforces compressed bootstrap/font budgets, and bundles Latin Inter only. Go adds bounded map features, pool/request/job metrics, safer server limits, a maintenance coordinator, and an owner/version-scoped 8 MiB read cache with write invalidation. | ✅ code-complete; Go race/vet, web build/unit/e2e, mobile type/lint/unit green. Physical mobile material/gesture certification and live CWV remain release evidence gates. |
-| **Thumbnail tiers + versioned media caching** (2026-09-15): `internal/thumbs` renders 256/1200 tiers on first request (singleflight, bounded workers, 503 + Retry-After on overflow); medium made at import; generation-suffixed derivative paths make rebuild work; `?v=` URLs served `immutable`; web `srcset` + large viewer placeholder; mobile tier-aware versioned sources. Fixed on the way: cross-owner `/thumb` read, rebuild `ErrExists`, user-purge derivative leak | ✅ code-complete; Go race/vet + check-gen, web check/unit + Chromium e2e (new thumbnail specs green), mobile type/lint/unit/design green; final `make e2e` 116/116. `transparency.spec.ts` flaked once (duplicate "New album" button) and passed on the rerun |
+| **Thumbnail tiers + versioned media caching** (2026-09-15): `internal/thumbs` renders 256/1200 tiers on first request (singleflight, bounded workers, 503 + Retry-After on overflow); medium made at import; generation-suffixed derivative paths make rebuild work; `?v=` URLs served `immutable`; web `srcset` + large viewer placeholder; mobile tier-aware versioned sources. Fixed on the way: cross-owner `/thumb` read, rebuild `ErrExists`, user-purge derivative leak | ✅ code-complete; Go race/vet + check-gen, web check/unit + Chromium e2e (new thumbnail specs green), mobile type/lint/unit/design green; after the `transparency.spec.ts` locator fix, `make e2e` passed 116/116 on three consecutive full runs |
 | **Guided mobile onboarding** (2026-09-13): responsive shared setup frame, concise welcome/server/pairing/permission pages, focus-aware fields, animated controls/page entrances, and a persistent accessible rounded progress rail | ✅ code-complete; focused Vitest + mobile typecheck/lint green, native visual pass pending |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
@@ -535,11 +535,12 @@ audited baseline and release checklist.
     `derivatives/` prefix. `TestDeleteUserPurgeRemovesDerivativeFiles`.
   - **Cancelled thumbnail requests** (a tile scrolled away) answer 503 + Retry-After without a
     warning log; the shared render keeps going for the next caller.
-  - **Flaky, not fixed here:** `web/e2e/transparency.spec.ts:20` failed once with a strict-mode
-    violation — `getByRole('button', { name: /new album/i })` matched two buttons on `/albums`,
-    one in the header and one outside it — and passed on the full rerun (116/116). Cause not
-    investigated. The spec arrived in `f9c96a9`; this branch touches neither the albums page nor
-    the header.
+  - **`web/e2e/transparency.spec.ts` was order-dependent, not flaky.** It clicked
+    `getByRole('button', { name: /new album/i })` on `/albums`. With zero albums that page shows
+    two such buttons — the header action and the empty-state action — so the strict locator
+    failed whenever the spec ran before another worker created an album (2 of 3 full runs), and
+    passed otherwise. The failure snapshot confirmed "0 albums". The spec arrived in `f9c96a9`;
+    fixed by scoping the click to `header` (`fix/transparency-album-locator`).
   - **Follow-ups:** video scrub sprite sheets; bounding `rebuildAsset`'s per-request goroutine
     through the same semaphore; widening the owner-scope guard beyond `internal/httpapi`; S3.
 
