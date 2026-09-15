@@ -302,7 +302,7 @@
                  sharing the predicate is what stops the two rules from drifting.
                  Equivalent here — the branch above already excludes !web_viewable. -->
             {#if asset.thumbnail_url && (!imgLoaded || imgFailed)}
-              <img class="preview" src={asset.thumbnail_url} alt="" aria-hidden="true" />
+              <img class="preview" src={asset.thumbnail_urls?.l ?? asset.thumbnail_url} alt="" aria-hidden="true" />
             {/if}
             <!-- Only this image is tagged: the blurred `preview` behind it must stay
                  in the document so it can back-fill while the full view loads. At

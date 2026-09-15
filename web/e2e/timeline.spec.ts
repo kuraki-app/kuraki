@@ -2,6 +2,14 @@ import { test, expect, gotoApp } from './support/fixtures';
 import { EXPECTED_ASSETS, EXPECTED_DAYS, EXPECTED_MONTHS, EXPECTED_YEARS } from './fixtures.mjs';
 
 test.describe('timeline', () => {
+  test('grid tiles offer every thumbnail tier and load one', async ({ page }) => {
+    await gotoApp(page, '/');
+    const img = page.locator('button.tile img').first();
+    await expect(img).toBeVisible();
+    await expect(img).toHaveAttribute('srcset', /size=s&v=[0-9a-f]{10} 256w, .+ 512w, .+size=l&v=[0-9a-f]{10} 1200w/);
+    await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
+  });
+
   test('renders the seeded library', async ({ page }) => {
     await gotoApp(page, '/');
 
