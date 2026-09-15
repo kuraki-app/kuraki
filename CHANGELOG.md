@@ -11,6 +11,12 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Changed
 
+- **Thumbnails now come in three sizes with forever-cacheable URLs.** Grids load a 256, 512 or
+  1200 px thumbnail through `srcset` for the tile's rendered width, and the viewer's placeholder
+  uses the 1200 px size. The 512 px size is still made at import; the others are made the first time
+  a screen asks and kept. Thumbnail and preview URLs carry a version, so browsers and phones cache
+  them indefinitely yet pick up new images as soon as an asset is rebuilt. Media responses stay
+  `private`.
 - **Server list reads now have a bounded private cache.** Frequently revisited
   owner-scoped JSON lists use a five-second, 8 MiB LRU cache with immediate
   successful-write invalidation and change-log versioning for importer/background
@@ -63,6 +69,9 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Added
 
+- `KURAKI_THUMB_WORKERS` and `KURAKI_THUMB_QUEUE` — how many thumbnail sizes are rendered at once
+  and how many may wait. Requests beyond the queue get `503` with `Retry-After` instead of
+  exhausting memory. `/metrics` reports thumbnail hits, renders, coalesced requests and rejections.
 - **The web client is installable as a PWA.** Its service worker keeps the application shell
   available offline without caching authenticated API/media responses. User-selected photo and
   video uploads are stored per account in IndexedDB, one file at a time, and resume on reconnect or
@@ -76,6 +85,16 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Fixed
 
+- **Security: any signed-in account could read another account's thumbnails.** The thumbnail
+  endpoint looked up generated files by asset id without checking the owner or the trash, so anyone
+  who knew or guessed an asset id got that library's thumbnail. It now applies the same owner and
+  trash checks as originals and previews.
+- **Rebuilding an asset's derivatives failed whenever one already existed.** Storage refuses to
+  overwrite files, and every rebuild wrote to the same name. Each rebuild now writes new files and
+  removes the previous ones afterwards.
+- **Deleting an account with its library left every generated thumbnail and preview on disk.**
+- **A browser test failed whenever it ran before any album existed.** With no albums, the Albums page
+  shows two "New album" buttons; the test now clicks the one in the header.
 - **The adaptive web merge now preserves mainline behavior.** Photos keeps the memories rail;
   Settings status cards fail and retry independently; admin-only pages remain role-gated; failed
   sign-out keeps the current session; short desktop sidebars can scroll to their actions; and Server
