@@ -93,6 +93,11 @@ line under `Unreleased` as part of the same change that introduces it.
   overwrite files, and every rebuild wrote to the same name. Each rebuild now writes new files and
   removes the previous ones afterwards.
 - **Deleting an account with its library left every generated thumbnail and preview on disk.**
+- **Removing an external library left its generated thumbnails, posters and previews on disk.** They
+  are now removed with the library's asset rows; the external originals are still never touched.
+- **CI rejected every Mac-built UI.** The embedded-UI check compared precompressed `.gz` files byte
+  for byte, but Node's zlib writes different gzip bytes on macOS and Linux. It now requires each
+  `.gz` to decompress to its source file, and still compares every other file exactly.
 - **A browser test failed whenever it ran before any album existed.** With no albums, the Albums page
   shows two "New album" buttons; the test now clicks the one in the header.
 - **The adaptive web merge now preserves mainline behavior.** Photos keeps the memories rail;

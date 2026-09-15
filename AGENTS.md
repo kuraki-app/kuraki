@@ -541,8 +541,19 @@ audited baseline and release checklist.
     failed whenever the spec ran before another worker created an album (2 of 3 full runs), and
     passed otherwise. The failure snapshot confirmed "0 albums". The spec arrived in `f9c96a9`;
     fixed by scoping the click to `header` (`fix/transparency-album-locator`).
+  - **External library removal leaked derivative files.** `deleteExternalLibrary` deleted asset rows
+    (cascading `derivatives` and `thumb_variants`) but never the files. It now reads those paths
+    inside the transaction and removes them under `derivatives/` after commit — never the external
+    originals. `TestDeleteExternalLibraryRemovesDerivativesNotOriginals`.
+  - **The e2e "Embedded UI matches web/" gate could never pass for a Mac-built UI** once
+    `precompress: true` landed: Node bundles Chromium's zlib (`motley`), which writes a
+    platform-specific gzip OS byte (`0x13` on macOS, `0x03` on Linux) and CPU-specific deflate
+    output. All 128 `.gz` differed on CI while every other file matched. The gate is now
+    `scripts/check-embedded-ui.sh`: byte-exact for everything else, and each `.gz` must decompress
+    to its sibling. Do not "fix" this by regenerating assets on Linux — the next Mac build breaks again.
   - **Follow-ups:** video scrub sprite sheets; bounding `rebuildAsset`'s per-request goroutine
-    through the same semaphore; widening the owner-scope guard beyond `internal/httpapi`; S3.
+    through the same semaphore; widening the owner-scope guard beyond `internal/httpapi`; S3;
+    rebuilding an external-library asset reads `originals/` instead of its external path.
 
 - `codex/performance-material-pass` (2026-09-15) — **Selective glass and performance
   hardening now span all three product surfaces.** `design/tokens.json` generates semantic
