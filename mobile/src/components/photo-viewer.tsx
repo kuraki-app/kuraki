@@ -461,7 +461,7 @@ function ImageCell({
               style={[styles.layer, imageStyle]}>
               <Image
                 source={source}
-                placeholder={thumbSource(settings, asset)}
+                placeholder={thumbSource(settings, asset, 'l')}
                 placeholderContentFit="contain"
                 recyclingKey={source.uri}
                 style={styles.media}
