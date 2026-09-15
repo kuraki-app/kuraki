@@ -6,7 +6,7 @@ import { StyleSheet, View } from 'react-native';
 import Dialog from '@/components/dialog';
 import { SettingsRow } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Space, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { formatBytes } from '@/lib/format';
 import { fetchStats, type LibraryStats } from '@/lib/library-api';
@@ -140,15 +140,15 @@ export default function ProfileDialog({ visible, settings, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
-  body: { padding: Spacing.three, gap: Spacing.one },
-  sectionTitle: { paddingBottom: Spacing.half },
+  body: { padding: Space.four, gap: Space.one },
+  sectionTitle: { paddingBottom: Space.half },
   figure: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  bar: { height: 8, borderRadius: 999, overflow: 'hidden', marginBottom: Spacing.one },
+  bar: { height: 8, borderRadius: 999, overflow: 'hidden', marginBottom: Space.one },
   barFill: { height: '100%' },
-  rows: { paddingHorizontal: Spacing.three, borderTopWidth: StyleSheet.hairlineWidth },
+  rows: { paddingHorizontal: Space.four, borderTopWidth: StyleSheet.hairlineWidth },
   footer: {
-    padding: Spacing.three,
-    gap: Spacing.half,
+    padding: Space.four,
+    gap: Space.half,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
 });

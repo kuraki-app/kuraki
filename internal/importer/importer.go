@@ -24,6 +24,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/media"
 	"github.com/kuraki-app/kuraki/internal/storage"
 	"github.com/kuraki-app/kuraki/internal/takeout"
+	"github.com/kuraki-app/kuraki/internal/thumbs"
 	"github.com/zeebo/blake3"
 )
 
@@ -407,15 +408,15 @@ func (i *Importer) runDerivativeWorkers(ctx context.Context, jobs []derivativeJo
 		go func() {
 			defer wg.Done()
 			for job := range jobCh {
-				if err := i.createThumbnail(ctx, job.AssetID, job.Path, job.Meta); err != nil {
+				if err := i.createThumbnail(ctx, job.AssetID, job.Path, job.Meta, 0); err != nil {
 					i.recordMediaIssue(ctx, job.AssetID, "thumbnail", err)
 					errCh <- FileError{Path: job.Path, Err: err}
 				}
-				if err := i.createPoster(ctx, job.AssetID, job.Path, job.Meta); err != nil {
+				if err := i.createPoster(ctx, job.AssetID, job.Path, job.Meta, 0); err != nil {
 					i.recordMediaIssue(ctx, job.AssetID, "poster", err)
 					errCh <- FileError{Path: job.Path, Err: err}
 				}
-				if err := i.createPreview(ctx, job.AssetID, job.Path, job.Meta); err != nil {
+				if err := i.createPreview(ctx, job.AssetID, job.Path, job.Meta, 0); err != nil {
 					kind := "preview"
 					if job.Meta.MediaType == domain.MediaVideo {
 						kind = "playback"
@@ -444,7 +445,7 @@ func (i *Importer) runDerivativeWorkers(ctx context.Context, jobs []derivativeJo
 	return errs
 }
 
-func (i *Importer) createThumbnail(ctx context.Context, assetID, srcPath string, meta media.Meta) error {
+func (i *Importer) createThumbnail(ctx context.Context, assetID, srcPath string, meta media.Meta, gen int) error {
 	if meta.MediaType != domain.MediaImage {
 		return nil
 	}
@@ -464,12 +465,12 @@ func (i *Importer) createThumbnail(ctx context.Context, assetID, srcPath string,
 		_, _ = i.DB.ExecContext(ctx, `UPDATE assets SET phash = ? WHERE id = ?`, int64(h), assetID)
 	}
 
-	format, ext := thumbnailFormat(i.Media)
-	rel := fmt.Sprintf("derivatives/%s/thumb_%d.%s", assetID, edge, ext)
+	format, ext := thumbs.Format(i.Media)
+	rel := thumbs.PathFor(assetID, fmt.Sprintf("thumb_%d", edge), gen, ext)
 	if _, err := i.Store.Write(ctx, rel, bytes.NewReader(data)); err != nil {
 		return fmt.Errorf("create thumbnail: write derivative: %w", err)
 	}
-	tw, th := thumbSize(meta.Width, meta.Height, edge)
+	tw, th := thumbs.FitWithin(meta.Width, meta.Height, edge)
 	if _, err := i.DB.ExecContext(ctx, `
 		INSERT INTO derivatives (asset_id, kind, format, path, width, height)
 		VALUES (?, 'thumb', ?, ?, ?, ?)
@@ -484,7 +485,7 @@ func (i *Importer) createThumbnail(ctx context.Context, assetID, srcPath string,
 	return nil
 }
 
-func (i *Importer) createPoster(ctx context.Context, assetID, srcPath string, meta media.Meta) error {
+func (i *Importer) createPoster(ctx context.Context, assetID, srcPath string, meta media.Meta, gen int) error {
 	if meta.MediaType != domain.MediaVideo {
 		return nil
 	}
@@ -498,7 +499,7 @@ func (i *Importer) createPoster(ctx context.Context, assetID, srcPath string, me
 	if h, ok := media.PerceptualHash(buf.Bytes()); ok {
 		_, _ = i.DB.ExecContext(ctx, `UPDATE assets SET phash = ? WHERE id = ?`, int64(h), assetID)
 	}
-	rel := fmt.Sprintf("derivatives/%s/poster.jpg", assetID)
+	rel := thumbs.PathFor(assetID, "poster", gen, "jpg")
 	if _, err := i.Store.Write(ctx, rel, &buf); err != nil {
 		return fmt.Errorf("create poster: write derivative: %w", err)
 	}
@@ -516,7 +517,7 @@ func (i *Importer) createPoster(ctx context.Context, assetID, srcPath string, me
 
 // createPreview produces a safe browser representation only when the original
 // is not known to be web-viewable. Originals remain untouched and downloadable.
-func (i *Importer) createPreview(ctx context.Context, assetID, srcPath string, meta media.Meta) error {
+func (i *Importer) createPreview(ctx context.Context, assetID, srcPath string, meta media.Meta, gen int) error {
 	if meta.WebViewable {
 		return nil
 	}
@@ -529,12 +530,12 @@ func (i *Importer) createPreview(ctx context.Context, assetID, srcPath string, m
 			}
 			return fmt.Errorf("create preview: encode derivative: %w", err)
 		}
-		format, ext := thumbnailFormat(i.Media)
-		rel := fmt.Sprintf("derivatives/%s/preview.%s", assetID, ext)
+		format, ext := thumbs.Format(i.Media)
+		rel := thumbs.PathFor(assetID, "preview", gen, ext)
 		if _, err := i.Store.Write(ctx, rel, &buf); err != nil {
 			return fmt.Errorf("create preview: write derivative: %w", err)
 		}
-		w, h := thumbSize(meta.Width, meta.Height, previewEdge)
+		w, h := thumbs.FitWithin(meta.Width, meta.Height, previewEdge)
 		if err := i.upsertPreview(ctx, assetID, format, strings.TrimPrefix(rel, "derivatives/"), w, h); err != nil {
 			return err
 		}
@@ -562,7 +563,7 @@ func (i *Importer) createPreview(ctx context.Context, assetID, srcPath string, m
 		return fmt.Errorf("create playback: open derivative: %w", err)
 	}
 	defer f.Close()
-	rel := fmt.Sprintf("derivatives/%s/playback.mp4", assetID)
+	rel := thumbs.PathFor(assetID, "playback", gen, "mp4")
 	if _, err := i.Store.Write(ctx, rel, f); err != nil {
 		return fmt.Errorf("create playback: write derivative: %w", err)
 	}
@@ -609,18 +610,24 @@ func (i *Importer) clearMediaIssue(ctx context.Context, assetID, kind string) {
 }
 
 // RebuildDerivatives regenerates an asset's thumbnail, poster, preview, and
-// playback derivatives from its stored original, clearing any media issues it
-// resolves. It powers the media-health retry action; the original is untouched.
+// playback derivatives from its stored original at the next generation, so no
+// file is ever overwritten in place and clients see a new URL version. It
+// clears the media issues it resolves and removes the previous generation's
+// files once the new rows are committed. The original is untouched.
 func (i *Importer) RebuildDerivatives(ctx context.Context, assetID string) error {
-	var originalPath, mediaType, mimeType string
-	var width, height, webViewable int
+	var originalPath, mediaType, mimeType, ownerID string
+	var width, height, webViewable, gen int
 	var durationMS int64
 	err := i.DB.QueryRowContext(ctx, `
-		SELECT original_path, media_type, mime_type, width, height, web_viewable, duration_ms
+		SELECT original_path, media_type, mime_type, width, height, web_viewable, duration_ms, owner_id, derivative_gen
 		FROM assets WHERE id = ? AND deleted_at IS NULL`, assetID).
-		Scan(&originalPath, &mediaType, &mimeType, &width, &height, &webViewable, &durationMS)
+		Scan(&originalPath, &mediaType, &mimeType, &width, &height, &webViewable, &durationMS, &ownerID, &gen)
 	if err != nil {
 		return fmt.Errorf("rebuild: load asset: %w", err)
+	}
+	previous, err := i.derivativePaths(ctx, assetID)
+	if err != nil {
+		return err
 	}
 
 	// Copy the original to a temp file so the media backend has a real path;
@@ -663,14 +670,77 @@ func (i *Importer) RebuildDerivatives(ctx context.Context, assetID string) error
 		}
 		i.clearMediaIssue(ctx, assetID, kind)
 	}
-	run("thumbnail", func() error { return i.createThumbnail(ctx, assetID, tmpPath, meta) })
+	next := gen + 1
+	run("thumbnail", func() error { return i.createThumbnail(ctx, assetID, tmpPath, meta, next) })
 	previewKind := "preview"
 	if meta.MediaType == domain.MediaVideo {
-		run("poster", func() error { return i.createPoster(ctx, assetID, tmpPath, meta) })
+		run("poster", func() error { return i.createPoster(ctx, assetID, tmpPath, meta, next) })
 		previewKind = "playback"
 	}
-	run(previewKind, func() error { return i.createPreview(ctx, assetID, tmpPath, meta) })
+	run(previewKind, func() error { return i.createPreview(ctx, assetID, tmpPath, meta, next) })
+
+	if err := i.commitGeneration(ctx, assetID, ownerID, gen, next); err != nil {
+		return err
+	}
+	current, err := i.derivativePaths(ctx, assetID)
+	if err != nil {
+		return err
+	}
+	for p := range previous {
+		if !current[p] {
+			// Best effort, like trash purge: an orphaned derivative wastes disk
+			// but is never served, because no row points at it.
+			_ = i.Store.Remove(ctx, "derivatives/"+p)
+		}
+	}
 	return firstErr
+}
+
+// derivativePaths lists every derivative file an asset's rows point at.
+func (i *Importer) derivativePaths(ctx context.Context, assetID string) (map[string]bool, error) {
+	rows, err := i.DB.QueryContext(ctx,
+		`SELECT path FROM derivatives WHERE asset_id = ? UNION SELECT path FROM thumb_variants WHERE asset_id = ?`,
+		assetID, assetID)
+	if err != nil {
+		return nil, fmt.Errorf("rebuild: list derivatives: %w", err)
+	}
+	defer rows.Close()
+	paths := map[string]bool{}
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, fmt.Errorf("rebuild: scan derivative: %w", err)
+		}
+		paths[p] = true
+	}
+	return paths, rows.Err()
+}
+
+// commitGeneration publishes rebuilt derivatives: the new generation (and so
+// the new URL version), dropping tiers rendered for the old one, and a change
+// entry so clients refetch the asset.
+func (i *Importer) commitGeneration(ctx context.Context, assetID, ownerID string, from, to int) error {
+	tx, err := i.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("rebuild: begin: %w", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE assets SET derivative_gen = ? WHERE id = ? AND derivative_gen = ?`, to, assetID, from); err != nil {
+		return fmt.Errorf("rebuild: advance generation: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM thumb_variants WHERE asset_id = ? AND gen < ?`, assetID, to); err != nil {
+		return fmt.Errorf("rebuild: drop stale variants: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO change_log (entity, entity_id, op, owner_id) VALUES ('asset', ?, 'update', ?)`, assetID, ownerID); err != nil {
+		return fmt.Errorf("rebuild: insert change log: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("rebuild: commit: %w", err)
+	}
+	return nil
 }
 
 func (i *Importer) probe(ctx context.Context, path string, kind domain.MediaType, fallbackMime string) media.Meta {
@@ -889,29 +959,6 @@ func hashFile(path string) (string, error) {
 func originalPath(t time.Time, id, ext string) string {
 	ext = strings.ToLower(ext)
 	return fmt.Sprintf("%04d/%02d/%s%s", t.Year(), int(t.Month()), id, ext)
-}
-
-func thumbSize(w, h, maxEdge int) (int, int) {
-	if w <= 0 || h <= 0 {
-		return 0, 0
-	}
-	if w <= maxEdge && h <= maxEdge {
-		return w, h
-	}
-	if w >= h {
-		return maxEdge, max(1, h*maxEdge/w)
-	}
-	return max(1, w*maxEdge/h), maxEdge
-}
-
-func thumbnailFormat(processor media.Processor) (format string, extension string) {
-	if formatter, ok := processor.(media.ThumbnailFormatter); ok {
-		format, extension = formatter.ThumbnailFormat()
-		if format != "" && extension != "" {
-			return format, extension
-		}
-	}
-	return "jpeg", "jpg"
 }
 
 func normalizeWorkers(workers int) int {

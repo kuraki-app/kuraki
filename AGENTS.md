@@ -33,6 +33,14 @@ Phase 1 = single-owner personal backup.
   a library **stats** dashboard; trash + retention + `verify`;
   argon2id auth + login rate-limit; safe-upgrade snapshots; and serving perf (cache headers, gzip,
   SQLite tuning). See [CHANGELOG.md](./CHANGELOG.md) for the full list.
+- **Thumbnails come in three tiers with versioned, immutable URLs (2026-09-15).** `internal/thumbs`
+  owns derivative naming (`PathFor`, generation-suffixed), URL versions (`Version`), and on-demand
+  rendering of the small (256) and large (1200) tiers behind singleflight plus a bounded worker
+  semaphore (`KURAKI_THUMB_WORKERS` / `KURAKI_THUMB_QUEUE`). Medium stays in `derivatives` and is
+  made at import; extra tiers live in `thumb_variants` (migration `00027`). `thumbnail_url`,
+  `thumbnail_urls{s,m,l}` and `preview_url` carry `?v=`; a matching version is served
+  `private, max-age=31536000, immutable`, anything else `private, no-cache`. Rebuild advances
+  `assets.derivative_gen`, so it never overwrites a file and clients refetch via the change feed.
 - **Mobile chrome is the platform's, not ours (2026-08-02).** `(app)/_layout.tsx` renders `NativeTabs`
   (the custom split bar described here previously was deleted — see §11, 2026-08-02), and **every tab
   points at a route group that owns a `Stack`**: `(app)/(gallery)/`, `(app)/(albums)/`, `(app)/(search)/`,
@@ -168,6 +176,15 @@ Phase 1 = single-owner personal backup.
   page. Page entrance travel and navigation motion follow Reduce Motion. Photo permission remains
   skippable; pairing behavior and stored credentials are unchanged. This improves first-run quality
   but does **not** close the mobile release-certification blocker in ROADMAP.md.
+- **Selective material and performance hardening (2026-09-15, `codex/performance-material-pass`).**
+  A semantic glass seam now treats navigation, viewer chrome, dialogs, and transient controls as
+  material while preserving opaque surfaces by default and whenever the system/user requests reduced
+  transparency. Web ships negotiated Brotli/gzip assets and static compressed-size gates; the server
+  has bounded Places map features, operational metrics, safer HTTP limits, a maintenance owner, and
+  a bounded private read cache. Cache keys include the owner and `change_log` high-water mark, so
+  background changes bypass stale entries; successful writes clear it. Full Go/web/mobile static
+  suites and Chromium e2e pass. Physical-device material/gesture and live Core Web Vitals evidence
+  remain release certification work.
 - **Settings consolidation (2026-07-27, `feat/settings-consolidation`):** the former Stats, account,
   Devices, Activity, appearance, library, and server controls now live under one responsive
   `/settings` shell. Migration `00022` stores the owner-writable catalog; `config.Store` resolves
@@ -467,6 +484,8 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | **Collections destination** (2026-09-11): web and native group Favorites, Albums, On this day, Places and Tags under a real Collections tab/page; Photos menu is reduced to Photos/Archived; phone web Settings replaces four browsing rows with one Collections row | ✅ code-complete; focused route/responsive + mobile gates green |
 | **Adaptive branch mainline integration** (2026-09-11): current `main` gallery modernization and the adaptive/PWA/settings series coexist; gallery sizing primitives now come from the shared design source; mainline memories, role gates, retry isolation, and session resilience are retained; embedded assets were rebuilt from resolved source | ✅ focused browser reconciliation plus full Go, web, mobile, and design gates green |
 | **Shared micro-interactions** (2026-09-11): press, lift, enter, reveal, progress, and continuity patterns share tokens across web/native; high-value navigation, settings, collection, memory, album, place, and tag controls provide immediate feedback; Reduce Motion removes travel and delay | ✅ code-complete; focused motion/responsive browser suite + web/mobile static gates green |
+| **Selective material + performance hardening** (2026-09-15): generated glass tokens and one semantic material seam give web/mobile navigation, viewer chrome, dialogs, and transient controls a platform-aware translucent treatment with opaque Reduce Transparency fallbacks; native headers/tabs remain platform-owned. Web emits Brotli/gzip assets, enforces compressed bootstrap/font budgets, and bundles Latin Inter only. Go adds bounded map features, pool/request/job metrics, safer server limits, a maintenance coordinator, and an owner/version-scoped 8 MiB read cache with write invalidation. | ✅ code-complete; Go race/vet, web build/unit/e2e, mobile type/lint/unit green. Physical mobile material/gesture certification and live CWV remain release evidence gates. |
+| **Thumbnail tiers + versioned media caching** (2026-09-15): `internal/thumbs` renders 256/1200 tiers on first request (singleflight, bounded workers, 503 + Retry-After on overflow); medium made at import; generation-suffixed derivative paths make rebuild work; `?v=` URLs served `immutable`; web `srcset` + large viewer placeholder; mobile tier-aware versioned sources. Fixed on the way: cross-owner `/thumb` read, rebuild `ErrExists`, user-purge derivative leak | ✅ code-complete; Go race/vet + check-gen, web check/unit + Chromium e2e (new thumbnail specs green), mobile type/lint/unit/design green; after the `transparency.spec.ts` locator fix, `make e2e` passed 116/116 on three consecutive full runs |
 | **Guided mobile onboarding** (2026-09-13): responsive shared setup frame, concise welcome/server/pairing/permission pages, focus-aware fields, animated controls/page entrances, and a persistent accessible rounded progress rail | ✅ code-complete; focused Vitest + mobile typecheck/lint green, native visual pass pending |
 
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
@@ -492,9 +511,72 @@ audited baseline and release checklist.
 - **Don't** break the hard rules in §6, edit released migrations, or add CGO to
   the default build. If a decision in §3 seems wrong, flag it for the human;
   don't silently change it.
-- Co-author trailer for AI commits: `Co-Authored-By: <agent> <email>`.
+- **No co-author trailer** for AI commits — never add `Co-Authored-By: <agent>`
+  (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `feat/thumbnail-variants` on `fix/thumb-owner-scope` (2026-09-15) — **Thumbnail tiers,
+  versioned media URLs, and three pre-existing defects.**
+  - **Security: `/api/assets/{id}/thumb` was never owner-scoped.** It read `derivatives` by
+    asset id alone, so any principal could fetch any library's thumbnails (and trashed ones).
+    The entry below dated with the owner-scoping work that says `serveThumb` inherited
+    `lookupAsset` was wrong — it never called it. Fixed first (`fix: owner-scope the thumbnail
+    endpoint`, `TestServeThumbOwnerScoped`, verified failing first); scoping now lives inside
+    `thumbs.Get`.
+  - **Guard blind spot.** `ownerscope_guard_test.go` scans `internal/httpapi` only, and the
+    old query named `derivatives`, not `assets`, so it could not have caught this. The new
+    owner-scoped SQL in `internal/thumbs` is outside the guard too; it is pinned by
+    `TestGetIsOwnerAndTrashScoped` instead. Widening the guard is a follow-up.
+  - **Rebuild could not replace a derivative.** Fixed paths plus `FS.Write`'s overwrite refusal
+    made media-health Retry fail with `ErrExists` whenever a derivative already existed. Paths
+    are now `<kind>_g<gen>.<ext>`; `TestRebuildDerivativesReplacesExistingFiles`.
+  - **User purge leaked every derivative file** — it removed the DB-relative path without the
+    `derivatives/` prefix. `TestDeleteUserPurgeRemovesDerivativeFiles`.
+  - **Cancelled thumbnail requests** (a tile scrolled away) answer 503 + Retry-After without a
+    warning log; the shared render keeps going for the next caller.
+  - **`web/e2e/transparency.spec.ts` was order-dependent, not flaky.** It clicked
+    `getByRole('button', { name: /new album/i })` on `/albums`. With zero albums that page shows
+    two such buttons — the header action and the empty-state action — so the strict locator
+    failed whenever the spec ran before another worker created an album (2 of 3 full runs), and
+    passed otherwise. The failure snapshot confirmed "0 albums". The spec arrived in `f9c96a9`;
+    fixed by scoping the click to `header` (`fix/transparency-album-locator`).
+  - **External library removal leaked derivative files.** `deleteExternalLibrary` deleted asset rows
+    (cascading `derivatives` and `thumb_variants`) but never the files. It now reads those paths
+    inside the transaction and removes them under `derivatives/` after commit — never the external
+    originals. `TestDeleteExternalLibraryRemovesDerivativesNotOriginals`.
+  - **The e2e "Embedded UI matches web/" gate could never pass for a Mac-built UI** once
+    `precompress: true` landed: Node bundles Chromium's zlib (`motley`), which writes a
+    platform-specific gzip OS byte (`0x13` on macOS, `0x03` on Linux) and CPU-specific deflate
+    output. All 128 `.gz` differed on CI while every other file matched. The gate is now
+    `scripts/check-embedded-ui.sh`: byte-exact for everything else, and each `.gz` must decompress
+    to its sibling. Do not "fix" this by regenerating assets on Linux — the next Mac build breaks again.
+  - **Follow-ups:** video scrub sprite sheets; bounding `rebuildAsset`'s per-request goroutine
+    through the same semaphore; widening the owner-scope guard beyond `internal/httpapi`; S3;
+    rebuilding an external-library asset reads `originals/` instead of its external path.
+
+- `codex/performance-material-pass` (2026-09-15) — **Selective glass and performance
+  hardening now span all three product surfaces.** `design/tokens.json` generates semantic
+  material tokens for both clients; web has an opaque-first `GlassSurface` action plus a
+  local System/Reduced/Enabled preference, native has a capability-checked Glass/Blur/opaque
+  module that honours iOS Reduce Transparency and leaves NativeTabs/Stack chrome alone. The
+  photo viewer's continuous gestures now run on UI worklets and legacy mobile spacing was
+  consolidated onto generated tokens. The web build now emits precompressed assets, serves
+  them with negotiation, gates bootstrap/font budgets (137,719 gzip bootstrap bytes and
+  48,256 font bytes), and cancels stale library requests. Server maintenance is one module,
+  `/metrics` adds normalized request/database/job evidence, and `/api/places/map` provides
+  owner-scoped bounded GeoJSON clusters/points backed by migration `00026`. `make test`,
+  `go vet ./...`, web check/test/build + Chromium e2e, mobile typecheck/lint/Vitest, and the
+  static budget gate pass. The mobile client was subsequently migrated to Expo SDK 57 to remove
+  the SDK 56 Hermes V1 memory regression; Expo Doctor is 21/21 clean. Physical-device
+  material/gesture and release-build recertification still remain. `npm audit --omit=dev` reports
+  19 upstream Expo/tooling-chain advisories (3 high), but offers only incompatible downgrade/major
+  changes; do not apply `npm audit fix --force` blindly. The follow-up closes the review's metrics
+  cardinality finding by bucketing extension methods as `OTHER`, and adds a deep bounded response
+  cache: small owner-scoped JSON reads are keyed by owner, request, and `change_log` high-water
+  mark; HTTP writes clear it, while background imports naturally bypass prior versions. It is capped
+  at 256 entries / 8 MiB / 256 KiB per response and reports hit/miss/entry/byte counters in
+  `/metrics`.
 
 - `codex/micro-interactions` (2026-09-13, onboarding) — **Mobile setup is now a modern guided flow
   without changing its security or persistence behavior.** One shared frame gives all four routes a

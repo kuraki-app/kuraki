@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radius, Spacing, useTokens } from '@/constants/theme';
+import { Radius, Space, useTokens } from '@/constants/theme';
 import { backupEngine, type BackupAlbum } from '@/lib/backup-engine';
 
 type Props = {
@@ -49,7 +49,7 @@ export default function AlbumPicker({ selected, onClose }: Props) {
   }
 
   return (
-    <ThemedView style={[styles.content, { paddingTop: insets.top + Spacing.three, paddingBottom: insets.bottom + Spacing.three }]}>
+    <ThemedView style={[styles.content, { paddingTop: insets.top + Space.four, paddingBottom: insets.bottom + Space.four }]}>
       <ThemedText type="title">Albums to back up</ThemedText>
       <ThemedText themeColor="mutedForeground" selectable>
         Choose which albums back up, or back up everything.
@@ -107,18 +107,18 @@ export default function AlbumPicker({ selected, onClose }: Props) {
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, paddingHorizontal: Spacing.three, gap: Spacing.two },
+  content: { flex: 1, paddingHorizontal: Space.four, gap: Space.two },
   list: { flex: 1 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    paddingVertical: Spacing.two,
+    gap: Space.two,
+    paddingVertical: Space.two,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  rowText: { flex: 1, gap: Spacing.half },
+  rowText: { flex: 1, gap: Space.half },
   check: { width: 26, height: 26, borderRadius: 13, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  actions: { flexDirection: 'row', gap: Spacing.two },
-  button: { flex: 1, alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three },
-  ghost: { alignItems: 'center', borderRadius: Radius.sm, paddingVertical: Spacing.three, paddingHorizontal: Spacing.three, borderWidth: 1 },
+  actions: { flexDirection: 'row', gap: Space.two },
+  button: { flex: 1, alignItems: 'center', borderRadius: Radius.sm, padding: Space.four },
+  ghost: { alignItems: 'center', borderRadius: Radius.sm, paddingVertical: Space.four, paddingHorizontal: Space.four, borderWidth: 1 },
 });

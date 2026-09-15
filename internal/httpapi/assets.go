@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"database/sql"
 	"encoding/base64"
 	"errors"
@@ -9,13 +10,14 @@ import (
 	"io/fs"
 	"net/http"
 	"os"
-	"path/filepath"
+	"path"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
+	"github.com/kuraki-app/kuraki/internal/thumbs"
 )
 
 const (
@@ -52,6 +54,10 @@ type assetRow struct {
 	WebViewable  int
 	StackID      sql.NullString
 	StackSize    int
+	// DerivativeGen and the formats build each media URL's ?v= version.
+	DerivativeGen int
+	ThumbFormat   sql.NullString
+	PreviewFormat sql.NullString
 }
 
 // listAssets returns a page of the owner's library.
@@ -182,63 +188,69 @@ func (d Deps) serveOriginal(w http.ResponseWriter, r *http.Request) {
 		"private, max-age=31536000, immutable")
 }
 
+// serveThumb serves a thumbnail tier. Owner and trash scoping live inside
+// thumbs.Get, because derivatives rows carry no owner of their own.
 func (d Deps) serveThumb(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	var rel, format string
-	err := d.DB.QueryRowContext(r.Context(),
-		`SELECT path, format FROM derivatives
-		 WHERE asset_id = ? AND kind IN ('thumb', 'poster')
-		 ORDER BY CASE kind WHEN 'thumb' THEN 0 ELSE 1 END
-		 LIMIT 1`,
-		id).Scan(&rel, &format)
-	if errors.Is(err, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "thumb_not_found")
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusNotFound, "asset_not_found")
 		return
 	}
+	tier, err := thumbs.ParseTier(r.URL.Query().Get("size"))
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "query_thumb_failed")
+		writeError(w, http.StatusBadRequest, "invalid_size")
 		return
 	}
-	contentType := derivativeContentType(format)
-	// Thumbnails are stable per asset; cache for a week so the timeline scrolls
-	// without re-fetching.
-	serveStored(w, r, d, "derivatives/"+rel, contentType, filepath.Base(rel),
-		"private, max-age=604800")
+	v, err := d.Thumbs.Get(r.Context(), owner, chi.URLParam(r, "id"), tier)
+	if !d.writeThumbError(w, err, "thumb_not_found") {
+		return
+	}
+	serveStored(w, r, d, v.Rel, v.ContentType, path.Base(v.Rel), mediaCacheControl(r, v.Version))
 }
 
 func (d Deps) servePreview(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	if _, err := d.lookupAsset(r, id); errors.Is(err, sql.ErrNoRows) {
+	owner, ok := d.ownerID(r)
+	if !ok {
 		writeError(w, http.StatusNotFound, "asset_not_found")
 		return
-	} else if err != nil {
-		writeError(w, http.StatusInternalServerError, "query_asset_failed")
+	}
+	v, err := d.Thumbs.Preview(r.Context(), owner, chi.URLParam(r, "id"))
+	if !d.writeThumbError(w, err, "preview_not_found") {
 		return
 	}
-	var rel, format string
-	err := d.DB.QueryRowContext(r.Context(),
-		`SELECT path, format FROM derivatives WHERE asset_id = ? AND kind = 'preview'`, id).Scan(&rel, &format)
-	if errors.Is(err, sql.ErrNoRows) {
-		writeError(w, http.StatusNotFound, "preview_not_found")
-		return
-	}
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "query_preview_failed")
-		return
-	}
-	serveStored(w, r, d, "derivatives/"+rel, derivativeContentType(format), filepath.Base(rel),
-		"private, max-age=604800")
+	serveStored(w, r, d, v.Rel, v.ContentType, path.Base(v.Rel), mediaCacheControl(r, v.Version))
 }
 
-func derivativeContentType(format string) string {
-	switch format {
-	case "webp":
-		return "image/webp"
-	case "mp4":
-		return "video/mp4"
-	default:
-		return "image/jpeg"
+// mediaCacheControl lets a URL carrying the current version be cached forever:
+// any rebuild changes the version, so the browser can never hold a stale copy
+// under a live URL. Unversioned or stale URLs revalidate by ETag instead.
+func mediaCacheControl(r *http.Request, version string) string {
+	if got := r.URL.Query().Get("v"); got != "" && got == version {
+		return "private, max-age=31536000, immutable"
 	}
+	return "private, no-cache"
+}
+
+// writeThumbError maps thumbs errors to responses; it reports true when err is nil.
+func (d Deps) writeThumbError(w http.ResponseWriter, err error, missing string) bool {
+	switch {
+	case err == nil:
+		return true
+	case errors.Is(err, thumbs.ErrNotFound):
+		writeError(w, http.StatusNotFound, "asset_not_found")
+	case errors.Is(err, thumbs.ErrNoSource):
+		writeError(w, http.StatusNotFound, missing)
+	case errors.Is(err, thumbs.ErrBusy), errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		// A cancelled request is a tile scrolled out of view, not a fault; the
+		// render it started keeps going for the next caller. Same answer as a
+		// full queue, and no warning log.
+		w.Header().Set("Retry-After", "2")
+		writeError(w, http.StatusServiceUnavailable, "thumb_busy")
+	default:
+		d.Logger.Warn("thumbnail request failed", "err", err)
+		writeError(w, http.StatusInternalServerError, "thumb_failed")
+	}
+	return false
 }
 
 func (d Deps) lookupAsset(r *http.Request, id string) (assetRow, error) {
@@ -264,7 +276,8 @@ func assetSelectSQLWithJoin(join, where string) string {
 			a.camera_model, a.gps_lat, a.gps_lon, a.duration_ms, a.favorite, a.rating, a.archived, a.hidden,
 			a.created_at, a.description, a.place_city, a.place_country, COALESCE(d_thumb.path, d_poster.path),
 			d_preview.path, a.web_viewable, a.stack_id,
-			(SELECT COUNT(*) FROM assets s WHERE s.stack_id = a.stack_id AND s.owner_id = a.owner_id AND s.deleted_at IS NULL)
+			(SELECT COUNT(*) FROM assets s WHERE s.stack_id = a.stack_id AND s.owner_id = a.owner_id AND s.deleted_at IS NULL),
+			a.derivative_gen, COALESCE(d_thumb.format, d_poster.format), d_preview.format
 		FROM assets a
 		LEFT JOIN derivatives d_thumb ON d_thumb.asset_id = a.id AND d_thumb.kind = 'thumb'
 		LEFT JOIN derivatives d_poster ON d_poster.asset_id = a.id AND d_poster.kind = 'poster'
@@ -281,6 +294,7 @@ func assetScanDest(row *assetRow) []any {
 		&row.CameraModel, &row.GPSLat, &row.GPSLon, &row.DurationMS, &row.Favorite, &row.Rating, &row.Archived, &row.Hidden,
 		&row.CreatedAt, &row.Description, &row.PlaceCity, &row.PlaceCountry, &row.ThumbPath,
 		&row.PreviewPath, &row.WebViewable, &row.StackID, &row.StackSize,
+		&row.DerivativeGen, &row.ThumbFormat, &row.PreviewFormat,
 	}
 }
 
@@ -341,13 +355,20 @@ func (row assetRow) toDTO() apitypes.Asset {
 	}
 	originalURL := "/api/assets/" + row.ID + "/original"
 	var thumbURL *string
+	var thumbURLs *apitypes.ThumbnailURLs
 	if row.ThumbPath.Valid {
-		u := "/api/assets/" + row.ID + "/thumb"
-		thumbURL = &u
+		v := thumbs.Version(row.ID, row.DerivativeGen, row.ThumbFormat.String)
+		base := "/api/assets/" + row.ID + "/thumb"
+		thumbURLs = &apitypes.ThumbnailURLs{
+			S: base + "?size=s&v=" + v,
+			M: base + "?v=" + v,
+			L: base + "?size=l&v=" + v,
+		}
+		thumbURL = &thumbURLs.M
 	}
 	var previewURL *string
 	if row.PreviewPath.Valid {
-		u := "/api/assets/" + row.ID + "/preview"
+		u := "/api/assets/" + row.ID + "/preview?v=" + thumbs.Version(row.ID, row.DerivativeGen, row.PreviewFormat.String)
 		previewURL = &u
 	}
 	viewURL := originalURL
@@ -355,34 +376,35 @@ func (row assetRow) toDTO() apitypes.Asset {
 		viewURL = *previewURL
 	}
 	return apitypes.Asset{
-		ID:           row.ID,
-		Filename:     row.Filename,
-		MimeType:     row.MimeType,
-		MediaType:    row.MediaType,
-		Width:        row.Width,
-		Height:       row.Height,
-		SizeBytes:    row.SizeBytes,
-		TakenAt:      takenAt,
-		TakenDay:     takenDay,
-		TakenMonth:   takenMonth,
-		CameraMake:   row.CameraMake,
-		CameraModel:  row.CameraModel,
-		GPSLat:       lat,
-		GPSLon:       lon,
-		DurationMS:   row.DurationMS,
-		Favorite:     row.Favorite != 0,
-		Rating:       row.Rating,
-		Archived:     row.Archived != 0,
-		Hidden:       row.Hidden != 0,
-		Description:  description,
-		PlaceCity:    placeCity,
-		PlaceCountry: placeCountry,
-		OriginalURL:  originalURL,
-		ThumbnailURL: thumbURL,
-		PreviewURL:   previewURL,
-		ViewURL:      viewURL,
-		WebViewable:  row.WebViewable != 0,
-		StackSize:    row.StackSize,
+		ID:            row.ID,
+		Filename:      row.Filename,
+		MimeType:      row.MimeType,
+		MediaType:     row.MediaType,
+		Width:         row.Width,
+		Height:        row.Height,
+		SizeBytes:     row.SizeBytes,
+		TakenAt:       takenAt,
+		TakenDay:      takenDay,
+		TakenMonth:    takenMonth,
+		CameraMake:    row.CameraMake,
+		CameraModel:   row.CameraModel,
+		GPSLat:        lat,
+		GPSLon:        lon,
+		DurationMS:    row.DurationMS,
+		Favorite:      row.Favorite != 0,
+		Rating:        row.Rating,
+		Archived:      row.Archived != 0,
+		Hidden:        row.Hidden != 0,
+		Description:   description,
+		PlaceCity:     placeCity,
+		PlaceCountry:  placeCountry,
+		OriginalURL:   originalURL,
+		ThumbnailURL:  thumbURL,
+		ThumbnailURLs: thumbURLs,
+		PreviewURL:    previewURL,
+		ViewURL:       viewURL,
+		WebViewable:   row.WebViewable != 0,
+		StackSize:     row.StackSize,
 		StackID: func() *string {
 			if row.StackID.Valid {
 				return &row.StackID.String

@@ -16,38 +16,48 @@ type AssetIDs struct {
 	IDs []string `json:"ids"`
 }
 
+// ThumbnailURLs lists the thumbnail tiers for srcset: small (256), medium (the
+// server's configured thumbnail size), and large (1200). Each carries ?v= so it
+// may be cached forever.
+type ThumbnailURLs struct {
+	S string `json:"s" validate:"required"`
+	M string `json:"m" validate:"required"`
+	L string `json:"l" validate:"required"`
+}
+
 // Asset is the wire representation of one asset (photo or video).
 type Asset struct {
-	ID           string   `json:"id" validate:"required"`
-	Filename     string   `json:"filename" validate:"required"`
-	MimeType     string   `json:"mime_type" validate:"required"`
-	MediaType    string   `json:"media_type" validate:"required" enums:"image,video"`
-	Width        int      `json:"width" validate:"required"`
-	Height       int      `json:"height" validate:"required"`
-	SizeBytes    int64    `json:"size_bytes" validate:"required"`
-	TakenAt      *string  `json:"taken_at,omitempty"`
-	TakenDay     *string  `json:"taken_day,omitempty"`
-	TakenMonth   *string  `json:"taken_month,omitempty"`
-	CameraMake   string   `json:"camera_make" validate:"required"`
-	CameraModel  string   `json:"camera_model" validate:"required"`
-	GPSLat       *float64 `json:"gps_lat,omitempty"`
-	GPSLon       *float64 `json:"gps_lon,omitempty"`
-	DurationMS   int64    `json:"duration_ms" validate:"required"`
-	Favorite     bool     `json:"favorite" validate:"required"`
-	Rating       int      `json:"rating" validate:"required"`
-	Archived     bool     `json:"archived" validate:"required"`
-	Hidden       bool     `json:"hidden" validate:"required"`
-	Description  *string  `json:"description,omitempty"`
-	PlaceCity    *string  `json:"place_city,omitempty"`
-	PlaceCountry *string  `json:"place_country,omitempty"`
-	OriginalURL  string   `json:"original_url" validate:"required"`
-	ThumbnailURL *string  `json:"thumbnail_url,omitempty"`
-	PreviewURL   *string  `json:"preview_url,omitempty"`
-	ViewURL      string   `json:"view_url" validate:"required"`
-	WebViewable  bool     `json:"web_viewable" validate:"required"`
-	StackID      *string  `json:"stack_id,omitempty"`
-	StackSize    int      `json:"stack_size" validate:"required"`
-	CreatedAt    string   `json:"created_at" validate:"required"`
+	ID            string         `json:"id" validate:"required"`
+	Filename      string         `json:"filename" validate:"required"`
+	MimeType      string         `json:"mime_type" validate:"required"`
+	MediaType     string         `json:"media_type" validate:"required" enums:"image,video"`
+	Width         int            `json:"width" validate:"required"`
+	Height        int            `json:"height" validate:"required"`
+	SizeBytes     int64          `json:"size_bytes" validate:"required"`
+	TakenAt       *string        `json:"taken_at,omitempty"`
+	TakenDay      *string        `json:"taken_day,omitempty"`
+	TakenMonth    *string        `json:"taken_month,omitempty"`
+	CameraMake    string         `json:"camera_make" validate:"required"`
+	CameraModel   string         `json:"camera_model" validate:"required"`
+	GPSLat        *float64       `json:"gps_lat,omitempty"`
+	GPSLon        *float64       `json:"gps_lon,omitempty"`
+	DurationMS    int64          `json:"duration_ms" validate:"required"`
+	Favorite      bool           `json:"favorite" validate:"required"`
+	Rating        int            `json:"rating" validate:"required"`
+	Archived      bool           `json:"archived" validate:"required"`
+	Hidden        bool           `json:"hidden" validate:"required"`
+	Description   *string        `json:"description,omitempty"`
+	PlaceCity     *string        `json:"place_city,omitempty"`
+	PlaceCountry  *string        `json:"place_country,omitempty"`
+	OriginalURL   string         `json:"original_url" validate:"required"`
+	ThumbnailURL  *string        `json:"thumbnail_url,omitempty"`
+	ThumbnailURLs *ThumbnailURLs `json:"thumbnail_urls,omitempty"`
+	PreviewURL    *string        `json:"preview_url,omitempty"`
+	ViewURL       string         `json:"view_url" validate:"required"`
+	WebViewable   bool           `json:"web_viewable" validate:"required"`
+	StackID       *string        `json:"stack_id,omitempty"`
+	StackSize     int            `json:"stack_size" validate:"required"`
+	CreatedAt     string         `json:"created_at" validate:"required"`
 }
 
 // AssetList is the envelope for a page of assets.
@@ -416,6 +426,33 @@ type PlaceGroup struct {
 // PlaceSummary is the envelope for the places-summary endpoint.
 type PlaceSummary struct {
 	Places []PlaceGroup `json:"places" validate:"required"`
+}
+
+// PlaceMapGeometry is a GeoJSON point. Coordinates are longitude, latitude.
+type PlaceMapGeometry struct {
+	Type        string     `json:"type" validate:"required" enums:"Point"`
+	Coordinates [2]float64 `json:"coordinates" validate:"required"`
+}
+
+// PlaceMapProperties identifies either one asset or an aggregate map cell.
+type PlaceMapProperties struct {
+	Kind    string `json:"kind" validate:"required" enums:"asset,cluster"`
+	Count   int    `json:"count" validate:"required"`
+	AssetID string `json:"asset_id,omitempty"`
+}
+
+// PlaceMapFeature is a minimal GeoJSON feature for the map viewport.
+type PlaceMapFeature struct {
+	Type       string             `json:"type" validate:"required" enums:"Feature"`
+	Geometry   PlaceMapGeometry   `json:"geometry" validate:"required"`
+	Properties PlaceMapProperties `json:"properties" validate:"required"`
+}
+
+// PlaceMap is a bounded GeoJSON feature collection for one map viewport.
+type PlaceMap struct {
+	Type      string            `json:"type" validate:"required" enums:"FeatureCollection"`
+	Features  []PlaceMapFeature `json:"features" validate:"required"`
+	Truncated bool              `json:"truncated" validate:"required"`
 }
 
 // YearCount is one year's asset count for the library stats breakdown.

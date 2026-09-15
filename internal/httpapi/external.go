@@ -175,7 +175,9 @@ func pathWithin(base, target string) (bool, error) {
 // The indexed asset rows go with it — they describe files under a root that is no
 // longer tracked — and `assets.external_library_id` is ON DELETE SET NULL, so
 // they must be removed explicitly rather than left behind as orphans that look
-// like ordinary imported assets.
+// like ordinary imported assets. The thumbnails, posters and previews Kuraki
+// generated for those assets live under its own derivatives directory and are
+// removed with them; only the external originals are left alone.
 //
 // @Summary Remove external library
 // @Tags    external
@@ -231,6 +233,33 @@ func (d Deps) deleteExternalLibrary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Read derivative paths before the asset rows go: derivatives and
+	// thumb_variants cascade away with them.
+	var derivPaths []string
+	for _, assetID := range assetIDs {
+		drows, err := tx.QueryContext(r.Context(),
+			`SELECT path FROM derivatives WHERE asset_id = ? UNION SELECT path FROM thumb_variants WHERE asset_id = ?`,
+			assetID, assetID)
+		if err != nil {
+			writeError(w, 500, "external_library_delete_failed")
+			return
+		}
+		for drows.Next() {
+			var p string
+			if err := drows.Scan(&p); err != nil {
+				drows.Close()
+				writeError(w, 500, "external_library_delete_failed")
+				return
+			}
+			derivPaths = append(derivPaths, p)
+		}
+		drows.Close()
+		if err := drows.Err(); err != nil {
+			writeError(w, 500, "external_library_delete_failed")
+			return
+		}
+	}
+
 	for _, assetID := range assetIDs {
 		if err := fts.Delete(r.Context(), tx, assetID); err != nil {
 			writeError(w, 500, "external_library_delete_failed")
@@ -256,6 +285,16 @@ func (d Deps) deleteExternalLibrary(w http.ResponseWriter, r *http.Request) {
 	if err := tx.Commit(); err != nil {
 		writeError(w, 500, "external_library_delete_failed")
 		return
+	}
+	// Only generated files under derivatives/ are removed — never an external
+	// original. Best effort after commit: a leftover derivative wastes disk but is
+	// never served, because no row points at it any more.
+	if d.Store != nil {
+		for _, p := range derivPaths {
+			if err := d.Store.Remove(r.Context(), "derivatives/"+p); err != nil {
+				d.Logger.Warn("external library: remove derivative failed", "path", p, "err", err)
+			}
+		}
 	}
 	writeJSON(w, 200, map[string]any{"removed": len(assetIDs)})
 }

@@ -14,32 +14,7 @@ export function useTokens(): ThemeTokens {
   return scheme === 'dark' ? darkTokens : lightTokens;
 }
 
-/**
- * The spacing rhythm, in points.
- *
- * Rebased onto a 4pt grid with a real 12 between 8 and 20. The old scale ran
- * 2/4/8/16/24/32 — doubling from 8 straight to 16 — so every time 8 was too
- * tight and 16 too loose, 8 won. A census of the app found `two` (8) carrying
- * almost all of the vertical work: 18 paddingVertical, 20 gap, 14
- * paddingHorizontal. That single missing step is why the whole app read as
- * compact, and adding it loosens every one of those sites at once rather than
- * through eighty individual edits.
- *
- * The names are positions in the scale, not multiples of anything, which is why
- * renumbering them here is safe: no caller does arithmetic on them.
- */
-export const Spacing = {
-  half: 4,
-  one: 8,
-  two: 12,
-  three: 20,
-  four: 28,
-  five: 40,
-  six: 64,
-} as const;
-
-// New work should use this shared scale. `Spacing` remains temporarily for
-// existing screens whose current rhythm is being migrated page by page.
+// All native spacing comes from the same generated scale as web.
 export const Space = designMetrics.spacing;
 export const TypeScale = designMetrics.type;
 export const Layout = designMetrics.layout;
@@ -56,8 +31,8 @@ export const Motion = {
 /**
  * Corner radii, in points.
  *
- * Split out of `Spacing`, which was quietly doing both jobs — 30 border radii
- * were written as `Spacing.two`. That coupling meant the scale could not be
+ * Split out of `Space`, which was quietly doing both jobs — 30 border radii
+ * were written as `Space.two`. That coupling meant the scale could not be
  * loosened without rounding every corner in the app as a side effect, so a
  * spacing decision and a shape decision could not be made independently. They
  * are separate now, and these values are exactly what those radii already were.

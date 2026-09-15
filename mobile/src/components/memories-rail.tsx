@@ -5,7 +5,7 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import MotionPressable from '@/components/motion-pressable';
 import { ThemedText } from '@/components/themed-text';
 import { lightTokens } from '@/design/tokens';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Space, useTokens } from '@/constants/theme';
 import { memoryGroups, type MemoryGroup } from '@/lib/memories';
 import { thumbSource, type LibraryAsset } from '@/lib/library-api';
 import type { CaptureSettings } from '@/lib/settings';
@@ -113,9 +113,9 @@ function MemoryCard({
 }
 
 const styles = StyleSheet.create({
-  heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.two, paddingTop: 12 },
+  heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Space.two, paddingTop: 12 },
   headingText: { fontSize: 16, fontWeight: '600' },
-  rail: { paddingHorizontal: Spacing.two, paddingTop: Spacing.two, gap: Spacing.one },
+  rail: { paddingHorizontal: Space.two, paddingTop: Space.two, gap: Space.one },
   card: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,

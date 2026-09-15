@@ -6,7 +6,7 @@ import { Alert, StyleSheet, Switch, View } from 'react-native';
 import MotionPressable from '@/components/motion-pressable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radius, Spacing, useTokens } from '@/constants/theme';
+import { Radius, Space, useTokens } from '@/constants/theme';
 import { FontFamily } from '@/design/fonts';
 
 // The shared vocabulary of the settings tree: a titled section, a grouped card,
@@ -23,7 +23,7 @@ import { FontFamily } from '@/design/fonts';
 // with no indication which half was the setting and which was its state.
 
 /** The icon column: a 22pt glyph plus the gap to the label. */
-const ICON_COLUMN = 22 + Spacing.two;
+const ICON_COLUMN = 22 + Space.two;
 
 type SectionInfo = { title?: string; message: string };
 
@@ -192,25 +192,25 @@ export function SettingsSwitch({
 }
 
 const styles = StyleSheet.create({
-  section: { paddingHorizontal: Spacing.three, paddingTop: Spacing.three, gap: Spacing.one },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, paddingHorizontal: Spacing.one },
+  section: { paddingHorizontal: Space.four, paddingTop: Space.four, gap: Space.one },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: Space.one, paddingHorizontal: Space.one },
   sectionTitle: { fontSize: 11, lineHeight: 17, fontWeight: '600', letterSpacing: 1.4 },
   // A hairline border rather than a shadow — Vault panels are drawn, not lifted.
   card: {
     borderRadius: Radius.lg,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: Spacing.three,
+    paddingHorizontal: Space.four,
     overflow: 'hidden',
   },
   // Inset past the icon column so the rule starts under the label, which is
   // what makes a run of rows read as a list rather than a stack of boxes.
   divider: { height: StyleSheet.hairlineWidth, marginLeft: ICON_COLUMN },
-  footer: { paddingHorizontal: Spacing.one, paddingTop: Spacing.one },
+  footer: { paddingHorizontal: Space.one, paddingTop: Space.one },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    paddingVertical: Spacing.two,
+    gap: Space.two,
+    paddingVertical: Space.two,
     minHeight: 56,
   },
   // 16pt regular: the setting's name is prose, and at 14 bold it was competing
@@ -224,10 +224,10 @@ const styles = StyleSheet.create({
   notice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: Spacing.two,
-    marginHorizontal: Spacing.three,
-    marginTop: Spacing.two,
-    padding: Spacing.two,
+    gap: Space.two,
+    marginHorizontal: Space.four,
+    marginTop: Space.two,
+    padding: Space.two,
     borderRadius: Radius.md,
     borderWidth: StyleSheet.hairlineWidth,
   },

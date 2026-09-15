@@ -1,14 +1,67 @@
 package httpapi
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/kuraki-app/kuraki/internal/db"
 	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
+	"github.com/kuraki-app/kuraki/internal/storage"
 )
+
+// TestDeleteUserPurgeRemovesDerivativeFiles proves the purge deletes files, not
+// just rows. It passed the DB-relative path straight to Store.Remove, missing
+// the "derivatives/" prefix, so every thumbnail outlived its owner's account.
+func TestDeleteUserPurgeRemovesDerivativeFiles(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	database, err := db.Open(ctx, filepath.Join(root, "kuraki.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { database.Close() })
+	if err := db.Migrate(database, nil); err != nil {
+		t.Fatal(err)
+	}
+	store, err := storage.NewFS(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := NewRouter(Deps{Version: "test", DB: database, Store: store, Logger: slog.Default()})
+	cookie := setupTestSession(t, router)
+
+	other := secondOwner(t, database)
+	seedOwnedAssetFor(t, database, "theirs", other)
+	files := []string{"theirs/thumb_512_g0.jpg", "theirs/thumb_1200_g0.jpg"}
+	for _, rel := range files {
+		if _, err := store.Write(ctx, "derivatives/"+rel, strings.NewReader("x")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := database.Exec(`INSERT INTO derivatives (asset_id, kind, format, path) VALUES ('theirs', 'thumb', 'jpeg', ?)`, files[0]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(`INSERT INTO thumb_variants (asset_id, edge, gen, format, path) VALUES ('theirs', 1200, 0, 'jpeg', ?)`, files[1]); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := deleteWithCookie(t, router, "/api/users/"+other+"?purge=true", cookie)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("purge delete = %d body=%s, want 204", rec.Code, rec.Body.String())
+	}
+	for _, rel := range files {
+		if ok, _ := store.Exists(ctx, "derivatives/"+rel); ok {
+			t.Fatalf("derivatives/%s survived user purge", rel)
+		}
+	}
+}
 
 // deleteWithCookie issues a DELETE and returns the recorder unasserted.
 func deleteWithCookie(t *testing.T, handler http.Handler, path string, cookie *http.Cookie) *httptest.ResponseRecorder {

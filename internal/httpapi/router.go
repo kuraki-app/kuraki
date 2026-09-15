@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io/fs"
 	"log/slog"
+	"mime"
 	"net/http"
 	"os"
 	"path"
@@ -19,6 +20,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/media"
 	"github.com/kuraki-app/kuraki/internal/queue"
 	"github.com/kuraki-app/kuraki/internal/storage"
+	"github.com/kuraki-app/kuraki/internal/thumbs"
 	"golang.org/x/time/rate"
 )
 
@@ -35,6 +37,11 @@ type Deps struct {
 	// most existing tests never set it.
 	Settings  *config.Store
 	ThumbSize int
+
+	// Thumbs resolves and lazily renders thumbnail tiers. NewRouter fills a
+	// default from DB/Store/Media/ThumbSize when nil, so tests need not wire it.
+	Thumbs *thumbs.Service
+
 	// ListenPort is the port the server is bound to, used to build the
 	// pairing address a phone should connect to.
 	ListenPort string
@@ -62,10 +69,22 @@ type Deps struct {
 	// to polling), so tests and non-serve callers need not wire it.
 	Events *ChangeBroker
 	Logger *slog.Logger
+
+	requests  *requestMetrics
+	responses *responseCache
 }
 
 // NewRouter builds the top-level HTTP handler.
 func NewRouter(d Deps) http.Handler {
+	if d.Thumbs == nil {
+		d.Thumbs = &thumbs.Service{DB: d.DB, Store: d.Store, Media: d.Media, Log: d.Logger, MediumEdge: d.ThumbSize}
+	}
+	if d.requests == nil {
+		d.requests = newRequestMetrics()
+	}
+	if d.responses == nil {
+		d.responses = newResponseCache(readCacheTTL, readCacheEntries, readCacheBytes)
+	}
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	// RealIP rewrites RemoteAddr from X-Forwarded-For / X-Real-IP, which a client
@@ -76,13 +95,14 @@ func NewRouter(d Deps) http.Handler {
 		r.Use(middleware.RealIP)
 	}
 	r.Use(middleware.Recoverer)
+	r.Use(d.observeRequests)
 	r.Use(securityHeaders(d.SecureCookies))
 	r.Use(sameOriginWrites)
 	// Compress text responses (JSON API + UI bundles); media types are skipped
 	// so range requests and already-compressed images/videos pass through.
 	r.Use(middleware.Compress(5, "application/json", "text/html", "text/css",
 		"application/javascript", "text/javascript", "image/svg+xml"))
-	r.Use(timeoutExcept(60*time.Second, "/api/assets/zip", "/api/export"))
+	r.Use(timeoutExcept(60 * time.Second))
 
 	// Login throttle: ~10 attempts then 1 per 6s per IP (F-14).
 	loginLimiter := newIPLimiter(rate.Every(6*time.Second), 10, 10*time.Minute)
@@ -98,6 +118,7 @@ func NewRouter(d Deps) http.Handler {
 	r.Get("/download/android", d.downloadAndroid)
 
 	r.Route("/api", func(r chi.Router) {
+		r.Use(d.invalidateCachedReads)
 		r.Get("/status", d.status)
 		r.Get("/openapi.json", d.serveOpenAPI)
 		r.Get("/setup", d.setupStatus)
@@ -109,6 +130,7 @@ func NewRouter(d Deps) http.Handler {
 
 		r.Group(func(r chi.Router) {
 			r.Use(d.requirePrincipal)
+			r.Use(d.cacheRead)
 
 			// --- reachable by BOTH principals ---
 			r.Get("/assets", d.listAssets)
@@ -134,6 +156,7 @@ func NewRouter(d Deps) http.Handler {
 			r.Get("/trash", d.listTrash)
 			r.Delete("/trash/{id}", d.purgeAsset)
 			r.Get("/places", d.placesAssets)
+			r.Get("/places/map", d.placesMap)
 			r.Get("/places/summary", d.placesSummary)
 			r.Get("/stats", d.stats)
 			r.Get("/duplicates", d.duplicates)
@@ -222,13 +245,26 @@ func timeoutExcept(timeout time.Duration, paths ...string) func(http.Handler) ht
 	return func(next http.Handler) http.Handler {
 		limited := middleware.Timeout(timeout)(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if _, ok := exempt[r.URL.Path]; ok {
+			if _, ok := exempt[r.URL.Path]; ok || longLivedRequest(r) {
 				next.ServeHTTP(w, r)
 				return
 			}
 			limited.ServeHTTP(w, r)
 		})
 	}
+}
+
+// longLivedRequest names the operations that deliberately outlive the normal
+// request deadline. Server IdleTimeout only applies between requests; leaving
+// WriteTimeout unset likewise preserves these active streams.
+func longLivedRequest(r *http.Request) bool {
+	switch r.URL.Path {
+	case "/api/assets/zip", "/api/export", "/api/events":
+		return true
+	case "/api/assets":
+		return r.Method == http.MethodPost
+	}
+	return strings.HasPrefix(r.URL.Path, "/api/capture/uploads")
 }
 
 func (d Deps) healthz(w http.ResponseWriter, r *http.Request) {
@@ -277,6 +313,9 @@ func spaHandler(files fs.FS) http.HandlerFunc {
 				if strings.HasPrefix(p, "/_app/immutable/") {
 					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 				}
+				if servePrecompressed(w, r, files, p[1:]) {
+					return
+				}
 				fileServer.ServeHTTP(w, r)
 				return
 			} else if !os.IsNotExist(err) {
@@ -288,6 +327,77 @@ func spaHandler(files fs.FS) http.HandlerFunc {
 		// The SPA document: root, "/index.html", or a client-side route fallback.
 		serveSPADocument(w, index, indexErr)
 	}
+}
+
+// servePrecompressed serves build-produced sibling files while keeping the
+// logical asset's media type. It reports false when no acceptable sibling is
+// present, allowing the ordinary file server to handle the original.
+func servePrecompressed(w http.ResponseWriter, r *http.Request, files fs.FS, logicalName string) bool {
+	for _, candidate := range []struct {
+		encoding string
+		suffix   string
+	}{{"br", ".br"}, {"gzip", ".gz"}} {
+		if !acceptsEncoding(r.Header.Get("Accept-Encoding"), candidate.encoding) {
+			continue
+		}
+		encodedName := logicalName + candidate.suffix
+		f, err := files.Open(encodedName)
+		if err != nil {
+			continue
+		}
+		seeker, ok := f.(interface {
+			fs.File
+			Seek(int64, int) (int64, error)
+		})
+		if !ok {
+			f.Close()
+			continue
+		}
+		info, err := f.Stat()
+		if err != nil || info.IsDir() {
+			f.Close()
+			continue
+		}
+		defer f.Close()
+		w.Header().Set("Content-Encoding", candidate.encoding)
+		w.Header().Set("Vary", appendVary(w.Header().Get("Vary"), "Accept-Encoding"))
+		if contentType := mime.TypeByExtension(path.Ext(logicalName)); contentType != "" {
+			w.Header().Set("Content-Type", contentType)
+		}
+		http.ServeContent(w, r, logicalName, info.ModTime(), seeker)
+		return true
+	}
+	return false
+}
+
+func acceptsEncoding(header, want string) bool {
+	for _, part := range strings.Split(header, ",") {
+		fields := strings.Split(strings.TrimSpace(part), ";")
+		name := strings.TrimSpace(fields[0])
+		if name != want && name != "*" {
+			continue
+		}
+		accepted := true
+		for _, parameter := range fields[1:] {
+			if strings.TrimSpace(parameter) == "q=0" || strings.TrimSpace(parameter) == "q=0.0" {
+				accepted = false
+			}
+		}
+		return accepted
+	}
+	return false
+}
+
+func appendVary(current, value string) string {
+	for _, existing := range strings.Split(current, ",") {
+		if strings.EqualFold(strings.TrimSpace(existing), value) {
+			return current
+		}
+	}
+	if current == "" {
+		return value
+	}
+	return current + ", " + value
 }
 
 // serveSPADocument writes index.html with a per-request nonce on its inline

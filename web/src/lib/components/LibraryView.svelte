@@ -17,6 +17,7 @@
   import { canMorph, morph } from '$lib/motion';
   import { libraryVersion, showToast } from '$lib/stores';
   import { gridDensity, grouping } from '$lib/prefs';
+  import { latestRequest } from '$lib/latest-request';
   import AssetGrid from './AssetGrid.svelte';
   import ScrollScrubber from './ScrollScrubber.svelte';
   import Viewer from './Viewer.svelte';
@@ -31,7 +32,7 @@
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
 
-  export let load: (cursor?: string) => Promise<AssetList>;
+  export let load: (cursor?: string, signal?: AbortSignal) => Promise<AssetList>;
   export let title = '';
   export let subtitle = '';
   export let trashMode = false;
@@ -56,6 +57,7 @@
   let pickerOpen = false;
   let albums: Album[] = [];
   let mounted = false;
+  const requests = latestRequest();
   let density: 'compact' | 'comfortable' | 'large' = 'comfortable';
   /** The tile the viewer is morphing out of, or back into. Handed to AssetGrid. */
   let morphId: string | null = null;
@@ -72,6 +74,7 @@
     return () => window.removeEventListener('scroll', onScroll);
   });
   onDestroy(unsub);
+  onDestroy(() => requests.cancel());
 
   function msg(e: unknown) {
     return e instanceof Error ? e.message : 'Something went wrong';
@@ -98,30 +101,33 @@
 
   async function reload() {
     loading = true;
+    loadingMore = false;
     error = '';
     try {
-      const data = await load();
+      const result = await requests.run((signal) => load(undefined, signal));
+      if (result.status === 'superseded') return;
+      const data = result.value;
       assets = data.assets;
       cursor = data.next_cursor ?? '';
     } catch (e) {
       error = msg(e);
-    } finally {
-      loading = false;
     }
+    loading = false;
   }
 
   async function loadMore() {
-    if (loadingMore || !cursor) return;
+    if (loading || loadingMore || !cursor) return;
     loadingMore = true;
     try {
-      const data = await load(cursor);
+      const result = await requests.run((signal) => load(cursor, signal));
+      if (result.status === 'superseded') return;
+      const data = result.value;
       assets = [...assets, ...data.assets];
       cursor = data.next_cursor ?? '';
     } catch (e) {
       showToast(msg(e));
-    } finally {
-      loadingMore = false;
     }
+    loadingMore = false;
   }
 
   function onScroll() {

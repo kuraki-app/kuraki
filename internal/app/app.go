@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/kuraki-app/kuraki/internal/backup"
 	"strconv"
 
 	"github.com/kuraki-app/kuraki/internal/config"
@@ -25,6 +24,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/geo"
 	"github.com/kuraki-app/kuraki/internal/httpapi"
 	"github.com/kuraki-app/kuraki/internal/importer"
+	"github.com/kuraki-app/kuraki/internal/maintenance"
 	"github.com/kuraki-app/kuraki/internal/media"
 	"github.com/kuraki-app/kuraki/internal/migrate"
 	"github.com/kuraki-app/kuraki/internal/ocr"
@@ -32,7 +32,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/serversettings"
 	"github.com/kuraki-app/kuraki/internal/stacks"
 	"github.com/kuraki-app/kuraki/internal/storage"
-	"github.com/kuraki-app/kuraki/internal/trash"
+	"github.com/kuraki-app/kuraki/internal/thumbs"
 	"github.com/kuraki-app/kuraki/internal/verify"
 
 	"database/sql"
@@ -45,13 +45,14 @@ type App struct {
 	// Current()); everything else is read once from Settings.Booted() because
 	// it is baked into a constructor (queue.New, httpapi.Deps) at Serve()
 	// time and never re-read — see internal/config.Store's doc comment.
-	Settings *config.Store
-	Log      *slog.Logger
-	DB       *sql.DB
-	Store    storage.Storage
-	Media    media.Processor
-	Queue    *queue.Queue
-	Version  string
+	Settings    *config.Store
+	Log         *slog.Logger
+	DB          *sql.DB
+	Store       storage.Storage
+	Media       media.Processor
+	Queue       *queue.Queue
+	Maintenance *maintenance.Manager
+	Version     string
 }
 
 // New assembles the application: it creates the data directories, opens the
@@ -107,14 +108,16 @@ func New(ctx context.Context, cfg config.Config, getenv func(string) string, ver
 	}
 
 	duplicates.Start(ctx, database, log)
+	maint := maintenance.New(database, store, settings, log)
 	return &App{
-		Settings: settings,
-		Log:      log,
-		DB:       database,
-		Store:    store,
-		Media:    proc,
-		Queue:    q,
-		Version:  version,
+		Settings:    settings,
+		Log:         log,
+		DB:          database,
+		Store:       store,
+		Media:       proc,
+		Queue:       q,
+		Maintenance: maint,
+		Version:     version,
 	}, nil
 }
 
@@ -300,272 +303,6 @@ func (a *App) backfillPHashes(ctx context.Context) {
 	}
 }
 
-// startIntegrityScheduler runs an integrity verification at startup if one is
-// due, then re-checks daily. The interval keeps large libraries from being
-// re-scanned on every restart.
-func (a *App) startIntegrityScheduler(ctx context.Context) {
-	const interval = 7 * 24 * time.Hour
-	due := func() bool {
-		last, ok, err := verify.LastRun(ctx, a.DB)
-		if err != nil || !ok || last.FinishedAt == "" {
-			return true
-		}
-		t, err := time.Parse(time.RFC3339Nano, last.FinishedAt)
-		if err != nil {
-			return true
-		}
-		return time.Since(t) >= interval
-	}
-	run := func() {
-		result, err := verify.RunAndRecord(ctx, a.DB, a.Store)
-		if err != nil {
-			a.Log.Warn("integrity verification failed", "err", err)
-			return
-		}
-		a.Log.Info("integrity verification complete", "checked", result.Checked, "problems", len(result.Problems))
-	}
-	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(30 * time.Second): // let startup settle first
-		}
-		if due() {
-			run()
-		}
-		t := time.NewTicker(24 * time.Hour)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				if due() {
-					run()
-				}
-			}
-		}
-	}()
-}
-
-// startBackupScheduler writes an unattended, SQLite-consistent library backup
-// into the configured directory at startup (if one is due) and on an interval
-// thereafter, then prunes to the retention count. It is opt-in: with no
-// BackupDir set it does nothing, leaving backups fully manual. This is the
-// safety net for a passive user who never runs `kuraki backup` by hand.
-func (a *App) startBackupScheduler(ctx context.Context) {
-	booted := a.Settings.Booted()
-	if booted.BackupDir == "" {
-		return
-	}
-	hours := booted.BackupIntervalHours
-	if hours <= 0 {
-		hours = 24
-	}
-	interval := time.Duration(hours) * time.Hour
-
-	due := func() bool {
-		last, ok, err := backup.LastRun(ctx, a.DB)
-		if err != nil || !ok || last.FinishedAt == "" {
-			return true
-		}
-		t, err := time.Parse(time.RFC3339Nano, last.FinishedAt)
-		if err != nil {
-			return true
-		}
-		return time.Since(t) >= interval
-	}
-	run := func() {
-		summary, err := backup.RunAndRecord(ctx, a.DB, booted.DataDir, booted.BackupDir)
-		if err != nil {
-			a.Log.Warn("automatic backup failed", "err", err)
-			return
-		}
-		a.Log.Info("automatic backup complete", "dest", summary.Destination, "bytes", summary.Bytes)
-		if err := backup.Prune(booted.BackupDir, booted.BackupKeep); err != nil {
-			a.Log.Warn("backup prune failed", "err", err)
-		}
-	}
-	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(45 * time.Second): // after integrity/startup settle
-		}
-		if due() {
-			run()
-		}
-		t := time.NewTicker(interval)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				if due() {
-					run()
-				}
-			}
-		}
-	}()
-}
-
-// PurgeTrash permanently removes assets whose retention window has elapsed (F-10).
-func (a *App) PurgeTrash(ctx context.Context) (int, error) {
-	days := a.Settings.Current().TrashRetentionDays
-	if days <= 0 {
-		days = 30
-	}
-	return trash.PurgeExpired(ctx, a.DB, a.Store, time.Now().AddDate(0, 0, -days))
-}
-
-// startTrashJanitor purges expired trash once at startup and daily thereafter.
-func (a *App) startTrashJanitor(ctx context.Context) {
-	run := func() {
-		n, err := a.PurgeTrash(ctx)
-		if err != nil {
-			a.Log.Warn("trash purge failed", "err", err)
-			return
-		}
-		if n > 0 {
-			a.Log.Info("purged expired trash", "count", n)
-		}
-	}
-	run()
-	go func() {
-		t := time.NewTicker(24 * time.Hour)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				run()
-			}
-		}
-	}()
-}
-
-// PruneChangeLog keeps only the newest ChangeLogKeep rows of change_log so the
-// delta feed's backing table stays bounded. A client whose sync cursor falls
-// below the retained window is told to resync by the changes handler (which
-// derives the floor from MIN(id)), so pruning can never silently drop a delta a
-// client still needed — it converts "missed rows" into an explicit full reload.
-func (a *App) PruneChangeLog(ctx context.Context) (int64, error) {
-	keep := a.Settings.Current().ChangeLogKeep
-	if keep <= 0 {
-		keep = 100000
-	}
-	res, err := a.DB.ExecContext(ctx, `
-		DELETE FROM change_log
-		WHERE id < (SELECT MIN(id) FROM (SELECT id FROM change_log ORDER BY id DESC LIMIT ?))`, keep)
-	if err != nil {
-		return 0, fmt.Errorf("app: prune change_log: %w", err)
-	}
-	n, _ := res.RowsAffected()
-	return n, nil
-}
-
-// startChangeLogJanitor prunes the change_log once at startup and daily after.
-func (a *App) startChangeLogJanitor(ctx context.Context) {
-	run := func() {
-		n, err := a.PruneChangeLog(ctx)
-		if err != nil {
-			a.Log.Warn("change_log prune failed", "err", err)
-			return
-		}
-		if n > 0 {
-			a.Log.Info("pruned change_log", "count", n)
-		}
-	}
-	run()
-	go func() {
-		t := time.NewTicker(24 * time.Hour)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				run()
-			}
-		}
-	}()
-}
-
-// purgeExpiredCaptures removes capture upload sessions that were never
-// completed before their expiry, along with their staging directories, so an
-// abandoned mobile upload does not leak disk or database rows. Sessions that
-// have already been handed to the importer (job_id set) are left alone.
-func (a *App) purgeExpiredCaptures(ctx context.Context) (int, error) {
-	rows, err := a.DB.QueryContext(ctx, `
-		SELECT id, source_dir FROM upload_sessions
-		WHERE status = 'receiving' AND expires_at < ?`, time.Now().UTC().Format(time.RFC3339Nano))
-	if err != nil {
-		return 0, fmt.Errorf("app: query expired captures: %w", err)
-	}
-	type expired struct{ id, dir string }
-	var stale []expired
-	for rows.Next() {
-		var e expired
-		if err := rows.Scan(&e.id, &e.dir); err != nil {
-			rows.Close()
-			return 0, fmt.Errorf("app: scan expired capture: %w", err)
-		}
-		stale = append(stale, e)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return 0, fmt.Errorf("app: iterate expired captures: %w", err)
-	}
-	n := 0
-	for _, e := range stale {
-		if err := os.RemoveAll(e.dir); err != nil {
-			a.Log.Warn("capture staging cleanup failed", "session", e.id, "err", err)
-			continue
-		}
-		if _, err := a.DB.ExecContext(ctx, `DELETE FROM upload_sessions WHERE id = ? AND status = 'receiving'`, e.id); err != nil {
-			a.Log.Warn("capture session delete failed", "session", e.id, "err", err)
-			continue
-		}
-		n++
-	}
-	return n, nil
-}
-
-// startCaptureJanitor removes expired, never-completed capture sessions at
-// startup and hourly thereafter.
-func (a *App) startCaptureJanitor(ctx context.Context) {
-	run := func() {
-		n, err := a.purgeExpiredCaptures(ctx)
-		if err != nil {
-			a.Log.Warn("capture purge failed", "err", err)
-			return
-		}
-		if n > 0 {
-			a.Log.Info("purged expired capture sessions", "count", n)
-		}
-		// Expired pairing codes (claimed or not) are dead weight; sweep them too.
-		if _, err := a.DB.ExecContext(ctx, `DELETE FROM pairing_codes WHERE expires_at < ?`,
-			time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
-			a.Log.Warn("pairing code purge failed", "err", err)
-		}
-	}
-	run()
-	go func() {
-		t := time.NewTicker(time.Hour)
-		defer t.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-t.C:
-				run()
-			}
-		}
-	}()
-}
-
 // startOCRWorker, when OCR is enabled and tesseract is present, recognises text
 // in images that have not been processed yet and indexes it so a search finds
 // words inside screenshots and documents. It processes small batches with a
@@ -696,11 +433,7 @@ func (a *App) storeOCR(ctx context.Context, id, text string) error {
 // Serve starts the HTTP server and blocks until ctx is cancelled, then shuts
 // down gracefully.
 func (a *App) Serve(ctx context.Context) error {
-	a.startTrashJanitor(ctx)
-	a.startChangeLogJanitor(ctx)
-	a.startCaptureJanitor(ctx)
-	a.startIntegrityScheduler(ctx)
-	a.startBackupScheduler(ctx)
+	a.Maintenance.Start(ctx)
 	a.startOCRWorker(ctx)
 	go a.backfillPlaces(ctx)
 	go a.backfillPHashes(ctx)
@@ -727,6 +460,10 @@ func (a *App) Serve(ctx context.Context) error {
 		Queue:     a.Queue,
 		Settings:  a.Settings,
 		ThumbSize: booted.ThumbnailSize,
+		Thumbs: &thumbs.Service{
+			DB: a.DB, Store: a.Store, Media: a.Media, Log: a.Log,
+			MediumEdge: booted.ThumbnailSize, Workers: booted.ThumbWorkers, MaxQueue: booted.ThumbQueue,
+		},
 		// The port half of the configured listen address, so the pairing screen
 		// can offer a URL a phone can actually route to rather than whatever the
 		// browser happened to be typed with.
@@ -746,6 +483,8 @@ func (a *App) Serve(ctx context.Context) error {
 		Addr:              booted.Addr,
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
 
 	errCh := make(chan error, 1)

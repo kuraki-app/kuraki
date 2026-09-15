@@ -98,3 +98,72 @@ func TestMetricsPrometheusNegotiation(t *testing.T) {
 		t.Fatalf("missing uptime metric: %q", rec.Body.String())
 	}
 }
+
+func TestMetricsExposeNormalizedRequestRoutes(t *testing.T) {
+	router := newMetricsRouter(t, "s3cret-scrape-token")
+	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/healthz", nil))
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer s3cret-scrape-token")
+	req.Header.Set("Accept", "text/plain; version=0.0.4")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("metrics status = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `kuraki_http_requests_total{method="GET",route="/healthz",status="200"} 1`) {
+		t.Fatalf("missing normalized health request metric: %s", body)
+	}
+	if strings.Contains(body, "kuraki_http_requests_total{method=\"GET\",route=\"/metrics\"") {
+		t.Fatalf("metrics response must not include itself before its snapshot: %s", body)
+	}
+}
+
+func TestMetricsBucketsUnknownHTTPMethods(t *testing.T) {
+	router := newMetricsRouter(t, "s3cret-scrape-token")
+	for _, method := range []string{"PURGE", "FROB"} {
+		router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(method, "/healthz", nil))
+	}
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Authorization", "Bearer s3cret-scrape-token")
+	req.Header.Set("Accept", "text/plain; version=0.0.4")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("metrics status = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `method="OTHER"`) {
+		t.Fatalf("unknown methods were not bucketed: %s", body)
+	}
+	if strings.Contains(body, `method="PURGE"`) || strings.Contains(body, `method="FROB"`) {
+		t.Fatalf("raw extension method leaked into metric labels: %s", body)
+	}
+}
+
+func TestMetricsReportThumbnailCounters(t *testing.T) {
+	ctx := context.Background()
+	database, store, _ := seedHTTPAsset(t, ctx)
+	router := NewRouter(Deps{Version: "test", DB: database, Store: store, Logger: slog.Default()})
+	cookie := setupTestSession(t, router)
+
+	body := getJSONWithCookie[map[string]any](t, router, "/metrics", cookie)
+	thumbs, ok := body["thumbs"].(map[string]any)
+	if !ok {
+		t.Fatalf("metrics missing thumbs block: %v", body)
+	}
+	if _, ok := thumbs["generated_total"]; !ok {
+		t.Fatalf("thumbs block = %v, want generated_total", thumbs)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.Header.Set("Accept", "text/plain")
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if text := rec.Body.String(); !strings.Contains(text, `kuraki_thumb_requests_total{result="generated"}`) ||
+		!strings.Contains(text, "kuraki_thumb_inflight ") {
+		t.Fatalf("prometheus text missing thumbnail series: %s", text)
+	}
+}
