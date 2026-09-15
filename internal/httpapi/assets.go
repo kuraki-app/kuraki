@@ -184,6 +184,15 @@ func (d Deps) serveOriginal(w http.ResponseWriter, r *http.Request) {
 
 func (d Deps) serveThumb(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	// derivatives carries no owner, so the asset lookup is the owner and trash
+	// wall — without it any principal could read any library's thumbnails.
+	if _, err := d.lookupAsset(r, id); errors.Is(err, sql.ErrNoRows) {
+		writeError(w, http.StatusNotFound, "asset_not_found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "query_asset_failed")
+		return
+	}
 	var rel, format string
 	err := d.DB.QueryRowContext(r.Context(),
 		`SELECT path, format FROM derivatives
