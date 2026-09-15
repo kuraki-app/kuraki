@@ -71,6 +71,8 @@ func TestWriteThumbError(t *testing.T) {
 		{thumbs.ErrNotFound, http.StatusNotFound, "", "asset_not_found"},
 		{thumbs.ErrNoSource, http.StatusNotFound, "", "thumb_not_found"},
 		{thumbs.ErrBusy, http.StatusServiceUnavailable, "2", "thumb_busy"},
+		{context.Canceled, http.StatusServiceUnavailable, "2", "thumb_busy"},
+		{context.DeadlineExceeded, http.StatusServiceUnavailable, "2", "thumb_busy"},
 		{errors.New("boom"), http.StatusInternalServerError, "", "thumb_failed"},
 	}
 	for _, c := range cases {

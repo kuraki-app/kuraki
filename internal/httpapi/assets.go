@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"database/sql"
 	"encoding/base64"
 	"errors"
@@ -239,7 +240,10 @@ func (d Deps) writeThumbError(w http.ResponseWriter, err error, missing string) 
 		writeError(w, http.StatusNotFound, "asset_not_found")
 	case errors.Is(err, thumbs.ErrNoSource):
 		writeError(w, http.StatusNotFound, missing)
-	case errors.Is(err, thumbs.ErrBusy):
+	case errors.Is(err, thumbs.ErrBusy), errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		// A cancelled request is a tile scrolled out of view, not a fault; the
+		// render it started keeps going for the next caller. Same answer as a
+		// full queue, and no warning log.
 		w.Header().Set("Retry-After", "2")
 		writeError(w, http.StatusServiceUnavailable, "thumb_busy")
 	default:
