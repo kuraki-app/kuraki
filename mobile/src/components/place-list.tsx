@@ -5,7 +5,7 @@ import { SymbolView } from 'expo-symbols';
 
 import { ThemedText } from '@/components/themed-text';
 import MotionPressable from '@/components/motion-pressable';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Space, useTokens } from '@/constants/theme';
 import { FontFamily } from '@/design/fonts';
 import { registerStyle } from '@/design/registers';
 import { formatCount } from '@/lib/format';
@@ -96,16 +96,16 @@ export default function PlaceList({ groups, settings, totalLocated, onPressPlace
 
 const styles = StyleSheet.create({
   panel: { flex: 2, borderTopWidth: StyleSheet.hairlineWidth },
-  header: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two, paddingBottom: Spacing.one, gap: 2 },
+  header: { paddingHorizontal: Space.four, paddingTop: Space.two, paddingBottom: Space.one, gap: 2 },
   headerTitle: { fontSize: 17, lineHeight: 22, fontWeight: '600' },
   city: { fontSize: 15, lineHeight: 20, fontWeight: '600' },
   count: { fontSize: 13, lineHeight: 18, fontVariant: ['tabular-nums'] },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.one,
+    gap: Space.two,
+    paddingHorizontal: Space.four,
+    paddingVertical: Space.one,
   },
   cover: { width: 52, height: 52, borderRadius: 8 },
   meta: { flex: 1 },

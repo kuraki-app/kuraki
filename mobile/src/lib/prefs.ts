@@ -2,12 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { lightTokens } from '@/design/tokens';
 import type { GroupBy } from '@/lib/gallery';
+import { transparencyPreference, type TransparencyPreference } from '@/lib/glass-surface';
 import { RETENTION_DAYS } from '@/lib/reclaim';
 
 // Every user-facing preference in one record. They live together because they
 // are read together (the grid needs three of them at once) and because a single
 // stored blob keeps reads to one AsyncStorage round trip at launch.
 export type Prefs = {
+  transparency: TransparencyPreference;
   // Backup
   backupPhotos: boolean;
   backupVideos: boolean;
@@ -32,6 +34,7 @@ export const GRID_COLUMNS = { min: 2, max: 6 } as const;
 export const GRID_GAP = { min: 0, max: 12 } as const;
 
 export const DEFAULT_PREFS: Prefs = {
+  transparency: 'system',
   backupPhotos: true,
   backupVideos: true,
   syncAlbums: false,
@@ -73,6 +76,7 @@ export function mergePrefs(stored: unknown): Prefs {
       : {};
 
   return {
+    transparency: transparencyPreference(s.transparency),
     backupPhotos: bool(s.backupPhotos, DEFAULT_PREFS.backupPhotos),
     backupVideos: bool(s.backupVideos, DEFAULT_PREFS.backupVideos),
     syncAlbums: bool(s.syncAlbums, DEFAULT_PREFS.syncAlbums),

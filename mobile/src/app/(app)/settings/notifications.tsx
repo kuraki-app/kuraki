@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { SettingsSection, SettingsSwitch } from '@/components/settings-ui';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Space, useTokens } from '@/constants/theme';
 import { ensureNotificationPermission, notificationsAvailable } from '@/lib/notifications';
 import { DEFAULT_PREFS, loadPrefs, savePrefs, type Prefs } from '@/lib/prefs';
 
@@ -77,5 +77,5 @@ export default function NotificationSettings() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  content: { paddingBottom: Spacing.five },
+  content: { paddingBottom: Space.seven },
 });

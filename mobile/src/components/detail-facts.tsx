@@ -2,7 +2,7 @@ import { SymbolView, type SFSymbol } from 'expo-symbols';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing, useTokens } from '@/constants/theme';
+import { Radius, Space, useTokens } from '@/constants/theme';
 import type { AssetFact } from '@/lib/asset-facts';
 
 // SF Symbol per fact kind. Kept here rather than in `asset-facts.ts` so that
@@ -54,14 +54,14 @@ export default function DetailFacts({ facts }: { facts: AssetFact[] }) {
 }
 
 const styles = StyleSheet.create({
-  list: { gap: Spacing.one },
+  list: { gap: Space.one },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
+    gap: Space.two,
     borderRadius: Radius.md,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.two,
+    paddingHorizontal: Space.two,
+    paddingVertical: Space.two,
     minHeight: 62,
   },
   iconSpacer: { width: 20 },

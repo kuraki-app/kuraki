@@ -68,6 +68,10 @@ jobs:
       # the timezone bug they pin is invisible at UTC or any positive offset.
       - run: cd web && npm run test
       - run: cd web && npm run build
+      # Keep the static SPA lightweight: this measures the resources referenced
+      # by the fallback document, the largest lazy chunk, and bundled fonts
+      # after Vite has produced the exact assets shipped in the Go binary.
+      - run: node scripts/check-web-budget.mjs
 
   e2e:
     name: Web end-to-end (browser)
@@ -101,14 +105,9 @@ jobs:
       # like with like — Vite's content hashes are deterministic for identical
       # inputs, but "identical" includes the toolchain that produced them.
       - name: Embedded UI matches web/
-        run: |
-          git diff --exit-code -- internal/httpapi/assets || {
-            echo
-            echo "ERROR: internal/httpapi/assets is stale."
-            echo "The committed UI does not match a fresh build of web/."
-            echo "Run 'make web' and commit the result."
-            exit 1
-          }
+        # Byte-for-byte except precompressed .gz, whose bytes differ between
+        # macOS and Linux zlib; those must decompress to their source instead.
+        run: scripts/check-embedded-ui.sh
       - if: failure()
         uses: actions/upload-artifact@v4
         with:

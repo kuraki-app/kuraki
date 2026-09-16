@@ -339,7 +339,8 @@ func (d Deps) purgeUserLibrary(r *http.Request, userID string) error {
 	}
 
 	for _, a := range assets {
-		derivs, err := d.DB.QueryContext(ctx, `SELECT path FROM derivatives WHERE asset_id = ?`, a.id)
+		derivs, err := d.DB.QueryContext(ctx,
+			`SELECT path FROM derivatives WHERE asset_id = ? UNION SELECT path FROM thumb_variants WHERE asset_id = ?`, a.id, a.id)
 		if err != nil {
 			return fmt.Errorf("httpapi: list derivatives: %w", err)
 		}
@@ -349,7 +350,8 @@ func (d Deps) purgeUserLibrary(r *http.Request, userID string) error {
 				derivs.Close()
 				return fmt.Errorf("httpapi: scan derivative: %w", err)
 			}
-			if err := d.Store.Remove(ctx, p); err != nil {
+			// Rows store paths relative to the derivatives root, not the data dir.
+			if err := d.Store.Remove(ctx, "derivatives/"+p); err != nil {
 				d.Logger.Warn("purge: remove derivative failed", "asset", a.id, "path", p, "err", err)
 			}
 		}

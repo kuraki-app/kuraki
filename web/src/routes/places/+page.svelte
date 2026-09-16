@@ -18,16 +18,20 @@
   let places: PlaceGroup[] = [];
   let loading = true;
   let viewerIndex = -1;
+  const controller = new AbortController();
 
   onMount(async () => {
+    try {
     L = (await import('leaflet')).default;
     await import('leaflet.markercluster');
+    if (controller.signal.aborted) return;
 
-    try {
-      const [pa, ps] = await Promise.all([api.places(), api.placesSummary()]);
+      const [pa, ps] = await Promise.all([api.places(controller.signal), api.placesSummary(controller.signal)]);
+      if (controller.signal.aborted) return;
       assets = pa.assets.filter((a) => a.gps_lat != null && a.gps_lon != null);
       places = ps.places;
     } catch (e) {
+      if (controller.signal.aborted) return;
       showToast(e instanceof Error ? e.message : 'Failed to load places');
     } finally {
       loading = false;
@@ -41,6 +45,7 @@
     // The container only exists once `loading` is false and the count is known,
     // so wait for that render before handing the node to Leaflet.
     await tick();
+    if (controller.signal.aborted) return;
 
     map = L.map(mapEl).setView([20, 0], 2);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -70,6 +75,7 @@
   });
 
   onDestroy(() => {
+    controller.abort();
     if (map) map.remove();
   });
 

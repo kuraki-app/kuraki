@@ -1,7 +1,7 @@
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Space, useTokens } from '@/constants/theme';
 import { FontFamily } from '@/design/fonts';
 import type { Tag } from '@/lib/library-api';
 
@@ -70,9 +70,9 @@ export default function TagPills({ tags, onPickTag, onBrowseAll }: TagPillsProps
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: Spacing.half },
+  wrap: { gap: Space.half },
   caps: { fontSize: 11, lineHeight: 15, fontWeight: '600', letterSpacing: 1.4 },
-  row: { gap: Spacing.one, paddingRight: Spacing.three },
+  row: { gap: Space.one, paddingRight: Space.four },
   pill: { height: 32, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 16 },
   pillOutline: { backgroundColor: 'transparent', borderWidth: StyleSheet.hairlineWidth },
   pillText: { fontSize: 13, lineHeight: 17 },

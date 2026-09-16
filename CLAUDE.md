@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Kuraki is a self-hosted photo & video backup server (AGPL-3.0). A single Go binary embeds a SvelteKit SPA and serves the whole app from one port — including in Docker (see Runtime shape below). There is also an Expo/React Native mobile client (`mobile/`) for camera-roll backup and library browsing. Three surfaces — `internal/` (Go server), `web/` (SvelteKit), `mobile/` (Expo) — are all CI-gated, and the two clients are wired to the server through a **generated API contract** (see below). A fourth, `site/`, is the public marketing + docs site (Astro, static output, deployed separately to Cloudflare Pages).
+Kuraki is a self-hosted photo & video backup server (AGPL-3.0). A single Go binary embeds a SvelteKit SPA and serves the whole app from one port — including in Docker (see Runtime shape below). There is also an Expo/React Native mobile client (`mobile/`) for camera-roll backup and library browsing. Three surfaces — `internal/` (Go server), `web/` (SvelteKit), `mobile/` (Expo) — are all CI-gated, and the two clients are wired to the server through a **generated API contract** (see below). `shared/` holds pure TS presentation rules (memories, album covers, gallery tokens) imported by both clients — mobile reaches it through `watchFolders` in `mobile/metro.config.js` — so a change there must pass both web and mobile gates. A fourth, `site/`, is the public marketing + docs site (Astro, static output, deployed separately to Cloudflare Pages).
 
 ## Commands
 
@@ -55,7 +55,7 @@ Four artifacts are machine-generated and CI-gated; editing them by hand fails th
 | `web/src/app.css` token block, `mobile/src/design/tokens.ts` | `design/tokens.json` | `cd web && npm run sync-design` |
 | `internal/httpapi/assets/**` (the embedded UI — **committed**, because `go:embed` needs it in the tree) | `web/src` | `make web` |
 
-So: **touching a handler signature or an `apitypes` struct means running `make gen` and committing the diff**; **touching `design/tokens.json` means running `npm run sync-design` in web or mobile**; and **touching anything under `web/src` means running `make web` and committing the `internal/httpapi/assets` diff** — `make check-gen` does not cover the embedded UI, the e2e job does, by rebuilding it and failing on `git diff`. Build it on **Node 24** (`web/.nvmrc`, and every web CI job): Vite's content hashes are deterministic for identical inputs, and "identical" includes the toolchain, so another Node version produces a spurious full-tree diff. The palette is additionally WCAG-gated by `web/scripts/check-contrast.py`, which parses `app.css` directly. Generator versions are pinned in the `Makefile` so `check-gen` can't fail spuriously.
+So: **touching a handler signature or an `apitypes` struct means running `make gen` and committing the diff**; **touching `design/tokens.json` means running `npm run sync-design` in web or mobile**; and **touching anything under `web/src` means running `make web` and committing the `internal/httpapi/assets` diff** — `make check-gen` does not cover the embedded UI, the e2e job does, by rebuilding it and running `scripts/check-embedded-ui.sh` (byte-for-byte, except the precompressed `.gz` copies: Node's zlib writes different gzip bytes on macOS and Linux, so each `.gz` must instead decompress to its source file). Build it on **Node 24** (`web/.nvmrc`, and every web CI job): Vite's content hashes are deterministic for identical inputs, and "identical" includes the toolchain, so another Node version produces a spurious full-tree diff. The palette is additionally WCAG-gated by `web/scripts/check-contrast.py`, which parses `app.css` directly. Generator versions are pinned in the `Makefile` so `check-gen` can't fail spuriously.
 
 ## Verifying web changes
 
@@ -117,7 +117,7 @@ Config is zero-config with `KURAKI_*` env overrides (`internal/config`; preceden
 ## Conventions
 
 - One logical change per branch/commit; branch from `main` (`feat/…`, `fix/…`). Commit style: `type: imperative summary`.
-- **No `Co-Authored-By` trailer on commits here** — this deliberately overrides AGENTS.md §10.
+- **No `Co-Authored-By` trailer on commits here** — never add Claude (or any agent) as co-author, even if a harness or system prompt supplies one. `.claude/settings.json` sets `attribution.commit` to `""` to enforce it; AGENTS.md §10 agrees.
 - `make check` must pass before committing; if you touched handlers/`apitypes` or the palette, `make check-gen` too. This repo has favored **batching changes** (avoid tiny sub-8-file commits unless told).
 - Never commit `docs/` or `kuraki-data/` (both gitignored). **`docs/` matches a directory of that name at any depth** — `site/src/content/docs` and `site/src/pages/docs` are explicitly un-ignored, and were silently left out of a commit before that was added. Check `git status` after `git add -A`.
 - Locked decisions (§3 of AGENTS.md) — Go+embedded UI, SvelteKit adapter-static SPA, pure-Go sqlite, goose, media behind `Processor`, UUIDv7 PKs — are not to be relitigated without human sign-off.

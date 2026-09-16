@@ -5,6 +5,15 @@ import { test, expect, gotoApp } from './support/fixtures';
 // focus management were all written without a browser to check them in.
 
 test.describe('viewer', () => {
+  test('placeholder uses the large thumbnail tier', async ({ page }) => {
+    await gotoApp(page, '/');
+    const tiles = page.locator('button.tile');
+    await expect(tiles.first()).toBeVisible();
+    const large = page.waitForRequest((request) => /\/thumb\?size=l&v=[0-9a-f]{10}$/.test(request.url()));
+    await tiles.first().click();
+    await large;
+  });
+
   test('opens a photo, navigates with the keyboard, and closes on Escape', async ({ page }) => {
     await gotoApp(page, '/');
 

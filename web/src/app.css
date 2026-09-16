@@ -1,11 +1,53 @@
-@import '@fontsource-variable/inter';
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import "shadcn-svelte/tailwind.css";
 
+/* English application chrome uses Latin; other library text keeps the system
+ * fallback. Import the supported font file directly, retaining variable weights. */
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
 /* shadcn-svelte dark mode is a `.dark` class on <html> (driven by mode-watcher),
  * not a media query, so a pinned choice always wins. */
 @custom-variant dark (&:is(.dark *));
+
+/* GlassSurface: only navigation and transient controls opt in. Opaque by
+ * default, including first paint and browsers without backdrop-filter. */
+[data-glass] {
+  --surface-tint: var(--glass-floating-tint);
+  --surface-blur: var(--glass-floating-blur);
+  --surface-opaque: var(--glass-opaque);
+}
+:root [data-glass][data-glass] {
+  background: var(--surface-opaque);
+  border-color: var(--glass-border);
+}
+[data-glass='navigation'] {
+  --surface-tint: var(--glass-navigation-tint);
+  --surface-blur: var(--glass-navigation-blur);
+}
+[data-glass='overlay'] {
+  --surface-tint: var(--glass-overlay-tint);
+  --surface-blur: var(--glass-overlay-blur);
+}
+[data-glass][data-glass-tone='chrome'] {
+  --surface-tint: var(--glass-chrome-tint);
+  --surface-opaque: var(--glass-chrome-opaque);
+  color: var(--chrome-text);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-transparency='enabled'] [data-glass][data-glass] {
+    background: var(--surface-tint);
+    -webkit-backdrop-filter: blur(var(--surface-blur));
+    backdrop-filter: blur(var(--surface-blur));
+  }
+}
 
 /* ── Kuraki "kura" palette, mapped onto shadcn-svelte token names. ──────────
  * Warm-neutral, verified for WCAG AA contrast in both themes. Light is :root;
@@ -26,6 +68,11 @@
   --chrome-fill: rgba(255, 255, 255, 0.08);
   --chrome-fill-strong: rgba(255, 255, 255, 0.14);
   --chrome-danger: #ff9a86;
+  --glass-navigation-blur: 12px;
+  --glass-overlay-blur: 16px;
+  --glass-floating-blur: 8px;
+  --glass-chrome-tint: rgba(17, 17, 17, 0.9);
+  --glass-chrome-opaque: #111111;
   --t-instant: 80ms;
   --t-crisp: 140ms;
   --t-settle: 240ms;
@@ -41,6 +88,11 @@
   --background: #ffffff;
   --foreground: #111111;
   --card: #fafafa;
+  --glass-navigation-tint: rgba(250, 250, 250, 0.94);
+  --glass-overlay-tint: rgba(255, 255, 255, 0.96);
+  --glass-floating-tint: rgba(250, 250, 250, 0.94);
+  --glass-opaque: #fafafa;
+  --glass-border: rgba(17, 17, 17, 0.12);
   --card-foreground: #111111;
   --popover: #ffffff;
   --popover-foreground: #111111;
@@ -129,6 +181,11 @@
   --background: #000000;
   --foreground: #f5f5f5;
   --card: #0d0d0d;
+  --glass-navigation-tint: rgba(13, 13, 13, 0.94);
+  --glass-overlay-tint: rgba(22, 22, 22, 0.96);
+  --glass-floating-tint: rgba(13, 13, 13, 0.94);
+  --glass-opaque: #161616;
+  --glass-border: rgba(245, 245, 245, 0.16);
   --card-foreground: #f5f5f5;
   --popover: #161616;
   --popover-foreground: #f5f5f5;

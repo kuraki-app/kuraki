@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { SettingsSection, SettingsSwitch } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing, useTokens } from '@/constants/theme';
+import { Radius, Space, useTokens } from '@/constants/theme';
 import { GROUP_OPTIONS, type GroupBy } from '@/lib/gallery';
 import { DEFAULT_PREFS, GRID_COLUMNS, GRID_GAP, loadPrefs, savePrefs, type Prefs } from '@/lib/prefs';
 
@@ -44,7 +44,7 @@ export default function GridSettings() {
           onChange={(v) => void patch({ gridColumns: v })}
         />
         <Stepper
-          label="Spacing"
+          label="Space"
           value={prefs.gridGap}
           min={GRID_GAP.min}
           max={GRID_GAP.max}
@@ -152,10 +152,10 @@ function Choice({
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  content: { paddingBottom: Spacing.five },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.two, minHeight: 48 },
+  content: { paddingBottom: Space.seven },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: Space.two, minHeight: 48 },
   rowLabel: { flex: 1 },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: Space.two },
   stepButton: {
     width: 36,
     height: 36,
@@ -165,11 +165,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepValue: { minWidth: 24, textAlign: 'center', fontVariant: ['tabular-nums'] },
-  choiceRow: { flexDirection: 'row', gap: Spacing.one, paddingVertical: Spacing.two },
+  choiceRow: { flexDirection: 'row', gap: Space.one, paddingVertical: Space.two },
   choice: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: Spacing.two,
+    paddingVertical: Space.two,
     borderRadius: Radius.sm,
     borderWidth: 1,
   },

@@ -78,3 +78,7 @@ internal/httpapi/apispec/swagger.json
 
 # Wrangler local cache (account id, project bindings) — machine state, not repo state.
 .wrangler/
+
+# Local-only working notes (not published with the repo).
+/ARCHITECTURE_OVERVIEW.md
+/PERFORMANCE.md

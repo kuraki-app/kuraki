@@ -3,7 +3,7 @@ import { FlatList, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import Dialog from '@/components/dialog';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing, useTokens } from '@/constants/theme';
+import { Radius, Space, useTokens } from '@/constants/theme';
 import type { CachedAlbum } from '@/lib/cache/albums';
 import { createAlbum, fetchAlbums } from '@/lib/library-api';
 import type { CaptureSettings } from '@/lib/settings';
@@ -121,22 +121,22 @@ export default function AlbumTargetPicker({ visible, settings, onPick, onClose }
 }
 
 const styles = StyleSheet.create({
-  pad: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.one },
-  list: { paddingBottom: Spacing.one },
+  pad: { paddingHorizontal: Space.four, paddingVertical: Space.one },
+  list: { paddingBottom: Space.one },
   // paddingTop was missing, so the input sat hard against the header's divider.
   createRow: {
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.two,
-    paddingBottom: Spacing.two,
-    gap: Spacing.two,
+    paddingHorizontal: Space.four,
+    paddingTop: Space.two,
+    paddingBottom: Space.two,
+    gap: Space.two,
   },
-  input: { borderRadius: Radius.sm, borderWidth: 1, fontSize: 16, minHeight: 44, paddingHorizontal: Spacing.two },
-  button: { alignItems: 'center', borderRadius: Radius.sm, paddingVertical: Spacing.two, paddingHorizontal: Spacing.three },
+  input: { borderRadius: Radius.sm, borderWidth: 1, fontSize: 16, minHeight: 44, paddingHorizontal: Space.two },
+  button: { alignItems: 'center', borderRadius: Radius.sm, paddingVertical: Space.two, paddingHorizontal: Space.four },
   disabled: { opacity: 0.5 },
   row: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
+    paddingHorizontal: Space.four,
+    paddingVertical: Space.two,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: Spacing.half,
+    gap: Space.half,
   },
 });

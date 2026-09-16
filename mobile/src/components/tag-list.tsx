@@ -4,7 +4,7 @@ import { FlatList, StyleSheet } from 'react-native';
 import Dialog from '@/components/dialog';
 import MotionPressable from '@/components/motion-pressable';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Space } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { fetchTags, type Tag } from '@/lib/library-api';
 import type { CaptureSettings } from '@/lib/settings';
@@ -60,6 +60,6 @@ export default function TagList({
 const styles = StyleSheet.create({
   // Keeps the first row off the header's divider and the last off the card's
   // rounded corner; the list still scrolls edge to edge behind it.
-  list: { paddingVertical: Spacing.one },
-  row: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two },
+  list: { paddingVertical: Space.one },
+  row: { paddingHorizontal: Space.four, paddingVertical: Space.two },
 });

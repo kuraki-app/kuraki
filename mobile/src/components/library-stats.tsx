@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radius, Spacing, useTokens } from '@/constants/theme';
+import { Radius, Space, useTokens } from '@/constants/theme';
 import { FontFamily } from '@/design/fonts';
 import { formatBytes, formatCount } from '@/lib/format';
 import { fetchStats, type LibraryStats } from '@/lib/library-api';
@@ -122,15 +122,15 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: Spacing.three, paddingTop: Spacing.two },
+  wrap: { paddingHorizontal: Space.four, paddingTop: Space.two },
   // A hairline border, not a shadow: Vault surfaces are drawn, not lifted.
-  card: { borderRadius: Radius.lg, borderWidth: StyleSheet.hairlineWidth, padding: Spacing.three, gap: Spacing.two },
-  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
+  card: { borderRadius: Radius.lg, borderWidth: StyleSheet.hairlineWidth, padding: Space.four, gap: Space.two },
+  topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Space.two },
   caps: { fontSize: 11, lineHeight: 15, fontWeight: '600', letterSpacing: 1.4 },
   server: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   status: { fontSize: 11, lineHeight: 15, flexShrink: 1 },
-  counts: { flexDirection: 'row', gap: Spacing.four },
+  counts: { flexDirection: 'row', gap: Space.five },
   stat: { gap: 2 },
   // Tabular figures so the three columns line up and stay lined up as the
   // counts tick over.

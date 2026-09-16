@@ -6,7 +6,7 @@
 </script>
 
 <LibraryView
-  load={(cursor) => api.archived(cursor)}
+  load={(cursor, signal) => api.archived(cursor, signal)}
   title="Archive"
   subtitle="Archived items stay private and out of your timeline"
   archiveMode

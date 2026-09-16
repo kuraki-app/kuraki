@@ -5,7 +5,7 @@ import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Space, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { enqueueTrash } from '@/lib/cache/mutations';
 import { probeServer } from '@/lib/connection';
@@ -181,14 +181,14 @@ function Center({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  list: { padding: Spacing.two, gap: Spacing.two },
-  card: { borderWidth: 1, borderRadius: 12, padding: Spacing.two, marginBottom: Spacing.two },
-  cardHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, paddingBottom: Spacing.one },
-  row: { gap: Spacing.one },
-  tile: { alignItems: 'center', gap: Spacing.half },
+  list: { padding: Space.two, gap: Space.two },
+  card: { borderWidth: 1, borderRadius: 12, padding: Space.two, marginBottom: Space.two },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: Space.one, paddingBottom: Space.one },
+  row: { gap: Space.one },
+  tile: { alignItems: 'center', gap: Space.half },
   thumb: { width: 96, height: 96, borderRadius: 8, backgroundColor: '#0002' },
   size: { fontSize: 11 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.four, gap: Spacing.two },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Space.five, gap: Space.two },
   centerText: { textAlign: 'center' },
   glyph: { fontSize: 40 },
 });

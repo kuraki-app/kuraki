@@ -146,7 +146,8 @@ func PurgeExpired(ctx context.Context, db *sql.DB, store storage.Storage, cutoff
 
 func purgeOne(ctx context.Context, db *sql.DB, store storage.Storage, id, path, owner string) error {
 	// Remove derivative files first (we need their paths before rows vanish).
-	drows, err := db.QueryContext(ctx, `SELECT path FROM derivatives WHERE asset_id = ?`, id)
+	drows, err := db.QueryContext(ctx,
+		`SELECT path FROM derivatives WHERE asset_id = ? UNION SELECT path FROM thumb_variants WHERE asset_id = ?`, id, id)
 	if err != nil {
 		return fmt.Errorf("trash: query derivatives: %w", err)
 	}

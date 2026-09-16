@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import MotionProgress from '@/components/motion-progress';
-import { Radius, Spacing, useTokens } from '@/constants/theme';
+import { Radius, Space, useTokens } from '@/constants/theme';
 import { FontFamily } from '@/design/fonts';
 import { backupProgress } from '@/lib/backup-indicator';
 import type { BackupProgress } from '@/lib/backup-engine';
@@ -116,20 +116,20 @@ export function BackupFailures({ failed }: { failed: BackupProgress['failed'] })
 }
 
 const styles = StyleSheet.create({
-  wrap: { paddingHorizontal: Spacing.three, paddingTop: Spacing.three, gap: Spacing.one },
-  card: { borderRadius: Radius.lg, borderWidth: StyleSheet.hairlineWidth, padding: Spacing.three, gap: Spacing.two },
-  headRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: Spacing.two },
+  wrap: { paddingHorizontal: Space.four, paddingTop: Space.four, gap: Space.one },
+  card: { borderRadius: Radius.lg, borderWidth: StyleSheet.hairlineWidth, padding: Space.four, gap: Space.two },
+  headRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: Space.two },
   heading: { fontSize: 17, lineHeight: 22, fontWeight: '600' },
   count: { fontSize: 13, lineHeight: 18, fontVariant: ['tabular-nums'] },
   track: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  caps: { paddingHorizontal: Spacing.one, fontSize: 11, lineHeight: 15, fontWeight: '600', letterSpacing: 1.4 },
-  failedList: { gap: Spacing.one },
+  caps: { paddingHorizontal: Space.one, fontSize: 11, lineHeight: 15, fontWeight: '600', letterSpacing: 1.4 },
+  failedList: { gap: Space.one },
   failedRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.two,
+    gap: Space.two,
     borderRadius: Radius.md,
-    padding: Spacing.two,
+    padding: Space.two,
   },
   failedText: { flex: 1, gap: 1 },
 });

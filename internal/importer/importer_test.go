@@ -360,3 +360,61 @@ func TestImportFallsBackToFileModTimeWhenMediaCarriesNoDate(t *testing.T) {
 		t.Fatalf("taken_text = %q, want 2026-03-14", takenText)
 	}
 }
+
+// TestRebuildDerivativesReplacesExistingFiles proves rebuild works on an asset
+// that already has derivatives. Before generation-suffixed paths every rewrite
+// hit FS.Write's overwrite refusal and failed with storage.ErrExists.
+func TestRebuildDerivativesReplacesExistingFiles(t *testing.T) {
+	ctx := context.Background()
+	runner, database, dataDir := newTestImporter(t, ctx)
+	sourceDir := t.TempDir()
+	writeJPEG(t, filepath.Join(sourceDir, "IMG_0001.jpg"))
+	if _, err := runner.Run(ctx, Options{SourceDir: sourceDir}); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	var id, oldThumb string
+	if err := database.QueryRowContext(ctx,
+		`SELECT a.id, d.path FROM assets a JOIN derivatives d ON d.asset_id = a.id AND d.kind = 'thumb'`).Scan(&id, &oldThumb); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(oldThumb, "_g0.jpg") {
+		t.Fatalf("imported thumb path = %q, want generation suffix _g0", oldThumb)
+	}
+	oldVariant := id + "/thumb_1200_g0.jpg"
+	if _, err := runner.Store.Write(ctx, "derivatives/"+oldVariant, bytes.NewReader([]byte("v"))); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO thumb_variants (asset_id, edge, gen, format, path) VALUES (?, 1200, 0, 'jpeg', ?)`, id, oldVariant); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := runner.RebuildDerivatives(ctx, id); err != nil {
+		t.Fatalf("rebuild: %v", err)
+	}
+
+	var gen int
+	var newThumb string
+	if err := database.QueryRowContext(ctx,
+		`SELECT a.derivative_gen, d.path FROM assets a JOIN derivatives d ON d.asset_id = a.id AND d.kind = 'thumb' WHERE a.id = ?`, id).Scan(&gen, &newThumb); err != nil {
+		t.Fatal(err)
+	}
+	if gen != 1 || !strings.HasSuffix(newThumb, "_g1.jpg") {
+		t.Fatalf("after rebuild gen=%d thumb=%q, want gen 1 and _g1 path", gen, newThumb)
+	}
+	for rel, want := range map[string]bool{oldThumb: false, oldVariant: false, newThumb: true} {
+		_, err := os.Stat(filepath.Join(dataDir, "derivatives", filepath.FromSlash(rel)))
+		if got := err == nil; got != want {
+			t.Fatalf("file %s exists=%v, want %v", rel, got, want)
+		}
+	}
+	assertCount(t, ctx, database, "thumb_variants", 0)
+	var updates int
+	if err := database.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM change_log WHERE entity_id = ? AND op = 'update'`, id).Scan(&updates); err != nil {
+		t.Fatal(err)
+	}
+	if updates != 1 {
+		t.Fatalf("change_log updates = %d, want 1", updates)
+	}
+}

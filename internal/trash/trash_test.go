@@ -174,3 +174,26 @@ func TestTrashChangeCarriesOwner(t *testing.T) {
 		t.Fatal("trash Delete change_log row has empty owner_id")
 	}
 }
+
+func TestPurgeRemovesVariantFiles(t *testing.T) {
+	ctx, database, store := setup(t)
+	addAsset(t, ctx, database, store, "v1", "2026/07/v1.jpg")
+	if _, err := store.Write(ctx, "derivatives/v1/thumb_1200_g0.jpg", bytes.NewReader([]byte("large"))); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.ExecContext(ctx,
+		`INSERT INTO thumb_variants (asset_id, edge, gen, format, path) VALUES ('v1', 1200, 0, 'jpeg', 'v1/thumb_1200_g0.jpg')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := Delete(ctx, database, store, "v1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := Purge(ctx, database, store, "v1"); err != nil {
+		t.Fatalf("Purge: %v", err)
+	}
+	for _, rel := range []string{"derivatives/v1/thumb.jpg", "derivatives/v1/thumb_1200_g0.jpg"} {
+		if exists(t, ctx, store, rel) {
+			t.Fatalf("%s survived purge", rel)
+		}
+	}
+}

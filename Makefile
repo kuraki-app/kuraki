@@ -42,6 +42,10 @@ dev: ## Run the API + Vite UI separately with hot reload (ports in ports.env)
 web: ## Build SvelteKit UI into embedded assets
 	cd web && npm run build
 
+.PHONY: web-budget
+web-budget: web ## Build the UI and enforce compressed bootstrap/font budgets
+	node scripts/check-web-budget.mjs
+
 .PHONY: e2e
 e2e: web build ## Browser end-to-end suite (Playwright) against a real seeded server
 	set -a; . ./ports.env; set +a; cd web && npm run test:e2e

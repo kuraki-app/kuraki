@@ -4,7 +4,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-n
 
 import { SettingsNotice, SettingsSection } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing, useTokens } from '@/constants/theme';
+import { Radius, Space, useTokens } from '@/constants/theme';
 import { FontFamily } from '@/design/fonts';
 import { backupEngine, type BackupProgress } from '@/lib/backup-engine';
 import { getCaptureStatus, type CaptureSession, type CaptureStatus } from '@/lib/capture-api';
@@ -214,21 +214,21 @@ function readableStatus(status: string): string {
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: Spacing.five },
-  summary: { paddingVertical: Spacing.two, gap: Spacing.three },
-  stateRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  content: { paddingBottom: Space.seven },
+  summary: { paddingVertical: Space.two, gap: Space.four },
+  stateRow: { flexDirection: 'row', alignItems: 'center', gap: Space.two },
   stateLabel: { flex: 1, fontSize: 17, lineHeight: 22, fontWeight: '600' },
-  counts: { flexDirection: 'row', gap: Spacing.two },
+  counts: { flexDirection: 'row', gap: Space.two },
   count: { flex: 1, minWidth: 0, gap: 2 },
   countValue: { fontSize: 24, lineHeight: 30, fontVariant: ['tabular-nums'] },
-  entry: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', paddingVertical: Spacing.two, gap: Spacing.two },
+  entry: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', paddingVertical: Space.two, gap: Space.two },
   entryText: { flex: 1, minWidth: 0, gap: 2 },
   iconSpace: { width: 18 },
-  session: { gap: Spacing.half },
-  sessionHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
+  session: { gap: Space.half },
+  sessionHead: { flexDirection: 'row', alignItems: 'center', gap: Space.one },
   badge: { fontFamily: FontFamily.mono, fontSize: 11, lineHeight: 16, textTransform: 'uppercase' },
-  track: { height: 4, marginLeft: 18 + Spacing.two, marginBottom: Spacing.one, borderRadius: 2, overflow: 'hidden' },
+  track: { height: 4, marginLeft: 18 + Space.two, marginBottom: Space.one, borderRadius: 2, overflow: 'hidden' },
   trackFill: { height: '100%', borderRadius: 2 },
-  empty: { alignItems: 'center', gap: Spacing.one, paddingVertical: Spacing.four },
-  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.two, marginVertical: Spacing.two },
+  empty: { alignItems: 'center', gap: Space.one, paddingVertical: Space.five },
+  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Space.two, marginVertical: Space.two },
 });

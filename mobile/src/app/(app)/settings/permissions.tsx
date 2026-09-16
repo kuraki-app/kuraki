@@ -4,7 +4,7 @@ import { AppState, Linking, Pressable, ScrollView, StyleSheet, View } from 'reac
 
 import { SettingsSection } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing, useTokens } from '@/constants/theme';
+import { Radius, Space, useTokens } from '@/constants/theme';
 import { backgroundAvailable } from '@/lib/background';
 import { ensureNotificationPermission, notificationsAvailable } from '@/lib/notifications';
 import {
@@ -193,16 +193,16 @@ function PermissionRow({
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  content: { paddingBottom: Spacing.five },
-  row: { paddingVertical: Spacing.two, gap: Spacing.half },
-  head: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  content: { paddingBottom: Space.seven },
+  row: { paddingVertical: Space.two, gap: Space.half },
+  head: { flexDirection: 'row', alignItems: 'center', gap: Space.two },
   rowLabel: { flex: 1 },
-  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.two, marginTop: Spacing.one },
+  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Space.two, marginTop: Space.one },
   buttonGhost: {
     alignItems: 'center',
     borderRadius: Radius.sm,
-    padding: Spacing.two,
-    marginTop: Spacing.one,
+    padding: Space.two,
+    marginTop: Space.one,
     borderWidth: 1,
   },
 });

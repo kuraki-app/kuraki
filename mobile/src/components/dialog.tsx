@@ -2,7 +2,9 @@ import type { ReactNode } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing, useTokens } from '@/constants/theme';
+import GlassSurface from '@/components/glass-surface';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
+import { Radius, Space, useTokens } from '@/constants/theme';
 import { registerStyle, type Register } from '@/design/registers';
 
 type Action = {
@@ -53,13 +55,14 @@ export default function Dialog({
   children,
 }: Props) {
   const tokens = useTokens();
+  const reduced = useReducedMotion();
   const reg = registerStyle(register);
 
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType={reduced ? 'none' : 'fade'}
       statusBarTranslucent
       onRequestClose={onClose}>
       {/* The backdrop is the outer pressable and the card sits inside it, so a
@@ -69,12 +72,12 @@ export default function Dialog({
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.centre}>
-          <View
+          <GlassSurface variant="overlay"
             onStartShouldSetResponder={() => true}
             /* `popover`, not `card`: this floats over the whole screen, so it
                is the top step of the elevation ramp. On a card-coloured panel
                a card-coloured dialog reads as part of the page underneath. */
-            style={[styles.card, { backgroundColor: tokens.popover, borderColor: tokens.border }]}>
+            style={styles.card}>
             <View style={[styles.header, { borderBottomColor: tokens.border }]}>
               <ThemedText type="subtitle" style={[{ fontFamily: reg.heading }, styles.title]} numberOfLines={2}>
                 {title}
@@ -97,7 +100,7 @@ export default function Dialog({
                 one stops at maxHeight and scrolls inside whatever the caller
                 put here. */}
             <View style={styles.body}>{children}</View>
-          </View>
+          </GlassSurface>
         </KeyboardAvoidingView>
       </Pressable>
     </Modal>
@@ -106,7 +109,7 @@ export default function Dialog({
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
-  centre: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.three },
+  centre: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Space.four },
   card: {
     width: '100%',
     // Wide enough for a phone, capped so the card does not stretch edge to edge
@@ -121,11 +124,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     // Between the confirm and the ✕ only — the title takes the rest with
-    // flex: 1. At Spacing.three the two controls drifted apart far enough to
+    // flex: 1. At Space.four the two controls drifted apart far enough to
     // read as belonging to different groups.
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
+    gap: Space.two,
+    paddingHorizontal: Space.four,
+    paddingVertical: Space.two,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   title: { flex: 1 },

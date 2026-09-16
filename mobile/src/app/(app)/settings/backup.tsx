@@ -8,7 +8,7 @@ import { loadCaptureSettings } from '@/lib/settings';
 import { BackupFailures, BackupProgressCard } from '@/components/backup-progress';
 import { SettingsNotice, SettingsRow, SettingsSection, SettingsSwitch } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing, useTokens } from '@/constants/theme';
+import { Radius, Space, useTokens } from '@/constants/theme';
 import {
   disableBackgroundBackup,
   enableBackgroundBackup,
@@ -215,8 +215,8 @@ export default function BackupSettings() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  content: { paddingBottom: Spacing.five },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two, paddingHorizontal: Spacing.three, paddingTop: Spacing.four },
-  button: { flex: 1, alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three },
-  buttonGhost: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three, borderWidth: 1 },
+  content: { paddingBottom: Space.seven },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.two, paddingHorizontal: Space.four, paddingTop: Space.five },
+  button: { flex: 1, alignItems: 'center', borderRadius: Radius.sm, padding: Space.four },
+  buttonGhost: { alignItems: 'center', borderRadius: Radius.sm, padding: Space.four, borderWidth: 1 },
 });

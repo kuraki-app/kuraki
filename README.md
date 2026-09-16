@@ -177,6 +177,8 @@ Sensible defaults, no config file required. Override via flags or environment
 | — | `KURAKI_TRASH_RETENTION_DAYS` | `30` | Days a trashed item is restorable before purge |
 | — | `KURAKI_CHANGELOG_KEEP` | `100000` | Newest change-log rows kept for the delta-sync feed; older rows are pruned and lagging clients are told to resync |
 | — | `KURAKI_THUMBNAIL_SIZE` | `512` | Thumbnail longest-edge size in pixels |
+| — | `KURAKI_THUMB_WORKERS` | `max(1, CPUs/2)` | Concurrent on-demand thumbnail renders (small/large tiers) |
+| — | `KURAKI_THUMB_QUEUE` | `64` | Thumbnail renders allowed to wait; beyond it requests get `503` with `Retry-After` |
 | — | `KURAKI_OCR` | off | Enable the opt-in local OCR worker (needs `tesseract` on PATH) |
 | — | `KURAKI_SECURE_COOKIES` | off | Mark the session cookie `Secure` and send HSTS — enable behind HTTPS |
 | — | `KURAKI_TRUST_PROXY` | off | Trust `X-Forwarded-For`/`X-Real-IP` for the client IP — enable **only** behind a trusted reverse proxy |

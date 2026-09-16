@@ -42,6 +42,12 @@ func (f *FS) resolve(rel string) (string, error) {
 	return filepath.Join(f.Base, clean), nil
 }
 
+// LocalPath returns the confined absolute path for rel. It never creates or
+// checks the file; it only applies the same traversal rules as every other method.
+func (f *FS) LocalPath(rel string) (string, error) {
+	return f.resolve(rel)
+}
+
 func (f *FS) Write(ctx context.Context, rel string, r io.Reader) (int64, error) {
 	full, err := f.resolve(rel)
 	if err != nil {

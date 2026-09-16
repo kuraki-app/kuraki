@@ -105,7 +105,7 @@
 
 {#key id}
   <LibraryView
-    load={(cursor) => api.album(id, cursor)}
+    load={(cursor, signal) => api.album(id, cursor, signal)}
     albumId={id}
     title={name}
     emptyText="This album has no photos yet"

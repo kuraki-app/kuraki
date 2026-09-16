@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native
 import PairSheet from '@/components/pair-sheet';
 import { SettingsRow, SettingsSection } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
-import { Radius, Spacing, useTokens } from '@/constants/theme';
+import { Radius, Space, useTokens } from '@/constants/theme';
 import { nextConnectionState, probeServer, resolveServerURL, type ConnectionState } from '@/lib/connection';
 import { connectionView, showsCodeInput } from '@/lib/connection-view';
 import { flushFavorites } from '@/lib/library-api';
@@ -220,15 +220,15 @@ export default function ConnectionSettings() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  content: { paddingBottom: Spacing.five },
-  field: { paddingVertical: Spacing.two, gap: Spacing.two },
+  content: { paddingBottom: Space.seven },
+  field: { paddingVertical: Space.two, gap: Space.two },
   input: {
     borderRadius: Radius.sm,
     borderWidth: 1,
     fontSize: 16,
     minHeight: 48,
-    paddingHorizontal: Spacing.two,
+    paddingHorizontal: Space.two,
   },
-  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three },
-  statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.two },
+  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Space.four },
+  statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Space.two },
 });

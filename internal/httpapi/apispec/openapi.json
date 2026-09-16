@@ -2609,6 +2609,75 @@
                 }
             }
         },
+        "/api/places/map": {
+            "get": {
+                "tags": [
+                    "places"
+                ],
+                "summary": "Map features for a viewport",
+                "parameters": [
+                    {
+                        "description": "min longitude,min latitude,max longitude,max latitude",
+                        "name": "bbox",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "map zoom (0-22)",
+                        "name": "zoom",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "number"
+                        }
+                    },
+                    {
+                        "description": "maximum features (1-2000)",
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1000
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.PlaceMap"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/places/summary": {
             "get": {
                 "tags": [
@@ -3818,6 +3887,9 @@
                     "thumbnail_url": {
                         "type": "string"
                     },
+                    "thumbnail_urls": {
+                        "$ref": "#/components/schemas/apitypes.ThumbnailURLs"
+                    },
                     "view_url": {
                         "type": "string"
                     },
@@ -4520,6 +4592,96 @@
                     }
                 }
             },
+            "apitypes.PlaceMap": {
+                "type": "object",
+                "required": [
+                    "features",
+                    "truncated",
+                    "type"
+                ],
+                "properties": {
+                    "features": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/apitypes.PlaceMapFeature"
+                        }
+                    },
+                    "truncated": {
+                        "type": "boolean"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "FeatureCollection"
+                        ]
+                    }
+                }
+            },
+            "apitypes.PlaceMapFeature": {
+                "type": "object",
+                "required": [
+                    "geometry",
+                    "properties",
+                    "type"
+                ],
+                "properties": {
+                    "geometry": {
+                        "$ref": "#/components/schemas/apitypes.PlaceMapGeometry"
+                    },
+                    "properties": {
+                        "$ref": "#/components/schemas/apitypes.PlaceMapProperties"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "Feature"
+                        ]
+                    }
+                }
+            },
+            "apitypes.PlaceMapGeometry": {
+                "type": "object",
+                "required": [
+                    "coordinates",
+                    "type"
+                ],
+                "properties": {
+                    "coordinates": {
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        }
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "Point"
+                        ]
+                    }
+                }
+            },
+            "apitypes.PlaceMapProperties": {
+                "type": "object",
+                "required": [
+                    "count",
+                    "kind"
+                ],
+                "properties": {
+                    "asset_id": {
+                        "type": "string"
+                    },
+                    "count": {
+                        "type": "integer"
+                    },
+                    "kind": {
+                        "type": "string",
+                        "enum": [
+                            "asset",
+                            "cluster"
+                        ]
+                    }
+                }
+            },
             "apitypes.PlaceSummary": {
                 "type": "object",
                 "required": [
@@ -4807,6 +4969,25 @@
                         "type": "string"
                     },
                     "parent_id": {
+                        "type": "string"
+                    }
+                }
+            },
+            "apitypes.ThumbnailURLs": {
+                "type": "object",
+                "required": [
+                    "l",
+                    "m",
+                    "s"
+                ],
+                "properties": {
+                    "l": {
+                        "type": "string"
+                    },
+                    "m": {
+                        "type": "string"
+                    },
+                    "s": {
                         "type": "string"
                     }
                 }

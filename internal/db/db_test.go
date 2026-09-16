@@ -18,6 +18,9 @@ func TestOpenAndMigrate(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 	defer d.Close()
+	if got := d.Stats().MaxOpenConnections; got != connectionPoolSize {
+		t.Fatalf("max open connections = %d, want %d", got, connectionPoolSize)
+	}
 
 	snapshotCalled := false
 	if err := Migrate(d, func() error { snapshotCalled = true; return nil }); err != nil {
@@ -45,6 +48,11 @@ func TestOpenAndMigrate(t *testing.T) {
 		if err != nil {
 			t.Errorf("table %q missing: %v", tbl, err)
 		}
+	}
+	var placesIndex string
+	if err := d.QueryRowContext(ctx,
+		"SELECT name FROM sqlite_master WHERE type='index' AND name='ix_assets_owner_gps_lat_lon'").Scan(&placesIndex); err != nil {
+		t.Fatalf("places viewport index missing: %v", err)
 	}
 
 	// Running migrate again is a no-op and still takes no snapshot (already current).

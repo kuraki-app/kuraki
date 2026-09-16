@@ -5,7 +5,7 @@ import { StyleSheet, View } from 'react-native';
 import PhotoViewer from '@/components/photo-viewer';
 import PlaceList from '@/components/place-list';
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Space } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { probeServer } from '@/lib/connection';
 import { fetchPlaces, fetchPlacesSummary, type LibraryAsset, type PlaceGroup } from '@/lib/library-api';
@@ -143,6 +143,6 @@ const styles = StyleSheet.create({
   // 3:2 against PlaceList's `flex: 2` — the map is what the segment is for, and
   // the list still shows three or four places without scrolling.
   map: { flex: 3 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.four },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Space.five },
   msg: { textAlign: 'center' },
 });

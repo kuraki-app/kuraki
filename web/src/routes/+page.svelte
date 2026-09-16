@@ -223,8 +223,8 @@
   }
 
   $: loader = filtered
-    ? (c?: string) => api.search(applied, c)
-    : (c?: string) => api.assets(c);
+    ? (c?: string, signal?: AbortSignal) => api.search(applied, c, signal)
+    : (c?: string, signal?: AbortSignal) => api.assets(c, signal);
 </script>
 
 {#key JSON.stringify(applied)}

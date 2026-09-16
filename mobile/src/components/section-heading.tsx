@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Space, useTokens } from '@/constants/theme';
 import { FontFamily } from '@/design/fonts';
 import { formatCount } from '@/lib/format';
 
@@ -75,9 +75,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing.three,
-    paddingTop: Spacing.three,
-    paddingBottom: Spacing.one,
+    paddingHorizontal: Space.four,
+    paddingTop: Space.four,
+    paddingBottom: Space.one,
   },
   // 17/22 rather than a ThemedText type: `subtitle` is 20pt, which competes
   // with the screen title, and `smallBold` is the sans face this heading is

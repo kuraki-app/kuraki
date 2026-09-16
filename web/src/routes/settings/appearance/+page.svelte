@@ -6,6 +6,12 @@
   import SegmentedControl from '$lib/components/SegmentedControl.svelte';
   import { gridDensity, defaultView, grouping, type GridDensity } from '$lib/prefs';
   import { GROUPINGS } from '$lib/format';
+  import { transparency, type TransparencyPreference } from '$lib/glass';
+  const transparencies: { value: TransparencyPreference; label: string }[] = [
+    { value: 'system', label: 'System' },
+    { value: 'reduced', label: 'Reduced' },
+    { value: 'enabled', label: 'Enabled' }
+  ];
   const themes = [
     { value: 'light' as const, label: 'Light', icon: Sun },
     { value: 'dark' as const, label: 'Dark', icon: Moon },
@@ -36,6 +42,10 @@
       value={userPrefersMode.current}
       onchange={(v) => setMode(v)}
     />
+  </SettingRow>
+
+  <SettingRow id="transparency" kind="static" label="Transparency" description="Use translucent controls or solid surfaces. Motion follows your system separately.">
+    <SegmentedControl label="Transparency" options={transparencies} value={$transparency} onchange={(v) => transparency.set(v)} />
   </SettingRow>
 
   <SettingRow id="density" kind="static" label="Grid density" description="How tightly photos pack into the grid.">

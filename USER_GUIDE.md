@@ -273,7 +273,9 @@ you see afterwards.
 5. **Place lookup.** If there are coordinates, a city and country are resolved
    **on your server, from bundled data**. No request leaves the machine.
 6. **Derivatives.** A thumbnail is generated; a video gets a poster frame, and a
-   playback version if its codec is not browser-safe.
+   playback version if its codec is not browser-safe. Smaller and larger thumbnail
+   sizes, for dense grids and the viewer, are made the first time a screen asks for
+   them and kept from then on.
 7. **Indexing.** Filename, caption, camera, place, and tags become searchable. If
    text recognition is switched on, text found inside images is indexed too.
 8. **Grouping.** Files that clearly belong together — a RAW and its JPEG, a live
@@ -284,7 +286,9 @@ you see afterwards.
 **When a step fails**, the asset still exists and the original is still downloadable.
 Failures are listed as media health issues with a reason, and a rebuild can be
 requested per asset once the cause is fixed (for example, after moving to the Docker
-image, which carries broader format support).
+image, which carries broader format support). A rebuild replaces every generated image
+for that asset — never the original — and open browsers and phones pick up the new
+images through sync instead of showing a cached old one.
 
 **Import acceptance is not a promise of preview.** Kuraki keeps formats it cannot
 display. Those appear with a download rather than a picture — never as a broken
@@ -563,6 +567,12 @@ Two consequences you will see:
 A small number of settings are environment-only on purpose. The clearest example is
 the path of the Android app package, because the endpoint serving it is public — so
 which file that is should not be editable from a browser session.
+
+Two restart-applied settings protect a small server from being overwhelmed when many
+new thumbnail sizes are requested at once: how many are made at the same time
+(`thumb_workers`) and how many may wait (`thumb_queue`). Beyond that, the server asks
+the screen to try again shortly rather than running out of memory; the picture appears
+on the retry.
 
 ---
 

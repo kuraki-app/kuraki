@@ -15,6 +15,7 @@ const DISMISS_VELOCITY = 800;
 const FADE_DISTANCE = 400;
 
 export function clampZoom(scale: number): number {
+  'worklet';
   return Math.min(ZOOM.max, Math.max(ZOOM.min, scale));
 }
 
@@ -28,12 +29,14 @@ export function clampZoom(scale: number): number {
  * close the viewer when the user pulled the wrong way.
  */
 export function shouldDismiss(translationY: number, velocityY: number): boolean {
+  'worklet';
   if (translationY <= 0) return false;
   return translationY > DISMISS_DISTANCE || velocityY > DISMISS_VELOCITY;
 }
 
 /** backdropOpacity fades the black behind the photo as it is dragged away. */
 export function backdropOpacity(translationY: number): number {
+  'worklet';
   const travelled = Math.abs(translationY);
   return Math.max(0, 1 - travelled / FADE_DISTANCE);
 }

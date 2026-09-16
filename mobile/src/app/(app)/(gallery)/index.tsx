@@ -11,7 +11,7 @@ import ProfileDialog from '@/components/profile-dialog';
 import SelectionHeader from '@/components/selection-header';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Radius, Spacing, useTokens } from '@/constants/theme';
+import { Radius, Space, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { readAssets, setCachedFavorite } from '@/lib/cache/assets';
 import { enqueueAlbumAdd, enqueueFavorite, enqueueTrash, pendingFavorites } from '@/lib/cache/mutations';
@@ -607,19 +607,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: Spacing.two,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.two,
+    gap: Space.two,
+    paddingVertical: Space.two,
+    paddingHorizontal: Space.two,
   },
   bannerText: { flex: 1 },
-  bannerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  header: { padding: Spacing.two, gap: Spacing.two },
+  bannerActions: { flexDirection: 'row', alignItems: 'center', gap: Space.two },
+  header: { padding: Space.two, gap: Space.two },
   search: {
     borderRadius: Radius.sm,
     borderWidth: 1,
     fontSize: 16,
     minHeight: 44,
-    paddingHorizontal: Spacing.two,
+    paddingHorizontal: Space.two,
   },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24, minHeight: 200 },
   msg: { textAlign: 'center' },

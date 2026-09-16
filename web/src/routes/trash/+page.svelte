@@ -62,8 +62,8 @@
 </script>
 
 <LibraryView
-  load={async (cursor) => {
-    const page = await api.trash(cursor);
+  load={async (cursor, signal) => {
+    const page = await api.trash(cursor, signal);
     if (!cursor) count = page.assets.length;
     return page;
   }}

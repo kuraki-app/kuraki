@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PhotoGrid from '@/components/photo-grid';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Space, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { addToAlbum, fetchLibrary, type LibraryAsset } from '@/lib/library-api';
 import type { CaptureSettings } from '@/lib/settings';
@@ -127,7 +127,7 @@ export default function AlbumAddPicker({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <ThemedView style={styles.fill}>
-        <View style={[styles.bar, { paddingTop: insets.top + Spacing.two, borderBottomColor: tokens.border }]}>
+        <View style={[styles.bar, { paddingTop: insets.top + Space.two, borderBottomColor: tokens.border }]}>
           <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button">
             <ThemedText type="smallBold" themeColor="mutedForeground">
               Cancel
@@ -191,9 +191,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    paddingBottom: Spacing.two,
+    gap: Space.two,
+    paddingHorizontal: Space.four,
+    paddingBottom: Space.two,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },

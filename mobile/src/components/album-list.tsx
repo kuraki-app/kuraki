@@ -7,7 +7,7 @@ import Dialog from '@/components/dialog';
 import MotionPressable from '@/components/motion-pressable';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Layout, MaxContentWidth, Radius, Space, Spacing, useTokens } from '@/constants/theme';
+import { Layout, MaxContentWidth, Radius, Space, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { coverLayout } from '@/lib/album-cover';
 import { formatCount } from '@/lib/format';
@@ -209,7 +209,7 @@ export default function AlbumList({ creating, onCreatingChange, header }: Props)
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   list: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center' },
-  grid: { gap: Spacing.three, paddingBottom: Spacing.four },
+  grid: { gap: Space.four, paddingBottom: Space.five },
   card: { gap: 2 },
   // Radius.md, not sm: an album cover is a card in a two-up grid, and at 8pt
   // the corner barely read against the square mosaic inside it.
@@ -226,14 +226,14 @@ const styles = StyleSheet.create({
   mosaicTile: { width: '49.7%', height: '49.7%' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24, minHeight: 200 },
   msg: { textAlign: 'center' },
-  form: { padding: Spacing.three, gap: Spacing.two },
+  form: { padding: Space.four, gap: Space.two },
   input: {
     borderRadius: Radius.sm,
     borderWidth: 1,
     fontSize: 16,
     minHeight: 44,
-    paddingHorizontal: Spacing.two,
+    paddingHorizontal: Space.two,
   },
-  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Spacing.three },
+  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Space.four },
   disabled: { opacity: 0.5 },
 });

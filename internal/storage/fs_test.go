@@ -5,8 +5,30 @@ import (
 	"context"
 	"errors"
 	"io"
+	"path/filepath"
 	"testing"
 )
+
+func TestFSLocalPathConfinesToBase(t *testing.T) {
+	base := t.TempDir()
+	fs, err := NewFS(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var _ LocalPather = fs
+	got, err := fs.LocalPath("derivatives/a/thumb_512_g0.jpg")
+	if err != nil {
+		t.Fatalf("LocalPath: %v", err)
+	}
+	if want := filepath.Join(base, "derivatives", "a", "thumb_512_g0.jpg"); got != want {
+		t.Fatalf("LocalPath = %q, want %q", got, want)
+	}
+	for _, bad := range []string{"../escape", "/etc/passwd", ""} {
+		if _, err := fs.LocalPath(bad); err == nil {
+			t.Fatalf("LocalPath(%q) accepted a path outside base", bad)
+		}
+	}
+}
 
 func TestFS_WriteOnceAndRead(t *testing.T) {
 	ctx := context.Background()

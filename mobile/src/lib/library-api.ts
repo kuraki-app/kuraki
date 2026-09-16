@@ -25,6 +25,7 @@ export type LibraryAsset = Pick<
   | 'favorite'
   | 'web_viewable'
   | 'thumbnail_url'
+  | 'thumbnail_urls'
   | 'preview_url'
   | 'place_city'
   | 'place_country'
@@ -419,6 +420,7 @@ export async function fetchPlaces(settings: CaptureSettings): Promise<import('@/
       favorite: a.favorite,
       web_viewable: a.web_viewable,
       thumbnail_url: a.thumbnail_url,
+      thumbnail_urls: a.thumbnail_urls,
       preview_url: a.preview_url,
       place_city: a.place_city,
       place_country: a.place_country,
@@ -679,10 +681,23 @@ function authed(settings: CaptureSettings, id: string, kind: 'thumb' | 'preview'
   };
 }
 
-/** thumbSource builds an authenticated expo-image source, or null when no thumbnail exists. */
-export function thumbSource(settings: CaptureSettings, asset: LibraryAsset): AuthedSource | null {
+export type ThumbTier = 's' | 'm' | 'l';
+
+/** serverSource authenticates a URL path the server issued, keeping its ?v= cache key. */
+function serverSource(settings: CaptureSettings, path: string): AuthedSource {
+  return { uri: `${settings.baseURL}${path}`, headers: { Authorization: `Bearer ${settings.deviceToken}` } };
+}
+
+/**
+ * thumbSource builds an authenticated expo-image source for a thumbnail tier, or
+ * null when no thumbnail exists. Server-issued URLs carry a version, so
+ * expo-image's cache refreshes after a rebuild; synthetic stubs (album covers)
+ * carry only an id and use the unversioned route.
+ */
+export function thumbSource(settings: CaptureSettings, asset: LibraryAsset, tier: ThumbTier = 'm'): AuthedSource | null {
   if (!asset.thumbnail_url || !settings.baseURL) return null;
-  return authed(settings, asset.id, 'thumb');
+  const path = asset.thumbnail_urls?.[tier] ?? asset.thumbnail_url;
+  return path.startsWith('/api/') ? serverSource(settings, path) : authed(settings, asset.id, 'thumb');
 }
 
 /**
@@ -692,7 +707,7 @@ export function thumbSource(settings: CaptureSettings, asset: LibraryAsset): Aut
  */
 export function fullImageSource(settings: CaptureSettings, asset: LibraryAsset): AuthedSource | null {
   if (!settings.baseURL) return null;
-  if (asset.preview_url) return authed(settings, asset.id, 'preview');
+  if (asset.preview_url) return serverSource(settings, asset.preview_url);
   if (asset.web_viewable) return authed(settings, asset.id, 'original');
   return thumbSource(settings, asset);
 }
@@ -700,5 +715,5 @@ export function fullImageSource(settings: CaptureSettings, asset: LibraryAsset):
 /** Use the server-certified playback derivative when the original needs transcoding. */
 export function videoSource(settings: CaptureSettings, asset: LibraryAsset): AuthedSource | null {
   if (!settings.baseURL || !asset.web_viewable) return null;
-  return authed(settings, asset.id, asset.preview_url ? 'preview' : 'original');
+  return asset.preview_url ? serverSource(settings, asset.preview_url) : authed(settings, asset.id, 'original');
 }

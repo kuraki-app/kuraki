@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing, useTokens } from '@/constants/theme';
+import { Space, useTokens } from '@/constants/theme';
 import { scrubProgress, thumbTop } from '@/lib/scrubber';
 
 export const SCRUBBER_WIDTH = 32;
@@ -100,8 +100,8 @@ const styles = StyleSheet.create({
   track: { position: 'absolute', right: 0, top: 0, width: SCRUBBER_WIDTH },
   thumb: {
     position: 'absolute',
-    right: Spacing.half,
-    width: SCRUBBER_WIDTH - Spacing.one,
+    right: Space.half,
+    width: SCRUBBER_WIDTH - Space.one,
     height: THUMB_HEIGHT,
     borderRadius: 999,
     borderWidth: 1,
@@ -112,9 +112,9 @@ const styles = StyleSheet.create({
   grip: { width: 10, height: 1.5, borderRadius: 1 },
   bubble: {
     position: 'absolute',
-    right: SCRUBBER_WIDTH + Spacing.one,
-    paddingHorizontal: Spacing.two,
-    paddingVertical: Spacing.one,
+    right: SCRUBBER_WIDTH + Space.one,
+    paddingHorizontal: Space.two,
+    paddingVertical: Space.one,
     borderRadius: 999,
   },
 });
