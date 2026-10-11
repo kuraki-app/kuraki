@@ -529,6 +529,16 @@
                     "assets"
                 ],
                 "summary": "Upload asset",
+                "parameters": [
+                    {
+                        "description": "expected account ID; required for session-authenticated uploads",
+                        "name": "X-Kuraki-Owner-ID",
+                        "in": "header",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "requestBody": {
                     "content": {
                         "multipart/form-data": {
@@ -3463,6 +3473,341 @@
                 }
             }
         },
+        "/api/trips": {
+            "get": {
+                "tags": [
+                    "trips"
+                ],
+                "summary": "List trips",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.TripList"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/trips/run": {
+            "post": {
+                "tags": [
+                    "trips"
+                ],
+                "summary": "Recompute trips",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/trips/{id}": {
+            "get": {
+                "tags": [
+                    "trips"
+                ],
+                "summary": "Get trip assets",
+                "parameters": [
+                    {
+                        "description": "trip id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "page size",
+                        "name": "limit",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "pagination cursor",
+                        "name": "cursor",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.AssetList"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "tags": [
+                    "trips"
+                ],
+                "summary": "Edit trip",
+                "parameters": [
+                    {
+                        "description": "trip id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/apitypes.TripRequest"
+                            }
+                        }
+                    },
+                    "description": "fields to change",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/trips/{id}/assets": {
+            "post": {
+                "tags": [
+                    "trips"
+                ],
+                "summary": "Add assets to trip",
+                "parameters": [
+                    {
+                        "description": "trip id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "$ref": "#/components/requestBodies/apitypes.AssetIDs"
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "integer"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "trips"
+                ],
+                "summary": "Remove assets from trip",
+                "parameters": [
+                    {
+                        "description": "trip id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "$ref": "#/components/requestBodies/apitypes.AssetIDs"
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {
+                                        "type": "integer"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/users": {
             "get": {
                 "tags": [
@@ -4988,6 +5333,92 @@
                         "type": "string"
                     },
                     "s": {
+                        "type": "string"
+                    }
+                }
+            },
+            "apitypes.Trip": {
+                "type": "object",
+                "required": [
+                    "asset_count",
+                    "cover_asset_ids",
+                    "ended_at",
+                    "hidden",
+                    "id",
+                    "name",
+                    "name_source",
+                    "place_city",
+                    "place_country",
+                    "started_at"
+                ],
+                "properties": {
+                    "asset_count": {
+                        "type": "integer"
+                    },
+                    "cover_asset_ids": {
+                        "description": "CoverAssetIDs are the newest few members, for the same 2x2 mosaic an\nalbum cover draws. Never null on the wire.",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "ended_at": {
+                        "type": "string"
+                    },
+                    "hidden": {
+                        "type": "boolean"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "name_source": {
+                        "description": "NameSource is \"auto\" or \"user\". A user-named trip is never renamed by a\nrecompute and is never deleted as stale.",
+                        "type": "string",
+                        "enum": [
+                            "auto",
+                            "user"
+                        ]
+                    },
+                    "place_city": {
+                        "type": "string"
+                    },
+                    "place_country": {
+                        "type": "string"
+                    },
+                    "started_at": {
+                        "type": "string"
+                    }
+                }
+            },
+            "apitypes.TripList": {
+                "type": "object",
+                "required": [
+                    "trips"
+                ],
+                "properties": {
+                    "trips": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/apitypes.Trip"
+                        }
+                    }
+                }
+            },
+            "apitypes.TripRequest": {
+                "type": "object",
+                "properties": {
+                    "cover_asset_id": {
+                        "description": "CoverAssetID set to \"\" reverts to the automatic cover.",
+                        "type": "string"
+                    },
+                    "hidden": {
+                        "type": "boolean"
+                    },
+                    "name": {
+                        "description": "Name set to \"\" reverts the trip to its automatic label.",
                         "type": "string"
                     }
                 }

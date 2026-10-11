@@ -1,9 +1,5 @@
-// Package trash implements soft deletion with a retention window (F-10).
-//
-// Deleting an asset moves its original from originals/ to trash/ (mirroring the
-// relative path) and stamps assets.deleted_at. Restore reverses it. PurgeExpired
-// permanently removes assets whose retention window has elapsed. Physical file
-// access goes through storage.Storage so this works for any backend.
+// Package trash implements catalog soft deletion and recoverable permanent
+// removal. Originals keep immutable paths; older move-based layouts reconcile.
 package trash
 
 import (
@@ -17,7 +13,6 @@ import (
 	"github.com/kuraki-app/kuraki/internal/storage"
 )
 
-// Retention is how long a trashed asset is restorable before purge (F-10).
 const Retention = 30 * 24 * time.Hour
 
 var (
@@ -28,161 +23,254 @@ var (
 
 func nowText() string { return time.Now().UTC().Format(time.RFC3339Nano) }
 
-// Delete soft-deletes an asset: original → trash/, deleted_at stamped.
-func Delete(ctx context.Context, db *sql.DB, store storage.Storage, assetID string) error {
-	var path string
-	var deletedAt sql.NullString
-	var owner string
-	err := db.QueryRowContext(ctx,
-		`SELECT original_path, deleted_at, owner_id FROM assets WHERE id = ?`, assetID).Scan(&path, &deletedAt, &owner)
-	if errors.Is(err, sql.ErrNoRows) {
-		return ErrNotFound
-	}
-	if err != nil {
-		return fmt.Errorf("trash: lookup asset: %w", err)
-	}
-	if deletedAt.Valid {
-		return ErrAlreadyDeleted
-	}
-
-	if err := store.Move(ctx, "originals/"+path, "trash/"+path); err != nil {
-		return fmt.Errorf("trash: move original to trash: %w", err)
-	}
-	if _, err := db.ExecContext(ctx,
-		`UPDATE assets SET deleted_at = ? WHERE id = ?`, nowText(), assetID); err != nil {
-		// Roll the file back so DB and disk stay consistent.
-		_ = store.Move(ctx, "trash/"+path, "originals/"+path)
-		return fmt.Errorf("trash: mark deleted: %w", err)
-	}
-	_, _ = db.ExecContext(ctx,
-		`INSERT INTO change_log (entity, entity_id, op, owner_id) VALUES ('asset', ?, 'delete', ?)`, assetID, owner)
-	return nil
+func Delete(ctx context.Context, database *sql.DB, store storage.Storage, assetID string) error {
+	return setDeleted(ctx, database, store, assetID, true)
 }
 
-// Restore reverses a soft delete: trash/ → original, deleted_at cleared.
-func Restore(ctx context.Context, db *sql.DB, store storage.Storage, assetID string) error {
-	var path string
-	var deletedAt sql.NullString
-	var owner string
-	err := db.QueryRowContext(ctx,
-		`SELECT original_path, deleted_at, owner_id FROM assets WHERE id = ?`, assetID).Scan(&path, &deletedAt, &owner)
-	if errors.Is(err, sql.ErrNoRows) {
-		return ErrNotFound
-	}
+func Restore(ctx context.Context, database *sql.DB, store storage.Storage, assetID string) error {
+	return setDeleted(ctx, database, store, assetID, false)
+}
+
+func setDeleted(ctx context.Context, database *sql.DB, store storage.Storage, id string, deleting bool) error {
+	unlock, err := storage.LockLibrary(ctx, store, false)
 	if err != nil {
+		return err
+	}
+	defer func() {
+		if unlock != nil {
+			_ = unlock()
+		}
+	}()
+	tx, err := database.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	// Serialize catalog transitions without blocking concurrent read snapshots.
+	if _, err := tx.ExecContext(ctx, `UPDATE assets SET deleted_at=deleted_at WHERE id=?`, id); err != nil {
+		return err
+	}
+	var path, owner string
+	var deleted, external sql.NullString
+	if err := tx.QueryRowContext(ctx, `SELECT original_path, owner_id, deleted_at, external_path FROM assets WHERE id=?`, id).Scan(&path, &owner, &deleted, &external); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
 		return fmt.Errorf("trash: lookup asset: %w", err)
 	}
-	if !deletedAt.Valid {
+	if deleting == deleted.Valid {
+		if deleting {
+			return ErrAlreadyDeleted
+		}
 		return ErrNotDeleted
 	}
+	if !deleting && !external.Valid {
+		original, err := store.Exists(ctx, "originals/"+path)
+		if err != nil {
+			return err
+		}
+		legacy, err := store.Exists(ctx, "trash/"+path)
+		if err != nil {
+			return err
+		}
+		if !original && legacy {
+			tx.Rollback()
+			_ = unlock()
+			unlock = nil
+			if err := Reconcile(ctx, database, store); err != nil {
+				return err
+			}
+			return setDeleted(ctx, database, store, id, deleting)
+		}
+	}
+	var value any
+	op := "update"
+	if deleting {
+		value, op = nowText(), "delete"
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE assets SET deleted_at=? WHERE id=?`, value, id); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO change_log(entity,entity_id,op,owner_id) VALUES ('asset',?,?,?)`, id, op, owner); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
 
+func recoverLegacyOriginal(ctx context.Context, store storage.Storage, path string) error {
+	if exists, err := store.Exists(ctx, "originals/"+path); err != nil || exists {
+		return err
+	}
+	if exists, err := store.Exists(ctx, "trash/"+path); err != nil {
+		return err
+	} else if !exists {
+		return nil
+	}
 	if err := store.Move(ctx, "trash/"+path, "originals/"+path); err != nil {
-		return fmt.Errorf("trash: move original from trash: %w", err)
+		return fmt.Errorf("trash: recover legacy original: %w", err)
 	}
-	if _, err := db.ExecContext(ctx,
-		`UPDATE assets SET deleted_at = NULL WHERE id = ?`, assetID); err != nil {
-		_ = store.Move(ctx, "originals/"+path, "trash/"+path)
-		return fmt.Errorf("trash: clear deleted: %w", err)
-	}
-	_, _ = db.ExecContext(ctx,
-		`INSERT INTO change_log (entity, entity_id, op, owner_id) VALUES ('asset', ?, 'update', ?)`, assetID, owner)
 	return nil
 }
 
-// Purge permanently deletes one trashed asset (originals, derivatives, row).
-// It refuses an asset that is not currently in the trash.
-func Purge(ctx context.Context, db *sql.DB, store storage.Storage, assetID string) error {
-	var path string
-	var deletedAt sql.NullString
-	var owner string
-	err := db.QueryRowContext(ctx,
-		`SELECT original_path, deleted_at, owner_id FROM assets WHERE id = ?`, assetID).Scan(&path, &deletedAt, &owner)
-	if errors.Is(err, sql.ErrNoRows) {
-		return ErrNotFound
-	}
+// Reconcile repairs interrupted older moves and resumes committed file cleanup.
+func Reconcile(ctx context.Context, database *sql.DB, store storage.Storage) error {
+	unlock, err := storage.LockLibrary(ctx, store, true)
 	if err != nil {
-		return fmt.Errorf("trash: lookup asset: %w", err)
+		return err
 	}
-	if !deletedAt.Valid {
-		return ErrNotDeleted
+	defer unlock()
+	var paths []string
+	if lister, ok := store.(storage.LegacyTrashLister); ok {
+		paths, err = lister.LegacyTrashPaths(ctx)
+		if err != nil {
+			return err
+		}
+	} else {
+		rows, err := database.QueryContext(ctx, `SELECT original_path FROM assets WHERE external_path IS NULL`)
+		if err != nil {
+			return err
+		}
+		for rows.Next() {
+			var path string
+			if err := rows.Scan(&path); err != nil {
+				rows.Close()
+				return err
+			}
+			paths = append(paths, path)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
 	}
-	return purgeOne(ctx, db, store, assetID, path, owner)
+	for _, path := range paths {
+		var references int
+		if err := database.QueryRowContext(ctx, `SELECT COUNT(*) FROM assets WHERE original_path=? AND external_path IS NULL`, path).Scan(&references); err != nil {
+			return err
+		}
+		if references == 0 {
+			continue
+		}
+		if err := recoverLegacyOriginal(ctx, store, path); err != nil {
+			return err
+		}
+	}
+	return storage.DrainCleanup(ctx, database, store)
 }
 
-// PurgeExpired permanently removes assets deleted before cutoff: trash file,
-// derivative files + rows (via FK cascade), FTS row, and the asset row. Returns
-// the number of assets purged.
-func PurgeExpired(ctx context.Context, db *sql.DB, store storage.Storage, cutoff time.Time) (int, error) {
-	rows, err := db.QueryContext(ctx,
-		`SELECT id, original_path, owner_id FROM assets WHERE deleted_at IS NOT NULL AND deleted_at < ?`,
-		cutoff.UTC().Format(time.RFC3339Nano))
+func Purge(ctx context.Context, database *sql.DB, store storage.Storage, assetID string) error {
+	_, err := purgeOne(ctx, database, store, assetID, nil)
+	return err
+}
+
+func PurgeExpired(ctx context.Context, database *sql.DB, store storage.Storage, cutoff time.Time) (int, error) {
+	rows, err := database.QueryContext(ctx, `SELECT id FROM assets WHERE deleted_at IS NOT NULL AND deleted_at < ?`, cutoff.UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return 0, fmt.Errorf("trash: query expired: %w", err)
 	}
-	type target struct{ id, path, owner string }
-	var targets []target
+	var ids []string
 	for rows.Next() {
-		var t target
-		if err := rows.Scan(&t.id, &t.path, &t.owner); err != nil {
+		var id string
+		if err := rows.Scan(&id); err != nil {
 			rows.Close()
-			return 0, fmt.Errorf("trash: scan expired: %w", err)
+			return 0, err
 		}
-		targets = append(targets, t)
+		ids = append(ids, id)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
 		return 0, err
 	}
-
-	purged := 0
-	for _, t := range targets {
-		if err := purgeOne(ctx, db, store, t.id, t.path, t.owner); err != nil {
-			return purged, err
+	n := 0
+	for _, id := range ids {
+		removed, err := purgeOne(ctx, database, store, id, &cutoff)
+		if err != nil {
+			return n, err
 		}
-		purged++
+		if removed {
+			n++
+		}
 	}
-	return purged, nil
+	return n, nil
 }
 
-func purgeOne(ctx context.Context, db *sql.DB, store storage.Storage, id, path, owner string) error {
-	// Remove derivative files first (we need their paths before rows vanish).
-	drows, err := db.QueryContext(ctx,
-		`SELECT path FROM derivatives WHERE asset_id = ? UNION SELECT path FROM thumb_variants WHERE asset_id = ?`, id, id)
+func purgeOne(ctx context.Context, database *sql.DB, store storage.Storage, id string, cutoff *time.Time) (bool, error) {
+	unlock, err := storage.LockLibrary(ctx, store, true)
 	if err != nil {
-		return fmt.Errorf("trash: query derivatives: %w", err)
+		return false, err
 	}
-	var derivPaths []string
-	for drows.Next() {
-		var p string
-		if err := drows.Scan(&p); err != nil {
-			drows.Close()
-			return err
-		}
-		derivPaths = append(derivPaths, p)
-	}
-	drows.Close()
-
-	_ = store.Remove(ctx, "trash/"+path)
-	for _, p := range derivPaths {
-		_ = store.Remove(ctx, "derivatives/"+p)
-	}
-
-	// Deleting the asset row cascades derivatives + album_assets (FK ON DELETE
-	// CASCADE); FTS is standalone so remove it explicitly.
-	tx, err := db.BeginTx(ctx, nil)
+	defer unlock()
+	tx, err := database.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer tx.Rollback()
+	var path, owner string
+	var deleted, external sql.NullString
+	err = tx.QueryRowContext(ctx, `SELECT original_path,owner_id,deleted_at,external_path FROM assets WHERE id=?`, id).Scan(&path, &owner, &deleted, &external)
+	if errors.Is(err, sql.ErrNoRows) {
+		if cutoff != nil {
+			return false, nil
+		}
+		return false, ErrNotFound
+	}
+	if err != nil {
+		return false, err
+	}
+	if !deleted.Valid {
+		if cutoff != nil {
+			return false, nil
+		}
+		return false, ErrNotDeleted
+	}
+	if cutoff != nil {
+		deletedAt, err := time.Parse(time.RFC3339Nano, deleted.String)
+		if err != nil {
+			return false, err
+		}
+		if !deletedAt.Before(*cutoff) {
+			return false, nil
+		}
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT path FROM derivatives WHERE asset_id=? UNION SELECT path FROM thumb_variants WHERE asset_id=?`, id, id)
+	if err != nil {
+		return false, err
+	}
+	var paths []string
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			rows.Close()
+			return false, err
+		}
+		paths = append(paths, "derivatives/"+path)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return false, err
+	}
+	if !external.Valid {
+		paths = append(paths, "originals/"+path, "trash/"+path)
+	}
+	for _, path := range paths {
+		if err := storage.RecordCleanup(ctx, tx, path); err != nil {
+			return false, err
+		}
+	}
 	if err := fts.Delete(ctx, tx, id); err != nil {
-		return fmt.Errorf("trash: delete fts: %w", err)
+		return false, err
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM assets WHERE id = ?`, id); err != nil {
-		return fmt.Errorf("trash: delete asset: %w", err)
+	if _, err := tx.ExecContext(ctx, `DELETE FROM assets WHERE id=? AND deleted_at IS NOT NULL`, id); err != nil {
+		return false, err
 	}
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO change_log (entity, entity_id, op, owner_id) VALUES ('asset', ?, 'delete', ?)`, id, owner); err != nil {
-		return fmt.Errorf("trash: change log: %w", err)
+	if _, err := tx.ExecContext(ctx, `INSERT INTO change_log(entity,entity_id,op,owner_id) VALUES ('asset',?,'delete',?)`, id, owner); err != nil {
+		return false, err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	if err := storage.DrainCleanup(ctx, database, store); err != nil {
+		return true, fmt.Errorf("trash: cleanup pending: %w", err)
+	}
+	return true, nil
 }

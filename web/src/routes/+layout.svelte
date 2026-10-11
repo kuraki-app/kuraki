@@ -46,6 +46,7 @@
   let importStatus = '';
   let fileInput: HTMLInputElement;
   let signingOut = false;
+  let uploadAbort: AbortController | null = null;
 
   // Dark mode is owned by mode-watcher: it toggles `.dark` on <html>, persists
   // the choice, and prevents the flash of the wrong theme on load.
@@ -56,8 +57,9 @@
     let active = true;
     const online = () => void resumeQueuedUploads();
     const serviceWorkerMessage = (event: MessageEvent) => {
-      const message = event.data as { type?: string; uploaded?: number; failed?: number; pending?: number };
+      const message = event.data as { type?: string; ownerId?: string; uploaded?: number; failed?: number; pending?: number };
       if (message.type !== 'kuraki-upload-result') return;
+      if (message.ownerId !== get(session).user?.id) return;
       queuedFiles = message.pending ?? queuedFiles;
       if (message.uploaded) {
         bumpLibrary();
@@ -70,7 +72,7 @@
       if (!active) return;
       await refreshUploadCount();
       await resumeQueuedUploads();
-    });
+    }).catch(() => showToast('Could not resume queued uploads'));
     window.addEventListener('online', online);
     if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', serviceWorkerMessage);
     return () => {
@@ -84,11 +86,14 @@
   // Delta-sync poller: runs only while signed in. Reacts to login/logout by
   // starting on the first authenticated user and stopping when it clears.
   let stopSync: (() => void) | null = null;
+  let syncOwner = '';
   $: {
-    if ($session.user && !stopSync) stopSync = startSync();
-    else if (!$session.user && stopSync) {
-      stopSync();
-      stopSync = null;
+    const owner = $session.user?.id ?? '';
+    if (owner !== syncOwner) {
+      stopSync?.();
+      uploadAbort?.abort();
+      syncOwner = owner;
+      stopSync = owner ? startSync(owner) : null;
     }
   }
 
@@ -140,6 +145,7 @@
   async function logout() {
     if (signingOut) return;
     signingOut = true;
+    uploadAbort?.abort();
     try {
       await api.logout();
       session.set({ checking: false, setupRequired: false, user: null });
@@ -176,16 +182,19 @@
     const user = get(session).user;
     if (!user || drainingUploads) return;
     drainingUploads = true;
+    const abort = new AbortController();
+    uploadAbort = abort;
     try {
       const before = await uploadQueueState(user.id);
       queuedFiles = before.files;
       if (!before.files) return;
 
-      const result = await drainUploads(user.id, async (files) => {
+      const result = await drainUploads(user.id, async (files, expectedOwner) => {
+        if (abort.signal.aborted || get(session).user?.id !== expectedOwner) throw new Error('account_changed');
         uploadBatchFiles = files.length;
         uploadPct = 0;
         try {
-          return await uploadFiles(files, (progress) => (uploadPct = progress));
+          return await uploadFiles(files, (progress) => (uploadPct = progress), expectedOwner, abort.signal);
         } catch (error) {
           if (
             error instanceof UploadHTTPError &&
@@ -199,6 +208,8 @@
           throw error;
         }
       });
+
+      if (get(session).user?.id !== user.id) return;
 
       queuedFiles = result.files;
       const uploaded = result.sent.reduce((total, item) => total + item.files, 0);
@@ -217,11 +228,15 @@
           `${result.files} ${result.files === 1 ? 'upload' : 'uploads'} queued — ${background ? 'retrying in the background' : 'will resume when Kuraki reopens'}`
         );
       }
+    } catch (error) {
+      if (get(session).user?.id === user.id) showToast(error instanceof Error ? error.message : 'Could not resume queued uploads');
     } finally {
       uploadPct = -1;
       uploadBatchFiles = 0;
       importStatus = '';
       drainingUploads = false;
+      if (uploadAbort === abort) uploadAbort = null;
+      if (get(session).user && get(session).user?.id !== user.id) void resumeQueuedUploads();
     }
   }
 

@@ -66,8 +66,9 @@ func (d Deps) createExternalLibrary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Name = strings.TrimSpace(req.Name)
-	root, err := filepath.Abs(strings.TrimSpace(req.RootPath))
-	if req.Name == "" || err != nil {
+	requestedRoot := strings.TrimSpace(req.RootPath)
+	root, err := filepath.Abs(requestedRoot)
+	if req.Name == "" || requestedRoot == "" || err != nil {
 		writeError(w, 400, "invalid_external_library")
 		return
 	}
@@ -81,7 +82,7 @@ func (d Deps) createExternalLibrary(w http.ResponseWriter, r *http.Request) {
 	// External libraries exist to index media Kuraki does not own, so the check
 	// is containment rather than an allowlist: anywhere on the machine is fine
 	// except the library's own storage.
-	if inside, err := pathWithin(d.storageBase(), root); err != nil || inside {
+	if d.externalRootUnsafe(root) {
 		writeError(w, 400, "external_library_inside_data_dir")
 		return
 	}
@@ -94,7 +95,7 @@ func (d Deps) createExternalLibrary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 409, "external_library_exists")
 		return
 	}
-	result, err := external.Scan(r.Context(), d.DB, d.Media, id.String(), u.ID, root)
+	result, err := external.Scan(r.Context(), d.DB, d.Media, id.String(), u.ID, root, d.Store)
 	if err != nil {
 		_, _ = d.DB.ExecContext(r.Context(), `DELETE FROM external_libraries WHERE id=?`, id.String())
 		writeError(w, 400, "external_library_scan_failed")
@@ -124,12 +125,29 @@ func (d Deps) scanExternalLibrary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 404, "external_library_not_found")
 		return
 	}
-	result, err := external.Scan(r.Context(), d.DB, d.Media, id, u.ID, root)
+	if d.externalRootUnsafe(root) {
+		writeError(w, http.StatusBadRequest, "external_library_inside_data_dir")
+		return
+	}
+	result, err := external.Scan(r.Context(), d.DB, d.Media, id, u.ID, root, d.Store)
 	if err != nil {
 		writeError(w, 400, "external_library_scan_failed")
 		return
 	}
 	writeJSON(w, 200, result)
+}
+
+func (d Deps) externalRootUnsafe(root string) bool {
+	base := d.storageBase()
+	if base == "" {
+		return false
+	}
+	inside, err := pathWithin(base, root)
+	if err != nil || inside {
+		return true
+	}
+	ancestor, err := pathWithin(root, base)
+	return err != nil || ancestor
 }
 
 // storageBase returns the filesystem root the library is stored under, or ""
@@ -201,6 +219,12 @@ func (d Deps) deleteExternalLibrary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	unlock, err := storage.LockLibrary(r.Context(), d.Store, true)
+	if err != nil {
+		writeError(w, 500, "external_library_lock_failed")
+		return
+	}
+	defer unlock()
 	tx, err := d.DB.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeError(w, 500, "external_library_delete_failed")
@@ -282,19 +306,19 @@ func (d Deps) deleteExternalLibrary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "external_library_delete_failed")
 		return
 	}
+	for _, p := range derivPaths {
+		if err := storage.RecordCleanup(r.Context(), tx, "derivatives/"+p); err != nil {
+			writeError(w, 500, "external_library_delete_failed")
+			return
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		writeError(w, 500, "external_library_delete_failed")
 		return
 	}
-	// Only generated files under derivatives/ are removed — never an external
-	// original. Best effort after commit: a leftover derivative wastes disk but is
-	// never served, because no row points at it any more.
-	if d.Store != nil {
-		for _, p := range derivPaths {
-			if err := d.Store.Remove(r.Context(), "derivatives/"+p); err != nil {
-				d.Logger.Warn("external library: remove derivative failed", "path", p, "err", err)
-			}
-		}
+	// External bytes are never removed; generated-file cleanup survives a crash.
+	if err := storage.DrainCleanup(r.Context(), d.DB, d.Store); err != nil {
+		d.Logger.Warn("external library: pending derivative cleanup", "err", err)
 	}
 	writeJSON(w, 200, map[string]any{"removed": len(assetIDs)})
 }

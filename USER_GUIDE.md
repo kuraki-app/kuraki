@@ -89,7 +89,7 @@ The first person to open a fresh server claims it.
   so the photos are already in your library when you first sign in — they are not
   orphaned and there is no import to repeat.
 - Setup can only run once. Once an account exists, the form is gone for good, and
-  further accounts are created by an admin (§18).
+  further accounts are created by an admin (§19).
 
 ---
 
@@ -107,7 +107,7 @@ to that one browser. Signing out ends that session only.
 - Changing your own password ends **every other browser session** you hold, so a
   stolen session cannot outlive the password it came from. **Paired devices keep
   working** — a phone holds its own credential, and you revoke those individually
-  (§17). An *admin*-driven password reset is stricter: it revokes that account's
+  (§18). An *admin*-driven password reset is stricter: it revokes that account's
   devices too, because it is used when an account is suspect rather than when its
   owner simply wants a new password.
 - A disabled account cannot sign in, and its existing sessions stop working
@@ -144,7 +144,7 @@ files are deduplicated by content. Re-running the same import imports nothing th
 second time. Interrupting it and starting again resumes rather than restarts.
 
 **What it never does:** touch, move, or delete anything in the source folder. Cleaning
-up the source is your decision, after you have verified the library (§20).
+up the source is your decision, after you have verified the library (§21).
 
 ### 5.2 Watched folder
 
@@ -281,7 +281,7 @@ you see afterwards.
 8. **Grouping.** Files that clearly belong together — a RAW and its JPEG, a live
    photo's still and its motion clip — are stacked behind one representative.
 9. **Change recorded.** The addition enters a change feed, which is how your other
-   devices learn about it (§16).
+   devices learn about it (§17).
 
 **When a step fails**, the asset still exists and the original is still downloadable.
 Failures are listed as media health issues with a reason, and a rebuild can be
@@ -426,7 +426,42 @@ an undated photo is not a memory of any particular day.
 
 ---
 
-## 13. Flow: duplicates and stacks
+## 13. Flow: trips
+
+A trip is a stretch of time you spent away from home, gathered automatically. There
+is nothing to create and nothing to configure: import photos that carry capture dates
+and coordinates, and the runs of activity group themselves.
+
+Kuraki decides where "home" is by taking the median location of your whole library —
+the place most of your photographs were taken. A run of photos is a trip when it
+holds at least a handful of pictures and either sits well away from that home point
+or spans more than one calendar day. A long Saturday in your own kitchen is not a
+trip, however many photos it holds.
+
+Photos with no capture date never join a trip. An undated photo cannot be placed on a
+timeline, so it cannot belong to a stretch of one.
+
+**Trips are named for you, and renamed by you.** Until you give one a name it is
+called after the place most of its photos were taken and the dates it covers —
+"Jaipur", "1-4 March 2024". Rename it to anything you like; clearing the name hands
+it back to the automatic one.
+
+**You can also correct the membership.** Add photos a trip missed, or remove ones
+that do not belong. Removing a photo from a trip does not delete it or take it out of
+your timeline — it only stops it appearing here.
+
+The part worth knowing: **detection runs again after every import, and it never
+overwrites what you decided.** If you import an old backup next month, its photos
+join the trips they belong to. Your names stay. Photos you removed stay removed, and
+photos you added stay added. A trip you renamed is never deleted by a rescan, even if
+its photos move around it.
+
+You can ask for a rescan at any time from the Trips page, though you should not need
+to — imports already trigger one.
+
+---
+
+## 14. Flow: duplicates and stacks
 
 These solve two different problems and behave differently.
 
@@ -445,20 +480,23 @@ Byte-identical files never reach this stage: they were deduplicated at import.
 2. Results are grouped and stored, so opening the review is instant and repeatable
    rather than recomputed each time.
 3. **You decide what happens to each group.** Kuraki never deletes anything
-   automatically, and anything you do delete goes to trash first (§14).
+   automatically, and anything you do delete goes to trash first (§15).
 
 ---
 
-## 14. Flow: deleting and restoring
+## 15. Flow: deleting and restoring
 
 Deletion has two distinct steps, and only the second is irreversible.
 
-1. **Move to trash.** The item leaves the timeline and every album view, and its file
-   is moved into the trash area. It stays restorable for the retention window —
+1. **Move to trash.** The item leaves the timeline and every album view. Its original
+   stays intact at the same disk location, and the catalog marks it as trashed.
+   It stays restorable for the retention window —
    **30 days** by default.
 2. **Permanent delete.** Either you ask for it explicitly, or the retention window
    expires and a daily cleanup removes it. At that point the file is gone from disk
-   and the record is gone from the database.
+   and the record is gone from the database. Interrupted file removal is recorded
+   and retried automatically. Indexed external originals remain on their source drive;
+   permanent deletion forgets their catalog record and generated previews.
 
 **Restoring** from trash puts the item back exactly where it was, including its
 albums, tags, and favorite state.
@@ -471,7 +509,7 @@ be undone.
 
 ---
 
-## 15. Flow: getting photos out
+## 16. Flow: getting photos out
 
 Leaving should be as easy as arriving. Four ways out, in ascending order of size:
 
@@ -492,7 +530,7 @@ checked before they start, so an archive never quietly omits a file it could not
 
 ---
 
-## 16. Flow: staying in sync across devices
+## 17. Flow: staying in sync across devices
 
 Every change to a photo — favorite, edit, tag, album, trash, restore, import,
 permanent delete — is recorded in an ordered change feed scoped to your library.
@@ -523,7 +561,7 @@ remedies are opposite:
 
 ---
 
-## 17. Flow: managing devices
+## 18. Flow: managing devices
 
 You see your own paired devices, when each was last seen, and can revoke any of them.
 Revocation takes effect immediately: that device stops being able to read or change
@@ -535,7 +573,7 @@ revoking and re-pairing, which is the correct answer anyway.
 
 ---
 
-## 18. Flow: managing accounts (admin)
+## 19. Flow: managing accounts (admin)
 
 | Action | You supply | Effect |
 |---|---|---|
@@ -551,7 +589,7 @@ a server nobody can administer.
 
 ---
 
-## 19. Flow: settings
+## 20. Flow: settings
 
 Settings resolve in a fixed order: **built-in defaults, then anything stored on the
 server, then anything set in the environment it was started with.** The environment
@@ -576,7 +614,7 @@ on the retry.
 
 ---
 
-## 20. Flow: keeping the library healthy
+## 21. Flow: keeping the library healthy
 
 | Concern | Mechanism | Cadence |
 |---|---|---|
@@ -597,7 +635,7 @@ on the same disk protects you from a mistake, not from a disk.
 
 ---
 
-## 21. What Kuraki stores about each photo
+## 22. What Kuraki stores about each photo
 
 Useful when deciding what to expect from search, sorting, and export.
 
@@ -613,7 +651,7 @@ Useful when deciding what to expect from search, sorting, and export.
 
 ---
 
-## 22. When something looks wrong
+## 23. When something looks wrong
 
 | Symptom | Most likely cause | What to do |
 |---|---|---|
@@ -630,7 +668,7 @@ Useful when deciding what to expect from search, sorting, and export.
 
 ---
 
-## 23. What Kuraki deliberately does not do
+## 24. What Kuraki deliberately does not do
 
 Knowing the boundaries is part of knowing the product.
 

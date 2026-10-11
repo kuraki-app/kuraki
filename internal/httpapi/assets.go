@@ -9,7 +9,6 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
-	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
+	"github.com/kuraki-app/kuraki/internal/storage"
 	"github.com/kuraki-app/kuraki/internal/thumbs"
 )
 
@@ -172,12 +172,17 @@ func (d Deps) serveOriginal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if row.ExternalPath.Valid {
-		f, err := os.Open(row.ExternalPath.String)
+		rc, err := (storage.Original{Path: row.OriginalPath, ExternalPath: row.ExternalPath.String}).Open(r.Context(), d.Store)
 		if err != nil {
 			writeError(w, http.StatusNotFound, "external_file_not_found")
 			return
 		}
-		defer f.Close()
+		defer rc.Close()
+		f, ok := rc.(io.ReadSeeker)
+		if !ok {
+			writeError(w, http.StatusInternalServerError, "external_file_unavailable")
+			return
+		}
 		w.Header().Set("Content-Type", row.MimeType)
 		w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, sanitizeHeaderFilename(row.Filename)))
 		http.ServeContent(w, r, row.Filename, time.Time{}, f)

@@ -69,13 +69,14 @@ worker.addEventListener('fetch', (event) => {
 
 type SyncEvent = ExtendableEvent & { tag: string };
 
-async function sendBatch(filesToSend: File[]): Promise<unknown> {
+async function sendBatch(filesToSend: File[], ownerId: string): Promise<unknown> {
   const form = new FormData();
   for (const file of filesToSend) form.append('file', file);
   const response = await fetch('/api/assets', {
     method: 'POST',
     body: form,
-    credentials: 'include'
+    credentials: 'include',
+    headers: { 'X-Kuraki-Owner-ID': ownerId }
   });
   if (!response.ok) {
     if (response.status >= 400 && response.status < 500 && response.status !== 401 && response.status !== 403) {
@@ -105,7 +106,7 @@ worker.addEventListener('sync', ((event: SyncEvent) => {
       if (!ownerId) throw new Error('Sign in to resume queued uploads');
       const result = await drainUploads(ownerId, sendBatch);
       const uploaded = result.sent.reduce((total, item) => total + item.files, 0);
-      await notifyClients({ type: 'kuraki-upload-result', uploaded, failed: result.failedFiles, pending: result.files });
+      await notifyClients({ type: 'kuraki-upload-result', ownerId, uploaded, failed: result.failedFiles, pending: result.files });
       if (result.retry) throw new Error('Uploads remain queued');
     })
   );

@@ -13,12 +13,17 @@ const maxUploadBytes = 1 << 30 // 1 GiB
 // @Accept  mpfd
 // @Produce json
 // @Param   file formData file true "media file"
+// @Param   X-Kuraki-Owner-ID header string false "expected account ID; required for session-authenticated uploads"
 // @Success 202 {object} map[string]interface{}
 // @Failure 400 {object} apitypes.Error
 // @Failure 401 {object} apitypes.Error
 // @Failure 503 {object} apitypes.Error
 // @Router  /api/assets [post]
 func (d Deps) uploadAsset(w http.ResponseWriter, r *http.Request) {
+	if p, ok := principalFrom(r); ok && p.Kind == principalSession && r.Header.Get(expectedOwnerHeader) == "" {
+		writeError(w, http.StatusForbidden, "expected_account_required")
+		return
+	}
 	if d.Queue == nil {
 		writeError(w, http.StatusServiceUnavailable, "queue_unavailable")
 		return
@@ -34,9 +39,10 @@ func (d Deps) uploadAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	owner := ""
-	if u := d.currentUser(r); u != nil {
-		owner = u.Username
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
 	}
 	jobID, err := d.Queue.EnqueueUpload(r.Context(), owner, files)
 	if err != nil {

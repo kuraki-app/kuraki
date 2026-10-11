@@ -25,12 +25,19 @@ permissions:
 env:
   IMAGE: ghcr.io/${{ github.repository }}
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  verify:
+    uses: ./.github/workflows/verify.yml
   # ---------------------------------------------------------------------------
   # Binaries. Same targets and flags as ci.yml's cross-compile job, but archived
   # and attached to the release instead of expiring as CI artifacts.
   # ---------------------------------------------------------------------------
   binaries:
+    needs: verify
     name: Binary (${{ matrix.goos }}/${{ matrix.goarch }})
     runs-on: ubuntu-latest
     strategy:
@@ -93,6 +100,7 @@ jobs:
   # hardware and the two are joined into one manifest below.
   # ---------------------------------------------------------------------------
   image:
+    needs: verify
     name: Image (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -112,31 +120,47 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Pushed by digest, without a tag: a tag can only point at one manifest,
-      # so tagging here would leave whichever architecture finished last as the
-      # published image rather than both.
+      # Load and verify each architecture's exact candidate. Publication uses
+      # this local image, rather than rebuilding different bytes after checks.
       - name: Build
         id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: ${{ matrix.platform }}
-          push: ${{ github.ref_type == 'tag' }}
-          outputs: ${{ github.ref_type == 'tag' && format('type=image,name={0},push-by-digest=true,name-canonical=true,push=true', env.IMAGE) || 'type=cacheonly' }}
+          push: false
+          load: true
+          tags: ${{ env.IMAGE }}:verified-${{ github.sha }}-${{ matrix.arch }}
           build-args: |
             VERSION=${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
           cache-from: type=gha,scope=${{ matrix.arch }}
           cache-to: type=gha,scope=${{ matrix.arch }},mode=max
 
+      - name: Candidate recovery smoke test
+        run: scripts/smoke-deployment.sh "${IMAGE}:verified-${GITHUB_SHA}-${{ matrix.arch }}"
+      - name: Candidate HTTPS proxy smoke test
+        run: scripts/smoke-proxy.sh "${IMAGE}:verified-${GITHUB_SHA}-${{ matrix.arch }}"
+      - name: Candidate vulnerability gate
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}:verified-${{ github.sha }}-${{ matrix.arch }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
       # The digest arrives as "sha256:<hex>", and upload-artifact rejects a colon
       # in a path — so the marker file is named with the bare hex and the
       # manifest step below puts the "sha256:" back. Naming it verbatim fails
       # only on a tag, because that is the only time this step runs at all.
-      - name: Export digest
+      - name: Publish verified candidate and export digest
         if: github.ref_type == 'tag'
         run: |
           set -euo pipefail
-          digest='${{ steps.build.outputs.digest }}'
+          tag="${IMAGE}:verified-${GITHUB_SHA}-${{ matrix.arch }}"
+          docker push "$tag"
+          published=$(docker inspect --format '{{index .RepoDigests 0}}' "$tag")
+          digest="${published##*@}"
           test -n "$digest"
           mkdir -p /tmp/digests
           touch "/tmp/digests/${digest#sha256:}"
@@ -155,7 +179,7 @@ jobs:
   # ---------------------------------------------------------------------------
   manifest:
     name: Publish image manifest
-    needs: image
+    needs: [verify, binaries, image]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     steps:
@@ -231,6 +255,7 @@ jobs:
             echo '## Install'
             echo
             echo '```sh'
+            echo 'sudo install -d -m 0750 -o 10001 -g 10001 ./kuraki-data # fresh Linux bind mount'
             echo "docker run -d -p 39170:39170 -v \"\$PWD/kuraki-data:/data\" ${IMAGE}:${GITHUB_REF_NAME}"
             echo '```'
             echo

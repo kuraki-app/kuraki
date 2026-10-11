@@ -484,21 +484,22 @@ Compose data mount during a maintenance window.
 Example using the published image and two host mounts:
 
 ```sh
-mkdir -p /srv/kuraki/restored-data
-sudo chown 10001:10001 /srv/kuraki/restored-data
+sudo install -d -m 0750 -o 10001 -g 10001 /srv/kuraki/restore-root
 
 docker run --rm \
-  -v /srv/kuraki/restored-data:/restore \
+  -v /srv/kuraki/restore-root:/restore-root \
   -v /mnt/kuraki-backups:/backups:ro \
   ghcr.io/kuraki-app/kuraki:latest \
   restore /backups/kuraki-backup-YYYYMMDDTHHMMSSZ.tar.gz \
-  --data-dir /restore
+  --data-dir /restore-root/library
 ```
 
 After restoring:
 
 1. Keep the current library untouched as a rollback copy.
-2. Point the Kuraki `/data` bind mount at `/srv/kuraki/restored-data`.
+2. Verify with the same image using the parent mount and
+   `verify --data-dir /restore-root/library`, then point the normal `/data` bind mount at
+   `/srv/kuraki/restore-root/library`.
 3. Start Kuraki and wait for it to become healthy.
 4. Sign in and check asset counts, several originals, thumbnails, albums, and
    recent changes before retiring the old library.

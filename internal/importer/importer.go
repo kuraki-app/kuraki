@@ -40,9 +40,11 @@ type MetadataProvider interface {
 
 // Options controls a single import run.
 type Options struct {
-	SourceDir        string
-	DryRun           bool
-	OwnerUsername    string
+	SourceDir     string
+	DryRun        bool
+	OwnerUsername string
+	// OwnerID is resolved by authenticated callers. It never creates accounts.
+	OwnerID          string
 	Progress         io.Writer
 	ThumbnailWorkers int
 
@@ -124,6 +126,11 @@ func (i *Importer) Run(ctx context.Context, opts Options) (Result, error) {
 	if i.Media == nil {
 		return Result{}, fmt.Errorf("importer: media processor is nil")
 	}
+	unlock, err := storage.LockLibrary(ctx, i.Store, false)
+	if err != nil {
+		return Result{}, err
+	}
+	defer unlock()
 	// A fresh Takeout resolver per run unless the caller supplies its own
 	// provider; the resolver caches per-directory sidecar indexes and must not
 	// outlive the directory it indexed.
@@ -152,7 +159,11 @@ func (i *Importer) Run(ctx context.Context, opts Options) (Result, error) {
 	}
 
 	var ownerID string
-	if opts.DryRun {
+	if opts.OwnerID != "" {
+		if err = i.DB.QueryRowContext(ctx, `SELECT id FROM users WHERE id = ? AND disabled_at IS NULL`, opts.OwnerID).Scan(&ownerID); err != nil {
+			return Result{}, fmt.Errorf("importer: authenticated owner: %w", err)
+		}
+	} else if opts.DryRun {
 		ownerID, err = i.lookupOwner(ctx, username)
 		if err != nil {
 			return Result{}, err
@@ -167,6 +178,9 @@ func (i *Importer) Run(ctx context.Context, opts Options) (Result, error) {
 	result := Result{}
 	files := make([]candidate, 0)
 	walkErr := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if walkErr != nil {
 			result.Errors = append(result.Errors, FileError{Path: path, Err: walkErr})
 			return nil
@@ -195,6 +209,9 @@ func (i *Importer) Run(ctx context.Context, opts Options) (Result, error) {
 
 	derivatives := make([]derivativeJob, 0)
 	for idx, file := range files {
+		if err := ctx.Err(); err != nil {
+			return result, err
+		}
 		job, err := i.importFile(ctx, ownerID, file.Path, file.Kind, file.FallbackMime, opts.DryRun, &result)
 		if err != nil {
 			result.Errors = append(result.Errors, FileError{Path: file.Path, Err: err})
@@ -211,6 +228,9 @@ func (i *Importer) Run(ctx context.Context, opts Options) (Result, error) {
 		for _, fileErr := range i.runDerivativeWorkers(ctx, derivatives, opts.ThumbnailWorkers) {
 			result.Errors = append(result.Errors, fileErr)
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return result, err
 	}
 	return result, nil
 }
@@ -408,22 +428,31 @@ func (i *Importer) runDerivativeWorkers(ctx context.Context, jobs []derivativeJo
 		go func() {
 			defer wg.Done()
 			for job := range jobCh {
-				if err := i.createThumbnail(ctx, job.AssetID, job.Path, job.Meta, 0); err != nil {
-					i.recordMediaIssue(ctx, job.AssetID, "thumbnail", err)
-					errCh <- FileError{Path: job.Path, Err: err}
-				}
-				if err := i.createPoster(ctx, job.AssetID, job.Path, job.Meta, 0); err != nil {
-					i.recordMediaIssue(ctx, job.AssetID, "poster", err)
-					errCh <- FileError{Path: job.Path, Err: err}
-				}
-				if err := i.createPreview(ctx, job.AssetID, job.Path, job.Meta, 0); err != nil {
-					kind := "preview"
-					if job.Meta.MediaType == domain.MediaVideo {
-						kind = "playback"
+				func() {
+					defer func() {
+						if cause := recover(); cause != nil {
+							err := fmt.Errorf("media processor failed unexpectedly: %v", cause)
+							i.recordMediaIssue(ctx, job.AssetID, "processor", err)
+							errCh <- FileError{Path: job.Path, Err: err}
+						}
+					}()
+					if err := i.createThumbnail(ctx, job.AssetID, job.Path, job.Meta, 0); err != nil {
+						i.recordMediaIssue(ctx, job.AssetID, "thumbnail", err)
+						errCh <- FileError{Path: job.Path, Err: err}
 					}
-					i.recordMediaIssue(ctx, job.AssetID, kind, err)
-					errCh <- FileError{Path: job.Path, Err: err}
-				}
+					if err := i.createPoster(ctx, job.AssetID, job.Path, job.Meta, 0); err != nil {
+						i.recordMediaIssue(ctx, job.AssetID, "poster", err)
+						errCh <- FileError{Path: job.Path, Err: err}
+					}
+					if err := i.createPreview(ctx, job.AssetID, job.Path, job.Meta, 0); err != nil {
+						kind := "preview"
+						if job.Meta.MediaType == domain.MediaVideo {
+							kind = "playback"
+						}
+						i.recordMediaIssue(ctx, job.AssetID, kind, err)
+						errCh <- FileError{Path: job.Path, Err: err}
+					}
+				}()
 			}
 		}()
 	}
@@ -452,9 +481,6 @@ func (i *Importer) createThumbnail(ctx context.Context, assetID, srcPath string,
 	edge := i.thumbEdge()
 	var buf bytes.Buffer
 	if err := i.Media.Thumbnail(ctx, srcPath, edge, &buf); err != nil {
-		if errors.Is(err, media.ErrUnsupported) {
-			return nil
-		}
 		return fmt.Errorf("create thumbnail: encode derivative: %w", err)
 	}
 
@@ -491,9 +517,6 @@ func (i *Importer) createPoster(ctx context.Context, assetID, srcPath string, me
 	}
 	var buf bytes.Buffer
 	if err := i.Media.Poster(ctx, srcPath, &buf); err != nil {
-		if errors.Is(err, media.ErrUnsupported) {
-			return nil
-		}
 		return fmt.Errorf("create poster: encode derivative: %w", err)
 	}
 	if h, ok := media.PerceptualHash(buf.Bytes()); ok {
@@ -615,13 +638,19 @@ func (i *Importer) clearMediaIssue(ctx context.Context, assetID, kind string) {
 // clears the media issues it resolves and removes the previous generation's
 // files once the new rows are committed. The original is untouched.
 func (i *Importer) RebuildDerivatives(ctx context.Context, assetID string) error {
+	unlock, err := storage.LockLibrary(ctx, i.Store, true)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	var originalPath, mediaType, mimeType, ownerID string
+	var externalPath sql.NullString
 	var width, height, webViewable, gen int
 	var durationMS int64
-	err := i.DB.QueryRowContext(ctx, `
-		SELECT original_path, media_type, mime_type, width, height, web_viewable, duration_ms, owner_id, derivative_gen
+	err = i.DB.QueryRowContext(ctx, `
+		SELECT original_path, media_type, mime_type, width, height, web_viewable, duration_ms, owner_id, derivative_gen, external_path
 		FROM assets WHERE id = ? AND deleted_at IS NULL`, assetID).
-		Scan(&originalPath, &mediaType, &mimeType, &width, &height, &webViewable, &durationMS, &ownerID, &gen)
+		Scan(&originalPath, &mediaType, &mimeType, &width, &height, &webViewable, &durationMS, &ownerID, &gen, &externalPath)
 	if err != nil {
 		return fmt.Errorf("rebuild: load asset: %w", err)
 	}
@@ -632,7 +661,7 @@ func (i *Importer) RebuildDerivatives(ctx context.Context, assetID string) error
 
 	// Copy the original to a temp file so the media backend has a real path;
 	// this works for any storage backend, not only the local filesystem.
-	rc, err := i.Store.Open(ctx, "originals/"+originalPath)
+	rc, err := (storage.Original{Path: originalPath, ExternalPath: externalPath.String}).Open(ctx, i.Store)
 	if err != nil {
 		return fmt.Errorf("rebuild: open original: %w", err)
 	}
@@ -643,11 +672,17 @@ func (i *Importer) RebuildDerivatives(ctx context.Context, assetID string) error
 	}
 	tmpPath := tmp.Name()
 	_, copyErr := io.Copy(tmp, rc)
-	rc.Close()
-	tmp.Close()
+	readCloseErr := rc.Close()
+	writeCloseErr := tmp.Close()
 	defer os.Remove(tmpPath)
 	if copyErr != nil {
 		return fmt.Errorf("rebuild: copy original: %w", copyErr)
+	}
+	if readCloseErr != nil {
+		return fmt.Errorf("rebuild: close source: %w", readCloseErr)
+	}
+	if writeCloseErr != nil {
+		return fmt.Errorf("rebuild: close temporary source: %w", writeCloseErr)
 	}
 
 	meta := media.Meta{
@@ -658,6 +693,20 @@ func (i *Importer) RebuildDerivatives(ctx context.Context, assetID string) error
 		WebViewable: webViewable != 0,
 		DurationMS:  durationMS,
 	}
+	// Stored web_viewable includes compatibility supplied by a derivative.
+	if meta.MediaType == domain.MediaVideo {
+		probed, err := media.ProbeVideo(ctx, tmpPath, meta.MimeType)
+		if err != nil {
+			return fmt.Errorf("rebuild: probe video original: %w", err)
+		}
+		meta.WebViewable = probed.WebViewable
+	} else {
+		probed, err := i.Media.Probe(ctx, tmpPath)
+		if err != nil {
+			return fmt.Errorf("rebuild: probe image original: %w", err)
+		}
+		meta.WebViewable = probed.WebViewable && media.IsWebImage(meta.MimeType)
+	}
 
 	var firstErr error
 	run := func(kind string, fn func() error) {
@@ -667,6 +716,35 @@ func (i *Importer) RebuildDerivatives(ctx context.Context, assetID string) error
 				firstErr = err
 			}
 			return
+		}
+		derivativeKind := kind
+		if kind == "thumbnail" {
+			derivativeKind = "thumb"
+		}
+		if kind == "playback" {
+			derivativeKind = "preview"
+		}
+		required := (kind == "thumbnail" && meta.MediaType == domain.MediaImage) ||
+			(kind == "poster" && meta.MediaType == domain.MediaVideo) ||
+			((kind == "preview" || kind == "playback") && !meta.WebViewable)
+		if required {
+			var path string
+			err := i.DB.QueryRowContext(ctx, `SELECT path FROM derivatives WHERE asset_id=? AND kind=?`, assetID, derivativeKind).Scan(&path)
+			if err == nil {
+				var size int64
+				size, err = i.Store.Size(ctx, "derivatives/"+path)
+				if err == nil && size == 0 {
+					err = errors.New("empty derivative")
+				}
+			}
+			if err != nil {
+				err = fmt.Errorf("rebuild: required %s unavailable: %w", kind, err)
+				i.recordMediaIssue(ctx, assetID, kind, err)
+				if firstErr == nil {
+					firstErr = err
+				}
+				return
+			}
 		}
 		i.clearMediaIssue(ctx, assetID, kind)
 	}

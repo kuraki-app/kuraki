@@ -101,6 +101,36 @@ func TestCaptureUploadResumesAndQueuesImport(t *testing.T) {
 		t.Fatalf("job status = %q, want queued", status)
 	}
 
+	workerCtx, stopWorker := context.WithCancel(context.Background())
+	workerDone := make(chan struct{})
+	go func() { q.Start(workerCtx); close(workerDone) }()
+	defer func() { stopWorker(); <-workerDone }()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if err := database.QueryRow(`SELECT status FROM jobs WHERE id=?`, completed.JobID).Scan(&status); err != nil {
+			t.Fatal(err)
+		}
+		if status == "succeeded" {
+			break
+		}
+		if status == "failed" || time.Now().After(deadline) {
+			t.Fatalf("capture import status=%q", status)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	assets := getJSONWithCookie[apitypes.AssetList](t, router, "/api/assets", cookie)
+	if len(assets.Assets) != 1 {
+		t.Fatalf("completed capture missing from owner's library: %+v", assets)
+	}
+	var ownerID string
+	var actualOwner string
+	if err := database.QueryRow(`SELECT owner_id FROM devices WHERE id=?`, device.ID).Scan(&actualOwner); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.QueryRow(`SELECT owner_id FROM assets`).Scan(&ownerID); err != nil || ownerID != actualOwner {
+		t.Fatalf("capture ownership=%q device owner=%q error=%v", ownerID, actualOwner, err)
+	}
+
 	revokeReq := httptest.NewRequest(http.MethodDelete, "/api/devices/"+device.ID, nil)
 	revokeReq.AddCookie(cookie)
 	revokeRec := httptest.NewRecorder()

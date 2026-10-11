@@ -127,7 +127,7 @@ func classifyBytes(head []byte) (Capability, bool) {
 		return imageCap("image/webp", true), true
 	case len(head) >= 12 && string(head[:4]) == "RIFF" && string(head[8:12]) == "AVI ":
 		return videoCap("video/x-msvideo"), true
-	case len(head) >= 2 && (bytes.Equal(head[:2], []byte{'I', 'I'}) || bytes.Equal(head[:2], []byte{'M', 'M'})) &&
+	case len(head) >= 4 && (bytes.Equal(head[:2], []byte{'I', 'I'}) || bytes.Equal(head[:2], []byte{'M', 'M'})) &&
 		((head[0] == 'I' && head[2] == 0x2a && head[3] == 0) || (head[0] == 'M' && head[2] == 0 && head[3] == 0x2a)):
 		return imageCap("image/tiff", false), true
 	case len(head) >= 2 && bytes.Equal(head[:2], []byte("BM")):

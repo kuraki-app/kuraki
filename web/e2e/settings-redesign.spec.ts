@@ -111,6 +111,23 @@ test('regular accounts do not request admin settings when opening a restricted p
   expect(adminRequests).toEqual([]);
 });
 
+test('regular account overview skips server-wide maintenance status', async ({ page }) => {
+  await page.route('**/api/setup', async route => {
+    const response = await route.fetch();
+    const status = await response.json();
+    await route.fulfill({ response, json: { ...status, user: { ...status.user, role: 'user' } } });
+  });
+  const requests: string[] = [];
+  page.on('request', request => {
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/backup' || path === '/api/integrity') requests.push(path);
+  });
+  await gotoApp(page, '/settings');
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+  await expect(page.getByText('Integrity', { exact: true })).toHaveCount(0);
+  expect(requests).toEqual([]);
+});
+
 test('mobile navigation exposes the four primary destinations', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await gotoApp(page, '/');

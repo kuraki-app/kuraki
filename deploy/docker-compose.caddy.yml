@@ -7,9 +7,11 @@
 #
 # Usage:
 #   1. Point an A/AAAA record for photos.example.com at this host.
-#   2. Replace photos.example.com and the email below.
-#   3. docker compose -f deploy/docker-compose.caddy.yml up -d
-#   4. Open https://photos.example.com and create the owner account.
+#   2. Set your domain/email in Caddyfile and export KURAKI_PUBLIC_URL=https://YOUR_DOMAIN.
+#   3. Provision fresh mounts: sudo install -d -m 0750 -o 10001 -g 10001 /srv/kuraki/data /mnt/kuraki-backups
+#   4. Pull, then run python3 scripts/check-deployment.py deploy/docker-compose.caddy.yml.
+#   5. docker compose -f deploy/docker-compose.caddy.yml up -d
+#   6. Open your HTTPS domain and create the owner account.
 #
 # See DEPLOYMENT.md for the security rationale behind each setting.
 
@@ -23,10 +25,10 @@ services:
     expose:
       - "39170"
     volumes:
-      - ./kuraki-data:/data
-      # Keep automatic backups on a SEPARATE disk/mount from ./kuraki-data so a
+      - ${KURAKI_DATA_PATH:-/srv/kuraki/data}:/data
+      # Keep automatic backups on a SEPARATE disk/mount from the library so a
       # disk failure cannot take the library and its backups together.
-      - /mnt/backups/kuraki:/backups
+      - ${KURAKI_BACKUP_PATH:-/mnt/kuraki-backups}:/backups
     environment:
       KURAKI_DATA_DIR: /data
       KURAKI_ADDR: ":39170"
@@ -41,7 +43,7 @@ services:
       # The address a phone should connect to. Behind a proxy neither the
       # scheme, the host nor the port matches this container's listener, so it
       # has to be stated. Use the same domain as the Caddyfile.
-      # KURAKI_PUBLIC_URL: "https://photos.example.com"
+      KURAKI_PUBLIC_URL: ${KURAKI_PUBLIC_URL:-https://photos.example.com}
     healthcheck:
       test: ["CMD", "kuraki", "healthcheck"]
       interval: 30s
@@ -53,7 +55,8 @@ services:
     container_name: kuraki-caddy
     restart: unless-stopped
     depends_on:
-      - kuraki
+      kuraki:
+        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"

@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/kuraki-app/kuraki/internal/config"
+	"github.com/kuraki-app/kuraki/internal/maintenance"
 	"github.com/kuraki-app/kuraki/internal/media"
 	"github.com/kuraki-app/kuraki/internal/queue"
 	"github.com/kuraki-app/kuraki/internal/storage"
@@ -26,11 +27,12 @@ import (
 
 // Deps are the collaborators the HTTP layer needs.
 type Deps struct {
-	Version string
-	DB      *sql.DB
-	Store   storage.Storage
-	Media   media.Processor
-	Queue   *queue.Queue
+	Version     string
+	DB          *sql.DB
+	Store       storage.Storage
+	Media       media.Processor
+	Queue       *queue.Queue
+	Maintenance *maintenance.Manager
 	// Settings holds the live, resolved server configuration (see
 	// internal/config.Store) and is the backing store for GET/PATCH
 	// /api/settings. Nil is safe for any route that does not touch it —
@@ -52,7 +54,7 @@ type Deps struct {
 
 	// SecureCookies marks the session cookie Secure (HTTPS-only) in production.
 	SecureCookies bool
-	// TrustProxy derives the client IP from X-Forwarded-For / X-Real-IP. Only
+	// TrustProxy derives the client IP from canonical X-Forwarded-For. Only
 	// enable it behind a trusted reverse proxy; otherwise the true TCP peer is
 	// used so per-IP rate limits cannot be spoofed away.
 	TrustProxy bool
@@ -87,17 +89,19 @@ func NewRouter(d Deps) http.Handler {
 	}
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
-	// RealIP rewrites RemoteAddr from X-Forwarded-For / X-Real-IP, which a client
+	// Trusted forwarding rewrites RemoteAddr from X-Forwarded-For, which a client
 	// can forge unless a trusted proxy overwrites those headers. Only enable it
 	// when explicitly told we sit behind such a proxy, so the login/pairing rate
 	// limiters key on the unspoofable TCP peer by default.
 	if d.TrustProxy {
-		r.Use(middleware.RealIP)
+		r.Use(trustedForwardedIP)
 	}
 	r.Use(middleware.Recoverer)
 	r.Use(d.observeRequests)
 	r.Use(securityHeaders(d.SecureCookies))
 	r.Use(sameOriginWrites)
+	r.Use(boundRequestBodies)
+	r.Use(credentialConcurrency(make(chan struct{}, 2)))
 	// Compress text responses (JSON API + UI bundles); media types are skipped
 	// so range requests and already-compressed images/videos pass through.
 	r.Use(middleware.Compress(5, "application/json", "text/html", "text/css",
@@ -106,6 +110,7 @@ func NewRouter(d Deps) http.Handler {
 
 	// Login throttle: ~10 attempts then 1 per 6s per IP (F-14).
 	loginLimiter := newIPLimiter(rate.Every(6*time.Second), 10, 10*time.Minute)
+	setupLimiter := newIPLimiter(rate.Every(6*time.Second), 5, 10*time.Minute)
 	// Pairing-claim throttle: the endpoint is unauthenticated, so bound guesses
 	// per IP even though codes carry full entropy.
 	pairLimiter := newIPLimiter(rate.Every(6*time.Second), 10, 10*time.Minute)
@@ -122,7 +127,7 @@ func NewRouter(d Deps) http.Handler {
 		r.Get("/status", d.status)
 		r.Get("/openapi.json", d.serveOpenAPI)
 		r.Get("/setup", d.setupStatus)
-		r.Post("/setup", d.setup)
+		r.With(setupLimiter.middleware).Post("/setup", d.setup)
 		r.With(loginLimiter.middleware).Post("/login", d.login)
 		r.Post("/logout", d.logout)
 		r.Get("/me", d.me)
@@ -177,6 +182,14 @@ func NewRouter(d Deps) http.Handler {
 			r.Delete("/albums/{id}", d.deleteAlbum)
 			r.Post("/albums/{id}/assets", d.addAlbumAssets)
 			r.Delete("/albums/{id}/assets", d.removeAlbumAssets)
+			// Trips sit in the shared group deliberately: mobile needs every
+			// one of these, and Improvement D's rule is that a client need is
+			// met by widening this tree, never by forking a second one.
+			r.Get("/trips", d.listTrips)
+			r.Get("/trips/{id}", d.getTrip)
+			r.Patch("/trips/{id}", d.patchTrip)
+			r.Post("/trips/{id}/assets", d.addTripAssets)
+			r.Delete("/trips/{id}/assets", d.removeTripAssets)
 
 			// --- SESSION-ONLY (owner console) ---
 			r.Group(func(r chi.Router) {
@@ -200,10 +213,11 @@ func NewRouter(d Deps) http.Handler {
 				r.With(d.requireOwner).Delete("/users/{id}", d.deleteUser)
 				r.Get("/events", d.events)
 				r.Post("/duplicates/run", d.runDuplicates)
+				r.Post("/trips/run", d.runTrips)
 				r.Get("/export", d.exportLibrary)
-				r.Get("/integrity", d.integrity)
-				r.Post("/integrity/run", d.runIntegrity)
-				r.Get("/backup", d.backupStatus)
+				r.With(d.requireOwner).Get("/integrity", d.integrity)
+				r.With(d.requireOwner).Post("/integrity/run", d.runIntegrity)
+				r.With(d.requireOwner).Get("/backup", d.backupStatus)
 				// Creating an external library names an absolute path on the
 				// SERVER's filesystem and indexes every media file under it as
 				// assets owned by the caller. That is server administration, not

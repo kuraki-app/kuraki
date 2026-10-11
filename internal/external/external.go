@@ -13,7 +13,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/kuraki-app/kuraki/internal/fts"
+	"github.com/kuraki-app/kuraki/internal/importer"
 	"github.com/kuraki-app/kuraki/internal/media"
+	"github.com/kuraki-app/kuraki/internal/storage"
 	"github.com/zeebo/blake3"
 )
 
@@ -21,10 +23,14 @@ type Result struct{ Scanned, Indexed, Skipped int }
 
 // Scan indexes an existing directory. It does not write, rename, or remove a
 // source file; only the database and replaceable derivatives may change.
-func Scan(ctx context.Context, db *sql.DB, processor media.Processor, libraryID, ownerID, root string) (Result, error) {
+func Scan(ctx context.Context, db *sql.DB, processor media.Processor, libraryID, ownerID, root string, stores ...storage.Storage) (Result, error) {
 	root, err := filepath.Abs(root)
 	if err != nil {
 		return Result{}, err
+	}
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return Result{}, fmt.Errorf("external: resolve root: %w", err)
 	}
 	info, err := os.Stat(root)
 	if err != nil {
@@ -42,6 +48,12 @@ func Scan(ctx context.Context, db *sql.DB, processor media.Processor, libraryID,
 			return err
 		}
 		if e.IsDir() {
+			return nil
+		}
+		// A linked file may escape the external root or enter managed storage.
+		// Sources are read-only; skip links and special files rather than follow them.
+		if !e.Type().IsRegular() {
+			result.Skipped++
 			return nil
 		}
 		cap, ok := media.Classify(path)
@@ -77,6 +89,16 @@ func Scan(ctx context.Context, db *sql.DB, processor media.Processor, libraryID,
 		}
 		if _, err := db.ExecContext(ctx, `INSERT INTO change_log(entity,entity_id,op,owner_id) VALUES('asset',?,'create',?)`, id.String(), ownerID); err != nil {
 			return err
+		}
+		if len(stores) != 0 && stores[0] != nil {
+			runner := importer.Importer{DB: db, Store: stores[0], Media: processor}
+			if err := runner.RebuildDerivatives(ctx, id.String()); err != nil {
+				// A derivative failure never modifies or forgets the external
+				// original; Activity records the repairable processing failure.
+				if _, recordErr := db.ExecContext(ctx, `INSERT INTO media_issues(asset_id,kind,message) VALUES (?,'rebuild',?) ON CONFLICT(asset_id,kind) DO UPDATE SET message=excluded.message`, id.String(), err.Error()); recordErr != nil {
+					return recordErr
+				}
+			}
 		}
 		result.Indexed++
 		return nil

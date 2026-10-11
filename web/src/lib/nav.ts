@@ -5,6 +5,7 @@ import {
   CalendarClock,
   MapPin,
   Tags,
+  Luggage,
   Archive,
   EyeOff,
   Copy,
@@ -43,7 +44,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: '/collections', label: 'Collections', icon: FolderOpen, register: 'kura' },
       { href: '/memories', label: 'On this day', icon: CalendarClock, register: 'kura' },
       { href: '/places', label: 'Places', icon: MapPin, register: 'kura' },
-      { href: '/tags', label: 'Tags', icon: Tags, register: 'kura' }
+      { href: '/tags', label: 'Tags', icon: Tags, register: 'kura' },
+      { href: '/trips', label: 'Trips', icon: Luggage, register: 'kura' }
     ]
   },
   {

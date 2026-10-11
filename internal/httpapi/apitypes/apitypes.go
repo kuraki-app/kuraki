@@ -158,6 +158,45 @@ type AlbumList struct {
 	Albums []Album `json:"albums" validate:"required"`
 }
 
+// Trip is the wire representation of a detected trip.
+//
+// No label is sent. The server reports the raw facts -- dominant place and the
+// date range -- and shared/trips.ts formats them, so web and mobile cannot
+// drift into naming the same trip two different ways. Name is non-empty only
+// when the user set one, which is also what NameSource reports.
+type Trip struct {
+	ID   string `json:"id" validate:"required"`
+	Name string `json:"name" validate:"required"`
+	// NameSource is "auto" or "user". A user-named trip is never renamed by a
+	// recompute and is never deleted as stale.
+	NameSource   string `json:"name_source" validate:"required" enums:"auto,user"`
+	StartedAt    string `json:"started_at" validate:"required"`
+	EndedAt      string `json:"ended_at" validate:"required"`
+	PlaceCity    string `json:"place_city" validate:"required"`
+	PlaceCountry string `json:"place_country" validate:"required"`
+	AssetCount   int    `json:"asset_count" validate:"required"`
+	Hidden       bool   `json:"hidden" validate:"required"`
+	// CoverAssetIDs are the newest few members, for the same 2x2 mosaic an
+	// album cover draws. Never null on the wire.
+	CoverAssetIDs []string `json:"cover_asset_ids" validate:"required"`
+}
+
+// TripList is the envelope for the trip list endpoint.
+type TripList struct {
+	Trips []Trip `json:"trips" validate:"required"`
+}
+
+// TripRequest is the request body for editing a trip. Every field is optional:
+// a nil pointer means "leave this alone", which is what lets one endpoint serve
+// rename, re-cover and hide without three round trips.
+type TripRequest struct {
+	// Name set to "" reverts the trip to its automatic label.
+	Name *string `json:"name"`
+	// CoverAssetID set to "" reverts to the automatic cover.
+	CoverAssetID *string `json:"cover_asset_id"`
+	Hidden       *bool   `json:"hidden"`
+}
+
 // BatchRequest is the request body for the multi-select batch-op endpoint.
 type BatchRequest struct {
 	IDs []string `json:"ids"`
@@ -251,8 +290,9 @@ type ZipRequest struct {
 
 // ZipItem describes one entry to stream into a zip archive.
 type ZipItem struct {
-	StoragePath string // path within the store, e.g. originals/2026/07/x.jpg
-	ZipName     string // entry name inside the archive
+	StoragePath  string // path within the store, e.g. originals/2026/07/x.jpg
+	ZipName      string // entry name inside the archive
+	ExternalPath string // read-only indexed original; never serialized in an API
 }
 
 // DupAsset is the wire representation of an asset inside a duplicate group.

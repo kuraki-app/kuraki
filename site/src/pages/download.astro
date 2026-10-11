@@ -30,13 +30,14 @@ const binaries = [
       <h2 class="h3" id="docker">Docker — the recommended way</h2>
       <p>
         The image bundles libvips, ffmpeg and tesseract, so HEIC, video posters and optional OCR all
-        work out of the box. It runs a single process on port 3000 which serves the API, the media
+        work out of the box. It runs a single process on port 39170 which serves the API, the media
         and the web UI from one origin.
       </p>
-      <pre class="code"><code>docker run -d -p 3000:3000 -v "$PWD/kuraki-data:/data" {IMAGE}</code></pre>
+      <pre class="code"><code>sudo install -d -m 0750 -o 10001 -g 10001 ./kuraki-data # fresh Linux bind mount
+docker run -d -p 39170:39170 -v "$PWD/kuraki-data:/data" {IMAGE}</code></pre>
       <p class="small">
         Multi-architecture (amd64 and arm64), built on native runners rather than emulated.
-        Then open <code>http://localhost:3000</code> and create the owner account.
+        Then open <code>http://localhost:39170</code> and create the owner account.
       </p>
 
       <h2 class="h3" id="binaries">Single-file binaries</h2>

@@ -84,16 +84,16 @@ func (d Deps) rebuildAsset(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "lookup_failed")
 		return
 	}
-	if d.Media == nil {
+	if d.Media == nil || d.Maintenance == nil {
 		writeError(w, http.StatusServiceUnavailable, "media_unavailable")
 		return
 	}
 
 	runner := importer.Importer{DB: d.DB, Store: d.Store, Media: d.Media, ThumbMaxEdge: d.ThumbSize}
-	go func() {
-		if err := runner.RebuildDerivatives(context.Background(), id); err != nil {
-			d.Logger.Warn("rebuild derivatives failed", "asset", id, "err", err)
-		}
-	}()
+	if err := d.Maintenance.Schedule("rebuild/"+id, func(ctx context.Context) error { return runner.RebuildDerivatives(ctx, id) }); err != nil {
+		w.Header().Set("Retry-After", "2")
+		writeError(w, http.StatusServiceUnavailable, "maintenance_busy")
+		return
+	}
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "rebuilding"})
 }

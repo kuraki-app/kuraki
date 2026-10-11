@@ -105,10 +105,13 @@ func TestQueueProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := database.Exec(`INSERT INTO users(id,username,password_hash) VALUES ('owner-id','owner','hash')`); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := database.ExecContext(ctx, `
-		INSERT INTO jobs (id, kind, owner, source, status, total, next_attempt_at)
-		VALUES ('j1', 'import', 'owner', ?, 'queued', 1, '2000-01-01T00:00:00Z')`, src); err != nil {
+		INSERT INTO jobs (id, kind, owner, owner_id, source, status, total, next_attempt_at)
+		VALUES ('j1', 'import', 'owner', 'owner-id', ?, 'queued', 1, '2000-01-01T00:00:00Z')`, src); err != nil {
 		t.Fatal(err)
 	}
 
@@ -163,7 +166,10 @@ func TestEnqueueUploadPreservesDuplicateFilenames(t *testing.T) {
 		jpegBytes(t, color.RGBA{255, 0, 0, 255}),
 		jpegBytes(t, color.RGBA{0, 0, 255, 255}),
 	)
-	jobID, err := q.EnqueueUpload(ctx, "owner", files)
+	if _, err := database.Exec(`INSERT INTO users(id,username,password_hash) VALUES ('owner-id','owner','hash')`); err != nil {
+		t.Fatal(err)
+	}
+	jobID, err := q.EnqueueUpload(ctx, "owner-id", files)
 	if err != nil {
 		t.Fatal(err)
 	}

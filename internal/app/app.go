@@ -33,6 +33,8 @@ import (
 	"github.com/kuraki-app/kuraki/internal/stacks"
 	"github.com/kuraki-app/kuraki/internal/storage"
 	"github.com/kuraki-app/kuraki/internal/thumbs"
+	"github.com/kuraki-app/kuraki/internal/trash"
+	"github.com/kuraki-app/kuraki/internal/trips"
 	"github.com/kuraki-app/kuraki/internal/verify"
 
 	"database/sql"
@@ -90,6 +92,10 @@ func New(ctx context.Context, cfg config.Config, getenv func(string) string, ver
 	if err != nil {
 		database.Close()
 		return nil, err
+	}
+	if err := trash.Reconcile(ctx, database, store); err != nil {
+		database.Close()
+		return nil, fmt.Errorf("app: reconcile original locations: %w", err)
 	}
 
 	proc := newProcessor() // build-tag selected (purego by default)
@@ -433,6 +439,9 @@ func (a *App) storeOCR(ctx context.Context, id, text string) error {
 // Serve starts the HTTP server and blocks until ctx is cancelled, then shuts
 // down gracefully.
 func (a *App) Serve(ctx context.Context) error {
+	ctx, stop := context.WithCancel(ctx)
+	queueDone := make(chan struct{})
+	defer func() { stop(); a.Maintenance.Wait(); <-queueDone }()
 	a.Maintenance.Start(ctx)
 	a.startOCRWorker(ctx)
 	go a.backfillPlaces(ctx)
@@ -441,8 +450,14 @@ func (a *App) Serve(ctx context.Context) error {
 		if err := stacks.Detect(ctx, a.DB); err != nil {
 			a.Log.Warn("stack detection failed", "err", err)
 		}
+		// Same goroutine rather than its own: both are idempotent full-library
+		// passes over the same rows, and running them in sequence keeps two
+		// scans off the disk at once during startup.
+		if err := trips.Detect(ctx, a.DB); err != nil {
+			a.Log.Warn("trip detection failed", "err", err)
+		}
 	}()
-	go a.Queue.Start(ctx)
+	go func() { defer close(queueDone); a.Queue.Start(ctx) }()
 
 	// Change broker: one poller fans change_log advances out to SSE subscribers
 	// (GET /api/events), so connected web clients get near-real-time updates
@@ -453,13 +468,14 @@ func (a *App) Serve(ctx context.Context) error {
 
 	booted := a.Settings.Booted()
 	handler := httpapi.NewRouter(httpapi.Deps{
-		Version:   a.Version,
-		DB:        a.DB,
-		Store:     a.Store,
-		Media:     a.Media,
-		Queue:     a.Queue,
-		Settings:  a.Settings,
-		ThumbSize: booted.ThumbnailSize,
+		Version:     a.Version,
+		DB:          a.DB,
+		Store:       a.Store,
+		Media:       a.Media,
+		Queue:       a.Queue,
+		Maintenance: a.Maintenance,
+		Settings:    a.Settings,
+		ThumbSize:   booted.ThumbnailSize,
 		Thumbs: &thumbs.Service{
 			DB: a.DB, Store: a.Store, Media: a.Media, Log: a.Log,
 			MediumEdge: booted.ThumbnailSize, Workers: booted.ThumbWorkers, MaxQueue: booted.ThumbQueue,
@@ -485,6 +501,7 @@ func (a *App) Serve(ctx context.Context) error {
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       60 * time.Second,
 		MaxHeaderBytes:    1 << 20,
+		BaseContext:       func(net.Listener) context.Context { return ctx },
 	}
 
 	errCh := make(chan error, 1)

@@ -44,7 +44,11 @@ func TestScanIndexesWithoutCopyingOriginal(t *testing.T) {
 	if err := database.QueryRowContext(ctx, `SELECT external_path FROM assets WHERE external_library_id='lib'`).Scan(&stored); err != nil {
 		t.Fatal(err)
 	}
-	if stored != path {
+	realPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored != realPath {
 		t.Fatalf("path=%q want %q", stored, path)
 	}
 	if _, err := os.Stat(path); err != nil {
@@ -69,5 +73,33 @@ func writeJPEG(t *testing.T, path string) {
 	defer f.Close()
 	if err := jpeg.Encode(f, img, nil); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestScanNeverFollowsFileSymlinks(t *testing.T) {
+	ctx := context.Background()
+	database, err := db.Open(ctx, filepath.Join(t.TempDir(), "kuraki.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	if err := db.Migrate(database, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(`INSERT INTO users(id,username,password_hash) VALUES ('owner','owner','hash')`); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	original := filepath.Join(t.TempDir(), "private.jpg")
+	writeJPEG(t, original)
+	if err := os.Symlink(original, filepath.Join(root, "linked.jpg")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if _, err := database.Exec(`INSERT INTO external_libraries(id,owner_id,name,root_path) VALUES ('lib','owner','Links',?)`, root); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Scan(ctx, database, media.NewPureGo(), "lib", "owner", root)
+	if err != nil || result.Indexed != 0 {
+		t.Fatalf("linked private file indexed: %+v %v", result, err)
 	}
 }

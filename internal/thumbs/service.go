@@ -78,6 +78,7 @@ func (s *Service) init() {
 }
 
 type assetState struct {
+	ownerID                 string
 	mediaType, originalPath string
 	externalPath            sql.NullString
 	gen, width, height      int
@@ -108,7 +109,7 @@ const stateSQL = `
 	WHERE a.id = ? AND a.owner_id = ? AND a.deleted_at IS NULL`
 
 func (s *Service) load(ctx context.Context, ownerID, assetID string, edge int) (assetState, error) {
-	var st assetState
+	st := assetState{ownerID: ownerID}
 	err := s.DB.QueryRowContext(ctx, stateSQL, edge, assetID, ownerID).Scan(
 		&st.mediaType, &st.originalPath, &st.externalPath, &st.gen, &st.width, &st.height,
 		&st.thumbFormat, &st.thumbPath, &st.thumbW, &st.thumbH,
@@ -139,6 +140,18 @@ func (st assetState) medium(assetID string) (Variant, bool) {
 	}, true
 }
 
+func (st assetState) cachedVariant(assetID string) (Variant, bool) {
+	medium, ok := st.medium(assetID)
+	if !ok || !st.variantPath.Valid || int(st.variantGen.Int64) != st.gen {
+		return Variant{}, false
+	}
+	return Variant{
+		Rel: "derivatives/" + st.variantPath.String, ContentType: ContentType(st.variantFormat.String),
+		Format: st.variantFormat.String, Version: medium.Version,
+		Width: int(st.variantW.Int64), Height: int(st.variantH.Int64),
+	}, true
+}
+
 // Get returns the servable file for tier, rendering it at most once per
 // (asset, edge, generation) across concurrent callers.
 func (s *Service) Get(ctx context.Context, ownerID, assetID string, tier Tier) (Variant, error) {
@@ -156,13 +169,9 @@ func (s *Service) Get(ctx context.Context, ownerID, assetID string, tier Tier) (
 		s.hits.Add(1)
 		return medium, nil
 	}
-	if st.variantPath.Valid && int(st.variantGen.Int64) == st.gen {
+	if cached, ok := st.cachedVariant(assetID); ok {
 		s.hits.Add(1)
-		return Variant{
-			Rel: "derivatives/" + st.variantPath.String, ContentType: ContentType(st.variantFormat.String),
-			Format: st.variantFormat.String, Version: medium.Version,
-			Width: int(st.variantW.Int64), Height: int(st.variantH.Int64),
-		}, nil
+		return cached, nil
 	}
 
 	key := fmt.Sprintf("%s:%d:%d", assetID, edge, st.gen)
@@ -196,6 +205,18 @@ func (s *Service) Get(ctx context.Context, ownerID, assetID string, tier Tier) (
 func (s *Service) render(ctx context.Context, assetID string, edge int, st assetState, medium Variant) (Variant, error) {
 	ctx, cancel := context.WithTimeout(ctx, flightTimeout)
 	defer cancel()
+	// A caller's pre-flight read can outlive a completed flight. Recheck the
+	// durable result inside the flight before spending a worker on stale state.
+	fresh, err := s.load(ctx, st.ownerID, assetID, edge)
+	if err != nil {
+		return Variant{}, err
+	}
+	if fresh.gen == st.gen {
+		if cached, ok := fresh.cachedVariant(assetID); ok {
+			s.hits.Add(1)
+			return cached, nil
+		}
+	}
 
 	if s.waiting.Add(1) > int64(s.MaxQueue) {
 		s.waiting.Add(-1)
@@ -266,7 +287,8 @@ func (s *Service) source(ctx context.Context, st assetState, medium Variant) (st
 		return s.localFile(ctx, medium.Rel)
 	}
 	if st.externalPath.Valid && st.externalPath.String != "" {
-		return st.externalPath.String, func() {}, nil
+		p, err := (storage.Original{Path: st.originalPath, ExternalPath: st.externalPath.String}).LocalPath(s.Store)
+		return p, func() {}, err
 	}
 	return s.localFile(ctx, "originals/"+st.originalPath)
 }

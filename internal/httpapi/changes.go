@@ -86,6 +86,15 @@ func (d Deps) changes(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	var head int64
+	if err := d.DB.QueryRowContext(r.Context(), `SELECT COALESCE(MAX(id),0) FROM change_log WHERE owner_id=?`, owner).Scan(&head); err != nil {
+		writeError(w, http.StatusInternalServerError, "changes_head_failed")
+		return
+	}
+	if since > head {
+		writeJSON(w, http.StatusOK, apitypes.ChangesResponse{Reset: true, Cursor: head, Changes: make([]apitypes.ChangeEntry, 0)})
+		return
+	}
 
 	rows, err := d.DB.QueryContext(r.Context(),
 		`SELECT id, entity, entity_id, op FROM change_log

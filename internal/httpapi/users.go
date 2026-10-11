@@ -11,7 +11,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/kuraki-app/kuraki/internal/auth"
+	"github.com/kuraki-app/kuraki/internal/fts"
 	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
+	"github.com/kuraki-app/kuraki/internal/storage"
 )
 
 // Roles. Kuraki's model is isolated libraries: an admin administers accounts
@@ -312,70 +314,90 @@ func (d Deps) deleteUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// purgeUserLibrary destroys a user's assets and the files behind them. The DB
-// rows go first only after the files, so a mid-purge failure leaves rows
-// pointing at missing files (visible and repairable via media health) rather
-// than orphaned files with no record that they exist.
+// purgeUserLibrary retires assets and records file cleanup in one transaction.
+// A failed removal remains discoverable and is retried by reconciliation.
 func (d Deps) purgeUserLibrary(r *http.Request, userID string) error {
 	ctx := r.Context()
-	rows, err := d.DB.QueryContext(ctx,
-		`SELECT id, original_path FROM assets WHERE owner_id = ?`, userID)
+	unlock, err := storage.LockLibrary(ctx, d.Store, true)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	tx, err := d.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	// Ingestion holds a shared library lock, so once this writer owns the lock
+	// there can be no partially imported original omitted from this deletion.
+	if _, err := tx.ExecContext(ctx, `UPDATE users SET disabled_at = ? WHERE id = ?`, nowCaptureText(), userID); err != nil {
+		return err
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT id, original_path, external_path FROM assets WHERE owner_id = ?`, userID)
 	if err != nil {
 		return fmt.Errorf("httpapi: list user assets: %w", err)
 	}
-	type asset struct{ id, path string }
+	type asset struct {
+		id, path string
+		external sql.NullString
+	}
 	var assets []asset
 	for rows.Next() {
 		var a asset
-		if err := rows.Scan(&a.id, &a.path); err != nil {
+		if err := rows.Scan(&a.id, &a.path, &a.external); err != nil {
 			rows.Close()
-			return fmt.Errorf("httpapi: scan user asset: %w", err)
+			return err
 		}
 		assets = append(assets, a)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("httpapi: iterate user assets: %w", err)
+		return err
 	}
-
 	for _, a := range assets {
-		derivs, err := d.DB.QueryContext(ctx,
-			`SELECT path FROM derivatives WHERE asset_id = ? UNION SELECT path FROM thumb_variants WHERE asset_id = ?`, a.id, a.id)
+		derivs, err := tx.QueryContext(ctx, `SELECT path FROM derivatives WHERE asset_id = ? UNION SELECT path FROM thumb_variants WHERE asset_id = ?`, a.id, a.id)
 		if err != nil {
-			return fmt.Errorf("httpapi: list derivatives: %w", err)
+			return err
 		}
+		var paths []string
 		for derivs.Next() {
-			var p string
-			if err := derivs.Scan(&p); err != nil {
+			var path string
+			if err := derivs.Scan(&path); err != nil {
 				derivs.Close()
-				return fmt.Errorf("httpapi: scan derivative: %w", err)
+				return err
 			}
-			// Rows store paths relative to the derivatives root, not the data dir.
-			if err := d.Store.Remove(ctx, "derivatives/"+p); err != nil {
-				d.Logger.Warn("purge: remove derivative failed", "asset", a.id, "path", p, "err", err)
-			}
+			paths = append(paths, "derivatives/"+path)
 		}
 		derivs.Close()
-		if a.path != "" {
-			if err := d.Store.Remove(ctx, "originals/"+a.path); err != nil {
-				d.Logger.Warn("purge: remove original failed", "asset", a.id, "path", a.path, "err", err)
+		if err := derivs.Err(); err != nil {
+			return err
+		}
+		if !a.external.Valid && a.path != "" {
+			paths = append(paths, "originals/"+a.path, "trash/"+a.path)
+		}
+		for _, path := range paths {
+			if err := storage.RecordCleanup(ctx, tx, path); err != nil {
+				return err
 			}
 		}
+		if err := fts.Delete(ctx, tx, a.id); err != nil {
+			return err
+		}
 	}
-
-	// assets cascade to derivatives, album_assets, asset_tags and media_issues
-	// via ON DELETE CASCADE; albums and tags are owned rows in their own right.
 	for _, stmt := range []string{
 		`DELETE FROM assets WHERE owner_id = ?`,
 		`DELETE FROM albums WHERE owner_id = ?`,
 		`DELETE FROM tags WHERE owner_id = ?`,
 		`DELETE FROM change_log WHERE owner_id = ?`,
 	} {
-		if _, err := d.DB.ExecContext(ctx, stmt, userID); err != nil {
-			return fmt.Errorf("httpapi: purge rows: %w", err)
+		if _, err := tx.ExecContext(ctx, stmt, userID); err != nil {
+			return err
 		}
 	}
-	return nil
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return storage.DrainCleanup(ctx, d.DB, d.Store)
 }
 
 // revokeAccess ends every active session and device token for a user, so

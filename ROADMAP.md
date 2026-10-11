@@ -12,6 +12,13 @@ existing promise works.
 
 ## Now — release and data-trust blockers
 
+The current pre-deployment findings and remediation evidence are tracked in
+[PRE_DEPLOYMENT_REVIEW.md](./PRE_DEPLOYMENT_REVIEW.md) and
+[DEPLOYMENT_FIX_PLAN.md](./DEPLOYMENT_FIX_PLAN.md). Authentication, account isolation,
+ingestion, recovery, web and release hardening now pass local verification, including
+exact-image recovery and a private HTTPS proxy. The remaining environment-specific
+certification below is still required.
+
 - **[production blocker] Truthful, certified media contract — Regular users and
   self-hosters — M.** Make Docker's libvips claim true with a tested `-tags
   vips` build while keeping native defaults pure-Go, or remove the broad-format
@@ -45,8 +52,9 @@ existing promise works.
   for operational controls, with explicit live/restart semantics and
   environment/CLI pinning. The current pass additionally adds authenticated
   low-cardinality HTTP, database-pool, and import-job metrics plus structured
-  request logs. This does not close the blocker: deployment validation,
-  scanning, audit evidence, and alert thresholds remain required.
+  request logs. The pre-deployment hardening adds deployment preflight, dependency/image scanning
+  and exact-image private-TLS/restore smoke gates. Actual target-host validation,
+  systematic audit evidence and alert thresholds still remain required.
 
 - **[production blocker] Mobile release certification — Mobile users — M.** Add
   iOS/Android identifiers and signed release profiles, decide crash/error
@@ -143,8 +151,18 @@ existing promise works.
   progress indicator. Server discovery, QR/manual pairing, and optional photo permission retain
   their existing behavior while showing less copy.
 
+- **[done] Trips — all users — M.** Photos taken away from home group themselves by
+  capture time and distance, with a place-and-date name and no configuration. Home is
+  the median location of the library, so nothing new has to be declared or stored about
+  the user. Detection re-runs after every import and **never overwrites a user's name,
+  additions or removals** — membership rows record their own source, so re-running is
+  safe by construction rather than by care. Constants (20h gap, 60km split, 8 photos,
+  50km from home) were chosen by reasoning; a real library should be used to check them.
+
 - **[new feature] Smart albums — Organizers — M.** Build on saved searches with
-  explicit ownership, preview, and reversible membership semantics.
+  explicit ownership, preview, and reversible membership semantics. Trips above is the
+  worked precedent for reversible derived membership; reuse the `source`-column overlay
+  rather than inventing a second scheme.
 
 - **[improvement] Fixture-first media expansion — Camera users — M per format.**
   Expand only formats that pass the support matrix; a decoder dependency alone

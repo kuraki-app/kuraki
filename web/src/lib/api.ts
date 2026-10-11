@@ -1,5 +1,6 @@
 import { session } from './stores';
-import type { Album, Asset, AssetList, BackupStatus, ChangesResponse, DeviceInfo, DupAsset, DuplicateRun, ExternalLibrary, IntegrityRun, Job, JobDetail, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SettingsPatchResponse, SettingsResponse, SetupStatus, Tag, UserCreate, UserList, UserPatch, UserSummary } from './types';
+import { get } from 'svelte/store';
+import type { Album, Asset, AssetList, BackupStatus, ChangesResponse, DeviceInfo, DupAsset, DuplicateRun, ExternalLibrary, IntegrityRun, Job, JobDetail, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SettingsPatchResponse, SettingsResponse, SetupStatus, Tag, Trip, UserCreate, UserList, UserPatch, UserSummary } from './types';
 
 export type AssetPatch = {
   taken_at?: string;
@@ -16,7 +17,11 @@ function jsonBody(obj: unknown, method = 'POST'): RequestInit {
 }
 
 async function req<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, { credentials: 'same-origin', ...init });
+	const headers = new Headers(init?.headers);
+	const expectedOwner = headers.get('X-Kuraki-Owner-ID') ?? get(session).user?.id;
+	if (expectedOwner) headers.set('X-Kuraki-Owner-ID', expectedOwner);
+	const res = await fetch(url, { credentials: 'same-origin', ...init, headers });
+	if (expectedOwner && get(session).user?.id !== expectedOwner) throw new Error('account_changed');
   if (res.status === 401) {
     session.update((s) => ({ ...s, user: null }));
   }
@@ -24,6 +29,9 @@ async function req<T>(url: string, init?: RequestInit): Promise<T> {
     const body = await res.json().catch(() => ({}));
     const message =
       body && typeof body.error === 'string' ? body.error : `${res.status} ${res.statusText}`;
+    if (message === 'account_changed' && expectedOwner && get(session).user?.id === expectedOwner) {
+      session.update((s) => ({ ...s, user: null }));
+    }
     throw new Error(message);
   }
   const type = res.headers.get('content-type') ?? '';
@@ -119,6 +127,18 @@ export const api = {
     ids: string[]
   ) => req<{ succeeded: number }>('/api/assets/batch', jsonBody({ op, ids })),
 
+  trips: () => req<{ trips: Trip[] }>('/api/trips'),
+  trip: (id: string, cursor = '', signal?: AbortSignal) =>
+    req<AssetList>(`/api/trips/${id}?${pageParams(cursor)}`, { signal }),
+  // name: '' reverts to the automatic label; cover_asset_id: '' to the
+  // automatic cover. Omitted fields are left alone by the server.
+  patchTrip: (id: string, patch: { name?: string; cover_asset_id?: string; hidden?: boolean }) =>
+    req<{ id: string }>(`/api/trips/${id}`, jsonBody(patch, 'PATCH')),
+  addToTrip: (id: string, ids: string[]) =>
+    req<{ added: number }>(`/api/trips/${id}/assets`, jsonBody({ ids })),
+  removeFromTrip: (id: string, ids: string[]) =>
+    req<{ removed: number }>(`/api/trips/${id}/assets`, jsonBody({ ids }, 'DELETE')),
+  runTrips: () => req<{ status: string }>('/api/trips/run', { method: 'POST' }),
   albums: () => req<{ albums: Album[] }>('/api/albums'),
   album: (id: string, cursor = '', signal?: AbortSignal) => req<AssetList>(`/api/albums/${id}?${pageParams(cursor)}`, { signal }),
   stack: (id: string) => req<AssetList>(`/api/assets/${id}/stack`),
@@ -152,8 +172,11 @@ export const api = {
   deleteTag: (id: string) => req<void>(`/api/tags/${id}`, { method: 'DELETE' }),
   assetTags: (id: string) => req<{ tags: Tag[] }>(`/api/assets/${id}/tags`),
   setAssetTags: (id: string, ids: string[]) => req<{ tags: Tag[] }>(`/api/assets/${id}/tags`, jsonBody({ ids }, 'PUT')),
-  changes: (since: number, limit?: number) =>
-    req<ChangesResponse>(`/api/changes?since=${since}${limit ? `&limit=${limit}` : ''}`),
+  changes: (since: number, limit?: number, expectedOwner?: string, signal?: AbortSignal) =>
+    req<ChangesResponse>(`/api/changes?since=${since}${limit ? `&limit=${limit}` : ''}`, {
+      headers: expectedOwner ? { 'X-Kuraki-Owner-ID': expectedOwner } : undefined,
+      signal
+    }),
   savedSearches: () => req<{ saved_searches: SavedSearch[] }>('/api/saved-searches'),
   createSavedSearch: (name: string, query: Record<string, string>) => req<SavedSearch>('/api/saved-searches', jsonBody({ name, query })),
   deleteSavedSearch: (id: string) => req<void>(`/api/saved-searches/${id}`, { method: 'DELETE' }),
@@ -211,18 +234,22 @@ export class UploadHTTPError extends Error {
 
 export function uploadFiles(
   files: File[],
-  onProgress: (pct: number) => void
+  onProgress: (pct: number) => void,
+  ownerId: string,
+  signal?: AbortSignal
 ): Promise<{ job_id: string; count: number }> {
   return new Promise((resolve, reject) => {
     const form = new FormData();
     for (const f of files) form.append('file', f);
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/assets');
+    xhr.setRequestHeader('X-Kuraki-Owner-ID', ownerId);
     xhr.withCredentials = true;
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     };
     xhr.onload = () => {
+      signal?.removeEventListener('abort', abort);
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
           resolve(JSON.parse(xhr.responseText || '{}'));
@@ -230,10 +257,20 @@ export function uploadFiles(
           resolve({ job_id: '', count: 0 });
         }
       } else {
+        if (xhr.status === 403 && get(session).user?.id === ownerId) {
+          try {
+            if (JSON.parse(xhr.responseText).error === 'account_changed') session.update((s) => ({ ...s, user: null }));
+          } catch { /* A non-JSON failure remains retryable. */ }
+        }
         reject(new UploadHTTPError(xhr.status));
       }
     };
-    xhr.onerror = () => reject(new UploadHTTPError(0));
+    const abort = () => xhr.abort();
+    const fail = () => { signal?.removeEventListener('abort', abort); reject(new UploadHTTPError(0)); };
+    xhr.onerror = fail;
+    xhr.onabort = fail;
+    if (signal?.aborted) { fail(); return; }
+    signal?.addEventListener('abort', abort, { once: true });
     xhr.send(form);
   });
 }

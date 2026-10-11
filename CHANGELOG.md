@@ -9,8 +9,50 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ## [Unreleased]
 
+### Added
+
+- **Trips: photos taken away from home group themselves.** A run of captures that sits
+  away from your library's usual location, or spans more than one day, becomes a trip
+  with a place-and-date name like "Jaipur · 1-4 March 2024". Nothing to create and
+  nothing to configure. Trips appear under Collections on the web and on the phone, and
+  `trip=<id>` joins the shared filter language, so both clients can filter by one.
+  You can rename a trip, and add or remove photos from it. **Detection re-runs after
+  every import without overwriting any of that**: a Takeout dump imported next month
+  joins the trips it belongs to, while your names, your additions and your removals all
+  survive. Photos with no capture date never join a trip.
+
 ### Changed
 
+- **Release candidates must pass verification before publication.** Shared Go/web/mobile
+  checks, dependency scans, exact-image web/device ingestion and backup/restore, and an
+  isolated HTTPS proxy test now gate release publishing. Go and image dependencies are
+  patched; install commands provision non-root storage and use the correct port. Docker
+  restore mounts a writable parent, and a deployment preflight checks private HTTPS and
+  service-user mount access. Trusted forwarding ignores alternate spoofable IP headers;
+  operational metrics require an administrator or the configured scraper token.
+- **Media repairs retain unresolved health issues.** Video repair probes video codecs,
+  unsupported derivatives remain errors, and required files must exist before health is
+  cleared. Rebuild and external-library removal serialize generated-file retirement with
+  backups; external cleanup is journaled. Password operations share a concurrency limit.
+  Late thumbnail requests recheck published results to avoid duplicate rendering.
+
+- **Browser uploads stay with the account that selected them.** The server checks each
+  upload's expected account before staging, and account changes stop active senders.
+  Plain-HTTP LAN uploads now have a working queue ID fallback. Library sync resumes per
+  account and resets after an older backup is restored. Regular accounts skip administrator
+  maintenance status, and compatible web dependency updates clear the advisory scan.
+- **Trash and recovery preserve stable originals.** Soft deletion changes catalog visibility;
+  originals keep their paths until permanent deletion. Interrupted cleanup is journaled and
+  retried. Backups coordinate with purge, publish only after complete finalization, and restores
+  verify archive integrity, SQLite and referenced originals. External assets now support
+  verification, rebuild, export and catalog trash without changing their source files. Manual
+  rebuild/verification work is bounded and coalesced; instant-span Trips keep their identity.
+- **Account and ingestion boundaries are hardened.** First-run setup can be claimed only
+  once; disabled accounts cannot sign in. Device uploads and Activity use canonical account
+  IDs, failed or interrupted uploads keep their staged originals, and malformed media is
+  rejected without taking down the server. External scans exclude managed storage and file
+  symlinks. Small API requests have explicit size and read-time bounds; server-wide backup
+  and integrity tools require an administrator.
 - **Thumbnails now come in three sizes with forever-cacheable URLs.** Grids load a 256, 512 or
   1200 px thumbnail through `srcset` for the tile's rendered width, and the viewer's placeholder
   uses the 1200 px size. The 512 px size is still made at import; the others are made the first time

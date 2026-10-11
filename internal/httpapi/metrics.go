@@ -39,7 +39,11 @@ func (d Deps) requireMetricsAuth(next http.Handler) http.Handler {
 				return
 			}
 		}
-		if d.currentUser(r) != nil {
+		if user := d.currentUser(r); user != nil {
+			if user.Role != roleAdmin {
+				writeError(w, http.StatusForbidden, "admin_required")
+				return
+			}
 			next.ServeHTTP(w, r)
 			return
 		}

@@ -15,6 +15,11 @@ import (
 )
 
 const sessionCookieName = "kuraki_session"
+const expectedOwnerHeader = "X-Kuraki-Owner-ID"
+
+var errSetupClaimed = errors.New("setup already complete")
+
+const maxCredentialBytes = 1024
 
 // setupStatus reports whether initial setup is required and, if signed in,
 // the current user.
@@ -59,6 +64,10 @@ func (d Deps) setup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Username = strings.TrimSpace(req.Username)
+	if len(req.Username) > 128 || len(req.Password) > maxCredentialBytes {
+		writeError(w, http.StatusBadRequest, "invalid_credentials_length")
+		return
+	}
 	if req.Username == "" {
 		// Default the owner account name; the placeholder row that CLI imports
 		// create (username "owner", empty password) is still claimed by
@@ -76,6 +85,10 @@ func (d Deps) setup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	userID, err := d.upsertSetupUser(r.Context(), req.Username, hash)
+	if errors.Is(err, errSetupClaimed) {
+		writeError(w, http.StatusConflict, "setup_already_complete")
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "setup_user_failed")
 		return
@@ -109,9 +122,13 @@ func (d Deps) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Username = strings.TrimSpace(req.Username)
+	if len(req.Username) > 128 || len(req.Password) > maxCredentialBytes {
+		writeError(w, http.StatusBadRequest, "invalid_credentials_length")
+		return
+	}
 	var userID, username, role, passwordHash string
 	err := d.DB.QueryRowContext(r.Context(),
-		`SELECT id, username, role, password_hash FROM users WHERE username = ? AND password_hash <> ''`,
+		`SELECT id, username, role, password_hash FROM users WHERE username = ? AND password_hash <> '' AND disabled_at IS NULL`,
 		req.Username).Scan(&userID, &username, &role, &passwordHash)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusUnauthorized, "invalid_credentials")
@@ -223,6 +240,9 @@ func (d Deps) requirePrincipal(next http.Handler) http.Handler {
 			return
 		}
 		if ok {
+			if !matchesExpectedOwner(w, r, dev.OwnerID) {
+				return
+			}
 			p := principal{OwnerID: dev.OwnerID, Kind: principalDevice, DeviceID: dev.ID}
 			ctx := context.WithValue(r.Context(), captureDeviceKey{}, dev)
 			ctx = context.WithValue(ctx, principalCtxKey{}, p)
@@ -230,12 +250,23 @@ func (d Deps) requirePrincipal(next http.Handler) http.Handler {
 			return
 		}
 		if u := d.currentUser(r); u != nil {
+			if !matchesExpectedOwner(w, r, u.ID) {
+				return
+			}
 			p := principal{OwnerID: u.ID, Kind: principalSession, Role: u.Role}
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalCtxKey{}, p)))
 			return
 		}
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 	})
+}
+
+func matchesExpectedOwner(w http.ResponseWriter, r *http.Request, owner string) bool {
+	if expected := r.Header.Get(expectedOwnerHeader); expected != "" && expected != owner {
+		writeError(w, http.StatusForbidden, "account_changed")
+		return false
+	}
+	return true
 }
 
 func principalFrom(r *http.Request) (principal, bool) {
@@ -321,9 +352,22 @@ func (d Deps) upsertSetupUser(ctx context.Context, username, passwordHash string
 	}
 	defer tx.Rollback()
 
+	// Acquire SQLite's writer lock before checking eligibility. A setup request
+	// may have spent arbitrarily long reading its body before this transaction.
+	if _, err := tx.ExecContext(ctx, `UPDATE users SET password_hash = password_hash WHERE password_hash = ''`); err != nil {
+		return "", err
+	}
+	var claimed int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE password_hash <> ''`).Scan(&claimed); err != nil {
+		return "", err
+	}
+	if claimed != 0 {
+		return "", errSetupClaimed
+	}
+
 	var id string
 	err = tx.QueryRowContext(ctx,
-		`SELECT id FROM users WHERE username = ? OR (username = 'owner' AND password_hash = '') ORDER BY username = ? DESC LIMIT 1`,
+		`SELECT id FROM users WHERE password_hash = '' AND (username = ? OR username = 'owner') ORDER BY username = ? DESC LIMIT 1`,
 		username, username).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		newID, err := uuid.NewV7()

@@ -25,9 +25,7 @@ func TestCreateRestoreRoundTrip(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(source, "originals", "2026", "07", "photo.jpg"), []byte("original bytes"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(source, "kuraki.db"), []byte("database bytes"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeFixtureDB(t, source)
 	if err := os.MkdirAll(filepath.Join(source, "staging"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +252,20 @@ func writeTree(t *testing.T, dataDir string) {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(dataDir, "kuraki.db"), []byte("not a real db"), 0o644); err != nil {
+	writeFixtureDB(t, dataDir)
+}
+
+func writeFixtureDB(t *testing.T, dataDir string) {
+	t.Helper()
+	database, err := db.Open(context.Background(), filepath.Join(dataDir, "kuraki.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(`CREATE TABLE fixture (value TEXT)`); err != nil {
+		database.Close()
+		t.Fatal(err)
+	}
+	if err := database.Close(); err != nil {
 		t.Fatal(err)
 	}
 }

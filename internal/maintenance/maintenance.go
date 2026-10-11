@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/kuraki-app/kuraki/internal/backup"
@@ -25,10 +26,15 @@ const (
 
 // Manager coordinates scheduled maintenance against one library.
 type Manager struct {
-	db       *sql.DB
-	store    storage.Storage
-	settings *config.Store
-	log      *slog.Logger
+	db          *sql.DB
+	store       storage.Storage
+	settings    *config.Store
+	log         *slog.Logger
+	manualMu    sync.Mutex
+	manualCtx   context.Context
+	manualQueue chan manualWork
+	manualKeys  map[string]bool
+	manualWG    sync.WaitGroup
 }
 
 // New returns a maintenance manager for one assembled application.
@@ -36,12 +42,13 @@ func New(db *sql.DB, store storage.Storage, settings *config.Store, log *slog.Lo
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Manager{db: db, store: store, settings: settings, log: log}
+	return &Manager{db: db, store: store, settings: settings, log: log, manualQueue: make(chan manualWork, 32), manualKeys: make(map[string]bool)}
 }
 
 // Start performs the cheap startup sweeps and launches all recurring work.
 // Every goroutine exits when ctx is cancelled.
 func (m *Manager) Start(ctx context.Context) {
+	m.startManual(ctx)
 	m.startTrashJanitor(ctx)
 	m.startChangeLogJanitor(ctx)
 	m.startCaptureJanitor(ctx)
@@ -85,12 +92,9 @@ func (m *Manager) startIntegrityScheduler(ctx context.Context) {
 		return err != nil || time.Since(t) >= integrityInterval
 	}
 	run := func() {
-		result, err := verify.RunAndRecord(ctx, m.db, m.store)
-		if err != nil {
-			m.log.Warn("integrity verification failed", "err", err)
-			return
+		if err := m.ScheduleIntegrity(); err != nil {
+			m.log.Warn("integrity scheduling failed", "err", err)
 		}
-		m.log.Info("integrity verification complete", "checked", result.Checked, "problems", len(result.Problems))
 	}
 	go delayedLoop(ctx, 30*time.Second, daily, func() {
 		if due() {
@@ -137,6 +141,10 @@ func (m *Manager) startBackupScheduler(ctx context.Context) {
 
 func (m *Manager) startTrashJanitor(ctx context.Context) {
 	run := func() {
+		if err := trash.Reconcile(ctx, m.db, m.store); err != nil {
+			m.log.Warn("trash reconciliation failed", "err", err)
+			return
+		}
 		n, err := m.PurgeTrash(ctx)
 		if err != nil {
 			m.log.Warn("trash purge failed", "err", err)

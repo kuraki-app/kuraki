@@ -13,6 +13,17 @@ const LEASE_MS = 5 * 60 * 1000;
 
 export const UPLOAD_SYNC_TAG = 'kuraki-upload-queue';
 
+// getRandomValues is available on the supported plain-HTTP LAN deployment;
+// randomUUID is exposed only in secure contexts (localhost masks that gap).
+export function uploadId(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 type StoredBatch = {
   id: string;
   ownerId: string;
@@ -93,7 +104,7 @@ export async function enqueueUploads(files: File[], ownerId: string): Promise<Up
     const createdAt = Date.now();
     for (const [index, file] of files.entries()) {
       store.put({
-        id: crypto.randomUUID(),
+        id: uploadId(),
         ownerId,
         createdAt: createdAt + index,
         files: [file],
@@ -152,7 +163,7 @@ async function releaseBatch(db: IDBDatabase, batch: StoredBatch): Promise<void> 
  * removed so one unsupported file cannot block every photo behind it. */
 export async function drainUploads<T>(
   ownerId: string,
-  send: (files: File[]) => Promise<T>
+  send: (files: File[], expectedOwnerId: string) => Promise<T>
 ): Promise<UploadDrainResult<T>> {
   const active = activeDrains.get(ownerId);
   if (active) return active as Promise<UploadDrainResult<T>>;
@@ -167,7 +178,7 @@ export async function drainUploads<T>(
         const batch = await claimNext(db, ownerId);
         if (!batch) break;
         try {
-          const value = await send(batch.files);
+          const value = await send(batch.files, batch.ownerId);
           sent.push({ value, files: batch.files.length });
           await removeBatch(db, batch.id);
         } catch (error) {
