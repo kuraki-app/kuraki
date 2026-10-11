@@ -481,9 +481,6 @@ func (i *Importer) createThumbnail(ctx context.Context, assetID, srcPath string,
 	edge := i.thumbEdge()
 	var buf bytes.Buffer
 	if err := i.Media.Thumbnail(ctx, srcPath, edge, &buf); err != nil {
-		if errors.Is(err, media.ErrUnsupported) {
-			return nil
-		}
 		return fmt.Errorf("create thumbnail: encode derivative: %w", err)
 	}
 
@@ -520,9 +517,6 @@ func (i *Importer) createPoster(ctx context.Context, assetID, srcPath string, me
 	}
 	var buf bytes.Buffer
 	if err := i.Media.Poster(ctx, srcPath, &buf); err != nil {
-		if errors.Is(err, media.ErrUnsupported) {
-			return nil
-		}
 		return fmt.Errorf("create poster: encode derivative: %w", err)
 	}
 	if h, ok := media.PerceptualHash(buf.Bytes()); ok {
@@ -644,7 +638,7 @@ func (i *Importer) clearMediaIssue(ctx context.Context, assetID, kind string) {
 // clears the media issues it resolves and removes the previous generation's
 // files once the new rows are committed. The original is untouched.
 func (i *Importer) RebuildDerivatives(ctx context.Context, assetID string) error {
-	unlock, err := storage.LockLibrary(ctx, i.Store, false)
+	unlock, err := storage.LockLibrary(ctx, i.Store, true)
 	if err != nil {
 		return err
 	}
@@ -700,11 +694,19 @@ func (i *Importer) RebuildDerivatives(ctx context.Context, assetID string) error
 		DurationMS:  durationMS,
 	}
 	// Stored web_viewable includes compatibility supplied by a derivative.
-	probed, err := i.Media.Probe(ctx, tmpPath)
-	if err != nil {
-		return fmt.Errorf("rebuild: probe original: %w", err)
+	if meta.MediaType == domain.MediaVideo {
+		probed, err := media.ProbeVideo(ctx, tmpPath, meta.MimeType)
+		if err != nil {
+			return fmt.Errorf("rebuild: probe video original: %w", err)
+		}
+		meta.WebViewable = probed.WebViewable
+	} else {
+		probed, err := i.Media.Probe(ctx, tmpPath)
+		if err != nil {
+			return fmt.Errorf("rebuild: probe image original: %w", err)
+		}
+		meta.WebViewable = probed.WebViewable && media.IsWebImage(meta.MimeType)
 	}
-	meta.WebViewable = probed.WebViewable
 
 	var firstErr error
 	run := func(kind string, fn func() error) {
@@ -714,6 +716,35 @@ func (i *Importer) RebuildDerivatives(ctx context.Context, assetID string) error
 				firstErr = err
 			}
 			return
+		}
+		derivativeKind := kind
+		if kind == "thumbnail" {
+			derivativeKind = "thumb"
+		}
+		if kind == "playback" {
+			derivativeKind = "preview"
+		}
+		required := (kind == "thumbnail" && meta.MediaType == domain.MediaImage) ||
+			(kind == "poster" && meta.MediaType == domain.MediaVideo) ||
+			((kind == "preview" || kind == "playback") && !meta.WebViewable)
+		if required {
+			var path string
+			err := i.DB.QueryRowContext(ctx, `SELECT path FROM derivatives WHERE asset_id=? AND kind=?`, assetID, derivativeKind).Scan(&path)
+			if err == nil {
+				var size int64
+				size, err = i.Store.Size(ctx, "derivatives/"+path)
+				if err == nil && size == 0 {
+					err = errors.New("empty derivative")
+				}
+			}
+			if err != nil {
+				err = fmt.Errorf("rebuild: required %s unavailable: %w", kind, err)
+				i.recordMediaIssue(ctx, assetID, kind, err)
+				if firstErr == nil {
+					firstErr = err
+				}
+				return
+			}
 		}
 		i.clearMediaIssue(ctx, assetID, kind)
 	}

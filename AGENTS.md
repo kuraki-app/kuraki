@@ -15,18 +15,30 @@
 
 A self-hosted photo & video backup server with a Google-Photos-style web library.
 **Thesis: own your library** — originals kept intact on disk in a readable layout,
-boring snapshot-protected upgrades, zero lock-in. Docker-first (ffmpeg bundled;
-libvips runtime packages are present, but the current image binary is still
-pure-Go until the media-contract blocker is closed). It targets the gap between
+boring snapshot-protected upgrades, zero lock-in. Docker-first (libvips-tagged image
+and ffmpeg bundled; broader format certification remains a release evidence gate).
+It targets the gap between
 Immich (heavy) and Ente (hard to self-host).
 Phase 1 = single-owner personal backup.
 
 ## 2. Current state
 
+- **Pre-deployment hardening complete (2026-10-11).** Branch `codex/pre-deployment-hardening`
+  fixes the 22 findings in `PRE_DEPLOYMENT_REVIEW.md`; consult its remediation/evidence
+  section for release decisions. Go 1.26.9 and patched dependencies, private proxy/mount
+  preflight, candidate-image recovery/TLS/scans now gate publication. Video rebuilds
+  dispatch video probing, required derivatives remain health errors when unavailable,
+  and rebuild/external removal hold the exclusive snapshot lock. Credential work is
+  capped at two concurrent operations. Late thumbnail flights recheck persisted variants
+  before rendering; a deterministic regression and repeated concurrency checks cover it.
+  Local Go/web/mobile/build and actual ARM64 image recovery/proxy checks passed. Physical-device, exotic-media, real DNS/certificate and
+  large-library evidence remain ROADMAP gates. Do not confuse these local proofs with
+  target-host certification. Migrations now through `00030`.
+
 - **Pre-deployment review (2026-10-11).** Before deploying or addressing release blockers,
-  read [PRE_DEPLOYMENT_REVIEW.md](./PRE_DEPLOYMENT_REVIEW.md) for the current checkout's
-  reproduced failure paths and verification limits. Deployment is held pending remediation;
-  this audit changed documentation only.
+  read [PRE_DEPLOYMENT_REVIEW.md](./PRE_DEPLOYMENT_REVIEW.md) for original reproduced
+  failures and current remediation evidence. The original audit held its baseline; the
+  hardening milestone above supersedes that hold on implementation defects.
 - **Hardening milestone 1 (2026-10-11).** `codex/pre-deployment-hardening` fixes the setup
   claim race, malformed-media panics, failed-upload retention, device/queue account
   identity, private Activity reads, external-root/symlink admission, and JSON read bounds.
@@ -154,7 +166,7 @@ Phase 1 = single-owner personal backup.
 - **Import/export safety (2026-07-10):** browser queue staging isolates each uploaded file, so repeated filenames cannot overwrite one another. Portable backup format v2 records an archive manifest; restore validates it in a temporary sibling directory before swapping into an empty target. `kuraki backup` takes an online SQLite snapshot before packaging a live library. ZIP exports preflight originals and bypass the normal API deadline, so they no longer quietly omit unavailable files or time out at 60 seconds.
 - **Capture foundation (2026-07-10):** migration `00012` adds revocable devices and resumable upload sessions. Browser-authenticated users create a device token; `POST/PATCH/complete /api/capture/uploads` writes bounded chunks to staging and hands a complete file to the existing queue/importer. `mobile/` is an Expo/React Native iOS+Android client with SecureStore settings, status receipts, and manual photo selection/upload. It also does automatic camera-roll backup (persisted, restart/network-loss safe), OS background scheduling, streamed large-file uploads, QR pairing, and per-album selection.
   **[CORRECTED 2026-07-30 — "the Capture loop is functionally complete" was overstated and has been removed from this entry.]** An audit against the code found the background task was registered only from the Backup screen's switch handler (so it silently stopped after a reinstall or a device restore), ran **upload only** (server→client sync had no background trigger at all), requested media permissions from a headless context Android cannot serve, and could not read its own credentials on a locked iOS device. Restart-safety was per-file, not per-byte. All fixed in `fix/mobile-android-parity-background-sync` — see §11.
-- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00028`.
+- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00030`.
 - **The repository is public, and named `kuraki` (2026-08-12).** It had been renamed to
   `kuraki-photos` at some point and was **private**, which is why the README's clone URL, its CI
   badge, and the landing page's only call to action all returned 404 to anyone outside the org —
@@ -325,7 +337,7 @@ internal/
   app/                 composition root — wires everything; owns server lifecycle + workers
   config/              zero-config defaults + KURAKI_* env resolution
   domain/              core entities — **NO I/O EVER**
-  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00025)
+  db/                  Open (WAL + perf pragmas), Migrate (+snapshot); migrations embedded (→ 00030)
   storage/             Storage interface + FS impl (write-once, atomic, traversal-safe)
   media/               Processor interface + purego.go fallback + vips.go tagged backend, ffmpeg, EXIF
   importer/            recursive import, BLAKE3 dedup, import_state resume, derivatives; Takeout + geocode
@@ -395,7 +407,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | Area | Status |
 |---|---|
 | Pre-deployment review (2026-10-11) | ✅ audit complete; ⛔ deployment pending fixes in PRE_DEPLOYMENT_REVIEW.md |
-| Deployment hardening | 🟡 authentication/isolation/ingestion milestone passed; recovery/web/release pending (DEPLOYMENT_FIX_PLAN.md) |
+| Deployment hardening | ✅ all 22 code findings fixed; local candidate recovery/TLS/scans and regression suites passed; target-host/hardware certification stays explicit (DEPLOYMENT_FIX_PLAN.md) |
 | Recovery hardening | ✅ stable soft deletion, cleanup journal (00030), cross-process backup/purge coordination, complete archive validation, bounded manual maintenance and external lifecycle regressions |
 | Web hardening | ✅ account-bound upload/read transport, scoped/live sync cursors, HTTP LAN IDs, admin status gating, patched dependencies (zero npm advisories), focused browser regressions |
 | Server foundation, import, media pipeline, web UI, auth, trash, verify, video | ✅ done |
@@ -545,6 +557,22 @@ audited baseline and release checklist.
   (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/pre-deployment-hardening` (2026-10-11, Codex) — **Release/deployment milestone completed.**
+  Shared verification gates binary/image/manifest/release jobs; each architecture's exact
+  candidate is exercised and scanned before publication. Go 1.26.9, x/crypto/x/net and
+  Debian runtime packages patched. Fresh-mount install entry points provision UID/GID
+  10001 and use 39170; Docker restore mounts a writable parent. Added resolved deployment
+  preflight and disposable exact-image web/device/recovery/TLS smoke scripts. Caddy strips
+  alternate client-IP headers, server accepts canonical forwarding only, metrics require
+  admin/token, password work is globally bounded per router. Review caught video repair
+  dispatch, unsupported derivative health and derivative retirement/snapshot gaps; fixed
+  with real playback, unavailable-tool and coordination regressions. The full tagged suite
+  exposed late thumbnail flights duplicating a completed render; fixed with an owner-scoped
+  persisted-result recheck plus deterministic and repeated public concurrency coverage. Go/web/mobile/static
+  suites, 124 Chromium checks and runtime image recovery/TLS/scans pass; unimported
+  openpgp advisory and hardware/target-host/broad-format limits documented. No operator
+  data touched. Deliver via a PR; no release/tag deployed by this task.
 
 - `codex/pre-deployment-hardening` (2026-10-11, Codex) — **Web account boundaries and LAN uploads hardened.**
   Session uploads require `X-Kuraki-Owner-ID`; the principal rejects a changed account

@@ -206,6 +206,23 @@ func TestRunCreatesCompatiblePlaybackForIncompatibleVideo(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dataDir, "derivatives", filepath.FromSlash(path))); err != nil {
 		t.Fatalf("playback derivative missing: %v", err)
 	}
+	if err := os.Remove(filepath.Join(dataDir, "derivatives", filepath.FromSlash(path))); err != nil {
+		t.Fatal(err)
+	}
+	if err := runner.RebuildDerivatives(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	var rebuilt string
+	if err := database.QueryRow(`SELECT path FROM derivatives WHERE asset_id=? AND kind='preview'`, id).Scan(&rebuilt); err != nil {
+		t.Fatal(err)
+	}
+	if rebuilt == path {
+		t.Fatal("playback generation did not change")
+	}
+	info, err := media.ProbeVideo(ctx, filepath.Join(dataDir, "derivatives", rebuilt), "video/mp4")
+	if err != nil || !info.WebViewable {
+		t.Fatalf("rebuilt playback is incompatible: %+v %v", info, err)
+	}
 }
 
 func newTestImporter(t *testing.T, ctx context.Context) (Importer, *sql.DB, string) {

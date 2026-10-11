@@ -56,14 +56,28 @@ npm advisories. Server-wide maintenance status is requested/rendered only for ad
 
 ## 4. Deployment and release verification
 
-- [ ] 11: select a patched Go toolchain and rescan reachable symbols.
-- [ ] 13: make publishing depend on verification of the same artifact/commit.
-- [ ] 14: repair and smoke-test the Docker restore procedure.
-- [ ] Add service-account mount provisioning and deployment preflight.
-- [ ] Add dependency/container scans and an artifact-level recovery smoke flow.
-- [ ] Run Go race/vet/build, web type/unit/build/browser, mobile static tests, contract/UI drift, and tagged-media/container checks when the runtime is available.
-- [ ] Update the review with evidence and explicitly retain any hardware/target-host certification limits.
-- [ ] Push the completed branch and create/attach the PR.
+- [x] 11: select a patched Go toolchain and rescan reachable symbols.
+- [x] 13: make publishing depend on verification of the same artifact/commit.
+- [x] 14: repair and smoke-test the Docker restore procedure.
+- [x] Add service-account mount provisioning and deployment preflight.
+- [x] Add dependency/container scans and an artifact-level recovery smoke flow.
+- [x] Run Go race/vet/build, web type/unit/build/browser, mobile static tests, contract/UI drift, and tagged-media/container checks when the runtime is available.
+- [x] Update the review with evidence and explicitly retain any hardware/target-host certification limits.
+- [x] Prepare the complete branch and substantial final milestone for PR delivery.
+
+Delivery follows the final commit: push this branch and create/attach the PR. No release is published.
+
+Evidence: Go 1.26.9 format/vet/race checks and all supported pure-Go builds,
+contract/UI consistency, workflow lint, six preflight tests, documentation links,
+124 Chromium browser checks, 288 mobile tests and the marketing-site build pass.
+The exact ARM64 libvips runtime image passed web/device ingestion, restart, live
+backup, isolated restore, verification and trash/restore. An isolated Caddy topology
+passed TLS/Secure-cookie/HSTS and forwarding spoof resistance. Trivy reports zero
+fixable HIGH/CRITICAL findings; govulncheck reports no reachable/imported-package
+findings (unimported openpgp remains a module-only advisory with no fix).
+The full Linux libvips-tagged race suite also passed. Physical
+hardware, target-host DNS/certificate renewal and broad media/capacity certification
+remain environment-specific evidence gates, not silently claimed complete.
 
 ## Completion criteria
 

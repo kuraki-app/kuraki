@@ -117,7 +117,7 @@ func TestServerWideOperationsRequireAdministration(t *testing.T) {
 	if _, err := database.Exec(`UPDATE users SET role='user'`); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"/api/backup", "/api/integrity"} {
+	for _, path := range []string{"/api/backup", "/api/integrity", "/metrics"} {
 		if rec := getJSON(t, router, path, cookie); rec.Code != http.StatusForbidden {
 			t.Fatalf("%s status=%d", path, rec.Code)
 		}

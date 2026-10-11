@@ -2,7 +2,7 @@
 #
 # Kuraki container entrypoint.
 #
-# Default (no args, or `serve`): run `kuraki serve` on :3000 — one process that
+# Default (no args, or `serve`): run `kuraki serve` on :39170 — one process that
 # serves the API, media, and the embedded SvelteKit UI (including first-run
 # setup) from a single origin.
 #

@@ -23,6 +23,19 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Changed
 
+- **Release candidates must pass verification before publication.** Shared Go/web/mobile
+  checks, dependency scans, exact-image web/device ingestion and backup/restore, and an
+  isolated HTTPS proxy test now gate release publishing. Go and image dependencies are
+  patched; install commands provision non-root storage and use the correct port. Docker
+  restore mounts a writable parent, and a deployment preflight checks private HTTPS and
+  service-user mount access. Trusted forwarding ignores alternate spoofable IP headers;
+  operational metrics require an administrator or the configured scraper token.
+- **Media repairs retain unresolved health issues.** Video repair probes video codecs,
+  unsupported derivatives remain errors, and required files must exist before health is
+  cleared. Rebuild and external-library removal serialize generated-file retirement with
+  backups; external cleanup is journaled. Password operations share a concurrency limit.
+  Late thumbnail requests recheck published results to avoid duplicate rendering.
+
 - **Browser uploads stay with the account that selected them.** The server checks each
   upload's expected account before staging, and account changes stop active senders.
   Plain-HTTP LAN uploads now have a working queue ID fallback. Library sync resumes per

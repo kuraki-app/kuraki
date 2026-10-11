@@ -6,17 +6,19 @@ order: 10
 
 ## Docker
 
-The image bundles libvips, ffmpeg and tesseract, so HEIC images, video posters and optional OCR all
-work without further setup.
+The image bundles libvips, ffmpeg and tesseract for image previews, video posters and optional OCR.
+See the [media support matrix](https://github.com/kuraki-app/kuraki/blob/main/MEDIA_SUPPORT.md)
+for format-specific support and certification limits.
 
 ```sh
-docker run -d -p 3000:3000 -v "$PWD/kuraki-data:/data" ghcr.io/kuraki-app/kuraki:latest
+sudo install -d -m 0750 -o 10001 -g 10001 ./kuraki-data # fresh Linux bind mount
+docker run -d -p 39170:39170 -v "$PWD/kuraki-data:/data" ghcr.io/kuraki-app/kuraki:latest
 ```
 
-Open `http://localhost:3000` and create the owner account. That first form is the whole setup: there
+Open `http://localhost:39170` and create the owner account. That first form is the whole setup: there
 is no configuration file to write and no external service to sign up for.
 
-The container runs **one process** — `kuraki serve` on port 3000 — which serves the API, the media,
+The container runs **one process** — `kuraki serve` on port 39170 — which serves the API, the media,
 `/healthz`, `/metrics` and the web UI from a single origin. Any argument that is not `serve` is
 passed straight through to the CLI, which is why this works:
 

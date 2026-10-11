@@ -114,7 +114,7 @@ it; that is how it behaves.
 - **Generated API contract** — OpenAPI served at `/api/openapi.json`, with both clients' types
   generated from it and drift gated in CI
 - Aggressive HTTP caching for media/UI, gzip for API responses, and SQLite tuning
-- `/healthz` (public) and `/metrics` (owner-session or `KURAKI_METRICS_TOKEN` bearer) endpoints for monitoring
+- `/healthz` (public) and `/metrics` (admin-session or `KURAKI_METRICS_TOKEN` bearer) endpoints for monitoring
 
 ## Quick start
 
@@ -123,13 +123,14 @@ it; that is how it behaves.
 ```sh
 git clone https://github.com/kuraki-app/kuraki
 cd kuraki
+sudo install -d -m 0750 -o 10001 -g 10001 ./kuraki-data # fresh Linux bind mount
 docker compose up -d
 ```
 
-Open <http://localhost:3000> and create your admin account on first visit. Your library lives in
+Open <http://localhost:39170> and create your admin account on first visit. Your library lives in
 `./kuraki-data` — back up that directory and you have everything.
 
-The container runs a single process — `kuraki serve` on `:3000` — which serves the API, media, and
+The container runs a single process — `kuraki serve` on `:39170` — which serves the API, media, and
 the web UI (including first-run setup) from one origin.
 
 > **Exposing it to the internet?** Put Kuraki behind a reverse proxy that terminates HTTPS and
@@ -141,8 +142,9 @@ the web UI (including first-run setup) from one origin.
 ### Docker
 
 ```sh
-docker run -d -p 3000:3000 -v "$PWD/kuraki-data:/data" ghcr.io/kuraki-app/kuraki:latest
-# :3000 = Go server: API + media + web UI (single origin)
+sudo install -d -m 0750 -o 10001 -g 10001 ./kuraki-data # fresh Linux bind mount
+docker run -d -p 39170:39170 -v "$PWD/kuraki-data:/data" ghcr.io/kuraki-app/kuraki:latest
+# :39170 = Go server: API + media + web UI (single origin)
 ```
 
 ### Bulk import from the command line
@@ -173,7 +175,7 @@ Sensible defaults, no config file required. Override via flags or environment
 | Flag | Env | Default | Description |
 |---|---|---|---|
 | `--data-dir` | `KURAKI_DATA_DIR` | `./kuraki-data` | Library root (DB, originals, derivatives, trash, snapshots) |
-| `--addr` | `KURAKI_ADDR` | `:3000` | HTTP listen address |
+| `--addr` | `KURAKI_ADDR` | `:39170` | HTTP listen address |
 | — | `KURAKI_TRASH_RETENTION_DAYS` | `30` | Days a trashed item is restorable before purge |
 | — | `KURAKI_CHANGELOG_KEEP` | `100000` | Newest change-log rows kept for the delta-sync feed; older rows are pruned and lagging clients are told to resync |
 | — | `KURAKI_THUMBNAIL_SIZE` | `512` | Thumbnail longest-edge size in pixels |
@@ -202,7 +204,7 @@ definite answer instead, set `KURAKI_PUBLIC_URL`:
 
 ```yaml
 environment:
-  KURAKI_PUBLIC_URL: "http://192.168.1.20:3000"   # or https://photos.example.com
+  KURAKI_PUBLIC_URL: "http://192.168.1.20:39170"   # or https://photos.example.com
 ```
 
 ### Android app download

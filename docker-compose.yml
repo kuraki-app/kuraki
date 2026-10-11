@@ -1,6 +1,7 @@
 # Kuraki — single-host production deployment for a trusted private network.
 #
 #   docker compose pull
+#   sudo install -d -m 0750 -o 10001 -g 10001 ./kuraki-data  # fresh Linux bind mount
 #   docker compose up -d      # start the released image, then open http://localhost:39170
 #
 # One container, one process: `kuraki serve` on :39170 serves the API, media, and

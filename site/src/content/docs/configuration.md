@@ -14,7 +14,7 @@ tells you which changes apply immediately and which need a restart.
 | Flag | Environment | Default | What it does |
 |---|---|---|---|
 | `--data-dir` | `KURAKI_DATA_DIR` | `./kuraki-data` | Library root: database, originals, derivatives, trash, snapshots |
-| `--addr` | `KURAKI_ADDR` | `:3000` | HTTP listen address |
+| `--addr` | `KURAKI_ADDR` | `:39170` | HTTP listen address |
 | — | `KURAKI_TRASH_RETENTION_DAYS` | `30` | Days a trashed item stays restorable before it is purged |
 | — | `KURAKI_THUMBNAIL_SIZE` | `512` | Thumbnail longest edge, in pixels |
 | — | `KURAKI_OCR` | off | Opt-in local text recognition in images (needs `tesseract` on PATH) |

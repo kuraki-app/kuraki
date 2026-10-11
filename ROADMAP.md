@@ -15,7 +15,9 @@ existing promise works.
 The current pre-deployment findings and remediation evidence are tracked in
 [PRE_DEPLOYMENT_REVIEW.md](./PRE_DEPLOYMENT_REVIEW.md) and
 [DEPLOYMENT_FIX_PLAN.md](./DEPLOYMENT_FIX_PLAN.md). Authentication, account isolation,
-ingestion, recovery and web regressions now pass; release hardening follows.
+ingestion, recovery, web and release hardening now pass local verification, including
+exact-image recovery and a private HTTPS proxy. The remaining environment-specific
+certification below is still required.
 
 - **[production blocker] Truthful, certified media contract — Regular users and
   self-hosters — M.** Make Docker's libvips claim true with a tested `-tags
@@ -50,8 +52,9 @@ ingestion, recovery and web regressions now pass; release hardening follows.
   for operational controls, with explicit live/restart semantics and
   environment/CLI pinning. The current pass additionally adds authenticated
   low-cardinality HTTP, database-pool, and import-job metrics plus structured
-  request logs. This does not close the blocker: deployment validation,
-  scanning, audit evidence, and alert thresholds remain required.
+  request logs. The pre-deployment hardening adds deployment preflight, dependency/image scanning
+  and exact-image private-TLS/restore smoke gates. Actual target-host validation,
+  systematic audit evidence and alert thresholds still remain required.
 
 - **[production blocker] Mobile release certification — Mobile users — M.** Add
   iOS/Android identifiers and signed release profiles, decide crash/error

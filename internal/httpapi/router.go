@@ -54,7 +54,7 @@ type Deps struct {
 
 	// SecureCookies marks the session cookie Secure (HTTPS-only) in production.
 	SecureCookies bool
-	// TrustProxy derives the client IP from X-Forwarded-For / X-Real-IP. Only
+	// TrustProxy derives the client IP from canonical X-Forwarded-For. Only
 	// enable it behind a trusted reverse proxy; otherwise the true TCP peer is
 	// used so per-IP rate limits cannot be spoofed away.
 	TrustProxy bool
@@ -89,18 +89,19 @@ func NewRouter(d Deps) http.Handler {
 	}
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
-	// RealIP rewrites RemoteAddr from X-Forwarded-For / X-Real-IP, which a client
+	// Trusted forwarding rewrites RemoteAddr from X-Forwarded-For, which a client
 	// can forge unless a trusted proxy overwrites those headers. Only enable it
 	// when explicitly told we sit behind such a proxy, so the login/pairing rate
 	// limiters key on the unspoofable TCP peer by default.
 	if d.TrustProxy {
-		r.Use(middleware.RealIP)
+		r.Use(trustedForwardedIP)
 	}
 	r.Use(middleware.Recoverer)
 	r.Use(d.observeRequests)
 	r.Use(securityHeaders(d.SecureCookies))
 	r.Use(sameOriginWrites)
 	r.Use(boundRequestBodies)
+	r.Use(credentialConcurrency(make(chan struct{}, 2)))
 	// Compress text responses (JSON API + UI bundles); media types are skipped
 	// so range requests and already-compressed images/videos pass through.
 	r.Use(middleware.Compress(5, "application/json", "text/html", "text/css",

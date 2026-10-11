@@ -117,6 +117,25 @@ func TestSameOriginWrites(t *testing.T) {
 	}
 }
 
+func TestTrustedProxyIgnoresAlternateClientIPHeaders(t *testing.T) {
+	var observed string
+	h := trustedForwardedIP(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { observed = clientIP(r) }))
+	req := httptest.NewRequest(http.MethodPost, "/api/login", nil)
+	req.Header.Set("X-Forwarded-For", "203.0.113.10, 192.0.2.1")
+	req.Header.Set("True-Client-IP", "198.51.100.20")
+	req.Header.Set("X-Real-IP", "198.51.100.30")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	if observed != "203.0.113.10" {
+		t.Fatalf("forged alternate header won: %s", observed)
+	}
+	req.Header.Del("X-Forwarded-For")
+	req.RemoteAddr = "192.0.2.1:1234"
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	if observed != "192.0.2.1" {
+		t.Fatalf("alternate header trusted without proxy chain: %s", observed)
+	}
+}
+
 // TestMapTileHostIsPermitted proves the CSP admits whatever tile host the web
 // client actually asks for.
 //

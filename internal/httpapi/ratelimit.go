@@ -60,8 +60,7 @@ func (l *ipLimiter) middleware(next http.Handler) http.Handler {
 	})
 }
 
-// clientIP extracts the client address. chi's RealIP middleware has already
-// normalized RemoteAddr from X-Forwarded-For / X-Real-IP when present.
+// clientIP extracts the TCP peer or the canonical trusted-proxy address.
 func clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {

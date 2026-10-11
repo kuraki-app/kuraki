@@ -30,7 +30,7 @@ COPY internal/httpapi/assets ./internal/httpapi/assets
 RUN cd web && npm run build
 
 # --- Go build stage ---
-FROM golang:1.26-bookworm AS build
+FROM golang:1.26.9-bookworm AS build
 WORKDIR /src
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libvips-dev pkg-config \
@@ -56,7 +56,7 @@ LABEL org.opencontainers.image.title="Kuraki" \
 # dynamically linked against it and will not start without it. ffmpeg powers
 # video posters and playback derivatives; tesseract (with the English model)
 # enables the opt-in local OCR worker when KURAKI_OCR=1.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
       libvips42 ffmpeg tesseract-ocr tesseract-ocr-eng ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /out/kuraki /usr/local/bin/kuraki

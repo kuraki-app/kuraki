@@ -22,13 +22,25 @@ Kuraki over a private Docker network; Kuraki is never published on a host port.
 
 1. Point an `A`/`AAAA` DNS record for `photos.example.com` at the host.
 2. Edit [`deploy/Caddyfile`](deploy/Caddyfile) — replace `photos.example.com` with your domain.
-3. In [`deploy/docker-compose.caddy.yml`](deploy/docker-compose.caddy.yml), adjust the
-   `kuraki-data` and backup mount paths.
-4. Start it:
+3. Set `KURAKI_PUBLIC_URL=https://your-domain` for Compose, matching Caddyfile. Set
+   `KURAKI_DATA_PATH` and `KURAKI_BACKUP_PATH` if the defaults below do not suit the host.
+4. On a fresh Linux host, provision the two bind mounts for the shipped UID/GID:
    ```bash
+   sudo install -d -m 0750 -o 10001 -g 10001 /srv/kuraki/data /mnt/kuraki-backups
+   ```
+   Put the backup path on a separate disk. For an existing library, inspect its ownership
+   and take a backup before changing permissions; do not recursively change ownership blindly.
+5. Pull the image, validate the mounts/settings, then start:
+   ```bash
+   docker compose -f deploy/docker-compose.caddy.yml pull
+   python3 scripts/check-deployment.py deploy/docker-compose.caddy.yml
    docker compose -f deploy/docker-compose.caddy.yml up -d
    ```
-5. Open `https://photos.example.com` and create the owner account.
+6. Open your HTTPS domain and create the owner account. Caddy waits for a healthy app.
+
+The production mounts default to absolute host paths, avoiding an unexpected data
+directory under `deploy/`. Relative paths elsewhere in Compose are resolved against
+the Compose file's directory.
 
 ## The two settings that matter behind a proxy
 
@@ -43,8 +55,9 @@ in production it should always be on so the session cookie can never leak over a
 plaintext request.
 
 ### `KURAKI_TRUST_PROXY=1`
-Makes Kuraki read the client IP from the proxy's `X-Forwarded-For` / `X-Real-IP`
-header instead of the TCP peer (which, behind a proxy, is always the proxy).
+Makes Kuraki read the client IP from the proxy's canonical `X-Forwarded-For`
+header instead of the TCP peer. The proxy must overwrite untrusted incoming values;
+`True-Client-IP` and `X-Real-IP` are deliberately ignored.
 
 **This is the setting to get right.** The per-IP throttles on login and device
 pairing are a real defence against brute force. If you enable `TRUST_PROXY`
@@ -84,14 +97,19 @@ different hardware (or sync it off-site) for real durability.
 Restore on a clean machine with:
 
 ```bash
-kuraki restore kuraki-backup-<timestamp>.tar.gz --data-dir /data
+kuraki restore kuraki-backup-<timestamp>.tar.gz --data-dir /srv/kuraki/restore-root/library
 ```
+
+Use an absent child under a writable parent. In Docker, mount the parent directory;
+the restore destination itself cannot be a bind-mount point because installation uses
+an atomic directory rename. The complete image-based procedure is in
+[RUNNING.md](RUNNING.md#restore-safely).
 
 ## Monitoring
 
 - `GET /healthz` — public liveness probe (also used by the container healthcheck).
 - `GET /metrics` — memory, goroutines, uptime, and library counts. Requires an
-  owner session, or an `Authorization: Bearer <KURAKI_METRICS_TOKEN>` header for
+  administrator session, or an `Authorization: Bearer <KURAKI_METRICS_TOKEN>` header for
   a scraper. Set `KURAKI_METRICS_TOKEN` to a long random string to let Prometheus
   or similar read it without a browser session.
 
@@ -129,7 +147,7 @@ server {
         proxy_pass         http://kuraki:39170;
         proxy_set_header   Host              $host;
         proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-For   $remote_addr;
         proxy_set_header   X-Forwarded-Proto $scheme;
         proxy_request_buffering off;   # stream large uploads
     }

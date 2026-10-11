@@ -190,6 +190,35 @@ func TestGetRendersVariantOnceUnderConcurrency(t *testing.T) {
 	}
 }
 
+// A caller can observe a cache miss, be descheduled, and start its flight only
+// after another caller has published the variant. Model that late render with
+// its captured state to make the concurrency failure deterministic.
+func TestLateRenderReusesPublishedVariant(t *testing.T) {
+	f := newFixture(t)
+	f.addImage(t, "a1")
+	released := make(chan struct{})
+	close(released)
+	p := &gatedProcessor{Processor: media.NewPureGo(), release: released}
+	s := newService(f, p, 2, 64)
+	s.init()
+	stale, err := s.load(f.ctx, "u1", "a1", 1200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	medium, ok := stale.medium("a1")
+	if !ok {
+		t.Fatal("missing fixture medium")
+	}
+	first, err := s.Get(f.ctx, "u1", "a1", TierLarge)
+	if err != nil {
+		t.Fatal(err)
+	}
+	late, err := s.render(f.ctx, "a1", 1200, stale, medium)
+	if err != nil || late != first || p.calls.Load() != 1 {
+		t.Fatalf("late render duplicated work: calls=%d first=%+v late=%+v err=%v", p.calls.Load(), first, late, err)
+	}
+}
+
 func TestCancelledCallerDoesNotCancelRender(t *testing.T) {
 	f := newFixture(t)
 	f.addImage(t, "a1")

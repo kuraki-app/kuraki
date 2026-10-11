@@ -219,6 +219,12 @@ func (d Deps) deleteExternalLibrary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	unlock, err := storage.LockLibrary(r.Context(), d.Store, true)
+	if err != nil {
+		writeError(w, 500, "external_library_lock_failed")
+		return
+	}
+	defer unlock()
 	tx, err := d.DB.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeError(w, 500, "external_library_delete_failed")
@@ -300,19 +306,19 @@ func (d Deps) deleteExternalLibrary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "external_library_delete_failed")
 		return
 	}
+	for _, p := range derivPaths {
+		if err := storage.RecordCleanup(r.Context(), tx, "derivatives/"+p); err != nil {
+			writeError(w, 500, "external_library_delete_failed")
+			return
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		writeError(w, 500, "external_library_delete_failed")
 		return
 	}
-	// Only generated files under derivatives/ are removed — never an external
-	// original. Best effort after commit: a leftover derivative wastes disk but is
-	// never served, because no row points at it any more.
-	if d.Store != nil {
-		for _, p := range derivPaths {
-			if err := d.Store.Remove(r.Context(), "derivatives/"+p); err != nil {
-				d.Logger.Warn("external library: remove derivative failed", "path", p, "err", err)
-			}
-		}
+	// External bytes are never removed; generated-file cleanup survives a crash.
+	if err := storage.DrainCleanup(r.Context(), d.DB, d.Store); err != nil {
+		d.Logger.Warn("external library: pending derivative cleanup", "err", err)
 	}
 	writeJSON(w, 200, map[string]any{"removed": len(assetIDs)})
 }
