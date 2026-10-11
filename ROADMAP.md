@@ -12,6 +12,11 @@ existing promise works.
 
 ## Now — release and data-trust blockers
 
+The current pre-deployment findings and remediation evidence are tracked in
+[PRE_DEPLOYMENT_REVIEW.md](./PRE_DEPLOYMENT_REVIEW.md) and
+[DEPLOYMENT_FIX_PLAN.md](./DEPLOYMENT_FIX_PLAN.md). Authentication, account isolation,
+and ingestion regressions now pass; recovery, web, and release hardening follow.
+
 - **[production blocker] Truthful, certified media contract — Regular users and
   self-hosters — M.** Make Docker's libvips claim true with a tested `-tags
   vips` build while keeping native defaults pure-Go, or remove the broad-format

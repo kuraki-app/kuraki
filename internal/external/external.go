@@ -26,6 +26,10 @@ func Scan(ctx context.Context, db *sql.DB, processor media.Processor, libraryID,
 	if err != nil {
 		return Result{}, err
 	}
+	root, err = filepath.EvalSymlinks(root)
+	if err != nil {
+		return Result{}, fmt.Errorf("external: resolve root: %w", err)
+	}
 	info, err := os.Stat(root)
 	if err != nil {
 		return Result{}, err
@@ -42,6 +46,12 @@ func Scan(ctx context.Context, db *sql.DB, processor media.Processor, libraryID,
 			return err
 		}
 		if e.IsDir() {
+			return nil
+		}
+		// A linked file may escape the external root or enter managed storage.
+		// Sources are read-only; skip links and special files rather than follow them.
+		if !e.Type().IsRegular() {
+			result.Skipped++
 			return nil
 		}
 		cap, ok := media.Classify(path)

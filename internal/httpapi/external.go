@@ -66,8 +66,9 @@ func (d Deps) createExternalLibrary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Name = strings.TrimSpace(req.Name)
-	root, err := filepath.Abs(strings.TrimSpace(req.RootPath))
-	if req.Name == "" || err != nil {
+	requestedRoot := strings.TrimSpace(req.RootPath)
+	root, err := filepath.Abs(requestedRoot)
+	if req.Name == "" || requestedRoot == "" || err != nil {
 		writeError(w, 400, "invalid_external_library")
 		return
 	}
@@ -81,7 +82,7 @@ func (d Deps) createExternalLibrary(w http.ResponseWriter, r *http.Request) {
 	// External libraries exist to index media Kuraki does not own, so the check
 	// is containment rather than an allowlist: anywhere on the machine is fine
 	// except the library's own storage.
-	if inside, err := pathWithin(d.storageBase(), root); err != nil || inside {
+	if d.externalRootUnsafe(root) {
 		writeError(w, 400, "external_library_inside_data_dir")
 		return
 	}
@@ -124,12 +125,29 @@ func (d Deps) scanExternalLibrary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 404, "external_library_not_found")
 		return
 	}
+	if d.externalRootUnsafe(root) {
+		writeError(w, http.StatusBadRequest, "external_library_inside_data_dir")
+		return
+	}
 	result, err := external.Scan(r.Context(), d.DB, d.Media, id, u.ID, root)
 	if err != nil {
 		writeError(w, 400, "external_library_scan_failed")
 		return
 	}
 	writeJSON(w, 200, result)
+}
+
+func (d Deps) externalRootUnsafe(root string) bool {
+	base := d.storageBase()
+	if base == "" {
+		return false
+	}
+	inside, err := pathWithin(base, root)
+	if err != nil || inside {
+		return true
+	}
+	ancestor, err := pathWithin(root, base)
+	return err != nil || ancestor
 }
 
 // storageBase returns the filesystem root the library is stored under, or ""

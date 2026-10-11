@@ -23,6 +23,12 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Changed
 
+- **Account and ingestion boundaries are hardened.** First-run setup can be claimed only
+  once; disabled accounts cannot sign in. Device uploads and Activity use canonical account
+  IDs, failed or interrupted uploads keep their staged originals, and malformed media is
+  rejected without taking down the server. External scans exclude managed storage and file
+  symlinks. Small API requests have explicit size and read-time bounds; server-wide backup
+  and integrity tools require an administrator.
 - **Thumbnails now come in three sizes with forever-cacheable URLs.** Grids load a 256, 512 or
   1200 px thumbnail through `srcset` for the tile's rendered width, and the viewer's placeholder
   uses the 1200 px size. The 512 px size is still made at import; the others are made the first time

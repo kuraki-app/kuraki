@@ -34,9 +34,10 @@ func (d Deps) uploadAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	owner := ""
-	if u := d.currentUser(r); u != nil {
-		owner = u.Username
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
 	}
 	jobID, err := d.Queue.EnqueueUpload(r.Context(), owner, files)
 	if err != nil {

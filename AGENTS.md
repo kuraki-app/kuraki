@@ -27,6 +27,11 @@ Phase 1 = single-owner personal backup.
   read [PRE_DEPLOYMENT_REVIEW.md](./PRE_DEPLOYMENT_REVIEW.md) for the current checkout's
   reproduced failure paths and verification limits. Deployment is held pending remediation;
   this audit changed documentation only.
+- **Hardening milestone 1 (2026-10-11).** `codex/pre-deployment-hardening` fixes the setup
+  claim race, malformed-media panics, failed-upload retention, device/queue account
+  identity, private Activity reads, external-root/symlink admission, and JSON read bounds.
+  Migration `00029` gives jobs canonical owner IDs. The remaining work and regression
+  evidence are tracked in `DEPLOYMENT_FIX_PLAN.md`; deployment remains held.
 - **Phase 1 (single-owner) is feature-complete and pushed** to `github.com/kuraki-app/kuraki`.
   Implemented and verified: zero-config server; CLI + drag-and-drop import via a background **queue**
   (retries, crash recovery, an **Activity** view with per-file errors); BLAKE3 dedup; **watch-folder**;
@@ -390,6 +395,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | Area | Status |
 |---|---|
 | Pre-deployment review (2026-10-11) | ✅ audit complete; ⛔ deployment pending fixes in PRE_DEPLOYMENT_REVIEW.md |
+| Deployment hardening | 🟡 authentication/isolation/ingestion milestone passed; recovery/web/release pending (DEPLOYMENT_FIX_PLAN.md) |
 | Server foundation, import, media pipeline, web UI, auth, trash, verify, video | ✅ done |
 | Places (map + offline geocoding), Takeout import, favorites/albums/memories, stats | ✅ done |
 | Import queue + Activity + per-file errors, metadata editing, config options, serving perf | ✅ done |
@@ -537,6 +543,15 @@ audited baseline and release checklist.
   (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/pre-deployment-hardening` (2026-10-11, Codex) — **Authentication, isolation, and ingestion hardened.**
+  Added append-only migration 00029 for canonical job ownership, fixed session/device
+  uploads through the worker, retained staged bytes on failure/cancellation, contained
+  import/processor panics, made setup claims atomic, rejected disabled logins, bounded
+  JSON/credential reads, isolated Activity, and excluded overlapping external roots and
+  file symlinks. Regression tests and `make check` pass. Server-wide backup/integrity now
+  require administration; the web gating follows in milestone 3. Recovery and release
+  hardening remain in progress; failed staging is deliberately retained for recovery.
 
 - `codex/pre-deployment-hardening` (2026-10-11, Codex) — **Hardening started from the reviewed checkout.**
   The existing Trips feature and review are preserved as the prerequisite baseline.

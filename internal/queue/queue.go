@@ -121,8 +121,8 @@ func (q *Queue) enqueueStagedDirectory(ctx context.Context, jobID, owner, dir st
 		return fmt.Errorf("queue: staged job has no files")
 	}
 	if _, err := q.DB.ExecContext(ctx, `
-		INSERT INTO jobs (id, kind, owner, source, status, total, next_attempt_at)
-		VALUES (?, ?, ?, ?, 'queued', ?, ?)`,
+		INSERT INTO jobs (id, kind, owner, owner_id, source, status, total, next_attempt_at)
+		VALUES (?, ?, '', ?, ?, 'queued', ?, ?)`,
 		jobID, kind, owner, dir, total, nowText()); err != nil {
 		return fmt.Errorf("queue: insert job: %w", err)
 	}
@@ -141,9 +141,9 @@ func (q *Queue) TrackMigration(ctx context.Context, owner, runID string, total i
 		return "", err
 	}
 	if _, err := q.DB.ExecContext(ctx, `
-		INSERT INTO jobs (id, kind, owner, source, status, total, next_attempt_at)
-		VALUES (?, ?, ?, ?, 'running', ?, ?)`,
-		id.String(), KindMigration, owner, runID, total, nowText()); err != nil {
+		INSERT INTO jobs (id, kind, owner, owner_id, source, status, total, next_attempt_at)
+		VALUES (?, ?, ?, (SELECT id FROM users WHERE username = ?), ?, 'running', ?, ?)`,
+		id.String(), KindMigration, owner, owner, runID, total, nowText()); err != nil {
 		return "", fmt.Errorf("queue: track migration: %w", err)
 	}
 	return id.String(), nil
@@ -177,8 +177,13 @@ func stage(dir string, fh *multipart.FileHeader) error {
 		return fmt.Errorf("queue: create staged file: %w", err)
 	}
 	defer dst.Close()
-	_, err = io.Copy(dst, src)
-	return err
+	if _, err := io.Copy(dst, src); err != nil {
+		return fmt.Errorf("queue: write staged file: %w", err)
+	}
+	if err := dst.Sync(); err != nil {
+		return fmt.Errorf("queue: sync staged file: %w", err)
+	}
+	return dst.Close()
 }
 
 func (q *Queue) signal() {
@@ -259,6 +264,15 @@ func (q *Queue) claim(ctx context.Context) (Job, bool) {
 }
 
 func (q *Queue) process(ctx context.Context, j Job) {
+	defer func() {
+		if cause := recover(); cause != nil {
+			finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			defer cancel()
+			_, err := q.DB.ExecContext(finishCtx, `UPDATE jobs SET status = 'failed', error = ?, updated_at = ? WHERE id = ?`,
+				fmt.Sprintf("import failed unexpectedly: %v", cause), nowText(), j.ID)
+			q.Log.Error("queue: contained import panic", "job", j.ID, "panic", cause, "record_error", err)
+		}
+	}()
 	// Migration jobs are driven by the CLI process that holds the credentials;
 	// the worker only ever reports on them. Claiming one here would mean
 	// treating a run id as a staging directory.
@@ -272,31 +286,65 @@ func (q *Queue) process(ctx context.Context, j Job) {
 	source := j.source
 	runner := importer.Importer{DB: q.DB, Store: q.Store, Media: q.Media, ThumbMaxEdge: q.ThumbSize}
 
-	var owner string
-	_ = q.DB.QueryRowContext(ctx, `SELECT owner FROM jobs WHERE id = ?`, j.ID).Scan(&owner)
+	var owner sql.NullString
+	if err := q.DB.QueryRowContext(ctx, `SELECT owner_id FROM jobs WHERE id = ?`, j.ID).Scan(&owner); err != nil || !owner.Valid {
+		q.fail(ctx, j, fmt.Errorf("queue: job has no resolved owner: %v", err))
+		return
+	}
 
-	result, err := runner.Run(ctx, importer.Options{SourceDir: source, OwnerUsername: owner})
+	result, err := runner.Run(ctx, importer.Options{SourceDir: source, OwnerID: owner.String})
+	if ctx.Err() != nil {
+		// Leave both the durable source and running job for startup recovery.
+		return
+	}
 	if err != nil {
 		q.fail(ctx, j, err)
 		return
 	}
-	if _, err := q.DB.ExecContext(ctx, `
-		UPDATE jobs SET status = 'succeeded', total = ?, imported = ?, duplicates = ?,
+	tx, err := q.DB.BeginTx(ctx, nil)
+	if err != nil {
+		q.Log.Warn("queue: finalize job failed", "job", j.ID, "err", err)
+		return
+	}
+	defer tx.Rollback()
+	status := "succeeded"
+	if len(result.Errors) != 0 {
+		status = "running"
+	}
+	if _, err := tx.ExecContext(ctx, `
+		UPDATE jobs SET status = ?, total = MAX(total, ?), imported = imported + ?, duplicates = duplicates + ?,
 		    skipped = ?, errors = ?, error = '', updated_at = ? WHERE id = ?`,
-		result.Scanned, result.Imported, result.Duplicates, result.Skipped, len(result.Errors),
+		status, result.Scanned, result.Imported, result.Duplicates, result.Skipped, len(result.Errors),
 		nowText(), j.ID); err != nil {
 		q.Log.Warn("queue: finalize job failed", "job", j.ID, "err", err)
+		return
 	}
 	// Record which files failed, so the Activity view can show details. Strip the
 	// internal staging path from messages so they read cleanly.
-	_, _ = q.DB.ExecContext(ctx, `DELETE FROM job_errors WHERE job_id = ?`, j.ID)
+	if _, err := tx.ExecContext(ctx, `DELETE FROM job_errors WHERE job_id = ?`, j.ID); err != nil {
+		return
+	}
 	for _, fe := range result.Errors {
 		msg := strings.ReplaceAll(fe.Err.Error(), source+string(os.PathSeparator), "")
-		_, _ = q.DB.ExecContext(ctx,
+		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO job_errors (job_id, filename, error) VALUES (?, ?, ?)`,
-			j.ID, filepath.Base(fe.Path), msg)
+			j.ID, filepath.Base(fe.Path), msg); err != nil {
+			return
+		}
 	}
-	os.RemoveAll(source)
+	if err := tx.Commit(); err != nil {
+		q.Log.Warn("queue: finalize job failed", "job", j.ID, "err", err)
+		return
+	}
+	if len(result.Errors) != 0 {
+		q.fail(ctx, j, fmt.Errorf("queue: %d files need retry; first: %w", len(result.Errors), result.Errors[0].Err))
+		return
+	}
+	if relative, err := filepath.Rel(q.StagingDir, source); err == nil && relative != "." && relative != ".." && !strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
+		if err := os.RemoveAll(source); err != nil {
+			q.Log.Warn("queue: remove completed staging failed", "job", j.ID, "err", err)
+		}
+	}
 	if result.Imported > 0 {
 		if err := stacks.Detect(ctx, q.DB); err != nil {
 			q.Log.Warn("stack detection failed", "err", err)
@@ -332,6 +380,5 @@ func (q *Queue) fail(ctx context.Context, j Job, cause error) {
 	_, _ = q.DB.ExecContext(ctx, `
 		UPDATE jobs SET status = 'failed', attempts = ?, error = ?, updated_at = ? WHERE id = ?`,
 		attempts, cause.Error(), nowText(), j.ID)
-	os.RemoveAll(j.source)
 	q.Log.Error("import job failed permanently", "job", j.ID, "err", cause)
 }

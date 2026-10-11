@@ -4,14 +4,20 @@ Branch: `codex/pre-deployment-hardening`. Scope: all 22 numbered findings and th
 
 ## 1. Authentication, isolation, and ingestion
 
-- [ ] 1: reject truncated signatures and contain import-worker panics.
-- [ ] 2: claim first-run setup atomically.
-- [ ] 3: retain failed/cancelled staged uploads with durable retry state.
-- [ ] 4: use canonical authenticated owner IDs for session/device ingestion.
-- [ ] 8: owner-scope import job lists/details.
-- [ ] 9: exclude managed storage and unsafe symlinks from external scans.
-- [ ] 21: bound JSON bodies, credential fields, and body read duration.
-- [ ] Reject disabled-account login; enforce administrative operation policy.
+- [x] 1: reject truncated signatures and contain import-worker panics.
+- [x] 2: claim first-run setup atomically.
+- [x] 3: retain failed/cancelled staged uploads with durable retry state.
+- [x] 4: use canonical authenticated owner IDs for session/device ingestion.
+- [x] 8: owner-scope import job lists/details.
+- [x] 9: exclude managed storage and unsafe symlinks from external scans.
+- [x] 21: bound JSON bodies, credential fields, and body read duration.
+- [x] Reject disabled-account login; enforce administrative operation policy.
+
+Evidence: `make check` passed, including race tests and HTTP-to-worker capture
+completion. Targeted regressions cover the delayed setup claim, account isolation,
+credential bounds, short signatures, failed/cancelled source retention, and external
+root/symlink exclusion. Migration 00029 backfills job ownership; unresolved historical
+jobs remain private. Failed staged files are retained for operator recovery.
 
 ## 2. Recovery, storage, and bounded maintenance
 

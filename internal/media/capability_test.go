@@ -92,3 +92,22 @@ func TestBrowserVideoCompatibility(t *testing.T) {
 		}
 	}
 }
+
+func TestClassifyFileRejectsTruncatedSignatures(t *testing.T) {
+	for _, signature := range [][]byte{[]byte("II"), []byte("MM"), {'I', 'I', 0x2a}, {'M', 'M', 0}} {
+		path := filepath.Join(t.TempDir(), "truncated.tiff")
+		if err := os.WriteFile(path, signature, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, accepted, err := ClassifyFile(path); err != nil || accepted {
+			t.Fatalf("truncated signature admitted: accepted=%v err=%v", accepted, err)
+		}
+	}
+}
+
+func FuzzClassifyShortSignatures(f *testing.F) {
+	for _, prefix := range [][]byte{{}, []byte("II"), []byte("MM"), []byte("RIFF"), []byte("ftyp")} {
+		f.Add(prefix)
+	}
+	f.Fuzz(func(t *testing.T, prefix []byte) { classifyBytes(prefix) })
+}

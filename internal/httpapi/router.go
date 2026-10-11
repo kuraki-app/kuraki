@@ -98,6 +98,7 @@ func NewRouter(d Deps) http.Handler {
 	r.Use(d.observeRequests)
 	r.Use(securityHeaders(d.SecureCookies))
 	r.Use(sameOriginWrites)
+	r.Use(boundRequestBodies)
 	// Compress text responses (JSON API + UI bundles); media types are skipped
 	// so range requests and already-compressed images/videos pass through.
 	r.Use(middleware.Compress(5, "application/json", "text/html", "text/css",
@@ -106,6 +107,7 @@ func NewRouter(d Deps) http.Handler {
 
 	// Login throttle: ~10 attempts then 1 per 6s per IP (F-14).
 	loginLimiter := newIPLimiter(rate.Every(6*time.Second), 10, 10*time.Minute)
+	setupLimiter := newIPLimiter(rate.Every(6*time.Second), 5, 10*time.Minute)
 	// Pairing-claim throttle: the endpoint is unauthenticated, so bound guesses
 	// per IP even though codes carry full entropy.
 	pairLimiter := newIPLimiter(rate.Every(6*time.Second), 10, 10*time.Minute)
@@ -122,7 +124,7 @@ func NewRouter(d Deps) http.Handler {
 		r.Get("/status", d.status)
 		r.Get("/openapi.json", d.serveOpenAPI)
 		r.Get("/setup", d.setupStatus)
-		r.Post("/setup", d.setup)
+		r.With(setupLimiter.middleware).Post("/setup", d.setup)
 		r.With(loginLimiter.middleware).Post("/login", d.login)
 		r.Post("/logout", d.logout)
 		r.Get("/me", d.me)
@@ -210,9 +212,9 @@ func NewRouter(d Deps) http.Handler {
 				r.Post("/duplicates/run", d.runDuplicates)
 				r.Post("/trips/run", d.runTrips)
 				r.Get("/export", d.exportLibrary)
-				r.Get("/integrity", d.integrity)
-				r.Post("/integrity/run", d.runIntegrity)
-				r.Get("/backup", d.backupStatus)
+				r.With(d.requireOwner).Get("/integrity", d.integrity)
+				r.With(d.requireOwner).Post("/integrity/run", d.runIntegrity)
+				r.With(d.requireOwner).Get("/backup", d.backupStatus)
 				// Creating an external library names an absolute path on the
 				// SERVER's filesystem and indexes every media file under it as
 				// assets owned by the caller. That is server administration, not

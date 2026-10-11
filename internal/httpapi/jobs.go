@@ -26,8 +26,13 @@ func scanJob(s interface{ Scan(...any) error }) (apitypes.Job, error) {
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/jobs [get]
 func (d Deps) listJobs(w http.ResponseWriter, r *http.Request) {
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	rows, err := d.DB.QueryContext(r.Context(),
-		`SELECT `+jobColumns+` FROM jobs ORDER BY created_at DESC LIMIT 50`)
+		`SELECT `+jobColumns+` FROM jobs WHERE owner_id = ? ORDER BY created_at DESC LIMIT 50`, owner)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_jobs_failed")
 		return
@@ -42,6 +47,10 @@ func (d Deps) listJobs(w http.ResponseWriter, r *http.Request) {
 		}
 		jobs = append(jobs, j)
 	}
+	if err := rows.Err(); err != nil {
+		writeError(w, http.StatusInternalServerError, "query_jobs_failed")
+		return
+	}
 	writeJSON(w, http.StatusOK, apitypes.JobList{Jobs: jobs})
 }
 
@@ -55,9 +64,14 @@ func (d Deps) listJobs(w http.ResponseWriter, r *http.Request) {
 // @Failure 404 {object} apitypes.Error
 // @Router  /api/jobs/{id} [get]
 func (d Deps) getJob(w http.ResponseWriter, r *http.Request) {
+	owner, ok := d.ownerID(r)
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
 	id := chi.URLParam(r, "id")
 	j, err := scanJob(d.DB.QueryRowContext(r.Context(),
-		`SELECT `+jobColumns+` FROM jobs WHERE id = ?`, id))
+		`SELECT `+jobColumns+` FROM jobs WHERE id = ? AND owner_id = ?`, id, owner))
 	if errors.Is(err, sql.ErrNoRows) {
 		writeError(w, http.StatusNotFound, "job_not_found")
 		return
@@ -70,14 +84,22 @@ func (d Deps) getJob(w http.ResponseWriter, r *http.Request) {
 	detail := apitypes.JobDetail{Job: j, ErrorsDetail: []apitypes.JobError{}}
 	rows, err := d.DB.QueryContext(r.Context(),
 		`SELECT filename, error FROM job_errors WHERE job_id = ? ORDER BY id`, id)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var e apitypes.JobError
-			if err := rows.Scan(&e.Filename, &e.Error); err == nil {
-				detail.ErrorsDetail = append(detail.ErrorsDetail, e)
-			}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "query_job_errors_failed")
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var e apitypes.JobError
+		if err := rows.Scan(&e.Filename, &e.Error); err != nil {
+			writeError(w, http.StatusInternalServerError, "query_job_errors_failed")
+			return
 		}
+		detail.ErrorsDetail = append(detail.ErrorsDetail, e)
+	}
+	if err := rows.Err(); err != nil {
+		writeError(w, http.StatusInternalServerError, "query_job_errors_failed")
+		return
 	}
 	writeJSON(w, http.StatusOK, detail)
 }

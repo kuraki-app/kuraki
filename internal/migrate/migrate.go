@@ -97,6 +97,11 @@ func (e *Engine) Run(ctx context.Context, src Source) (Run, error) {
 	if err != nil {
 		return Run{}, err
 	}
+	if e.JobID != "" {
+		if _, err := e.DB.ExecContext(ctx, `UPDATE jobs SET owner_id = ? WHERE id = ?`, ownerID, e.JobID); err != nil {
+			return Run{}, fmt.Errorf("migrate: resolve job owner: %w", err)
+		}
+	}
 
 	run, err := e.startOrResume(ctx, src, ownerID, info)
 	if err != nil {
