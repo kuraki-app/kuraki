@@ -72,12 +72,14 @@ type Deps struct {
 	Events *ChangeBroker
 	Logger *slog.Logger
 
-	requests  *requestMetrics
-	responses *responseCache
+	proofSlots chan struct{}
+	requests   *requestMetrics
+	responses  *responseCache
 }
 
 // NewRouter builds the top-level HTTP handler.
 func NewRouter(d Deps) http.Handler {
+	d.proofSlots = make(chan struct{}, 2)
 	if d.Thumbs == nil {
 		d.Thumbs = &thumbs.Service{DB: d.DB, Store: d.Store, Media: d.Media, Log: d.Logger, MediumEdge: d.ThumbSize}
 	}
@@ -236,6 +238,10 @@ func NewRouter(d Deps) http.Handler {
 			r.Group(func(r chi.Router) {
 				r.Use(d.requireDevicePrincipal)
 				r.Get("/capture/status", d.captureStatus)
+				r.Get("/capture/identity", d.captureIdentity)
+				r.Get("/capture/uploads/{id}/receipt", d.captureReceipt)
+				r.Post("/capture/originals/verify", d.verifyCaptureOriginal)
+				r.Post("/capture/originals/available", d.captureAvailability)
 				r.Post("/capture/uploads", d.captureStart)
 				r.Patch("/capture/uploads/{id}", d.captureAppend)
 				r.Post("/capture/uploads/{id}/complete", d.captureComplete)

@@ -264,6 +264,25 @@ type CaptureStatusResponse struct {
 	Sessions  []CaptureSessionResponse `json:"sessions" validate:"required"`
 }
 
+// CaptureIdentity identifies a library across credential rotations and restores.
+type CaptureIdentity struct {
+	ServerID string `json:"server_id" validate:"required"`
+	OwnerID  string `json:"owner_id" validate:"required"`
+}
+
+// OriginalProof identifies immutable imported bytes, never merely staged bytes.
+type OriginalProof struct {
+	AssetID     string `json:"asset_id" validate:"required"`
+	ContentHash string `json:"content_hash" validate:"required"`
+	SizeBytes   int64  `json:"size_bytes" validate:"required"`
+}
+
+type CaptureReceiptResponse struct {
+	Status string         `json:"status" validate:"required"`
+	Proof  *OriginalProof `json:"proof,omitempty"`
+	Error  string         `json:"error,omitempty"`
+}
+
 // ChangeEntry is one row of the owner-scoped delta feed.
 type ChangeEntry struct {
 	ID       int64  `json:"id" validate:"required"`
@@ -586,4 +605,13 @@ type DeviceInfo struct {
 // DeviceList is the envelope for GET /api/devices.
 type DeviceList struct {
 	Devices []DeviceInfo `json:"devices" validate:"required"`
+}
+
+// CaptureAvailability checks up to 200 immutable originals without rehashing them.
+// It repairs backup history after purge/restore; reclamation still requires verify.
+type CaptureAvailability struct {
+	Originals []OriginalProof `json:"originals"`
+}
+type CaptureAvailabilityResponse struct {
+	Available []string `json:"available"`
 }

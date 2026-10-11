@@ -17,7 +17,7 @@ export type Connection = {
   type: ConnectionType;
 };
 
-export type NetworkGate = 'allowed' | 'offline' | 'metered';
+export type NetworkGate = 'allowed' | 'offline' | 'metered' | 'unverified';
 
 /**
  * evaluateNetworkGate decides whether a run may proceed.
@@ -27,11 +27,16 @@ export type NetworkGate = 'allowed' | 'offline' | 'metered';
  * network we merely failed to identify is a worse failure than an occasional
  * unexpected upload. Cellular is the only type positively refused.
  */
-export function evaluateNetworkGate(connection: Connection, wifiOnly: boolean): NetworkGate {
+export function evaluateNetworkGate(
+  connection: Connection,
+  wifiOnly: boolean,
+): NetworkGate {
   if (connection.isConnected === false) return 'offline';
   if (!wifiOnly) return 'allowed';
   if (connection.type === 'cellular') return 'metered';
-  return 'allowed';
+  return connection.type === 'wifi' || connection.type === 'other'
+    ? 'allowed'
+    : 'unverified';
 }
 
 /** Human-readable reason for a blocked run, for the Backup screen. */
@@ -39,6 +44,8 @@ export function gateMessage(gate: NetworkGate): string | null {
   switch (gate) {
     case 'metered':
       return 'Waiting for Wi-Fi. Turn off "Wi-Fi only" to back up over cellular.';
+    case 'unverified':
+      return 'Connect to Wi-Fi; this connection could not be verified.';
     case 'offline':
       return 'No connection. Backup will resume automatically.';
     default:

@@ -105,7 +105,7 @@ export default function AlbumDetail({ albumId, adding, onAddingChange, onSelecti
   const toggleFavorite = useCallback(
     async (id: string, next: boolean) => {
       setAssets((prev) => prev.map((a) => (a.id === id ? { ...a, favorite: next } : a)));
-      await setCachedFavorite(id, next);
+      await setCachedFavorite(id, next, settings ?? undefined);
       if (settings) {
         try {
           await setFavorite(settings, id, next);
@@ -114,7 +114,7 @@ export default function AlbumDetail({ albumId, adding, onAddingChange, onSelecti
           // fall through: queue for the next reconnect flush
         }
       }
-      await enqueueFavorite(id, next);
+      await enqueueFavorite(id, next, settings ?? undefined);
     },
     [settings],
   );
@@ -205,7 +205,7 @@ export default function AlbumDetail({ albumId, adding, onAddingChange, onSelecti
           // fall through: queue for the next reconnect flush
         }
       }
-      for (const id of ids) await enqueueAlbumAdd(id, targetAlbumId);
+      for (const id of ids) await enqueueAlbumAdd(id, targetAlbumId, settings ?? undefined);
     },
     [selected, settings],
   );
@@ -215,7 +215,7 @@ export default function AlbumDetail({ albumId, adding, onAddingChange, onSelecti
   const trashOne = useCallback(
     async (id: string) => {
       setAssets((prev) => prev.filter((a) => a.id !== id));
-      await setTrashed(id, true);
+      await setTrashed(id, true, settings ?? undefined);
       if (settings) {
         try {
           await trashAsset(settings, id);
@@ -224,7 +224,7 @@ export default function AlbumDetail({ albumId, adding, onAddingChange, onSelecti
           // fall through: queue for the next reconnect flush
         }
       }
-      await enqueueTrash(id);
+      await enqueueTrash(id, settings ?? undefined);
     },
     [settings],
   );

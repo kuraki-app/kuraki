@@ -9,7 +9,7 @@ import { Radius, Space, useTokens } from '@/constants/theme';
 import { registerStyle } from '@/design/registers';
 import { claimPairing } from '@/lib/capture-api';
 import { clearAuthLost } from '@/lib/session';
-import { saveCaptureSettings } from '@/lib/settings';
+import { connectCaptureSettings, connectionEpoch } from '@/lib/settings';
 import { normalizeServerURL } from '@/lib/url';
 
 const reg = registerStyle('vault');
@@ -29,7 +29,12 @@ type Props = {
  * user. Both routes end at the same claim endpoint: scanning reads the address
  * and code from the QR, typing uses the address already configured.
  */
-export default function PairSheet({ visible, baseURL, onClose, onPaired }: Props) {
+export default function PairSheet({
+  visible,
+  baseURL,
+  onClose,
+  onPaired,
+}: Props) {
   const tokens = useTokens();
   const [mode, setMode] = useState<'choose' | 'scan' | 'code'>('choose');
   const [code, setCode] = useState('');
@@ -48,14 +53,27 @@ export default function PairSheet({ visible, baseURL, onClose, onPaired }: Props
     setClaiming(true);
     try {
       const server = normalizeServerURL(baseURL);
-      const device = await claimPairing(server, code.trim(), Device.deviceName ?? 'My phone');
-      await saveCaptureSettings({ baseURL: server, deviceToken: device.token });
+      const expectedEpoch = connectionEpoch();
+      const device = await claimPairing(
+        server,
+        code.trim(),
+        Device.deviceName ?? 'My phone',
+      );
+      await connectCaptureSettings(
+        { baseURL: server, deviceToken: device.token },
+        undefined,
+        expectedEpoch,
+      );
       clearAuthLost();
       setCode('');
       setMode('choose');
       onPaired(server);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not pair with that code.');
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Could not pair with that code.',
+      );
     } finally {
       setClaiming(false);
     }
@@ -77,22 +95,24 @@ export default function PairSheet({ visible, baseURL, onClose, onPaired }: Props
             Re-pair this device
           </ThemedText>
           <ThemedText themeColor="mutedForeground" selectable>
-            Open Kuraki&rsquo;s web app on your computer and go to Settings &rsaquo; Devices, then generate a
-            pairing code.
+            Open Kuraki&rsquo;s web app on your computer and go to Settings
+            &rsaquo; Devices, then generate a pairing code.
           </ThemedText>
 
           {mode === 'choose' ? (
             <>
               <Pressable
                 style={[styles.button, { backgroundColor: tokens.primary }]}
-                onPress={() => setMode('scan')}>
+                onPress={() => setMode('scan')}
+              >
                 <ThemedText type="smallBold" themeColor="primaryForeground">
                   Scan QR code
                 </ThemedText>
               </Pressable>
               <Pressable
                 style={[styles.buttonGhost, { borderColor: tokens.input }]}
-                onPress={() => setMode('code')}>
+                onPress={() => setMode('code')}
+              >
                 <ThemedText type="smallBold">Enter pairing code</ThemedText>
               </Pressable>
             </>
@@ -109,7 +129,10 @@ export default function PairSheet({ visible, baseURL, onClose, onPaired }: Props
                 onChangeText={setCode}
                 placeholder="Pairing code"
                 placeholderTextColor={tokens.textFaint}
-                style={[styles.input, { borderColor: tokens.input, color: tokens.foreground }]}
+                style={[
+                  styles.input,
+                  { borderColor: tokens.input, color: tokens.foreground },
+                ]}
                 value={code}
               />
               <Pressable
@@ -121,7 +144,8 @@ export default function PairSheet({ visible, baseURL, onClose, onPaired }: Props
                     opacity: code.trim() && baseURL && !claiming ? 1 : 0.5,
                   },
                 ]}
-                onPress={() => void claimCode()}>
+                onPress={() => void claimCode()}
+              >
                 <ThemedText type="smallBold" themeColor="primaryForeground">
                   {claiming ? 'Pairing…' : 'Pair with code'}
                 </ThemedText>
@@ -141,7 +165,10 @@ export default function PairSheet({ visible, baseURL, onClose, onPaired }: Props
           ) : null}
 
           <View style={styles.spacer} />
-          <Pressable style={[styles.buttonGhost, { borderColor: tokens.input }]} onPress={close}>
+          <Pressable
+            style={[styles.buttonGhost, { borderColor: tokens.input }]}
+            onPress={close}
+          >
             <ThemedText type="smallBold">Cancel</ThemedText>
           </Pressable>
         </ThemedView>
@@ -151,7 +178,12 @@ export default function PairSheet({ visible, baseURL, onClose, onPaired }: Props
 }
 
 const styles = StyleSheet.create({
-  content: { flex: 1, padding: Space.four, gap: Space.four, justifyContent: 'center' },
+  content: {
+    flex: 1,
+    padding: Space.four,
+    gap: Space.four,
+    justifyContent: 'center',
+  },
   input: {
     borderRadius: Radius.sm,
     borderWidth: 1,
@@ -159,8 +191,17 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: Space.two,
   },
-  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Space.four },
-  buttonGhost: { alignItems: 'center', borderRadius: Radius.sm, padding: Space.four, borderWidth: 1 },
+  button: {
+    alignItems: 'center',
+    borderRadius: Radius.sm,
+    padding: Space.four,
+  },
+  buttonGhost: {
+    alignItems: 'center',
+    borderRadius: Radius.sm,
+    padding: Space.four,
+    borderWidth: 1,
+  },
   link: { alignItems: 'center', paddingVertical: Space.two },
   spacer: { height: Space.four },
 });

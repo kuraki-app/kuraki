@@ -417,6 +417,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 
 | Area | Status |
 |---|---|
+| Mobile original safety and isolation (2026-10-11) | ✅ migration 00031 + verified receipts/reclamation, scoped mirrors/ledger, cancellation and recovery; dependency/native milestone follows |
 | Pre-deployment review (2026-10-11) | ✅ audit complete; ⛔ deployment pending fixes in PRE_DEPLOYMENT_REVIEW.md |
 | Mobile review (2026-10-11) | ✅ audit and nine reproductions recorded; ⛔ backup/deletion, account identity and signed-artifact remediation required (MOBILE_READINESS_REVIEW.md) |
 | Deployment hardening | ✅ all 22 code findings fixed; local candidate recovery/TLS/scans and regression suites passed; target-host/hardware certification stays explicit (DEPLOYMENT_FIX_PLAN.md) |
@@ -569,6 +570,24 @@ audited baseline and release checklist.
   (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/mobile-hardening` (2026-10-11, Codex) — **Original safety and recovery milestone.**
+  New append-only migration 00031 persists library identity and capture import receipts.
+  Queue finalization links only successfully imported originals; device endpoints scope
+  proofs to owners, check bounded availability after purge/restore, and rehash originals
+  before reclamation. Mobile stores atomic credentials, serializes/fences identity changes,
+  scopes cache/receipt/resume databases, ignores old-token failures, and checks current
+  local BLAKE3 bytes plus server proofs before OS deletion. Live Photos require both parts.
+  The engine claims runs synchronously, streams pages/chunks, bounds offsets/restarts,
+  reserves history work, honors network changes, and propagates whole-wake expiration.
+  Trip/tag grids catch failures, lock paging and support retry. Noble hashes is justified
+  by matching Go BLAKE3 without a native hashing dependency; Expo dev-client fulfills the
+  already-declared development profile. Tests: server race suite, mobile 317 regressions,
+  TypeScript/lint and regenerated API contracts. Review findings (purge recovery, history
+  starvation, canceled identity commits, terminal import retry) fixed. Compatible Expo patches and narrow URI/UUID overrides applied; two no-upstream-fix
+  advisories have source-hash checked local patches and real attack regressions. Native
+  provenance and installed-app certification are still the next milestone; no device
+  deletion performed, no operator data touched.
 
 - `codex/mobile-readiness-review` (2026-10-11, Codex) — **Android/iOS follow-up review.**
   Recorded 12 prioritized findings, nine runnable historical defect probes and platform

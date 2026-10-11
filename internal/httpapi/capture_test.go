@@ -101,6 +101,21 @@ func TestCaptureUploadResumesAndQueuesImport(t *testing.T) {
 		t.Fatalf("job status = %q, want queued", status)
 	}
 
+	receiptReq := func(method, path string, body any, token string) *httptest.ResponseRecorder {
+		var encoded []byte
+		if body != nil {
+			encoded, _ = json.Marshal(body)
+		}
+		req := httptest.NewRequest(method, path, bytes.NewReader(encoded))
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		return rec
+	}
+	if rec := receiptReq("GET", "/api/capture/uploads/"+session.ID+"/receipt", nil, device.Token); rec.Code != 202 {
+		t.Fatalf("queued source incorrectly has a receipt: %d %s", rec.Code, rec.Body)
+	}
 	workerCtx, stopWorker := context.WithCancel(context.Background())
 	workerDone := make(chan struct{})
 	go func() { q.Start(workerCtx); close(workerDone) }()
@@ -129,6 +144,76 @@ func TestCaptureUploadResumesAndQueuesImport(t *testing.T) {
 	}
 	if err := database.QueryRow(`SELECT owner_id FROM assets`).Scan(&ownerID); err != nil || ownerID != actualOwner {
 		t.Fatalf("capture ownership=%q device owner=%q error=%v", ownerID, actualOwner, err)
+	}
+
+	identity := receiptReq("GET", "/api/capture/identity", nil, device.Token)
+	var who apitypes.CaptureIdentity
+	if identity.Code != 200 || json.Unmarshal(identity.Body.Bytes(), &who) != nil || who.OwnerID != ownerID || who.ServerID == "" {
+		t.Fatalf("identity: %d %s", identity.Code, identity.Body)
+	}
+	identity2 := receiptReq("GET", "/api/capture/identity", nil, device.Token)
+	if identity.Body.String() != identity2.Body.String() {
+		t.Fatal("server identity changed")
+	}
+	receipt := receiptReq("GET", "/api/capture/uploads/"+session.ID+"/receipt", nil, device.Token)
+	var proof apitypes.CaptureReceiptResponse
+	if receipt.Code != 200 || json.Unmarshal(receipt.Body.Bytes(), &proof) != nil || proof.Proof == nil || proof.Proof.AssetID != assets.Assets[0].ID {
+		t.Fatalf("import receipt: %d %s", receipt.Code, receipt.Body)
+	}
+	availability := receiptReq("POST", "/api/capture/originals/available", apitypes.CaptureAvailability{Originals: []apitypes.OriginalProof{*proof.Proof}}, device.Token)
+	var available apitypes.CaptureAvailabilityResponse
+	if availability.Code != 200 || json.Unmarshal(availability.Body.Bytes(), &available) != nil || len(available.Available) != 1 {
+		t.Fatalf("availability: %d %s", availability.Code, availability.Body)
+	}
+	verified := receiptReq("POST", "/api/capture/originals/verify", proof.Proof, device.Token)
+	if verified.Code != 200 {
+		t.Fatalf("verify: %d %s", verified.Code, verified.Body)
+	}
+	// A rotated device owned by the same account can use a durable receipt.
+	rotatedRec := postJSON(t, router, "/api/devices", apitypes.DeviceRequest{Name: "Second phone"}, cookie)
+	var rotated apitypes.DeviceResponse
+	if err := json.Unmarshal(rotatedRec.Body.Bytes(), &rotated); err != nil {
+		t.Fatal(err)
+	}
+	if rec := receiptReq("GET", "/api/capture/uploads/"+session.ID+"/receipt", nil, rotated.Token); rec.Code != 200 {
+		t.Fatalf("same owner receipt: %d %s", rec.Code, rec.Body)
+	}
+	if _, err := database.Exec(`INSERT INTO users(id,username,password_hash) VALUES('other','other','hash')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(`INSERT INTO devices(id,owner_id,name,token_hash) VALUES('other-device','other','Other',?)`, hashDeviceToken("other-token")); err != nil {
+		t.Fatal(err)
+	}
+	if rec := receiptReq("GET", "/api/capture/uploads/"+session.ID+"/receipt", nil, "other-token"); rec.Code != 404 {
+		t.Fatalf("foreign receipt: %d %s", rec.Code, rec.Body)
+	}
+	if rec := receiptReq("POST", "/api/capture/originals/verify", proof.Proof, "other-token"); rec.Code != 404 {
+		t.Fatalf("foreign proof: %d %s", rec.Code, rec.Body)
+	}
+	var original string
+	if err := database.QueryRow(`SELECT original_path FROM assets WHERE id=? AND owner_id=?`, proof.Proof.AssetID, ownerID).Scan(&original); err != nil {
+		t.Fatal(err)
+	}
+	corrupt := append([]byte(nil), data...)
+	corrupt[0] ^= 1
+	if err := os.WriteFile(filepath.Join(root, "originals", original), corrupt, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if rec := receiptReq("POST", "/api/capture/originals/verify", proof.Proof, device.Token); rec.Code != 409 {
+		t.Fatalf("corruption accepted: %d %s", rec.Code, rec.Body)
+	}
+	if err := os.WriteFile(filepath.Join(root, "originals", original), data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := database.Exec(`UPDATE assets SET deleted_at='2026-10-11' WHERE id=? AND owner_id=?`, proof.Proof.AssetID, ownerID); err != nil {
+		t.Fatal(err)
+	}
+	availability = receiptReq("POST", "/api/capture/originals/available", apitypes.CaptureAvailability{Originals: []apitypes.OriginalProof{*proof.Proof}}, device.Token)
+	if availability.Code != 200 || json.Unmarshal(availability.Body.Bytes(), &available) != nil || len(available.Available) != 0 {
+		t.Fatalf("purged availability: %d %s", availability.Code, availability.Body)
+	}
+	if rec := receiptReq("POST", "/api/capture/originals/verify", proof.Proof, device.Token); rec.Code != 404 {
+		t.Fatalf("trashed copy accepted: %d %s", rec.Code, rec.Body)
 	}
 
 	revokeReq := httptest.NewRequest(http.MethodDelete, "/api/devices/"+device.ID, nil)

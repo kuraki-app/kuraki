@@ -3,6 +3,7 @@ import * as TaskManager from 'expo-task-manager';
 
 import { backupEngine } from '@/lib/backup-engine';
 import { drainBackgroundSync } from '@/lib/background-sync';
+import { throwIfAborted } from '@/lib/request';
 
 // The OS wakes the app on its own schedule (Android >= ~15 min; iOS decides by
 // usage and power). Each wake runs one pass of the same backup engine used in
@@ -12,19 +13,28 @@ export const BACKUP_TASK = 'kuraki-backup';
 // defineTask must run at module load so the task exists when the OS relaunches
 // the app headlessly. This module is imported from the root layout.
 TaskManager.defineTask(BACKUP_TASK, async () => {
-  const expiration = BackgroundTask.addExpirationListener(() => backupEngine.stop());
+  const controller = new AbortController();
+  const stop = () => {
+    controller.abort();
+    backupEngine.stop();
+  };
+  const deadline = setTimeout(stop, 90_000);
+  const expiration = BackgroundTask.addExpirationListener(stop);
   try {
     // Sync first, and always. It is cheap (a cursor-paginated delta feed plus
     // a mutation-queue drain) and it is the half of sync with no other
     // background trigger -- server-side edits previously reached the device
     // only while the app was open on the Library tab. Backup can consume the
     // entire window on a large library, so ordering it first would starve sync.
-    await drainBackgroundSync();
-    await backupEngine.run({ background: true });
+    await drainBackgroundSync(controller.signal);
+    throwIfAborted(controller.signal);
+    await backupEngine.run({ background: true, signal: controller.signal });
+    throwIfAborted(controller.signal);
     return BackgroundTask.BackgroundTaskResult.Success;
   } catch {
     return BackgroundTask.BackgroundTaskResult.Failed;
   } finally {
+    clearTimeout(deadline);
     expiration.remove();
   }
 });
@@ -44,7 +54,10 @@ export async function disableBackgroundBackup(): Promise<void> {
 }
 
 export async function backgroundAvailable(): Promise<boolean> {
-  return (await BackgroundTask.getStatusAsync()) === BackgroundTask.BackgroundTaskStatus.Available;
+  return (
+    (await BackgroundTask.getStatusAsync()) ===
+    BackgroundTask.BackgroundTaskStatus.Available
+  );
 }
 
 /**
@@ -62,7 +75,9 @@ export async function backgroundAvailable(): Promise<boolean> {
  * Returns the resulting state so callers can report it honestly rather than
  * assuming success.
  */
-export async function reconcileBackgroundBackup(): Promise<'registered' | 'unregistered' | 'unavailable'> {
+export async function reconcileBackgroundBackup(): Promise<
+  'registered' | 'unregistered' | 'unavailable'
+> {
   const wanted = await backupEngine.isAuto();
   const registered = await TaskManager.isTaskRegisteredAsync(BACKUP_TASK);
 

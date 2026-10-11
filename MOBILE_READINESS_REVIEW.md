@@ -254,3 +254,16 @@ simulators and both operating systems choose when work runs:
 Native/JS Worklets versions must match and changing native versions requires a
 rebuild: [Worklets troubleshooting](https://docs.swmansion.com/react-native-worklets/docs/guides/troubleshooting/).
 Simulator/emulator success must not be presented as that physical-device evidence.
+
+## Remediation in progress (2026-10-11)
+
+Original safety/isolation and bounded engine/protocol fixes are implemented on
+`codex/mobile-hardening`: findings 1–10 now have regression coverage and corrected
+behavior. Receipts require successful import; reclamation checks current local
+BLAKE3 bytes and server originals. Availability checks repair purge/restore history.
+Libraries have separate credentials/cache/ledger namespaces with fenced stale work.
+Live Photos require both still and motion originals. The engine streams pages,
+reserves history work and owns cancellation; trip/tag grids handle retry/pagination.
+315 mobile tests and the server race suite passed before this milestone. Native
+builds, dependency remediation, CI release gates and hardware evidence follow.
+The historical probe files above are retained audit evidence, not passing-fix tests.

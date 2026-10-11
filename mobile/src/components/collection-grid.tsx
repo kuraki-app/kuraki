@@ -69,7 +69,7 @@ export default function CollectionGrid({ loadPage, emptyMessage, removeWhenUnfav
         ? current.filter((asset) => asset.id !== id)
         : current.map((asset) => (asset.id === id ? { ...asset, favorite } : asset)),
     );
-    await setCachedFavorite(id, favorite);
+    await setCachedFavorite(id, favorite, settings ?? undefined);
     if (settings) {
       try {
         await setFavorite(settings, id, favorite);
@@ -78,7 +78,7 @@ export default function CollectionGrid({ loadPage, emptyMessage, removeWhenUnfav
         // Preserve the optimistic change and replay it after reconnect.
       }
     }
-    await enqueueFavorite(id, favorite);
+    await enqueueFavorite(id, favorite, settings ?? undefined);
   }
 
   return (

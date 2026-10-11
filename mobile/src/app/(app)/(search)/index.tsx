@@ -151,7 +151,7 @@ export default function SearchScreen() {
   const toggleFavorite = useCallback(
     async (id: string, next: boolean) => {
       setAssets((prev) => prev.map((a) => (a.id === id ? { ...a, favorite: next } : a)));
-      await setCachedFavorite(id, next);
+      await setCachedFavorite(id, next, settings ?? undefined);
       if (settings) {
         try {
           await setFavorite(settings, id, next);
@@ -160,7 +160,7 @@ export default function SearchScreen() {
           // fall through: queue for the next reconnect flush
         }
       }
-      await enqueueFavorite(id, next);
+      await enqueueFavorite(id, next, settings ?? undefined);
     },
     [settings],
   );

@@ -1,5 +1,12 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchPlaces, fetchPlacesSummary } from './library-api';
+
+import { saveCaptureSettings } from './settings';
+import { __reset } from '../../test/mocks/expo-secure-store';
+beforeEach(async () => {
+  __reset();
+  await saveCaptureSettings(settings);
+});
 
 const settings = { baseURL: 'http://host:3000', deviceToken: 'tok' } as any;
 
@@ -16,8 +23,23 @@ describe('fetchPlaces', () => {
   it('returns only assets with GPS, narrowed to PlacePoint', async () => {
     mockFetchOnce({
       assets: [
-        { id: 'a', gps_lat: 1, gps_lon: 2, filename: 'a.jpg', media_type: 'image', favorite: false, thumbnail_url: '/t' },
-        { id: 'b', gps_lat: null, gps_lon: null, filename: 'b.jpg', media_type: 'image', favorite: false },
+        {
+          id: 'a',
+          gps_lat: 1,
+          gps_lon: 2,
+          filename: 'a.jpg',
+          media_type: 'image',
+          favorite: false,
+          thumbnail_url: '/t',
+        },
+        {
+          id: 'b',
+          gps_lat: null,
+          gps_lon: null,
+          filename: 'b.jpg',
+          media_type: 'image',
+          favorite: false,
+        },
       ],
     });
     const pts = await fetchPlaces(settings);
@@ -28,7 +50,17 @@ describe('fetchPlaces', () => {
 
 describe('fetchPlacesSummary', () => {
   it('returns the place groups array', async () => {
-    mockFetchOnce({ places: [{ city: 'Paris', country: 'France', count: 3, cover_asset_id: 'c', cover_thumb_url: '/t' }] });
+    mockFetchOnce({
+      places: [
+        {
+          city: 'Paris',
+          country: 'France',
+          count: 3,
+          cover_asset_id: 'c',
+          cover_thumb_url: '/t',
+        },
+      ],
+    });
     const groups = await fetchPlacesSummary(settings);
     expect(groups).toHaveLength(1);
     expect(groups[0].city).toBe('Paris');

@@ -57,10 +57,10 @@ export default function DuplicatesScreen() {
           try {
             await trashAsset(settings, id);
           } catch {
-            await enqueueTrash(id);
+            await enqueueTrash(id, settings ?? undefined);
           }
         } else {
-          await enqueueTrash(id);
+          await enqueueTrash(id, settings ?? undefined);
         }
       }
       setGroups((prev) => removeIds(prev, ids));

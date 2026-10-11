@@ -107,7 +107,7 @@ export default function TrashScreen() {
     setSelected(new Set());
     for (const id of ids) {
       setAssets((prev) => prev.filter((a) => a.id !== id));
-      await setTrashed(id, false);
+      await setTrashed(id, false, settings ?? undefined);
       if (settings && !disconnected) {
         try {
           await restoreAsset(settings, id);
@@ -116,7 +116,7 @@ export default function TrashScreen() {
           // fall through: queue for the next reconnect flush
         }
       }
-      await enqueueRestore(id);
+      await enqueueRestore(id, settings ?? undefined);
     }
   }, [selected, settings, disconnected]);
 
@@ -130,7 +130,7 @@ export default function TrashScreen() {
       // A purge is permanent — clear the local mirror unconditionally so the
       // asset can't reappear in the offline Timeline fallback, regardless of
       // whether the online send below succeeds or the mutation gets queued.
-      await deleteCachedAsset(id);
+      await deleteCachedAsset(id, settings ?? undefined);
       if (settings && !disconnected) {
         try {
           await purgeAsset(settings, id);
@@ -139,7 +139,7 @@ export default function TrashScreen() {
           // fall through: queue for the next reconnect flush
         }
       }
-      await enqueuePurge(id);
+      await enqueuePurge(id, settings ?? undefined);
     }
   }, [selected, settings, disconnected]);
 

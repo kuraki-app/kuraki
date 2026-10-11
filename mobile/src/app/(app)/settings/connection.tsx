@@ -9,7 +9,7 @@ import { nextConnectionState, probeServer, resolveServerURL, type ConnectionStat
 import { connectionView, showsCodeInput } from '@/lib/connection-view';
 import { flushFavorites } from '@/lib/library-api';
 import { clearAuthLost, isAuthLost, onAuthLost } from '@/lib/session';
-import { loadCaptureSettings, saveCaptureSettings } from '@/lib/settings';
+import { loadCaptureSettings, saveCaptureSettings, connectCaptureSettings, connectionEpoch, StaleConnectionError } from '@/lib/settings';
 import { DEFAULT_SERVER_PORT } from '@/design/ports';
 import { normalizeServerURL } from '@/lib/url';
 
@@ -91,6 +91,7 @@ export default function ConnectionSettings() {
   }
 
   async function commitAddress() {
+    const expectedEpoch=connectionEpoch();
     const s = await loadCaptureSettings();
     // Resolve before storing: a typed domain is HTTPS on 443 and a typed LAN
     // address is HTTP on the server's own port, and only a probe can tell which
@@ -103,7 +104,9 @@ export default function ConnectionSettings() {
     // the app at a server that is currently down should not have their typing
     // thrown away. The status line below says it is unreachable.
     const url = resolved ?? normalizeServerURL(baseURL);
-    await saveCaptureSettings({ baseURL: url, deviceToken: s.deviceToken });
+    if(connectionEpoch()!==expectedEpoch)throw new StaleConnectionError();
+    if(resolved && s.deviceToken)await connectCaptureSettings({baseURL:url,deviceToken:s.deviceToken},undefined,expectedEpoch);
+    else await saveCaptureSettings({baseURL:url,deviceToken:s.deviceToken},expectedEpoch);
     setBaseURL(url);
     setActiveURL(url);
     setSaved(true);

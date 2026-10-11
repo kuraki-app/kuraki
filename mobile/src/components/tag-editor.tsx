@@ -61,7 +61,7 @@ export default function TagEditor({
     const ids = [...selected];
     const state = await probeServer(settings.baseURL);
     if (state === 'ok') await setAssetTags(settings, asset.id, ids);
-    else await enqueueSetTags(asset.id, ids);
+    else await enqueueSetTags(asset.id, ids, settings ?? undefined);
     onClose();
   }
 

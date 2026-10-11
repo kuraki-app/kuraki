@@ -332,6 +332,10 @@ func (q *Queue) process(ctx context.Context, j Job) {
 			return
 		}
 	}
+	if err := recordCaptureReceipts(ctx, tx, source, owner.String); err != nil {
+		q.Log.Warn("queue: finalize capture receipts failed", "job", j.ID, "err", err)
+		return
+	}
 	if err := tx.Commit(); err != nil {
 		q.Log.Warn("queue: finalize job failed", "job", j.ID, "err", err)
 		return

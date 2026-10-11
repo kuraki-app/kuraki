@@ -1,8 +1,23 @@
 import { flushMutations, type PendingMutation } from '@/lib/cache/mutations';
 import { upsertAssets, getSyncCursor, setSyncCursor } from '@/lib/cache/assets';
-import { upsertAlbums, readAlbums, setAlbumAssets, readAlbumAssets, setTrashed, readTrashed, deleteCachedAsset, type CachedAlbum } from '@/lib/cache/albums';
+import {
+  upsertAlbums,
+  readAlbums,
+  setAlbumAssets,
+  readAlbumAssets,
+  setTrashed,
+  readTrashed,
+  deleteCachedAsset,
+  type CachedAlbum,
+} from '@/lib/cache/albums';
 import { reportAuthLost } from '@/lib/session';
-import type { CaptureSettings } from '@/lib/settings';
+import {
+  assertActiveConnection,
+  StaleConnectionError,
+  withActiveConnection,
+  type CaptureSettings,
+} from '@/lib/settings';
+import { jsonRequest, request, RequestError } from '@/lib/request';
 import type { components } from '@/lib/api.gen';
 
 // The mobile Find loop reads the library through the device-authenticated
@@ -82,7 +97,10 @@ export type LibraryFilters = {
 };
 
 export class LibraryError extends Error {
-  constructor(message: string, readonly status = 0) {
+  constructor(
+    message: string,
+    readonly status = 0,
+  ) {
     super(message);
     this.name = 'LibraryError';
   }
@@ -120,14 +138,32 @@ export function isUnfiltered(filters: LibraryFilters): boolean {
  * refetches. Swallowed rather than logged to match how the rest of the app
  * treats best-effort work (see the tag fetch in photo-viewer).
  */
-function mirror(write: Promise<unknown>): void {
-  void write.catch(() => {});
+function mirror(
+  settings: CaptureSettings,
+  write: () => Promise<unknown>,
+): void {
+  void withActiveConnection(settings, write).catch(() => {});
+}
+async function libraryJSON<T>(
+  settings: CaptureSettings,
+  path: string,
+  init: RequestInit = {},
+  signal?: AbortSignal,
+): Promise<T> {
+  try {
+    return await jsonRequest<T>(settings, path, init, signal);
+  } catch (error) {
+    if (error instanceof RequestError && error.status > 0)
+      throw new LibraryError(error.message, error.status);
+    throw error;
+  }
 }
 
 export async function fetchLibrary(
   settings: CaptureSettings,
   filters: LibraryFilters,
   cursor?: string,
+  signal?: AbortSignal,
 ): Promise<LibraryPage> {
   if (!settings.baseURL || !settings.deviceToken) {
     throw new LibraryError('Connect this device in Settings first.');
@@ -144,41 +180,26 @@ export async function fetchLibrary(
   if (filters.archived) params.set('archived', '1');
   if (cursor) params.set('cursor', cursor);
 
-  const response = await fetch(`${settings.baseURL}/api/search?${params.toString()}`, {
-    headers: { Authorization: `Bearer ${settings.deviceToken}` },
-  });
-  if (response.status === 401) {
-    reportAuthLost(settings.deviceToken);
-    throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
-  }
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new LibraryError(
-      typeof body.error === 'string' ? body.error : `Request failed (${response.status})`,
-      response.status,
-    );
-  }
-  const page = (await response.json()) as LibraryPage;
-  // Feed the offline cache from the plain recent view so the grid can paint
-  // instantly next open and fall back to something when the network is down.
-  if (isUnfiltered(filters)) mirror(upsertAssets(page.assets));
+  if (filters.trip) params.set('trip', filters.trip);
+  const page = await libraryJSON<LibraryPage>(
+    settings,
+    `/api/search?${params.toString()}`,
+    {},
+    signal,
+  );
+  if (isUnfiltered(filters)) mirror(settings, () => upsertAssets(page.assets));
   return page;
 }
 
 /** setFavorite pushes a favorite toggle to the server for one asset. */
-export async function setFavorite(settings: CaptureSettings, id: string, favorite: boolean): Promise<void> {
-  const response = await fetch(`${settings.baseURL}/api/assets/${id}/favorite`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${settings.deviceToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ favorite }),
+export async function setFavorite(
+  settings: CaptureSettings,
+  id: string,
+  favorite: boolean,
+): Promise<void> {
+  return authedMutate(settings, `/api/assets/${id}/favorite`, 'POST', {
+    favorite,
   });
-  if (response.status === 401) {
-    reportAuthLost(settings.deviceToken);
-    throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
-  }
-  if (!response.ok) {
-    throw new LibraryError(`Could not update favorite (${response.status})`, response.status);
-  }
 }
 
 // ---- Albums, memories, trash --------------------------------------------
@@ -208,54 +229,76 @@ function toCachedAlbum(a: ServerAlbum): CachedAlbum {
   };
 }
 
-async function authedGet<T>(settings: CaptureSettings, path: string): Promise<T> {
-  const response = await fetch(`${settings.baseURL}${path}`, {
-    headers: { Authorization: `Bearer ${settings.deviceToken}` },
-  });
-  if (response.status === 401) {
-    reportAuthLost(settings.deviceToken);
-    throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
-  }
-  if (!response.ok) {
-    throw new LibraryError(`Request failed (${response.status})`, response.status);
-  }
-  return (await response.json()) as T;
+async function authedGet<T>(
+  settings: CaptureSettings,
+  path: string,
+  signal?: AbortSignal,
+): Promise<T> {
+  return libraryJSON<T>(settings, path, {}, signal);
 }
-
-async function authedMutate(settings: CaptureSettings, path: string, method: string, body?: unknown): Promise<void> {
-  const response = await fetch(`${settings.baseURL}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${settings.deviceToken}`,
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+async function authedMutate(
+  settings: CaptureSettings,
+  path: string,
+  method: string,
+  body?: unknown,
+): Promise<void> {
+  return request(
+    settings,
+    path,
+    {
+      method,
+      ...(body !== undefined
+        ? {
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          }
+        : {}),
     },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
-  if (response.status === 401) {
-    reportAuthLost(settings.deviceToken);
-    throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
-  }
-  if (!response.ok) {
-    throw new LibraryError(`Request failed (${response.status})`, response.status);
-  }
+    async (response) => {
+      if (response.status === 401) {
+        reportAuthLost(settings);
+        throw new LibraryError(
+          'This device was disconnected. Re-pair it in Settings.',
+          401,
+        );
+      }
+      if (!response.ok)
+        throw new LibraryError(
+          `Request failed (${response.status})`,
+          response.status,
+        );
+    },
+  );
 }
 
-async function withMirrorFallback<T>(load: () => Promise<T>, fallback: () => Promise<T>): Promise<T> {
+async function withMirrorFallback<T>(
+  load: () => Promise<T>,
+  fallback: () => Promise<T>,
+): Promise<T> {
   try {
     return await load();
   } catch (err) {
-    if (err instanceof LibraryError) throw err;
+    if (err instanceof LibraryError || err instanceof StaleConnectionError)
+      throw err;
     return fallback();
   }
 }
 
-export async function fetchAlbums(settings: CaptureSettings): Promise<CachedAlbum[]> {
-  return withMirrorFallback(async () => {
-    const body = await authedGet<{ albums: ServerAlbum[] }>(settings, '/api/albums');
-    const albums = body.albums.map(toCachedAlbum);
-    await upsertAlbums(albums);
-    return albums;
-  }, readAlbums);
+export async function fetchAlbums(
+  settings: CaptureSettings,
+): Promise<CachedAlbum[]> {
+  return withMirrorFallback(
+    async () => {
+      const body = await authedGet<{ albums: ServerAlbum[] }>(
+        settings,
+        '/api/albums',
+      );
+      const albums = body.albums.map(toCachedAlbum);
+      await withActiveConnection(settings, () => upsertAlbums(albums));
+      return albums;
+    },
+    () => withActiveConnection(settings, readAlbums),
+  );
 }
 
 /**
@@ -271,34 +314,38 @@ export async function fetchAlbum(
   settings: CaptureSettings,
   id: string,
   cursor?: string,
+  signal?: AbortSignal,
 ): Promise<LibraryPage> {
   return withMirrorFallback(
     async () => {
       const params = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
-      const page = await authedGet<LibraryPage>(settings, `/api/albums/${id}${params}`);
-      if (!cursor) await setAlbumAssets(id, page.assets);
+      const page = await authedGet<LibraryPage>(
+        settings,
+        `/api/albums/${id}${params}`,
+      );
+      if (!cursor)
+        await withActiveConnection(settings, () =>
+          setAlbumAssets(id, page.assets),
+        );
       return page;
     },
-    async () => ({ assets: await readAlbumAssets(id) }),
+    async () => ({
+      assets: await withActiveConnection(settings, () => readAlbumAssets(id)),
+    }),
   );
 }
 
 /** createAlbum is online-only: a network failure throws so the UI can show
  * "Connect to create an album" rather than silently queuing it. */
-export async function createAlbum(settings: CaptureSettings, name: string): Promise<{ id: string; name: string }> {
-  const response = await fetch(`${settings.baseURL}/api/albums`, {
+export async function createAlbum(
+  settings: CaptureSettings,
+  name: string,
+): Promise<{ id: string; name: string }> {
+  return libraryJSON(settings, '/api/albums', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${settings.deviceToken}`, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
   });
-  if (response.status === 401) {
-    reportAuthLost(settings.deviceToken);
-    throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
-  }
-  if (!response.ok) {
-    throw new LibraryError(`Could not create album (${response.status})`, response.status);
-  }
-  return (await response.json()) as { id: string; name: string };
 }
 
 /**
@@ -318,10 +365,14 @@ export async function setArchived(
   ids: string[],
   archived: boolean,
 ): Promise<number> {
-  const res = await authedPost<{ succeeded?: number }>(settings, '/api/assets/batch', {
-    ids,
-    op: archived ? 'archive' : 'unarchive',
-  });
+  const res = await authedPost<{ succeeded?: number }>(
+    settings,
+    '/api/assets/batch',
+    {
+      ids,
+      op: archived ? 'archive' : 'unarchive',
+    },
+  );
   return res.succeeded ?? 0;
 }
 
@@ -353,23 +404,23 @@ export async function removeFromAlbum(
   albumId: string,
   ids: string[],
 ): Promise<void> {
-  return authedMutate(settings, `/api/albums/${albumId}/assets`, 'DELETE', { ids });
+  return authedMutate(settings, `/api/albums/${albumId}/assets`, 'DELETE', {
+    ids,
+  });
 }
 
 // ---- Tags ----------------------------------------------------------------
 
-async function authedPost<T>(settings: CaptureSettings, path: string, body: unknown): Promise<T> {
-  const response = await fetch(`${settings.baseURL}${path}`, {
+async function authedPost<T>(
+  settings: CaptureSettings,
+  path: string,
+  body: unknown,
+): Promise<T> {
+  return libraryJSON(settings, path, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${settings.deviceToken}`, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (response.status === 401) {
-    reportAuthLost(settings.deviceToken);
-    throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
-  }
-  if (!response.ok) throw new LibraryError(`Request failed (${response.status})`, response.status);
-  return (await response.json()) as T;
 }
 
 // fetchTags returns the owner's tag list, cached so browse-by-tag renders
@@ -388,46 +439,75 @@ export async function fetchTrips(settings: CaptureSettings): Promise<Trip[]> {
 
 export async function fetchTags(settings: CaptureSettings): Promise<Tag[]> {
   const { upsertTags, readTags } = await import('@/lib/cache/tags');
-  return withMirrorFallback(async () => {
-    const body = await authedGet<{ tags: Tag[] }>(settings, '/api/tags');
-    await upsertTags(body.tags);
-    return body.tags;
-  }, readTags);
+  return withMirrorFallback(
+    async () => {
+      const body = await authedGet<{ tags: Tag[] }>(settings, '/api/tags');
+      await withActiveConnection(settings, () => upsertTags(body.tags));
+      return body.tags;
+    },
+    () => withActiveConnection(settings, readTags),
+  );
 }
 
-export async function fetchAssetTags(settings: CaptureSettings, assetId: string): Promise<Tag[]> {
-  const body = await authedGet<{ tags: Tag[] }>(settings, `/api/assets/${assetId}/tags`);
+export async function fetchAssetTags(
+  settings: CaptureSettings,
+  assetId: string,
+): Promise<Tag[]> {
+  const body = await authedGet<{ tags: Tag[] }>(
+    settings,
+    `/api/assets/${assetId}/tags`,
+  );
   return body.tags;
 }
 
 /** setAssetTags replaces an asset's full tag set (the server has no add/remove). */
-export async function setAssetTags(settings: CaptureSettings, assetId: string, tagIDs: string[]): Promise<void> {
-  await authedMutate(settings, `/api/assets/${assetId}/tags`, 'PUT', { ids: tagIDs });
+export async function setAssetTags(
+  settings: CaptureSettings,
+  assetId: string,
+  tagIDs: string[],
+): Promise<void> {
+  await authedMutate(settings, `/api/assets/${assetId}/tags`, 'PUT', {
+    ids: tagIDs,
+  });
 }
 
 // createTag is online-only: a queued create can't be referenced by a later
 // offline set_tags (no stable id yet), so it throws rather than queuing.
-export async function createTag(settings: CaptureSettings, name: string): Promise<Tag> {
+export async function createTag(
+  settings: CaptureSettings,
+  name: string,
+): Promise<Tag> {
   return authedPost<Tag>(settings, '/api/tags', { name });
 }
 
-export async function fetchMemories(settings: CaptureSettings, cursor?: string): Promise<LibraryPage> {
+export async function fetchMemories(
+  settings: CaptureSettings,
+  cursor?: string,
+  signal?: AbortSignal,
+): Promise<LibraryPage> {
   const params = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
   const page = await authedGet<LibraryPage>(settings, `/api/memories${params}`);
-  mirror(upsertAssets(page.assets));
+  mirror(settings, () => upsertAssets(page.assets));
   return page;
 }
 
 // fetchPlaces returns every located asset (has GPS) for plotting on the map.
 // The server DTO carries gps_lat/gps_lon; the narrow LibraryAsset view omits
 // them, so read them off the raw row and attach to the PlacePoint.
-export async function fetchPlaces(settings: CaptureSettings): Promise<import('@/lib/places').PlacePoint[]> {
-  const body = await authedGet<{ assets: (LibraryAsset & { gps_lat: number | null; gps_lon: number | null })[] }>(
-    settings,
-    '/api/places',
-  );
+export async function fetchPlaces(
+  settings: CaptureSettings,
+): Promise<import('@/lib/places').PlacePoint[]> {
+  const body = await authedGet<{
+    assets: (LibraryAsset & {
+      gps_lat: number | null;
+      gps_lon: number | null;
+    })[];
+  }>(settings, '/api/places');
   return body.assets
-    .filter((a): a is LibraryAsset & { gps_lat: number; gps_lon: number } => a.gps_lat != null && a.gps_lon != null)
+    .filter(
+      (a): a is LibraryAsset & { gps_lat: number; gps_lon: number } =>
+        a.gps_lat != null && a.gps_lon != null,
+    )
     .map((a) => ({
       id: a.id,
       filename: a.filename,
@@ -448,8 +528,13 @@ export async function fetchPlaces(settings: CaptureSettings): Promise<import('@/
 
 // fetchPlacesSummary returns place groups (city/country/count/cover) for the
 // bottom-sheet list.
-export async function fetchPlacesSummary(settings: CaptureSettings): Promise<PlaceGroup[]> {
-  const body = await authedGet<{ places: PlaceGroup[] }>(settings, '/api/places/summary');
+export async function fetchPlacesSummary(
+  settings: CaptureSettings,
+): Promise<PlaceGroup[]> {
+  const body = await authedGet<{ places: PlaceGroup[] }>(
+    settings,
+    '/api/places/summary',
+  );
   return body.places;
 }
 
@@ -459,7 +544,9 @@ export async function fetchPlacesSummary(settings: CaptureSettings): Promise<Pla
 // device-specific endpoint -- see internal/httpapi/stats_device_test.go.
 export type LibraryStats = components['schemas']['apitypes.LibraryStats'];
 
-export async function fetchStats(settings: CaptureSettings): Promise<LibraryStats> {
+export async function fetchStats(
+  settings: CaptureSettings,
+): Promise<LibraryStats> {
   return authedGet<LibraryStats>(settings, '/api/stats');
 }
 
@@ -477,21 +564,37 @@ export type DupAsset = {
 // fetchDuplicates returns the latest scan's near-duplicate groups. Read-only on
 // mobile: triggering a scan is a session-only owner-console action, so an empty
 // result means "no scan yet / no duplicates", not a mobile capability gap.
-export async function fetchDuplicates(settings: CaptureSettings): Promise<DupAsset[][]> {
-  const body = await authedGet<{ groups: DupAsset[][] }>(settings, '/api/duplicates');
+export async function fetchDuplicates(
+  settings: CaptureSettings,
+): Promise<DupAsset[][]> {
+  const body = await authedGet<{ groups: DupAsset[][] }>(
+    settings,
+    '/api/duplicates',
+  );
   return body.groups ?? [];
 }
 
-export async function fetchTrash(settings: CaptureSettings, cursor?: string): Promise<LibraryPage> {
+export async function fetchTrash(
+  settings: CaptureSettings,
+  cursor?: string,
+  signal?: AbortSignal,
+): Promise<LibraryPage> {
   return withMirrorFallback(
     async () => {
       const params = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
-      const page = await authedGet<LibraryPage>(settings, `/api/trash${params}`);
-      await upsertAssets(page.assets);
-      for (const a of page.assets) await setTrashed(a.id, true);
+      const page = await authedGet<LibraryPage>(
+        settings,
+        `/api/trash${params}`,
+      );
+      await withActiveConnection(settings, async () => {
+        await upsertAssets(page.assets);
+        for (const a of page.assets) await setTrashed(a.id, true);
+      });
       return page;
     },
-    async () => ({ assets: await readTrashed() }),
+    async () => ({
+      assets: await withActiveConnection(settings, () => readTrashed()),
+    }),
   );
 }
 
@@ -517,35 +620,37 @@ type ChangesResponse = components['schemas']['apitypes.ChangesResponse'];
 export type AssetDetail = components['schemas']['apitypes.Asset'];
 
 /** fetchAssetDetail reads one asset's full metadata for the details sheet. */
-export async function fetchAssetDetail(settings: CaptureSettings, id: string): Promise<AssetDetail> {
+export async function fetchAssetDetail(
+  settings: CaptureSettings,
+  id: string,
+): Promise<AssetDetail> {
   return authedGet<AssetDetail>(settings, `/api/assets/${id}`);
 }
 
 /** fetchAsset re-reads one asset's metadata; null if it is gone (404). */
-async function fetchAsset(settings: CaptureSettings, id: string): Promise<LibraryAsset | null> {
-  const response = await fetch(`${settings.baseURL}/api/assets/${id}`, {
-    headers: { Authorization: `Bearer ${settings.deviceToken}` },
-  });
-  if (response.status === 401) {
-    reportAuthLost(settings.deviceToken);
-    throw new LibraryError('This device was disconnected. Re-pair it in Settings.', 401);
+async function fetchAsset(
+  settings: CaptureSettings,
+  id: string,
+  signal?: AbortSignal,
+): Promise<LibraryAsset | null> {
+  try {
+    return await authedGet(settings, `/api/assets/${id}`, signal);
+  } catch (error) {
+    if (error instanceof LibraryError && error.status === 404) return null;
+    throw error;
   }
-  if (response.status === 404) return null;
-  if (!response.ok) throw new LibraryError(`Request failed (${response.status})`, response.status);
-  return (await response.json()) as LibraryAsset;
 }
 
-// changeAction is the pure decision for one feed entry, split out so it can be
-// unit-tested without the SQLite mirror (same seam pattern as routeForMutation):
-//   'ignore'  — not an asset change (no other entity is emitted today)
-//   'remove'  — delete/purge; drop from the active timeline mirror
-//   'refetch' — create/update; re-read metadata and upsert
 export function changeAction(c: ChangeEntry): 'ignore' | 'remove' | 'refetch' {
   if (c.entity !== 'asset') return 'ignore';
   return c.op === 'delete' ? 'remove' : 'refetch';
 }
 
-async function applyChange(settings: CaptureSettings, c: ChangeEntry): Promise<void> {
+async function applyChange(
+  settings: CaptureSettings,
+  c: ChangeEntry,
+  signal?: AbortSignal,
+): Promise<void> {
   switch (changeAction(c)) {
     case 'ignore':
       return;
@@ -553,14 +658,20 @@ async function applyChange(settings: CaptureSettings, c: ChangeEntry): Promise<v
       // Trashed or purged — either way it leaves the active timeline mirror. The
       // Trash screen refetches /api/trash live, so we don't try to
       // reconstruct trashed state here (getAsset can't return a deleted asset).
-      await deleteCachedAsset(c.entity_id);
+      await withActiveConnection(settings, () =>
+        deleteCachedAsset(c.entity_id),
+      );
       return;
     case 'refetch': {
       // Re-read and upsert. A 404 means it was deleted between the feed page and
       // this refetch — treat it the same as a delete.
-      const asset = await fetchAsset(settings, c.entity_id);
-      if (asset) await upsertAssets([asset]);
-      else await deleteCachedAsset(c.entity_id);
+      const asset = await fetchAsset(settings, c.entity_id, signal);
+      if (asset)
+        await withActiveConnection(settings, () => upsertAssets([asset]));
+      else
+        await withActiveConnection(settings, () =>
+          deleteCachedAsset(c.entity_id),
+        );
       return;
     }
   }
@@ -574,49 +685,74 @@ async function applyChange(settings: CaptureSettings, c: ChangeEntry): Promise<v
  * network failure leaves the cursor where it was so the next run resumes. A 401
  * propagates (device disconnected) rather than being swallowed.
  */
-export async function syncChanges(settings: CaptureSettings): Promise<{ applied: number; reset: boolean }> {
-  if (!settings.baseURL || !settings.deviceToken) return { applied: 0, reset: false };
+export async function syncChanges(
+  settings: CaptureSettings,
+  signal?: AbortSignal,
+): Promise<{ applied: number; reset: boolean }> {
+  if (!settings.baseURL || !settings.deviceToken)
+    return { applied: 0, reset: false };
   let applied = 0;
   // Bound the catch-up so a huge backlog can't block one call indefinitely;
   // the next run picks up where the cursor left off.
   for (let page = 0; page < 20; page++) {
-    const since = await getSyncCursor();
+    const since = await withActiveConnection(settings, () => getSyncCursor());
     const res = await authedGet<ChangesResponse>(
-      settings, `/api/changes?since=${since}`);
+      settings,
+      `/api/changes?since=${since}`,
+      signal,
+    );
     // reset: our cursor fell below the pruned change_log floor. We can't catch
     // up incrementally, so wipe the mirror and jump to the head, then signal a
     // reset so the caller reloads and rebuilds the mirror from fetchLibrary.
     if (res.reset) {
       const { clearCachedAssets } = await import('@/lib/cache/assets');
-      await clearCachedAssets();
-      await setSyncCursor(res.cursor);
+      await withActiveConnection(settings, async () => {
+        await clearCachedAssets();
+        await setSyncCursor(res.cursor);
+      });
       return { applied, reset: true };
     }
     for (const c of res.changes) {
-      await applyChange(settings, c);
+      await applyChange(settings, c, signal);
       applied++;
     }
     // Advance only after the page's changes are applied, so a crash mid-page
     // re-fetches that page rather than skipping unapplied changes.
-    await setSyncCursor(res.cursor);
+    await withActiveConnection(settings, () => setSyncCursor(res.cursor));
     if (!res.has_more) break;
   }
   return { applied, reset: false };
 }
 
-export async function restoreAsset(settings: CaptureSettings, id: string): Promise<void> {
+export async function restoreAsset(
+  settings: CaptureSettings,
+  id: string,
+): Promise<void> {
   return authedMutate(settings, `/api/assets/${id}/restore`, 'POST');
 }
 
-export async function trashAsset(settings: CaptureSettings, id: string): Promise<void> {
+export async function trashAsset(
+  settings: CaptureSettings,
+  id: string,
+): Promise<void> {
   return authedMutate(settings, `/api/assets/${id}`, 'DELETE');
 }
 
-export async function purgeAsset(settings: CaptureSettings, id: string): Promise<void> {
+export async function purgeAsset(
+  settings: CaptureSettings,
+  id: string,
+): Promise<void> {
   return authedMutate(settings, `/api/trash/${id}`, 'DELETE');
 }
 
-export type MutationKind = 'favorite' | 'album_add' | 'album_remove' | 'trash' | 'restore' | 'purge' | 'set_tags';
+export type MutationKind =
+  | 'favorite'
+  | 'album_add'
+  | 'album_remove'
+  | 'trash'
+  | 'restore'
+  | 'purge'
+  | 'set_tags';
 
 // routeForMutation maps a queued mutation to its server call. Pure so the
 // dispatch table is unit-tested without a network or SecureStore.
@@ -625,22 +761,54 @@ export function routeForMutation(
   assetId: string,
   payload: string,
 ): { method: string; path: string; body?: unknown } {
-  const p = JSON.parse(payload || '{}') as { favorite?: boolean; album_id?: string; tag_ids?: string[] };
+  const p = JSON.parse(payload || '{}') as {
+    favorite?: boolean;
+    album_id?: string;
+    tag_ids?: string[];
+  };
   switch (kind) {
     case 'favorite':
-      return { method: 'POST', path: `/api/assets/${assetId}/favorite`, body: { favorite: !!p.favorite } };
+      return {
+        method: 'POST',
+        path: `/api/assets/${assetId}/favorite`,
+        body: { favorite: !!p.favorite },
+      };
     case 'set_tags':
-      return { method: 'PUT', path: `/api/assets/${assetId}/tags`, body: { ids: p.tag_ids ?? [] } };
+      return {
+        method: 'PUT',
+        path: `/api/assets/${assetId}/tags`,
+        body: { ids: p.tag_ids ?? [] },
+      };
     case 'album_add':
-      return { method: 'POST', path: `/api/albums/${p.album_id}/assets`, body: { ids: [assetId] } };
+      return {
+        method: 'POST',
+        path: `/api/albums/${p.album_id}/assets`,
+        body: { ids: [assetId] },
+      };
     case 'album_remove':
-      return { method: 'DELETE', path: `/api/albums/${p.album_id}/assets`, body: { ids: [assetId] } };
+      return {
+        method: 'DELETE',
+        path: `/api/albums/${p.album_id}/assets`,
+        body: { ids: [assetId] },
+      };
     case 'trash':
-      return { method: 'DELETE', path: `/api/assets/${assetId}`, body: undefined };
+      return {
+        method: 'DELETE',
+        path: `/api/assets/${assetId}`,
+        body: undefined,
+      };
     case 'restore':
-      return { method: 'POST', path: `/api/assets/${assetId}/restore`, body: undefined };
+      return {
+        method: 'POST',
+        path: `/api/assets/${assetId}/restore`,
+        body: undefined,
+      };
     case 'purge':
-      return { method: 'DELETE', path: `/api/trash/${assetId}`, body: undefined };
+      return {
+        method: 'DELETE',
+        path: `/api/trash/${assetId}`,
+        body: undefined,
+      };
     default:
       throw new LibraryError(`unknown mutation kind: ${kind}`);
   }
@@ -658,7 +826,10 @@ export function routeForMutation(
 // an undispatchable mutation (corrupt payload, unknown kind) is not a network
 // problem, so it must not be classified as one — that would retry forever
 // instead of being dropped.
-export async function flushMutationsQueue(settings: CaptureSettings): Promise<void> {
+export async function flushMutationsQueue(
+  settings: CaptureSettings,
+  signal?: AbortSignal,
+): Promise<void> {
   const send = async (m: PendingMutation) => {
     let call: { method: string; path: string; body?: unknown };
     try {
@@ -667,31 +838,47 @@ export async function flushMutationsQueue(settings: CaptureSettings): Promise<vo
       return { status: 422, networkError: false }; // undispatchable -> drop
     }
     try {
-      const response = await fetch(`${settings.baseURL}${call.path}`, {
-        method: call.method,
-        headers: {
-          Authorization: `Bearer ${settings.deviceToken}`,
-          ...(call.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      const response = await request(
+        settings,
+        call.path,
+        {
+          method: call.method,
+          headers: {
+            Authorization: `Bearer ${settings.deviceToken}`,
+            ...(call.body !== undefined
+              ? { 'Content-Type': 'application/json' }
+              : {}),
+          },
+          ...(call.body !== undefined
+            ? { body: JSON.stringify(call.body) }
+            : {}),
         },
-        ...(call.body !== undefined ? { body: JSON.stringify(call.body) } : {}),
-      });
+        async (response) => response,
+        signal,
+      );
       if (response.status === 401) {
-        reportAuthLost(settings.deviceToken);
+        reportAuthLost(settings);
         return { status: 401, networkError: false };
       }
       return { status: response.status, networkError: false };
-    } catch {
+    } catch (error) {
+      if (signal?.aborted) throw error;
       return { status: 0, networkError: true }; // network -> retry
     }
   };
-  await flushMutations(send);
+  await assertActiveConnection(settings);
+  await flushMutations(send, settings, signal);
 }
 
 // Spec 1 call sites (Settings on Save, Library on recovery) keep calling this
 // name unchanged; flushMutationsQueue now handles every mutation kind.
 export const flushFavorites = flushMutationsQueue;
 
-function authed(settings: CaptureSettings, id: string, kind: 'thumb' | 'preview' | 'original'): AuthedSource {
+function authed(
+  settings: CaptureSettings,
+  id: string,
+  kind: 'thumb' | 'preview' | 'original',
+): AuthedSource {
   return {
     uri: `${settings.baseURL}/api/assets/${id}/${kind}`,
     headers: { Authorization: `Bearer ${settings.deviceToken}` },
@@ -702,7 +889,10 @@ export type ThumbTier = 's' | 'm' | 'l';
 
 /** serverSource authenticates a URL path the server issued, keeping its ?v= cache key. */
 function serverSource(settings: CaptureSettings, path: string): AuthedSource {
-  return { uri: `${settings.baseURL}${path}`, headers: { Authorization: `Bearer ${settings.deviceToken}` } };
+  return {
+    uri: `${settings.baseURL}${path}`,
+    headers: { Authorization: `Bearer ${settings.deviceToken}` },
+  };
 }
 
 /**
@@ -711,10 +901,16 @@ function serverSource(settings: CaptureSettings, path: string): AuthedSource {
  * expo-image's cache refreshes after a rebuild; synthetic stubs (album covers)
  * carry only an id and use the unversioned route.
  */
-export function thumbSource(settings: CaptureSettings, asset: LibraryAsset, tier: ThumbTier = 'm'): AuthedSource | null {
+export function thumbSource(
+  settings: CaptureSettings,
+  asset: LibraryAsset,
+  tier: ThumbTier = 'm',
+): AuthedSource | null {
   if (!asset.thumbnail_url || !settings.baseURL) return null;
   const path = asset.thumbnail_urls?.[tier] ?? asset.thumbnail_url;
-  return path.startsWith('/api/') ? serverSource(settings, path) : authed(settings, asset.id, 'thumb');
+  return path.startsWith('/api/')
+    ? serverSource(settings, path)
+    : authed(settings, asset.id, 'thumb');
 }
 
 /**
@@ -722,7 +918,10 @@ export function thumbSource(settings: CaptureSettings, asset: LibraryAsset, tier
  * browser-safe preview derivative if one exists, otherwise the original when it
  * is web-viewable, otherwise the thumbnail as a last resort.
  */
-export function fullImageSource(settings: CaptureSettings, asset: LibraryAsset): AuthedSource | null {
+export function fullImageSource(
+  settings: CaptureSettings,
+  asset: LibraryAsset,
+): AuthedSource | null {
   if (!settings.baseURL) return null;
   if (asset.preview_url) return serverSource(settings, asset.preview_url);
   if (asset.web_viewable) return authed(settings, asset.id, 'original');
@@ -730,7 +929,12 @@ export function fullImageSource(settings: CaptureSettings, asset: LibraryAsset):
 }
 
 /** Use the server-certified playback derivative when the original needs transcoding. */
-export function videoSource(settings: CaptureSettings, asset: LibraryAsset): AuthedSource | null {
+export function videoSource(
+  settings: CaptureSettings,
+  asset: LibraryAsset,
+): AuthedSource | null {
   if (!settings.baseURL || !asset.web_viewable) return null;
-  return asset.preview_url ? serverSource(settings, asset.preview_url) : authed(settings, asset.id, 'original');
+  return asset.preview_url
+    ? serverSource(settings, asset.preview_url)
+    : authed(settings, asset.id, 'original');
 }

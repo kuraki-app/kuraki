@@ -1,4 +1,11 @@
-import { DarkTheme, DefaultTheme, Redirect, Slot, ThemeProvider, useSegments } from 'expo-router';
+import {
+  DarkTheme,
+  DefaultTheme,
+  Redirect,
+  Slot,
+  ThemeProvider,
+  useSegments,
+} from 'expo-router';
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -7,20 +14,36 @@ import {
   useFonts,
 } from '@expo-google-fonts/inter';
 import { Image } from 'expo-image';
-import { AppState, Platform, View } from 'react-native';
+import { AppState, Platform, View, Text, Pressable, Alert } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 
 import { useTokens } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { backupEngine } from '@/lib/backup-engine';
 import { shouldRunForegroundBackup } from '@/lib/foreground-backup';
-import { isSetupComplete, migrateSecretsForBackgroundAccess, onSetupChange, setupCompleteSnapshot } from '@/lib/settings';
+import {
+  isSetupComplete,
+  migrateSecretsForBackgroundAccess,
+  onSetupChange,
+  setupCompleteSnapshot,
+  connectionEpoch,
+  onCaptureSettingsChange,
+  loadCaptureSettings,
+  resetCaptureConnection,
+} from '@/lib/settings';
 // Importing this at the root defines the background backup task before the OS
 // can relaunch the app headlessly to run it. Defining the task is a module
 // side effect; reconcileBackgroundBackup below is what actually schedules it.
 import { reconcileBackgroundBackup } from '@/lib/background';
+import { onConnectionChange, evaluateNetworkGate } from '@/lib/network';
 import { configureNotifications } from '@/lib/notifications';
 
 // A 512 MB LRU disk cap so the thumbnail/preview cache expo-image keeps for
@@ -31,19 +54,34 @@ import { configureNotifications } from '@/lib/notifications';
 // root layout module was still evaluating -- crashing every Android launch
 // before any UI rendered. Android's cache is governed by Glide's own defaults.
 if (Platform.OS === 'ios') {
-  Image.configureCache({ maxDiskSize: 512 * 1024 * 1024 });
+  try {
+    Image.configureCache({ maxDiskSize: 512 * 1024 * 1024 });
+  } catch {
+    /* optional cache configuration */
+  }
 }
 
 // Without a foreground handler iOS silently suppresses a notification posted
 // while the app is open, which reads as "notifications are broken". Safe at
 // module scope: it no-ops when the native module is absent.
-configureNotifications();
+try {
+  configureNotifications();
+} catch {
+  /* notifications never block startup */
+}
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const tokens = useTokens();
   const [ready, setReady] = useState<boolean | null>(setupCompleteSnapshot());
   const segments = useSegments();
+  const activeConnectionEpoch = useSyncExternalStore(
+    onCaptureSettingsChange,
+    connectionEpoch,
+    connectionEpoch,
+  );
+  const [startupError, setStartupError] = useState('');
+  const [startupAttempt, setStartupAttempt] = useState(0);
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -76,9 +114,26 @@ export default function RootLayout() {
   }, [colorScheme, tokens]);
 
   useEffect(() => {
-    void isSetupComplete().then(setReady);
-    return onSetupChange(() => setReady(setupCompleteSnapshot()));
-  }, []);
+    let live = true;
+    void Promise.all([isSetupComplete(), loadCaptureSettings()])
+      .then(([value]) => {
+        if (live) {
+          setReady(value);
+          setStartupError('');
+        }
+      })
+      .catch(() => {
+        if (live)
+          setStartupError(
+            'Secure settings could not be opened. Unlock your device and try again.',
+          );
+      });
+    const unsubscribe = onSetupChange(() => setReady(setupCompleteSnapshot()));
+    return () => {
+      live = false;
+      unsubscribe();
+    };
+  }, [startupAttempt]);
 
   // Launch-time reconciliation, deliberately not tied to any screen.
   //
@@ -119,7 +174,13 @@ export default function RootLayout() {
     const pass = () => {
       void (async () => {
         try {
-          if (!shouldRunForegroundBackup(await backupEngine.isAuto(), lastForegroundBackup.current, Date.now())) {
+          if (
+            !shouldRunForegroundBackup(
+              await backupEngine.isAuto(),
+              lastForegroundBackup.current,
+              Date.now(),
+            )
+          ) {
             return;
           }
           lastForegroundBackup.current = Date.now();
@@ -137,9 +198,74 @@ export default function RootLayout() {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active') pass();
     });
-    return () => sub.remove();
-  }, []);
+    const network = onConnectionChange((connection) => {
+      if (
+        evaluateNetworkGate(connection, backupEngine.snapshot().wifiOnly) ===
+        'allowed'
+      ) {
+        lastForegroundBackup.current = 0;
+        pass();
+      }
+    });
+    return () => {
+      sub.remove();
+      network();
+    };
+  }, [activeConnectionEpoch]);
 
+  if (startupError) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          padding: 24,
+          backgroundColor: tokens.background,
+        }}
+      >
+        <Text style={{ color: tokens.foreground, fontSize: 18 }}>
+          {startupError}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setStartupAttempt((value) => value + 1)}
+          style={{ padding: 16 }}
+        >
+          <Text style={{ color: tokens.foreground }}>Try again</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() =>
+            Alert.alert(
+              'Reset connection?',
+              'This clears only the saved server connection. Your originals and verified backup history are kept. Pair again in Settings.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Reset connection',
+                  style: 'destructive',
+                  onPress: () => {
+                    void resetCaptureConnection()
+                      .then(() => setStartupAttempt((n) => n + 1))
+                      .catch(() =>
+                        setStartupError(
+                          'Secure settings are still unavailable. Unlock your device and retry.',
+                        ),
+                      );
+                  },
+                },
+              ],
+            )
+          }
+          style={{ padding: 16 }}
+        >
+          <Text style={{ color: tokens.foreground }}>
+            Reset saved connection
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
   if (ready === null || (!fontsLoaded && !fontError)) {
     return <View style={{ flex: 1 }} />; // splash stays up
   }
@@ -147,7 +273,12 @@ export default function RootLayout() {
   const inSetup = segments[0] === '(setup)';
   // The gate's authority is the persisted flag, NEVER token presence — a 401
   // clears the token but must never eject a set-up user to onboarding.
-  const redirect = !ready && !inSetup ? '/(setup)/welcome' : ready && inSetup ? '/(app)/(gallery)' : null;
+  const redirect =
+    !ready && !inSetup
+      ? '/(setup)/welcome'
+      : ready && inSetup
+        ? '/(app)/(gallery)'
+        : null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -157,7 +288,11 @@ export default function RootLayout() {
           provider has to exist app-wide. */}
       <SafeAreaProvider>
         <ThemeProvider value={navigationTheme}>
-          {redirect ? <Redirect href={redirect} /> : <Slot />}
+          {redirect ? (
+            <Redirect href={redirect} />
+          ) : (
+            <Slot key={activeConnectionEpoch} />
+          )}
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
