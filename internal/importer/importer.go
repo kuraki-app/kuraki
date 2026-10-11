@@ -126,6 +126,11 @@ func (i *Importer) Run(ctx context.Context, opts Options) (Result, error) {
 	if i.Media == nil {
 		return Result{}, fmt.Errorf("importer: media processor is nil")
 	}
+	unlock, err := storage.LockLibrary(ctx, i.Store, false)
+	if err != nil {
+		return Result{}, err
+	}
+	defer unlock()
 	// A fresh Takeout resolver per run unless the caller supplies its own
 	// provider; the resolver caches per-directory sidecar indexes and must not
 	// outlive the directory it indexed.
@@ -639,13 +644,19 @@ func (i *Importer) clearMediaIssue(ctx context.Context, assetID, kind string) {
 // clears the media issues it resolves and removes the previous generation's
 // files once the new rows are committed. The original is untouched.
 func (i *Importer) RebuildDerivatives(ctx context.Context, assetID string) error {
+	unlock, err := storage.LockLibrary(ctx, i.Store, false)
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	var originalPath, mediaType, mimeType, ownerID string
+	var externalPath sql.NullString
 	var width, height, webViewable, gen int
 	var durationMS int64
-	err := i.DB.QueryRowContext(ctx, `
-		SELECT original_path, media_type, mime_type, width, height, web_viewable, duration_ms, owner_id, derivative_gen
+	err = i.DB.QueryRowContext(ctx, `
+		SELECT original_path, media_type, mime_type, width, height, web_viewable, duration_ms, owner_id, derivative_gen, external_path
 		FROM assets WHERE id = ? AND deleted_at IS NULL`, assetID).
-		Scan(&originalPath, &mediaType, &mimeType, &width, &height, &webViewable, &durationMS, &ownerID, &gen)
+		Scan(&originalPath, &mediaType, &mimeType, &width, &height, &webViewable, &durationMS, &ownerID, &gen, &externalPath)
 	if err != nil {
 		return fmt.Errorf("rebuild: load asset: %w", err)
 	}
@@ -656,7 +667,7 @@ func (i *Importer) RebuildDerivatives(ctx context.Context, assetID string) error
 
 	// Copy the original to a temp file so the media backend has a real path;
 	// this works for any storage backend, not only the local filesystem.
-	rc, err := i.Store.Open(ctx, "originals/"+originalPath)
+	rc, err := (storage.Original{Path: originalPath, ExternalPath: externalPath.String}).Open(ctx, i.Store)
 	if err != nil {
 		return fmt.Errorf("rebuild: open original: %w", err)
 	}
@@ -667,11 +678,17 @@ func (i *Importer) RebuildDerivatives(ctx context.Context, assetID string) error
 	}
 	tmpPath := tmp.Name()
 	_, copyErr := io.Copy(tmp, rc)
-	rc.Close()
-	tmp.Close()
+	readCloseErr := rc.Close()
+	writeCloseErr := tmp.Close()
 	defer os.Remove(tmpPath)
 	if copyErr != nil {
 		return fmt.Errorf("rebuild: copy original: %w", copyErr)
+	}
+	if readCloseErr != nil {
+		return fmt.Errorf("rebuild: close source: %w", readCloseErr)
+	}
+	if writeCloseErr != nil {
+		return fmt.Errorf("rebuild: close temporary source: %w", writeCloseErr)
 	}
 
 	meta := media.Meta{
@@ -682,6 +699,12 @@ func (i *Importer) RebuildDerivatives(ctx context.Context, assetID string) error
 		WebViewable: webViewable != 0,
 		DurationMS:  durationMS,
 	}
+	// Stored web_viewable includes compatibility supplied by a derivative.
+	probed, err := i.Media.Probe(ctx, tmpPath)
+	if err != nil {
+		return fmt.Errorf("rebuild: probe original: %w", err)
+	}
+	meta.WebViewable = probed.WebViewable
 
 	var firstErr error
 	run := func(kind string, fn func() error) {

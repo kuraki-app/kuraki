@@ -23,6 +23,12 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Changed
 
+- **Trash and recovery preserve stable originals.** Soft deletion changes catalog visibility;
+  originals keep their paths until permanent deletion. Interrupted cleanup is journaled and
+  retried. Backups coordinate with purge, publish only after complete finalization, and restores
+  verify archive integrity, SQLite and referenced originals. External assets now support
+  verification, rebuild, export and catalog trash without changing their source files. Manual
+  rebuild/verification work is bounded and coalesced; instant-span Trips keep their identity.
 - **Account and ingestion boundaries are hardened.** First-run setup can be claimed only
   once; disabled accounts cannot sign in. Device uploads and Activity use canonical account
   IDs, failed or interrupted uploads keep their staged originals, and malformed media is

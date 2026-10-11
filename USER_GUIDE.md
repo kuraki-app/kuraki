@@ -488,12 +488,15 @@ Byte-identical files never reach this stage: they were deduplicated at import.
 
 Deletion has two distinct steps, and only the second is irreversible.
 
-1. **Move to trash.** The item leaves the timeline and every album view, and its file
-   is moved into the trash area. It stays restorable for the retention window —
+1. **Move to trash.** The item leaves the timeline and every album view. Its original
+   stays intact at the same disk location, and the catalog marks it as trashed.
+   It stays restorable for the retention window —
    **30 days** by default.
 2. **Permanent delete.** Either you ask for it explicitly, or the retention window
    expires and a daily cleanup removes it. At that point the file is gone from disk
-   and the record is gone from the database.
+   and the record is gone from the database. Interrupted file removal is recorded
+   and retried automatically. Indexed external originals remain on their source drive;
+   permanent deletion forgets their catalog record and generated previews.
 
 **Restoring** from trash puts the item back exactly where it was, including its
 albums, tags, and favorite state.

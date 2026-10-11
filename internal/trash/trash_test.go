@@ -69,15 +69,15 @@ func TestDeleteRestorePurge(t *testing.T) {
 	ctx, database, store := setup(t)
 	addAsset(t, ctx, database, store, "a1", "2026/07/a1.jpg")
 
-	// Delete: original moves to trash, deleted_at set.
+	// Delete changes visibility without moving the immutable original.
 	if err := Delete(ctx, database, store, "a1"); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if exists(t, ctx, store, "originals/2026/07/a1.jpg") {
-		t.Error("original should be gone after delete")
+	if !exists(t, ctx, store, "originals/2026/07/a1.jpg") {
+		t.Error("soft delete must preserve the original location")
 	}
-	if !exists(t, ctx, store, "trash/2026/07/a1.jpg") {
-		t.Error("file should be in trash after delete")
+	if exists(t, ctx, store, "trash/2026/07/a1.jpg") {
+		t.Error("soft delete must not move the original")
 	}
 	if err := Delete(ctx, database, store, "a1"); err != ErrAlreadyDeleted {
 		t.Errorf("second delete = %v, want ErrAlreadyDeleted", err)

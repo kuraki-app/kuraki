@@ -121,6 +121,46 @@ func TestDetectGroupsAnAwayCluster(t *testing.T) {
 	}
 }
 
+func TestInstantSpanTripKeepsItsNameAndIdentity(t *testing.T) {
+	database := newDB(t)
+	ctx := context.Background()
+	start := mustTime(t, base)
+	seed(t, database, "owner", "home", start.AddDate(0, -1, 0), 40, homeLat, homeLon, homeCity)
+	ids := seed(t, database, "owner", "instant", start, 8, awayLat, awayLon, awayCity)
+	for _, id := range ids {
+		if _, err := database.Exec(`UPDATE assets SET taken_at=? WHERE id=?`, start.Format(time.RFC3339), id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := Detect(ctx, database); err != nil {
+		t.Fatal(err)
+	}
+	first := tripRows(t, database, "owner")
+	if len(first) != 1 {
+		t.Fatalf("initial trips=%d", len(first))
+	}
+	if _, err := database.Exec(`UPDATE trips SET name='A day away',name_source='user' WHERE id=?`, first[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		if err := Detect(ctx, database); err != nil {
+			t.Fatal(err)
+		}
+	}
+	last := tripRows(t, database, "owner")
+	if len(last) != 1 || last[0].ID != first[0].ID || last[0].Name != "A day away" || last[0].AssetCount != 8 {
+		t.Fatalf("instant trip changed: %+v", last)
+	}
+	seed(t, database, "owner", "late", start.Add(time.Hour), 1, awayLat, awayLon, awayCity)
+	if err := Detect(ctx, database); err != nil {
+		t.Fatal(err)
+	}
+	grown := tripRows(t, database, "owner")
+	if len(grown) != 1 || grown[0].ID != first[0].ID || grown[0].Name != "A day away" || grown[0].AssetCount != 9 {
+		t.Fatalf("grown instant trip changed: %+v", grown)
+	}
+}
+
 func TestDetectSplitsOnATimeGap(t *testing.T) {
 	database := newDB(t)
 	start := mustTime(t, base)

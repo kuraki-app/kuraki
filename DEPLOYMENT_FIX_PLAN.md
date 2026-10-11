@@ -21,15 +21,23 @@ jobs remain private. Failed staged files are retained for operator recovery.
 
 ## 2. Recovery, storage, and bounded maintenance
 
-- [ ] 5: atomically publish only fully finalized archives.
-- [ ] 6: coordinate snapshot/file capture with destructive operations.
-- [ ] 7: serialize restore/purge and revalidate retention eligibility.
-- [ ] 15: verify the complete gzip stream before installing a restore.
-- [ ] 16: recover interrupted trash/restore transitions.
-- [ ] 17: derive preview requirements from original capability during rebuild.
-- [ ] 18: bound, coalesce, and lifecycle-own manual maintenance work.
-- [ ] 19: keep instant-span Trip identity stable across detection.
-- [ ] 22: resolve external originals consistently without modifying sources.
+- [x] 5: atomically publish only fully finalized archives.
+- [x] 6: coordinate snapshot/file capture with destructive operations.
+- [x] 7: serialize restore/purge and revalidate retention eligibility.
+- [x] 15: verify the complete gzip stream before installing a restore.
+- [x] 16: recover interrupted trash/restore transitions.
+- [x] 17: derive preview requirements from original capability during rebuild.
+- [x] 18: bound, coalesce, and lifecycle-own manual maintenance work.
+- [x] 19: keep instant-span Trip identity stable across detection.
+- [x] 22: resolve external originals consistently without modifying sources.
+
+Evidence: full `make check` and Windows/amd64 + Linux/arm64 pure-Go builds passed.
+Regressions exercise output-finalization failure in a subprocess, gzip truncation,
+referenced-original absence, stale retention candidates, interrupted cleanup/legacy
+reconciliation, real external asset read/verify/rebuild/export/trash, missing previews,
+bounded/coalesced worker cancellation, and repeated instant-span Trip detection.
+Migration 00030 journals permanent cleanup. Soft deletion keeps original paths stable;
+legacy moved originals reconcile without changing their catalog visibility.
 
 ## 3. Web reliability and dependencies
 

@@ -266,7 +266,8 @@ func (s *Service) source(ctx context.Context, st assetState, medium Variant) (st
 		return s.localFile(ctx, medium.Rel)
 	}
 	if st.externalPath.Valid && st.externalPath.String != "" {
-		return st.externalPath.String, func() {}, nil
+		p, err := (storage.Original{Path: st.originalPath, ExternalPath: st.externalPath.String}).LocalPath(s.Store)
+		return p, func() {}, err
 	}
 	return s.localFile(ctx, "originals/"+st.originalPath)
 }

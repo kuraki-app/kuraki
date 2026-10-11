@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/kuraki-app/kuraki/internal/verify"
@@ -35,10 +34,14 @@ func (d Deps) integrity(w http.ResponseWriter, r *http.Request) {
 // @Failure 401 {object} apitypes.Error
 // @Router  /api/integrity/run [post]
 func (d Deps) runIntegrity(w http.ResponseWriter, r *http.Request) {
-	go func() {
-		if _, err := verify.RunAndRecord(context.Background(), d.DB, d.Store); err != nil {
-			d.Logger.Warn("manual integrity run failed", "err", err)
-		}
-	}()
+	if d.Maintenance == nil {
+		writeError(w, http.StatusServiceUnavailable, "maintenance_unavailable")
+		return
+	}
+	if err := d.Maintenance.ScheduleIntegrity(); err != nil {
+		w.Header().Set("Retry-After", "2")
+		writeError(w, http.StatusServiceUnavailable, "maintenance_busy")
+		return
+	}
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "running"})
 }

@@ -252,7 +252,7 @@ kuraki-data/
 ├── kuraki.db                       # SQLite (WAL): metadata + pointers only
 ├── originals/2026/07/IMG_1234.jpg  # write-once, readable layout, never modified after import
 ├── derivatives/<id>/thumb_512.webp # generated thumbnails / video posters
-├── trash/                          # retention window before purge
+├── trash/                          # legacy moved originals, reconciled at startup
 ├── staging/                        # uploads awaiting background import
 └── snapshots/kuraki-<ts>.db        # pre-migration backups
 ```

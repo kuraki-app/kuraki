@@ -396,6 +396,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 |---|---|
 | Pre-deployment review (2026-10-11) | ✅ audit complete; ⛔ deployment pending fixes in PRE_DEPLOYMENT_REVIEW.md |
 | Deployment hardening | 🟡 authentication/isolation/ingestion milestone passed; recovery/web/release pending (DEPLOYMENT_FIX_PLAN.md) |
+| Recovery hardening | ✅ stable soft deletion, cleanup journal (00030), cross-process backup/purge coordination, complete archive validation, bounded manual maintenance and external lifecycle regressions |
 | Server foundation, import, media pipeline, web UI, auth, trash, verify, video | ✅ done |
 | Places (map + offline geocoding), Takeout import, favorites/albums/memories, stats | ✅ done |
 | Import queue + Activity + per-file errors, metadata editing, config options, serving perf | ✅ done |
@@ -543,6 +544,18 @@ audited baseline and release checklist.
   (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/pre-deployment-hardening` (2026-10-11, Codex) — **Recovery and maintenance hardened.**
+  Soft deletion now changes catalog visibility while originals keep stable paths.
+  Reconciliation repairs older move-based layouts; migration 00030 records recoverable
+  permanent file cleanup. Backup and destructive operations coordinate through OS file
+  locks across server/CLI processes; backups publish only after checked finalization and
+  sync, and restore validates gzip, SQLite, and referenced originals before installation.
+  External sources share one guarded read policy through verification/rebuild/export;
+  new indexed assets also generate their thumbnails/previews without copying originals.
+  manual jobs are bounded, coalesced, cancelled and joined at shutdown. Instant-span Trip
+  recomputation preserves identity. Public-flow regressions, `make check`, and Windows
+  amd64/Linux arm64 builds pass. Web/release fixes and final certification are pending.
 
 - `codex/pre-deployment-hardening` (2026-10-11, Codex) — **Authentication, isolation, and ingestion hardened.**
   Added append-only migration 00029 for canonical job ownership, fixed session/device

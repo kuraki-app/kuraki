@@ -60,6 +60,11 @@ func (v *Verifier) Run(ctx context.Context, progress func(done, total int)) (Res
 	if v.DB == nil || v.Store == nil {
 		return Result{}, fmt.Errorf("verify: db and storage are required")
 	}
+	unlock, err := storage.LockLibrary(ctx, v.Store, false)
+	if err != nil {
+		return Result{}, err
+	}
+	defer unlock()
 
 	var total int
 	if err := v.DB.QueryRowContext(ctx,
@@ -68,7 +73,7 @@ func (v *Verifier) Run(ctx context.Context, progress func(done, total int)) (Res
 	}
 
 	rows, err := v.DB.QueryContext(ctx,
-		`SELECT id, original_path, filename, content_hash
+		`SELECT id, original_path, filename, content_hash, external_path
 		 FROM assets WHERE deleted_at IS NULL
 		 ORDER BY created_at, id`)
 	if err != nil {
@@ -86,13 +91,14 @@ func (v *Verifier) Run(ctx context.Context, progress func(done, total int)) (Res
 		}
 
 		var id, path, filename, expected string
-		if err := rows.Scan(&id, &path, &filename, &expected); err != nil {
+		var external sql.NullString
+		if err := rows.Scan(&id, &path, &filename, &expected, &external); err != nil {
 			return result, fmt.Errorf("verify: scan asset: %w", err)
 		}
 		result.Checked++
 		done++
 
-		if p := v.checkOne(ctx, id, path, filename, expected); p.Status == StatusOK {
+		if p := v.checkOne(ctx, id, path, filename, expected, external.String); p.Status == StatusOK {
 			result.OK++
 		} else {
 			result.Problems = append(result.Problems, p)
@@ -107,10 +113,10 @@ func (v *Verifier) Run(ctx context.Context, progress func(done, total int)) (Res
 	return result, nil
 }
 
-func (v *Verifier) checkOne(ctx context.Context, id, path, filename, expected string) Problem {
+func (v *Verifier) checkOne(ctx context.Context, id, path, filename, expected, external string) Problem {
 	base := Problem{AssetID: id, Path: path, Filename: filename, Expected: expected}
 
-	rc, err := v.Store.Open(ctx, "originals/"+path)
+	rc, err := (storage.Original{Path: path, ExternalPath: external}).Open(ctx, v.Store)
 	if err != nil {
 		base.Status = StatusError
 		if errors.Is(err, fs.ErrNotExist) {

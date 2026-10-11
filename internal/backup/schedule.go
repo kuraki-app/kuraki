@@ -53,8 +53,7 @@ func RunAndRecord(ctx context.Context, db *sql.DB, dataDir, dir string) (RunSumm
 	if runErr != nil {
 		summary.Status = "error"
 		summary.Error = runErr.Error()
-		// A partial archive from a failed run is not a usable backup; remove it.
-		_ = os.Remove(dest)
+		// CreateLive removes its temporary output and preserves an older archive.
 	} else if info, statErr := os.Stat(dest); statErr == nil {
 		summary.Bytes = info.Size()
 	}

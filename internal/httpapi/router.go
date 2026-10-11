@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/kuraki-app/kuraki/internal/config"
+	"github.com/kuraki-app/kuraki/internal/maintenance"
 	"github.com/kuraki-app/kuraki/internal/media"
 	"github.com/kuraki-app/kuraki/internal/queue"
 	"github.com/kuraki-app/kuraki/internal/storage"
@@ -26,11 +27,12 @@ import (
 
 // Deps are the collaborators the HTTP layer needs.
 type Deps struct {
-	Version string
-	DB      *sql.DB
-	Store   storage.Storage
-	Media   media.Processor
-	Queue   *queue.Queue
+	Version     string
+	DB          *sql.DB
+	Store       storage.Storage
+	Media       media.Processor
+	Queue       *queue.Queue
+	Maintenance *maintenance.Manager
 	// Settings holds the live, resolved server configuration (see
 	// internal/config.Store) and is the backing store for GET/PATCH
 	// /api/settings. Nil is safe for any route that does not touch it —

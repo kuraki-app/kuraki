@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/kuraki-app/kuraki/internal/httpapi/apitypes"
+	"github.com/kuraki-app/kuraki/internal/storage"
 )
 
 // downloadZip streams a zip archive of the selected originals (zero-lock-in).
@@ -53,7 +54,7 @@ func (d Deps) downloadZip(w http.ResponseWriter, r *http.Request) {
 	}
 	args = append(args, owner)
 	rows, err := d.DB.QueryContext(r.Context(),
-		`SELECT original_path, filename FROM assets
+		`SELECT original_path, filename, COALESCE(external_path, '') FROM assets
 		 WHERE deleted_at IS NULL AND id IN (`+placeholders+`) AND owner_id = ?`, args...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_failed")
@@ -61,13 +62,13 @@ func (d Deps) downloadZip(w http.ResponseWriter, r *http.Request) {
 	}
 	items := []apitypes.ZipItem{}
 	for rows.Next() {
-		var path, name string
-		if err := rows.Scan(&path, &name); err != nil {
+		var path, name, external string
+		if err := rows.Scan(&path, &name, &external); err != nil {
 			rows.Close()
 			writeError(w, http.StatusInternalServerError, "scan_failed")
 			return
 		}
-		items = append(items, apitypes.ZipItem{StoragePath: "originals/" + path, ZipName: name})
+		items = append(items, apitypes.ZipItem{StoragePath: "originals/" + path, ZipName: name, ExternalPath: external})
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
@@ -108,7 +109,7 @@ func (d Deps) exportLibrary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rows, err := d.DB.QueryContext(r.Context(),
-		`SELECT original_path, filename FROM assets
+		`SELECT original_path, filename, COALESCE(external_path, '') FROM assets
 		 WHERE owner_id = ? AND deleted_at IS NULL ORDER BY original_path`, owner)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "query_failed")
@@ -116,16 +117,17 @@ func (d Deps) exportLibrary(w http.ResponseWriter, r *http.Request) {
 	}
 	items := []apitypes.ZipItem{}
 	for rows.Next() {
-		var path, name string
-		if err := rows.Scan(&path, &name); err != nil {
+		var path, name, external string
+		if err := rows.Scan(&path, &name, &external); err != nil {
 			rows.Close()
 			writeError(w, http.StatusInternalServerError, "scan_failed")
 			return
 		}
 		// Preserve the YYYY/MM structure with the readable filename.
 		items = append(items, apitypes.ZipItem{
-			StoragePath: "originals/" + path,
-			ZipName:     filepath.ToSlash(filepath.Join(filepath.Dir(path), name)),
+			StoragePath:  "originals/" + path,
+			ZipName:      filepath.ToSlash(filepath.Join(filepath.Dir(path), name)),
+			ExternalPath: external,
 		})
 	}
 	rows.Close()
@@ -150,13 +152,13 @@ func (d Deps) exportLibrary(w http.ResponseWriter, r *http.Request) {
 // producing a successful-looking ZIP with files omitted.
 func (d Deps) prepareZip(w http.ResponseWriter, r *http.Request, items []apitypes.ZipItem) bool {
 	for _, item := range items {
-		exists, err := d.Store.Exists(r.Context(), item.StoragePath)
+		rc, err := openZipOriginal(r, d, item)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "storage_failed")
+			writeError(w, http.StatusConflict, "original_unavailable")
 			return false
 		}
-		if !exists {
-			writeError(w, http.StatusConflict, "original_unavailable")
+		if err := rc.Close(); err != nil {
+			writeError(w, http.StatusInternalServerError, "storage_failed")
 			return false
 		}
 	}
@@ -175,7 +177,7 @@ func streamZip(w http.ResponseWriter, r *http.Request, d Deps, filename string, 
 
 	seen := map[string]int{}
 	for _, it := range items {
-		rc, err := d.Store.Open(r.Context(), it.StoragePath)
+		rc, err := openZipOriginal(r, d, it)
 		if err != nil {
 			return fmt.Errorf("open original %q: %w", it.ZipName, err)
 		}
@@ -194,6 +196,10 @@ func streamZip(w http.ResponseWriter, r *http.Request, d Deps, filename string, 
 		}
 	}
 	return nil
+}
+
+func openZipOriginal(r *http.Request, d Deps, item apitypes.ZipItem) (io.ReadCloser, error) {
+	return (storage.Original{Path: strings.TrimPrefix(item.StoragePath, "originals/"), ExternalPath: item.ExternalPath}).Open(r.Context(), d.Store)
 }
 
 func uniqueIDCount(ids []string) int {

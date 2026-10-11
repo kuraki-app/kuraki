@@ -20,6 +20,10 @@ type unavailableOriginalStore struct {
 	cancel context.CancelFunc
 }
 
+func (s unavailableOriginalStore) LockLibrary(ctx context.Context, exclusive bool) (func() error, error) {
+	return storage.LockLibrary(ctx, s.Storage, exclusive)
+}
+
 func (s unavailableOriginalStore) Write(ctx context.Context, path string, r io.Reader) (int64, error) {
 	if strings.HasPrefix(path, "originals/") {
 		if s.cancel != nil {

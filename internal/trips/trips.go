@@ -416,7 +416,9 @@ func claimTrip(existing []*existingTrip, start, end time.Time) (string, bool) {
 			continue
 		}
 		overlap := minTime(end, e.endedAt).Sub(maxTime(start, e.startedAt))
-		if overlap <= 0 {
+		instantContained := (start.Equal(end) || e.startedAt.Equal(e.endedAt)) &&
+			!end.Before(e.startedAt) && !e.endedAt.Before(start)
+		if overlap <= 0 && !instantContained {
 			continue
 		}
 		shorter := end.Sub(start)

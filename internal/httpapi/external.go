@@ -95,7 +95,7 @@ func (d Deps) createExternalLibrary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 409, "external_library_exists")
 		return
 	}
-	result, err := external.Scan(r.Context(), d.DB, d.Media, id.String(), u.ID, root)
+	result, err := external.Scan(r.Context(), d.DB, d.Media, id.String(), u.ID, root, d.Store)
 	if err != nil {
 		_, _ = d.DB.ExecContext(r.Context(), `DELETE FROM external_libraries WHERE id=?`, id.String())
 		writeError(w, 400, "external_library_scan_failed")
@@ -129,7 +129,7 @@ func (d Deps) scanExternalLibrary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "external_library_inside_data_dir")
 		return
 	}
-	result, err := external.Scan(r.Context(), d.DB, d.Media, id, u.ID, root)
+	result, err := external.Scan(r.Context(), d.DB, d.Media, id, u.ID, root, d.Store)
 	if err != nil {
 		writeError(w, 400, "external_library_scan_failed")
 		return

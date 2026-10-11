@@ -290,8 +290,9 @@ type ZipRequest struct {
 
 // ZipItem describes one entry to stream into a zip archive.
 type ZipItem struct {
-	StoragePath string // path within the store, e.g. originals/2026/07/x.jpg
-	ZipName     string // entry name inside the archive
+	StoragePath  string // path within the store, e.g. originals/2026/07/x.jpg
+	ZipName      string // entry name inside the archive
+	ExternalPath string // read-only indexed original; never serialized in an API
 }
 
 // DupAsset is the wire representation of an asset inside a duplicate group.
