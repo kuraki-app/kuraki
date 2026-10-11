@@ -8,6 +8,7 @@ export type User = S['apitypes.User'];
 export type SetupStatus = S['apitypes.SetupStatus'];
 export type Album = S['apitypes.Album'];
 export type Tag = S['apitypes.Tag'];
+export type Trip = S['apitypes.Trip'];
 export type SavedSearch = S['apitypes.SavedSearch'];
 export type PlaceGroup = S['apitypes.PlaceGroup'];
 export type Job = S['apitypes.Job'];

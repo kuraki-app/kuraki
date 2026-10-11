@@ -9,6 +9,18 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ## [Unreleased]
 
+### Added
+
+- **Trips: photos taken away from home group themselves.** A run of captures that sits
+  away from your library's usual location, or spans more than one day, becomes a trip
+  with a place-and-date name like "Jaipur · 1-4 March 2024". Nothing to create and
+  nothing to configure. Trips appear under Collections on the web and on the phone, and
+  `trip=<id>` joins the shared filter language, so both clients can filter by one.
+  You can rename a trip, and add or remove photos from it. **Detection re-runs after
+  every import without overwriting any of that**: a Takeout dump imported next month
+  joins the trips it belongs to, while your names, your additions and your removals all
+  survive. Photos with no capture date never join a trip.
+
 ### Changed
 
 - **Thumbnails now come in three sizes with forever-cacheable URLs.** Grids load a 256, 512 or

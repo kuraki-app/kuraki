@@ -1,5 +1,5 @@
 import { session } from './stores';
-import type { Album, Asset, AssetList, BackupStatus, ChangesResponse, DeviceInfo, DupAsset, DuplicateRun, ExternalLibrary, IntegrityRun, Job, JobDetail, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SettingsPatchResponse, SettingsResponse, SetupStatus, Tag, UserCreate, UserList, UserPatch, UserSummary } from './types';
+import type { Album, Asset, AssetList, BackupStatus, ChangesResponse, DeviceInfo, DupAsset, DuplicateRun, ExternalLibrary, IntegrityRun, Job, JobDetail, LibraryStats, MediaIssue, PlaceGroup, SavedSearch, SettingsPatchResponse, SettingsResponse, SetupStatus, Tag, Trip, UserCreate, UserList, UserPatch, UserSummary } from './types';
 
 export type AssetPatch = {
   taken_at?: string;
@@ -119,6 +119,18 @@ export const api = {
     ids: string[]
   ) => req<{ succeeded: number }>('/api/assets/batch', jsonBody({ op, ids })),
 
+  trips: () => req<{ trips: Trip[] }>('/api/trips'),
+  trip: (id: string, cursor = '', signal?: AbortSignal) =>
+    req<AssetList>(`/api/trips/${id}?${pageParams(cursor)}`, { signal }),
+  // name: '' reverts to the automatic label; cover_asset_id: '' to the
+  // automatic cover. Omitted fields are left alone by the server.
+  patchTrip: (id: string, patch: { name?: string; cover_asset_id?: string; hidden?: boolean }) =>
+    req<{ id: string }>(`/api/trips/${id}`, jsonBody(patch, 'PATCH')),
+  addToTrip: (id: string, ids: string[]) =>
+    req<{ added: number }>(`/api/trips/${id}/assets`, jsonBody({ ids })),
+  removeFromTrip: (id: string, ids: string[]) =>
+    req<{ removed: number }>(`/api/trips/${id}/assets`, jsonBody({ ids }, 'DELETE')),
+  runTrips: () => req<{ status: string }>('/api/trips/run', { method: 'POST' }),
   albums: () => req<{ albums: Album[] }>('/api/albums'),
   album: (id: string, cursor = '', signal?: AbortSignal) => req<AssetList>(`/api/albums/${id}?${pageParams(cursor)}`, { signal }),
   stack: (id: string) => req<AssetList>(`/api/assets/${id}/stack`),

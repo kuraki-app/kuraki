@@ -1,0 +1,50 @@
+# Pre-deployment hardening plan
+
+Branch: `codex/pre-deployment-hardening`. Scope: all 22 numbered findings and the configuration gaps in `PRE_DEPLOYMENT_REVIEW.md`. Preserve the reviewed Trips feature as a prerequisite baseline. Commit at substantial milestones, update this checklist and AGENTS.md in each milestone, and open a PR after verification.
+
+## 1. Authentication, isolation, and ingestion
+
+- [ ] 1: reject truncated signatures and contain import-worker panics.
+- [ ] 2: claim first-run setup atomically.
+- [ ] 3: retain failed/cancelled staged uploads with durable retry state.
+- [ ] 4: use canonical authenticated owner IDs for session/device ingestion.
+- [ ] 8: owner-scope import job lists/details.
+- [ ] 9: exclude managed storage and unsafe symlinks from external scans.
+- [ ] 21: bound JSON bodies, credential fields, and body read duration.
+- [ ] Reject disabled-account login; enforce administrative operation policy.
+
+## 2. Recovery, storage, and bounded maintenance
+
+- [ ] 5: atomically publish only fully finalized archives.
+- [ ] 6: coordinate snapshot/file capture with destructive operations.
+- [ ] 7: serialize restore/purge and revalidate retention eligibility.
+- [ ] 15: verify the complete gzip stream before installing a restore.
+- [ ] 16: recover interrupted trash/restore transitions.
+- [ ] 17: derive preview requirements from original capability during rebuild.
+- [ ] 18: bound, coalesce, and lifecycle-own manual maintenance work.
+- [ ] 19: keep instant-span Trip identity stable across detection.
+- [ ] 22: resolve external originals consistently without modifying sources.
+
+## 3. Web reliability and dependencies
+
+- [ ] 10: bind queued uploads to their expected account at the server.
+- [ ] 12: support queue IDs on the documented plain-HTTP LAN origin.
+- [ ] 20: remediate/triage npm advisories without speculative major upgrades.
+- [ ] Scope sync cursors by account/library; reset cursors beyond feed head.
+- [ ] Fix the PWA assertion and exercise account changes/reconnect in browsers.
+- [ ] Regenerate committed embedded UI and API clients where needed.
+
+## 4. Deployment and release verification
+
+- [ ] 11: select a patched Go toolchain and rescan reachable symbols.
+- [ ] 13: make publishing depend on verification of the same artifact/commit.
+- [ ] 14: repair and smoke-test the Docker restore procedure.
+- [ ] Add service-account mount provisioning and deployment preflight.
+- [ ] Add dependency/container scans and an artifact-level recovery smoke flow.
+- [ ] Run Go race/vet/build, web type/unit/build/browser, mobile static tests, contract/UI drift, and tagged-media/container checks when the runtime is available.
+- [ ] Update the review with evidence and explicitly retain any hardware/target-host certification limits.
+- [ ] Push the completed branch and create/attach the PR.
+
+## Completion criteria
+
+Each fixed defect has a regression at its actual public boundary or an artifact-level check. Supported deployment instructions work with the non-root image. No existing originals or operator data are changed during development. A release cannot be published before required verification passes. Physical-device and target-host evidence must be reported accurately; repository changes cannot substitute for those environments.

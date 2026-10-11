@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Archive, CalendarClock, FolderOpen, MapPin, Star, Tags } from '@lucide/svelte';
+  import { Archive, CalendarClock, FolderOpen, Luggage, MapPin, Star, Tags } from '@lucide/svelte';
   import PageHeader from '$lib/components/PageHeader.svelte';
 
   const collections = [
@@ -8,6 +8,7 @@
     { href: '/memories', label: 'On this day', icon: CalendarClock },
     { href: '/places', label: 'Places', icon: MapPin },
     { href: '/tags', label: 'Tags', icon: Tags },
+    { href: '/trips', label: 'Trips', icon: Luggage },
     { href: '/archive', label: 'Archive', icon: Archive }
   ];
 </script>
@@ -51,6 +52,7 @@
   .collection-grid a:nth-child(4) { --motion-order: 4; }
   .collection-grid a:nth-child(5) { --motion-order: 5; }
   .collection-grid a:nth-child(6) { --motion-order: 6; }
+  .collection-grid a:nth-child(7) { --motion-order: 7; }
   .collection-grid a:hover {
     background: var(--accent);
   }

@@ -33,6 +33,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/stacks"
 	"github.com/kuraki-app/kuraki/internal/storage"
 	"github.com/kuraki-app/kuraki/internal/thumbs"
+	"github.com/kuraki-app/kuraki/internal/trips"
 	"github.com/kuraki-app/kuraki/internal/verify"
 
 	"database/sql"
@@ -440,6 +441,12 @@ func (a *App) Serve(ctx context.Context) error {
 	go func() {
 		if err := stacks.Detect(ctx, a.DB); err != nil {
 			a.Log.Warn("stack detection failed", "err", err)
+		}
+		// Same goroutine rather than its own: both are idempotent full-library
+		// passes over the same rows, and running them in sequence keeps two
+		// scans off the disk at once during startup.
+		if err := trips.Detect(ctx, a.DB); err != nil {
+			a.Log.Warn("trip detection failed", "err", err)
 		}
 	}()
 	go a.Queue.Start(ctx)

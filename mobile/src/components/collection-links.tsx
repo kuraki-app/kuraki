@@ -11,6 +11,7 @@ const links: { label: string; icon: SFSymbol; href: string }[] = [
   { label: 'On this day', icon: 'calendar', href: '/(app)/(albums)/memories' },
   { label: 'Places', icon: 'map', href: '/(app)/(albums)/places' },
   { label: 'Tags', icon: 'tag', href: '/(app)/(albums)/tags' },
+  { label: 'Trips', icon: 'suitcase', href: '/(app)/(albums)/trips' },
 ];
 
 export default function CollectionLinks() {

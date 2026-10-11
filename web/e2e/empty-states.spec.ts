@@ -17,7 +17,13 @@ const EMPTY_ROUTES = [
   { path: '/hidden', action: 'Browse the timeline' },
   // No action on purpose — the "New tag" form is directly above it.
   { path: '/tags', action: null },
-  { path: '/memories', action: null }
+  { path: '/memories', action: null },
+  // Trips are detected, never created, so the empty state cannot offer a "New
+  // trip". "Look again" is the only honest action: it asks the server to
+  // re-scan. The seeded library produces no trips at all — its photos carry no
+  // coordinates and each day holds fewer than MinAssets — so this route is
+  // legitimately empty here.
+  { path: '/trips', action: 'Look again' }
 ];
 
 for (const route of EMPTY_ROUTES) {

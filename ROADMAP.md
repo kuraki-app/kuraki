@@ -143,8 +143,18 @@ existing promise works.
   progress indicator. Server discovery, QR/manual pairing, and optional photo permission retain
   their existing behavior while showing less copy.
 
+- **[done] Trips — all users — M.** Photos taken away from home group themselves by
+  capture time and distance, with a place-and-date name and no configuration. Home is
+  the median location of the library, so nothing new has to be declared or stored about
+  the user. Detection re-runs after every import and **never overwrites a user's name,
+  additions or removals** — membership rows record their own source, so re-running is
+  safe by construction rather than by care. Constants (20h gap, 60km split, 8 photos,
+  50km from home) were chosen by reasoning; a real library should be used to check them.
+
 - **[new feature] Smart albums — Organizers — M.** Build on saved searches with
-  explicit ownership, preview, and reversible membership semantics.
+  explicit ownership, preview, and reversible membership semantics. Trips above is the
+  worked precedent for reversible derived membership; reuse the `source`-column overlay
+  rather than inventing a second scheme.
 
 - **[improvement] Fixture-first media expansion — Camera users — M per format.**
   Expand only formats that pass the support matrix; a decoder dependency alone

@@ -177,6 +177,14 @@ func NewRouter(d Deps) http.Handler {
 			r.Delete("/albums/{id}", d.deleteAlbum)
 			r.Post("/albums/{id}/assets", d.addAlbumAssets)
 			r.Delete("/albums/{id}/assets", d.removeAlbumAssets)
+			// Trips sit in the shared group deliberately: mobile needs every
+			// one of these, and Improvement D's rule is that a client need is
+			// met by widening this tree, never by forking a second one.
+			r.Get("/trips", d.listTrips)
+			r.Get("/trips/{id}", d.getTrip)
+			r.Patch("/trips/{id}", d.patchTrip)
+			r.Post("/trips/{id}/assets", d.addTripAssets)
+			r.Delete("/trips/{id}/assets", d.removeTripAssets)
 
 			// --- SESSION-ONLY (owner console) ---
 			r.Group(func(r chi.Router) {
@@ -200,6 +208,7 @@ func NewRouter(d Deps) http.Handler {
 				r.With(d.requireOwner).Delete("/users/{id}", d.deleteUser)
 				r.Get("/events", d.events)
 				r.Post("/duplicates/run", d.runDuplicates)
+				r.Post("/trips/run", d.runTrips)
 				r.Get("/export", d.exportLibrary)
 				r.Get("/integrity", d.integrity)
 				r.Post("/integrity/run", d.runIntegrity)

@@ -22,6 +22,7 @@ import (
 	"github.com/kuraki-app/kuraki/internal/media"
 	"github.com/kuraki-app/kuraki/internal/stacks"
 	"github.com/kuraki-app/kuraki/internal/storage"
+	"github.com/kuraki-app/kuraki/internal/trips"
 )
 
 // Job is one unit of background import work.
@@ -299,6 +300,13 @@ func (q *Queue) process(ctx context.Context, j Job) {
 	if result.Imported > 0 {
 		if err := stacks.Detect(ctx, q.DB); err != nil {
 			q.Log.Warn("stack detection failed", "err", err)
+		}
+		// Trips are recomputed here for the case that motivates the overlay
+		// rule at all: a Takeout dump of an old year lands now and must be able
+		// to join the trip it belongs to. User names and membership edits
+		// survive this -- see internal/trips.
+		if err := trips.Detect(ctx, q.DB); err != nil {
+			q.Log.Warn("trip detection failed", "err", err)
 		}
 	}
 	q.Log.Info("import job done", "job", j.ID, "imported", result.Imported,

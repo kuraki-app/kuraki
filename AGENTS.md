@@ -23,6 +23,10 @@ Phase 1 = single-owner personal backup.
 
 ## 2. Current state
 
+- **Pre-deployment review (2026-10-11).** Before deploying or addressing release blockers,
+  read [PRE_DEPLOYMENT_REVIEW.md](./PRE_DEPLOYMENT_REVIEW.md) for the current checkout's
+  reproduced failure paths and verification limits. Deployment is held pending remediation;
+  this audit changed documentation only.
 - **Phase 1 (single-owner) is feature-complete and pushed** to `github.com/kuraki-app/kuraki`.
   Implemented and verified: zero-config server; CLI + drag-and-drop import via a background **queue**
   (retries, crash recovery, an **Activity** view with per-file errors); BLAKE3 dedup; **watch-folder**;
@@ -33,6 +37,21 @@ Phase 1 = single-owner personal backup.
   a library **stats** dashboard; trash + retention + `verify`;
   argon2id auth + login rate-limit; safe-upgrade snapshots; and serving perf (cache headers, gzip,
   SQLite tuning). See [CHANGELOG.md](./CHANGELOG.md) for the full list.
+- **Trips group photos taken away from home (2026-09-16).** `internal/trips` clusters an
+  owner's dated assets by time gap (`GapHours` 20) and distance from a running centroid
+  (`RadiusKM` 60), keeps a run only if it holds `MinAssets` (8) and either sits more than
+  `HomeRadiusKM` (50) from the library's **median GPS position** or spans two calendar
+  days, and stores the result in `trips`/`trip_members` (migration `00028`). **The overlay
+  rule is the whole design:** `trip_members`' primary key is `(trip_id, asset_id)`, so a
+  user's `added`/`removed` row *replaces* the `detected` one, and recompute is
+  `DELETE ... WHERE source='detected'` followed by `INSERT OR IGNORE` — detection
+  therefore cannot overwrite a user decision, and re-running it after every import is
+  safe. That is `stacks`' `stack_locked` rule generalised from per-asset to
+  per-membership. Labels are **not** stored: the server keeps the dominant place and the
+  date range, and `shared/trips.ts` formats them for both clients (with a literal month
+  table, because Hermes without full ICU renders `Intl` month names differently from a
+  browser). `trip=<id>` joined `parseAssetFilters`, so web and mobile both filter by trip.
+  Detection runs at startup and from `queue.go` after any import that landed rows.
 - **Thumbnails come in three tiers with versioned, immutable URLs (2026-09-15).** `internal/thumbs`
   owns derivative naming (`PathFor`, generation-suffixed), URL versions (`Version`), and on-demand
   rendering of the small (256) and large (1200) tiers behind singleflight plus a bounded worker
@@ -130,7 +149,7 @@ Phase 1 = single-owner personal backup.
 - **Import/export safety (2026-07-10):** browser queue staging isolates each uploaded file, so repeated filenames cannot overwrite one another. Portable backup format v2 records an archive manifest; restore validates it in a temporary sibling directory before swapping into an empty target. `kuraki backup` takes an online SQLite snapshot before packaging a live library. ZIP exports preflight originals and bypass the normal API deadline, so they no longer quietly omit unavailable files or time out at 60 seconds.
 - **Capture foundation (2026-07-10):** migration `00012` adds revocable devices and resumable upload sessions. Browser-authenticated users create a device token; `POST/PATCH/complete /api/capture/uploads` writes bounded chunks to staging and hands a complete file to the existing queue/importer. `mobile/` is an Expo/React Native iOS+Android client with SecureStore settings, status receipts, and manual photo selection/upload. It also does automatic camera-roll backup (persisted, restart/network-loss safe), OS background scheduling, streamed large-file uploads, QR pairing, and per-album selection.
   **[CORRECTED 2026-07-30 — "the Capture loop is functionally complete" was overstated and has been removed from this entry.]** An audit against the code found the background task was registered only from the Backup screen's switch handler (so it silently stopped after a reinstall or a device restore), ran **upload only** (server→client sync had no background trigger at all), requested media permissions from a headless context Android cannot serve, and could not read its own credentials on a locked iOS device. Restart-safety was per-file, not per-byte. All fixed in `fix/mobile-android-parity-background-sync` — see §11.
-- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00024`.
+- **Module path:** `github.com/kuraki-app/kuraki`. Migrations through `00028`.
 - **The repository is public, and named `kuraki` (2026-08-12).** It had been renamed to
   `kuraki-photos` at some point and was **private**, which is why the README's clone URL, its CI
   badge, and the landing page's only call to action all returned 404 to anyone outside the org —
@@ -370,6 +389,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 
 | Area | Status |
 |---|---|
+| Pre-deployment review (2026-10-11) | ✅ audit complete; ⛔ deployment pending fixes in PRE_DEPLOYMENT_REVIEW.md |
 | Server foundation, import, media pipeline, web UI, auth, trash, verify, video | ✅ done |
 | Places (map + offline geocoding), Takeout import, favorites/albums/memories, stats | ✅ done |
 | Import queue + Activity + per-file errors, metadata editing, config options, serving perf | ✅ done |
@@ -402,7 +422,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | Photo viewer: tap-to-toggle chrome, corner close/favorite icons, bottom details sheet (filename, date, size, place, tags) | ✅ code-complete, not device-verified |
 | Album detail promoted from local-state swap to a real pushed route (back button/gesture/Android back now work) | ✅ fixed |
 | Remaining picker Modals converted to `@gorhom/bottom-sheet`; modal safe areas; setup steps scroll under the keyboard | ✅ code-complete, not device-verified |
-| Selection bars (`selection-bar` + `trash-selection-bar`) still duplicated and pinned above a hardcoded `BottomTabInset` | ⬜ open |
+| Selection bars: the duplicated `selection-bar`/`trash-selection-bar` pair and the hardcoded `BottomTabInset` are gone — one `components/selection-header.tsx` serves gallery, trash and album detail, and `constants/theme.ts` records why the inset must not come back | ✅ done (row was stale; corrected 2026-09-16) |
 | Web tags UI (browse / per-tag grid / per-asset editing) — server + api.ts existed, no surface called them | ✅ code-complete |
 | Web timeline grouping (day/month/year/off) + scroll scrubber; `labelDate` timezone shift fixed | ✅ code-complete |
 | Add photos to an album *from inside the album*, both clients; mobile remove-from-album wired | ✅ code-complete, not device-verified |
@@ -436,7 +456,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | Native `confirm()`/`prompt()` removed from all five routes; `ConfirmDialog`/`PromptDialog` on `ui/dialog`. The e2e console guard now fails any test that triggers a native dialog | ✅ done |
 | Web vocabulary: one `SegmentedControl` replacing 4 implementations; `Badge` now carries SettingRow's status pills; dead `Card`/`Separator` deleted; **one breakpoint (820)** — AssetGrid retiled at 780 while everything around it moved at 820 | ✅ done, browser-verified |
 | Per-route Vault treatment: `SectionHeading` (micro-caps), mono readouts and 4px rhythm on Overview/Server/Activity/Devices/Users; flat hairline panels replacing lifted cards | ✅ done, browser-verified |
-| Web design remainder: splitting Viewer (741) / `+layout` (486) / LibraryView (454) | ⬜ open |
+| Web design remainder: splitting Viewer (853) / `+layout` (648) / LibraryView (600) — every one has grown since this row was written (741/486/454), so the row understated the problem rather than tracking it | ⬜ open, and worse |
 | Public site: Astro, 9 pages (landing + /download + /docs/* + /changelog), canonical from one constant, palette/font/link drift gates, deploy workflow | ✅ done — **needs Cloudflare secrets before CI can publish** |
 | Web a11y: 6 pre-existing WCAG AA failures closed (`--text-faint` body contrast; `--input` 1.4.11 control boundary, both themes). `web/scripts/check-contrast.py` gates the palette against `app.css` | ✅ done |
 | Web registers applied to **shared chrome only** (PageHeader/cards/EmptyState/`.content`) by human decision; per-route Vault treatment (mono data columns, dense tables, Overview stat tiles) | ⬜ deliberate scope cut |
@@ -488,6 +508,8 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | **Thumbnail tiers + versioned media caching** (2026-09-15): `internal/thumbs` renders 256/1200 tiers on first request (singleflight, bounded workers, 503 + Retry-After on overflow); medium made at import; generation-suffixed derivative paths make rebuild work; `?v=` URLs served `immutable`; web `srcset` + large viewer placeholder; mobile tier-aware versioned sources. Fixed on the way: cross-owner `/thumb` read, rebuild `ErrExists`, user-purge derivative leak | ✅ code-complete; Go race/vet + check-gen, web check/unit + Chromium e2e (new thumbnail specs green), mobile type/lint/unit/design green; after the `transparency.spec.ts` locator fix, `make e2e` passed 116/116 on three consecutive full runs |
 | **Guided mobile onboarding** (2026-09-13): responsive shared setup frame, concise welcome/server/pairing/permission pages, focus-aware fields, animated controls/page entrances, and a persistent accessible rounded progress rail | ✅ code-complete; focused Vitest + mobile typecheck/lint green, native visual pass pending |
 
+| **Trips** (2026-09-16): `internal/trips` time+distance clustering with a median-GPS home point; migration `00028`; overlay membership (`detected`/`added`/`removed` on one PK) so recompute never overwrites a user edit; `/api/trips` CRUD + `trip=` filter in the shared language; `shared/trips.ts` labels; web `/trips` + `/trips/[id]` with rename; native Trips screen + grid | ✅ done; Go race/vet + 9 engine tests + 6 handler tests, web check/unit, mobile type/lint/unit, and `make e2e` **121/121** (116 before, plus 4 in `trips.spec.ts` and `/trips` added to `empty-states.spec.ts`). Web pages **reviewed by screenshot** at 1280 and 390 — sidebar entry, Collections card, and a complete empty state with an action. **The native Trips screen is code-complete but has never been rendered on a simulator.** |
+
 Detailed history: [CHANGELOG.md](./CHANGELOG.md). Forward plan: [ROADMAP.md](./ROADMAP.md).
 Migration guide: [MIGRATING.md](./MIGRATING.md).
 
@@ -515,6 +537,72 @@ audited baseline and release checklist.
   (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/pre-deployment-hardening` (2026-10-11, Codex) — **Hardening started from the reviewed checkout.**
+  The existing Trips feature and review are preserved as the prerequisite baseline.
+  `DEPLOYMENT_FIX_PLAN.md` groups all findings into four substantial implementation
+  milestones; regression verification and this ledger are updated at each commit.
+
+- Working tree (2026-10-11, Codex) — **Pre-deployment review completed; production held.**
+  Findings, priorities, source locations, remedies, and evidence limits are in
+  `PRE_DEPLOYMENT_REVIEW.md`. Reviewed existing uncommitted Trips work without changing
+  its implementation. Go build/vet/race and web build/type/unit checks passed; browser
+  suite passed 120/121, with the PWA failure traced to an ambiguous selector and a
+  corrected temporary test passing. Disposable probes reproduced setup overwrite,
+  malformed-media panic, ingestion ownership/retention failures, isolation leaks,
+  backup inconsistencies, and lifecycle races. Go/npm advisory scans completed;
+  container/TLS/physical-device certification remains unexecuted. No fixes or commit.
+
+- `feat/trips` (2026-09-16) — **Trips: photos taken away from home group themselves.**
+  - **The data model was the whole decision.** The repo already had two models for a
+    derived grouping that disagree: `duplicates` is disposable (a run row, recomputed,
+    nothing user-owned) and albums are durable and hand-edited. Trips is neither — the
+    clustering owns baseline membership and must be free to re-run, while the user owns
+    the name *and* may add or remove photos. The overlay rule resolves it: one row per
+    `(trip_id, asset_id)`, so `added`/`removed` replaces `detected`, and recompute is a
+    delete-detected plus `INSERT OR IGNORE`. No flag to check, no branch to forget; the
+    primary key does the enforcement.
+  - **`qualifies()` failed as nine tests and one bug.** Every fixture's 40-photo home
+    block was being detected as a trip, because the away-from-home check `return true`d
+    on success but fell through to a `distinctDays >= 2` fallback on failure — and a
+    continuous run of photos at home spans two calendar days without trying. The
+    duration fallback now only applies when a cluster has no GPS to judge by at all.
+  - **The owner-scope guard's albums exemption does not transfer.** `albums.go` earns it
+    by arguing every membership write path is owner-guarded; trip membership is also
+    written by a background worker in `internal/trips`, so that premise is false here.
+    `getTrip`'s query spells out `a.owner_id = ?` instead, and the engine's SQL — outside
+    the guard's `internal/httpapi` scope entirely — is pinned by `TestDetectIsOwnerScoped`,
+    the same arrangement `thumbs.Get` uses.
+  - **Add/remove is `ON CONFLICT DO UPDATE`, not albums' `INSERT OR IGNORE`.** Album
+    membership is binary so a conflict is genuinely a no-op, but a trip row already exists
+    for anything detection placed or the user removed — re-adding a removed photo has to
+    *flip the tombstone*, and `OR IGNORE` would silently do nothing.
+  - **Rename is wired into the web UI on purpose.** Tags, ratings and batch `shift-time`
+    each shipped with a server route and an `api.ts` method that no surface ever called
+    (see §8). `patchTrip` would have been the fourth.
+  - **Pre-existing drift corrected while here:** §2 said migrations ran through `00024`
+    (they ran through `00027` before this branch); the selection-bar ledger row was marked
+    open although the work was done; and the Viewer/`+layout`/LibraryView split row still
+    quoted 741/486/454 when the real figures are 853/648/600.
+  - **A Playwright locator that was green at rest and ambiguous only while busy.**
+    `getByRole('button', { name: 'Rescan' })` passed every time the page was idle, because
+    the empty state's action reads "Look again" — but during a rescan BOTH it and the
+    header button read "Rescanning", and Playwright matches accessible names by
+    *substring*, so the locator resolved to two elements and failed strict mode. The
+    failure is therefore invisible until the one moment the test exists to check. Scoped
+    to `header`, the same fix `transparency.spec.ts` needed for its two "New album"
+    buttons. Worth knowing generally: a busy-state label that shares a prefix with its
+    resting label makes every unscoped name locator on that page a latent strict-mode
+    failure.
+  - **Follow-ups:** the web pages were reviewed by screenshot (1280 and 390) but the
+    **native** Trips screen has not been rendered on a simulator; the seeded e2e library
+    cannot produce a trip at all — its PNGs carry no coordinates and each day holds fewer
+    than `MinAssets` — so only the empty state is covered in the browser, and extending
+    `fixtures.mjs` to change that would move the `EXPECTED_*` constants the timeline and
+    pagination specs assert on; trips have no offline mirror on mobile; `POST /api/trips/run` is
+    synchronous, which is fine for one indexed query plus in-memory clustering but has no
+    progress to report; `GapHours`/`RadiusKM`/`MinAssets`/`HomeRadiusKM` are package
+    constants chosen by reasoning, not by evidence from a real library.
 
 - `feat/thumbnail-variants` on `fix/thumb-owner-scope` (2026-09-15) — **Thumbnail tiers,
   versioned media URLs, and three pre-existing defects.**

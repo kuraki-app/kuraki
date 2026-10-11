@@ -22,8 +22,8 @@ type assetFilters struct {
 // parseAssetFilters reads the single filter language used identically by the web
 // UI, the web search page, and the mobile client: q (full-text), from, to
 // (date range), type (media type), camera, favorite, rating, place_city,
-// place_country, tag, album, archived, hidden. It returns a non-empty error code
-// on invalid input.
+// place_country, tag, album, trip, archived, hidden. It returns a non-empty
+// error code on invalid input.
 func parseAssetFilters(r *http.Request) (assetFilters, string) {
 	qv := r.URL.Query()
 	f := assetFilters{where: []string{"a.deleted_at IS NULL"}}
@@ -79,6 +79,15 @@ func parseAssetFilters(r *http.Request) (assetFilters, string) {
 	if tag := strings.TrimSpace(qv.Get("tag")); tag != "" {
 		f.joins = append(f.joins, "JOIN asset_tags atf ON atf.asset_id = a.id AND atf.tag_id = ?")
 		f.joinArgs = append(f.joinArgs, tag)
+	}
+	// Trip membership is the overlay of detection and the user's own edits, so
+	// the source predicate belongs in the JOIN rather than the WHERE: a caller
+	// composing a different WHERE cannot accidentally drop it and start serving
+	// photos the user explicitly removed.
+	if trip := strings.TrimSpace(qv.Get("trip")); trip != "" {
+		f.joins = append(f.joins,
+			"JOIN trip_members tmf ON tmf.asset_id = a.id AND tmf.trip_id = ? AND tmf.source IN ('detected','added')")
+		f.joinArgs = append(f.joinArgs, trip)
 	}
 	// Archive and Hidden are excluded by default and shown only when asked for
 	// explicitly, matching the timeline's sections.

@@ -58,6 +58,7 @@ export type PlaceGroup = components['schemas']['apitypes.PlaceGroup'];
 
 // Tag from /api/tags, derived from the contract.
 export type Tag = components['schemas']['apitypes.Tag'];
+export type Trip = components['schemas']['apitypes.Trip'];
 
 type AuthedSource = { uri: string; headers: Record<string, string> };
 
@@ -72,6 +73,9 @@ export type LibraryFilters = {
   place_city?: string;
   place_country?: string;
   tag?: string;
+  /** A detected trip. Membership is the overlay of detection and the user's own
+   *  additions and removals; the server applies that, not the client. */
+  trip?: string;
   /** The Archived view. `parseAssetFilters` reads `archived=1`; anything else
    *  means the ordinary library, which already excludes archived rows. */
   archived?: boolean;
@@ -97,6 +101,7 @@ export function isUnfiltered(filters: LibraryFilters): boolean {
     !filters.place_city &&
     !filters.place_country &&
     !filters.tag &&
+    !filters.trip &&
     // Archived is a filter like any other. Leaving it out here would let the
     // archived page write itself into the offline mirror of the plain
     // timeline, so the next cold start would open on archived photos.
@@ -369,6 +374,18 @@ async function authedPost<T>(settings: CaptureSettings, path: string, body: unkn
 
 // fetchTags returns the owner's tag list, cached so browse-by-tag renders
 // offline (the grid itself still needs the network, like Places).
+/**
+ * fetchTrips reads the detected trips.
+ *
+ * No offline mirror, unlike tags: a trip is recomputed server-side after every
+ * import, so a cached copy goes stale in a way a tag list does not. The screen
+ * shows its connection state instead of a stale list.
+ */
+export async function fetchTrips(settings: CaptureSettings): Promise<Trip[]> {
+  const body = await authedGet<{ trips: Trip[] }>(settings, '/api/trips');
+  return body.trips;
+}
+
 export async function fetchTags(settings: CaptureSettings): Promise<Tag[]> {
   const { upsertTags, readTags } = await import('@/lib/cache/tags');
   return withMirrorFallback(async () => {
