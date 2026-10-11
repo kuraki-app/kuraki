@@ -23,6 +23,17 @@ Phase 1 = single-owner personal backup.
 
 ## 2. Current state
 
+- **Mobile follow-up audit (2026-10-11).** Before a mobile release, read
+  [MOBILE_READINESS_REVIEW.md](./MOBILE_READINESS_REVIEW.md). Nine targeted probes
+  reproduce premature deletion eligibility, unscoped backup history, stale cross-account
+  cache writes, overlapping backup passes, one-time Wi-Fi policy, stale auth-loss state,
+  dropped trip filters and zero-progress conflict loops. Further cancellation/UI gaps
+  and dependency/artifact checks are recorded there. Mobile type/lint and 288 tests plus
+  both production JS exports pass; fresh iOS native compilation passes, but current signed
+  runtime/physical-device certification remains open. Android SDK/Pixel emulator **is now
+  available**; the old optional APK launches, but a fresh Android build needs missing Java.
+  This audit changes evidence/documentation only; application fixes remain outstanding.
+
 - **Pre-deployment hardening complete (2026-10-11).** Branch `codex/pre-deployment-hardening`
   fixes the 22 findings in `PRE_DEPLOYMENT_REVIEW.md`; consult its remediation/evidence
   section for release decisions. Go 1.26.9 and patched dependencies, private proxy/mount
@@ -407,6 +418,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | Area | Status |
 |---|---|
 | Pre-deployment review (2026-10-11) | ✅ audit complete; ⛔ deployment pending fixes in PRE_DEPLOYMENT_REVIEW.md |
+| Mobile review (2026-10-11) | ✅ audit and nine reproductions recorded; ⛔ backup/deletion, account identity and signed-artifact remediation required (MOBILE_READINESS_REVIEW.md) |
 | Deployment hardening | ✅ all 22 code findings fixed; local candidate recovery/TLS/scans and regression suites passed; target-host/hardware certification stays explicit (DEPLOYMENT_FIX_PLAN.md) |
 | Recovery hardening | ✅ stable soft deletion, cleanup journal (00030), cross-process backup/purge coordination, complete archive validation, bounded manual maintenance and external lifecycle regressions |
 | Web hardening | ✅ account-bound upload/read transport, scoped/live sync cursors, HTTP LAN IDs, admin status gating, patched dependencies (zero npm advisories), focused browser regressions |
@@ -557,6 +569,19 @@ audited baseline and release checklist.
   (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/mobile-readiness-review` (2026-10-11, Codex) — **Android/iOS follow-up review.**
+  Recorded 12 prioritized findings, nine runnable historical defect probes and platform
+  optimization/certification limits in MOBILE_READINESS_REVIEW.md. Type/lint and 288 normal
+  tests pass; both Hermes exports and fresh isolated iOS native compilation pass. The old
+  iOS binary mismatches native Worklets; unsigned/ad-hoc fresh simulator signing/keychain
+  failures prevent full runtime certification. A read-only Android 37.1 Pixel emulator
+  launches the preserved July APK with older UI; Java is absent for a fresh native build.
+  Temporary simulator/emulator/server/bundler cleaned up; no operator photos or credentials
+  used. Application implementation remains unchanged. Next work: verified import/content
+  receipts and fail-closed local deletion, library-scoped ledger/cache with fenced identity
+  changes, then run/network/cancellation/protocol fixes and native artifact/security gates.
+  Probe suite passing means those historical defects were reproduced, not fixed.
 
 - `codex/pre-deployment-hardening` (2026-10-11, Codex) — **Release/deployment milestone completed.**
   Shared verification gates binary/image/manifest/release jobs; each architecture's exact

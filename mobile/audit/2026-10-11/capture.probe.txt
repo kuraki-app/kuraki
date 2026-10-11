@@ -1,0 +1,8 @@
+import {expect,it,vi} from 'vitest';
+vi.mock('expo-file-system',()=>({File:class{size=4;open(){return{offset:0,readBytes:()=>new Uint8Array([1,2,3,4]),close:()=>{}}}}}));
+vi.mock('@/lib/session',()=>({reportAuthLost:()=>{}}));
+import {uploadFile} from '@/lib/capture-api';
+it('reproduces zero-progress conflict looping until caller aborts',async()=>{const controller=new AbortController();let patches=0;
+ vi.stubGlobal('fetch',async(_url:string,init:RequestInit)=>{if(init.method==='POST')return new Response(JSON.stringify({id:'upload',received_bytes:0}),{status:201});patches++;if(patches===3)controller.abort();return new Response(JSON.stringify({error:'upload_not_receiving'}),{status:409});});
+ await expect(uploadFile({baseURL:'https://audit.test',deviceToken:'token'},{uri:'file:///photo.jpg',filename:'photo.jpg'},undefined,controller.signal)).rejects.toMatchObject({name:'AbortError'});expect(patches).toBe(3);vi.unstubAllGlobals();
+});
