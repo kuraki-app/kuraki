@@ -1,0 +1,1 @@
+import"./CVrf-H6N.js";import{s as t,r as p}from"./Ca3q55_Z.js";import{I as n}from"./DDeRL0Qd.js";var c=new Set(["$$slots","$$events","$$legacy"]);function m(o,e){let r=p(e,c);const s=[["circle",{cx:"12",cy:"12",r:"10"}],["path",{d:"M12 16v-4"}],["path",{d:"M12 8h.01"}]];n(o,t({name:"info"},()=>r,{get iconNode(){return s}}))}export{m as I};

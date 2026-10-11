@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
-  import { requestUpload } from '$lib/stores';
+  import { requestUpload, session } from '$lib/stores';
   import { fileSize, relativeTime } from '$lib/format';
   import type { BackupStatus, IntegrityRun, LibraryStats } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
@@ -77,11 +77,13 @@
   let integrity: IntegrityRun | null = null;
   let backup: BackupStatus | null = null;
   let loading = true;
+  $: isAdmin = $session.user?.role === 'admin';
   type Resource = 'stats' | 'integrity' | 'backup';
   let errors: Record<Resource, boolean> = { stats: false, integrity: false, backup: false };
   let pending: Record<Resource, boolean> = { stats: false, integrity: false, backup: false };
 
   async function load(resource: Resource) {
+    if (resource !== 'stats' && !isAdmin) return;
     if (pending[resource]) return;
     pending = { ...pending, [resource]: true };
     try {
@@ -154,7 +156,7 @@
     {#each mobileGroups as group (group.label)}
       <section>
         <h2>{group.label}</h2>
-        {#each group.items as item (item.label)}
+        {#each group.items.filter((item) => isAdmin || !['/settings/server', '/settings/users'].includes(item.href ?? '')) as item (item.label)}
           {#if item.action === 'upload'}
             <button type="button" class="mobile-row" on:click={requestUpload}>
               <svelte:component this={item.icon} size={18} aria-hidden="true" />
@@ -208,6 +210,7 @@
     </section>
   {/if}
 
+  {#if isAdmin}
   {#if errors.integrity}
     <LoadError message="Integrity status unavailable" retryLabel="Retry integrity status" retry={() => load('integrity')} busy={pending.integrity} />
   {:else}
@@ -243,6 +246,7 @@
   </section>
   {/if}
 
+  {/if}
   {#if stats.by_year.length > 0}
     <section class="years">
       <SectionHeading>By year</SectionHeading>

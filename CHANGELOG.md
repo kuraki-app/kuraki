@@ -23,6 +23,11 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ### Changed
 
+- **Browser uploads stay with the account that selected them.** The server checks each
+  upload's expected account before staging, and account changes stop active senders.
+  Plain-HTTP LAN uploads now have a working queue ID fallback. Library sync resumes per
+  account and resets after an older backup is restored. Regular accounts skip administrator
+  maintenance status, and compatible web dependency updates clear the advisory scan.
 - **Trash and recovery preserve stable originals.** Soft deletion changes catalog visibility;
   originals keep their paths until permanent deletion. Interrupted cleanup is journaled and
   retried. Backups coordinate with purge, publish only after complete finalization, and restores

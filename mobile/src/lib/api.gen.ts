@@ -484,7 +484,10 @@ export interface paths {
         post: {
             parameters: {
                 query?: never;
-                header?: never;
+                header?: {
+                    /** @description expected account ID; required for session-authenticated uploads */
+                    "X-Kuraki-Owner-ID"?: string;
+                };
                 path?: never;
                 cookie?: never;
             };

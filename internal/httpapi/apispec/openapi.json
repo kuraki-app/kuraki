@@ -529,6 +529,16 @@
                     "assets"
                 ],
                 "summary": "Upload asset",
+                "parameters": [
+                    {
+                        "description": "expected account ID; required for session-authenticated uploads",
+                        "name": "X-Kuraki-Owner-ID",
+                        "in": "header",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
                 "requestBody": {
                     "content": {
                         "multipart/form-data": {

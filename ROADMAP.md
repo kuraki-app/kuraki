@@ -15,7 +15,7 @@ existing promise works.
 The current pre-deployment findings and remediation evidence are tracked in
 [PRE_DEPLOYMENT_REVIEW.md](./PRE_DEPLOYMENT_REVIEW.md) and
 [DEPLOYMENT_FIX_PLAN.md](./DEPLOYMENT_FIX_PLAN.md). Authentication, account isolation,
-ingestion and recovery regressions now pass; web and release hardening follow.
+ingestion, recovery and web regressions now pass; release hardening follows.
 
 - **[production blocker] Truthful, certified media contract — Regular users and
   self-hosters — M.** Make Docker's libvips claim true with a tested `-tags

@@ -15,6 +15,7 @@ import (
 )
 
 const sessionCookieName = "kuraki_session"
+const expectedOwnerHeader = "X-Kuraki-Owner-ID"
 
 var errSetupClaimed = errors.New("setup already complete")
 
@@ -239,6 +240,9 @@ func (d Deps) requirePrincipal(next http.Handler) http.Handler {
 			return
 		}
 		if ok {
+			if !matchesExpectedOwner(w, r, dev.OwnerID) {
+				return
+			}
 			p := principal{OwnerID: dev.OwnerID, Kind: principalDevice, DeviceID: dev.ID}
 			ctx := context.WithValue(r.Context(), captureDeviceKey{}, dev)
 			ctx = context.WithValue(ctx, principalCtxKey{}, p)
@@ -246,12 +250,23 @@ func (d Deps) requirePrincipal(next http.Handler) http.Handler {
 			return
 		}
 		if u := d.currentUser(r); u != nil {
+			if !matchesExpectedOwner(w, r, u.ID) {
+				return
+			}
 			p := principal{OwnerID: u.ID, Kind: principalSession, Role: u.Role}
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalCtxKey{}, p)))
 			return
 		}
 		writeError(w, http.StatusUnauthorized, "unauthorized")
 	})
+}
+
+func matchesExpectedOwner(w http.ResponseWriter, r *http.Request, owner string) bool {
+	if expected := r.Header.Get(expectedOwnerHeader); expected != "" && expected != owner {
+		writeError(w, http.StatusForbidden, "account_changed")
+		return false
+	}
+	return true
 }
 
 func principalFrom(r *http.Request) (principal, bool) {

@@ -41,12 +41,18 @@ legacy moved originals reconcile without changing their catalog visibility.
 
 ## 3. Web reliability and dependencies
 
-- [ ] 10: bind queued uploads to their expected account at the server.
-- [ ] 12: support queue IDs on the documented plain-HTTP LAN origin.
-- [ ] 20: remediate/triage npm advisories without speculative major upgrades.
-- [ ] Scope sync cursors by account/library; reset cursors beyond feed head.
-- [ ] Fix the PWA assertion and exercise account changes/reconnect in browsers.
-- [ ] Regenerate committed embedded UI and API clients where needed.
+- [x] 10: bind queued uploads to their expected account at the server.
+- [x] 12: support queue IDs on the documented plain-HTTP LAN origin.
+- [x] 20: remediate/triage npm advisories without speculative major upgrades.
+- [x] Scope sync cursors by account/library; reset cursors beyond feed head.
+- [x] Fix the PWA assertion and exercise account changes/reconnect in browsers.
+- [x] Regenerate committed embedded UI and API clients where needed.
+
+Evidence: web type/build checks, 36 unit tests, size budgets, 15 focused Chromium
+tests, and full Go checks passed. The browser uses a real non-secure HTTP hostname
+and switches cookies between the first and second queued upload: the second is
+rejected and retained for its original account. The updated lockfile reports zero
+npm advisories. Server-wide maintenance status is requested/rendered only for admins.
 
 ## 4. Deployment and release verification
 

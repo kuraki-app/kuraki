@@ -126,3 +126,36 @@ func TestServerWideOperationsRequireAdministration(t *testing.T) {
 		t.Fatalf("integrity run=%d", rec.Code)
 	}
 }
+
+func TestExpectedAccountRejectsAChangedSessionBeforeUploads(t *testing.T) {
+	router, _ := newAuthTestRouter(t)
+	setup := postJSON(t, router, "/api/setup", apitypes.Credentials{Username: "alice", Password: "alice-password"}, nil)
+	cookie := findCookie(setup.Result().Cookies(), sessionCookieName)
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		req := httptest.NewRequest(method, "/api/assets", nil)
+		req.AddCookie(cookie)
+		req.Header.Set(expectedOwnerHeader, "other-account")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "account_changed") {
+			t.Fatalf("changed account admitted: %d %s", rec.Code, rec.Body)
+		}
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/assets", nil)
+	req.AddCookie(cookie)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("unbound session upload=%d", rec.Code)
+	}
+}
+
+func TestChangesResetsACursorBeyondRestoredHead(t *testing.T) {
+	router, _ := newAuthTestRouter(t)
+	setup := postJSON(t, router, "/api/setup", apitypes.Credentials{Username: "alice", Password: "alice-password"}, nil)
+	cookie := findCookie(setup.Result().Cookies(), sessionCookieName)
+	result := getJSONWithCookie[apitypes.ChangesResponse](t, router, "/api/changes?since=999", cookie)
+	if !result.Reset || result.Cursor != 0 || len(result.Changes) != 0 {
+		t.Fatalf("cursor beyond restored head was not reset: %+v", result)
+	}
+}
