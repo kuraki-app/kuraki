@@ -106,3 +106,28 @@ describe('library transition ownership', () => {
     ).toBe('trip-1');
   });
 });
+
+it('does not commit identity after cancellation during response decoding', async () => {
+  const settings = await import('./settings');
+  const controller = new AbortController();
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => {
+        controller.abort();
+        return { server_id: 'other', owner_id: 'other' };
+      },
+    })),
+  );
+  await expect(
+    settings.connectCaptureSettings(
+      { ...a, deviceToken: 'new' },
+      controller.signal,
+    ),
+  ).rejects.toMatchObject({ name: 'AbortError' });
+  expect((await settings.loadCaptureSettings()).deviceToken).toBe(
+    a.deviceToken,
+  );
+});

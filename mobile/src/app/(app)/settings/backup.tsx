@@ -5,8 +5,16 @@ import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import AlbumPicker from '@/components/album-picker';
 import { uploadPhoto } from '@/lib/capture-api';
 import { loadCaptureSettings } from '@/lib/settings';
-import { BackupFailures, BackupProgressCard } from '@/components/backup-progress';
-import { SettingsNotice, SettingsRow, SettingsSection, SettingsSwitch } from '@/components/settings-ui';
+import {
+  BackupFailures,
+  BackupProgressCard,
+} from '@/components/backup-progress';
+import {
+  SettingsNotice,
+  SettingsRow,
+  SettingsSection,
+  SettingsSwitch,
+} from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Space, useTokens } from '@/constants/theme';
 import {
@@ -18,7 +26,8 @@ import { backupEngine, type BackupProgress } from '@/lib/backup-engine';
 import { DEFAULT_PREFS, loadPrefs, savePrefs, type Prefs } from '@/lib/prefs';
 
 const registeredNote = 'Will also back up periodically in the background.';
-const unavailableNote = 'Background backup is unavailable; runs while the app is open.';
+const unavailableNote =
+  'Background backup is unavailable; runs while the app is open.';
 
 export default function BackupSettings() {
   const tokens = useTokens();
@@ -28,11 +37,22 @@ export default function BackupSettings() {
   const [pickingAlbums, setPickingAlbums] = useState(false);
   const [uploading, setUploading] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
 
   useEffect(() => backupEngine.subscribe(setProgress), []);
 
   useEffect(() => {
-    const timer = setTimeout(() => void loadPrefs().then(setPrefs), 0);
+    const timer = setTimeout(
+      () =>
+        void loadPrefs()
+          .then(setPrefs)
+          .catch(() =>
+            setSettingsError(
+              'Backup preferences could not be opened. Try again.',
+            ),
+          ),
+      0,
+    );
     return () => clearTimeout(timer);
   }, []);
 
@@ -49,9 +69,17 @@ export default function BackupSettings() {
         setBgNote('');
         return;
       }
-      void reconcileBackgroundBackup().then((state) => {
-        if (!cancelled) setBgNote(state === 'registered' ? registeredNote : unavailableNote);
-      });
+      void reconcileBackgroundBackup()
+        .then((state) => {
+          if (!cancelled)
+            setBgNote(
+              state === 'registered' ? registeredNote : unavailableNote,
+            );
+        })
+        .catch(() => {
+          if (!cancelled)
+            setBgNote('Background scheduling could not be checked. Try again.');
+        });
     }, 0);
     return () => {
       cancelled = true;
@@ -60,16 +88,35 @@ export default function BackupSettings() {
   }, [autoOn]);
 
   const patch = useCallback(async (next: Partial<Prefs>) => {
-    setPrefs(await savePrefs(next));
+    try {
+      setPrefs(await savePrefs(next));
+      setSettingsError('');
+    } catch (cause) {
+      setSettingsError(
+        cause instanceof Error
+          ? cause.message
+          : 'Preferences could not be saved.',
+      );
+    }
   }, []);
 
   async function toggleAuto(next: boolean) {
-    await backupEngine.setAuto(next);
-    if (next) {
-      setBgNote((await enableBackgroundBackup()) ? registeredNote : unavailableNote);
-    } else {
-      await disableBackgroundBackup();
-      setBgNote('');
+    try {
+      await backupEngine.setAuto(next);
+      if (next) {
+        setBgNote(
+          (await enableBackgroundBackup()) ? registeredNote : unavailableNote,
+        );
+      } else {
+        await disableBackgroundBackup();
+        setBgNote('');
+      }
+    } catch (cause) {
+      setSettingsError(
+        cause instanceof Error
+          ? cause.message
+          : 'Background backup could not be changed.',
+      );
     }
   }
 
@@ -77,20 +124,29 @@ export default function BackupSettings() {
   // single-page Backup screen: it is the fastest way to prove a fresh pairing
   // works end to end without waiting for a scheduled run.
   async function chooseAndUpload() {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: 'images',
-      allowsEditing: false,
-      quality: 1,
-    });
-    if (result.canceled || !result.assets[0]) return;
-    const asset = result.assets[0];
-    const filename = asset.fileName ?? asset.uri.split('/').pop() ?? `photo-${Date.now()}.jpg`;
     try {
       setIsUploading(true);
-      setUploading('Preparing photo…');
-      await uploadPhoto(await loadCaptureSettings(), { uri: asset.uri, filename }, (completed, total) => {
-        setUploading(`Uploading ${Math.round((completed / total) * 100)}%`);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'images',
+        allowsEditing: false,
+        quality: 1,
+        preferredAssetRepresentationMode:
+          ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Current,
       });
+      if (result.canceled || !result.assets[0]) return;
+      const asset = result.assets[0];
+      const filename =
+        asset.fileName ??
+        asset.uri.split('/').pop() ??
+        `photo-${Date.now()}.jpg`;
+      setUploading('Preparing photo…');
+      await uploadPhoto(
+        await loadCaptureSettings(),
+        { uri: asset.uri, filename },
+        (completed, total) => {
+          setUploading(`Uploading ${Math.round((completed / total) * 100)}%`);
+        },
+      );
       setUploading('Queued for Kuraki import.');
     } catch (cause) {
       setUploading(cause instanceof Error ? cause.message : 'Upload failed.');
@@ -106,12 +162,20 @@ export default function BackupSettings() {
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         style={[styles.fill, { backgroundColor: tokens.background }]}
-        contentContainerStyle={styles.content}>
+        contentContainerStyle={styles.content}
+      >
+        {settingsError ? (
+          <SettingsNotice tone="error" message={settingsError} />
+        ) : null}
         <BackupProgressCard progress={progress} />
 
         <SettingsSection
           title="What to back up"
-          info={{ message: 'Choose which kinds of media are copied from this phone to your Kuraki server.' }}>
+          info={{
+            message:
+              'Choose which kinds of media are copied from this phone to your Kuraki server.',
+          }}
+        >
           <SettingsSwitch
             label="Photos"
             value={prefs.backupPhotos}
@@ -124,11 +188,20 @@ export default function BackupSettings() {
           />
         </SettingsSection>
 
-        {nothingSelected ? <SettingsNotice message="Turn on photos or videos to run a backup." tone="warning" /> : null}
+        {nothingSelected ? (
+          <SettingsNotice
+            message="Turn on photos or videos to run a backup."
+            tone="warning"
+          />
+        ) : null}
 
         <SettingsSection
           title="Albums"
-          info={{ message: 'When selected-album sync is off, the whole camera roll is eligible.' }}>
+          info={{
+            message:
+              'When selected-album sync is off, the whole camera roll is eligible.',
+          }}
+        >
           <SettingsSwitch
             label="Only sync selected albums"
             value={prefs.syncAlbums}
@@ -145,8 +218,12 @@ export default function BackupSettings() {
 
         <SettingsSection
           title="Automatic backup"
-          info={{ message: 'Kuraki checks for new items in the background when the operating system allows it.' }}
-          footer={bgNote || undefined}>
+          info={{
+            message:
+              'Kuraki checks for new items in the background when the operating system allows it.',
+          }}
+          footer={bgNote || undefined}
+        >
           <SettingsSwitch
             label="Automatic backup"
             value={autoOn}
@@ -160,7 +237,10 @@ export default function BackupSettings() {
         </SettingsSection>
 
         {progress?.permission === 'denied' ? (
-          <SettingsNotice message="Photo access is off. Enable it in Settings › Permissions." tone="warning" />
+          <SettingsNotice
+            message="Photo access is off. Enable it in Settings › Permissions."
+            tone="warning"
+          />
         ) : null}
 
         <View style={styles.actions}>
@@ -168,9 +248,13 @@ export default function BackupSettings() {
             disabled={running || nothingSelected}
             style={[
               styles.button,
-              { backgroundColor: tokens.primary, opacity: running || nothingSelected ? 0.5 : 1 },
+              {
+                backgroundColor: tokens.primary,
+                opacity: running || nothingSelected ? 0.5 : 1,
+              },
             ]}
-            onPress={() => void backupEngine.run()}>
+            onPress={() => void backupEngine.run()}
+          >
             <ThemedText type="smallBold" themeColor="primaryForeground">
               {running ? 'Backing up…' : 'Back up now'}
             </ThemedText>
@@ -178,7 +262,8 @@ export default function BackupSettings() {
           {running ? (
             <Pressable
               style={[styles.buttonGhost, { borderColor: tokens.input }]}
-              onPress={() => backupEngine.stop()}>
+              onPress={() => backupEngine.stop()}
+            >
               <ThemedText type="smallBold">Pause</ThemedText>
             </Pressable>
           ) : null}
@@ -196,8 +281,12 @@ export default function BackupSettings() {
 
         <SettingsSection
           title="Manual upload"
-          info={{ message: 'Send one photo immediately without changing automatic backup.' }}
-          footer={uploading || undefined}>
+          info={{
+            message:
+              'Send one photo immediately without changing automatic backup.',
+          }}
+          footer={uploading || undefined}
+        >
           <SettingsRow
             label={isUploading ? 'Uploading…' : 'Choose a photo'}
             icon="photo.badge.plus"
@@ -206,8 +295,15 @@ export default function BackupSettings() {
         </SettingsSection>
       </ScrollView>
 
-      <Modal visible={pickingAlbums} animationType="slide" onRequestClose={() => setPickingAlbums(false)}>
-        <AlbumPicker selected={progress?.albumIds ?? []} onClose={() => setPickingAlbums(false)} />
+      <Modal
+        visible={pickingAlbums}
+        animationType="slide"
+        onRequestClose={() => setPickingAlbums(false)}
+      >
+        <AlbumPicker
+          selected={progress?.albumIds ?? []}
+          onClose={() => setPickingAlbums(false)}
+        />
       </Modal>
     </>
   );
@@ -216,7 +312,23 @@ export default function BackupSettings() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   content: { paddingBottom: Space.seven },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.two, paddingHorizontal: Space.four, paddingTop: Space.five },
-  button: { flex: 1, alignItems: 'center', borderRadius: Radius.sm, padding: Space.four },
-  buttonGhost: { alignItems: 'center', borderRadius: Radius.sm, padding: Space.four, borderWidth: 1 },
+  actions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Space.two,
+    paddingHorizontal: Space.four,
+    paddingTop: Space.five,
+  },
+  button: {
+    flex: 1,
+    alignItems: 'center',
+    borderRadius: Radius.sm,
+    padding: Space.four,
+  },
+  buttonGhost: {
+    alignItems: 'center',
+    borderRadius: Radius.sm,
+    padding: Space.four,
+    borderWidth: 1,
+  },
 });

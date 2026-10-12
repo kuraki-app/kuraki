@@ -32,10 +32,10 @@ substantial milestones; update the ledger/handoff and evidence in each milestone
 
 - [x] Align Expo patches and remediate mobile advisories; add compatibility/audit
       gates without speculative framework downgrades.
-- [ ] Narrow photo/video/QR permissions and document limited/cloud/Live Photo behavior.
-- [ ] Add development-client and installable artifact profiles, commit/checksum
+- [x] Narrow photo/video/QR permissions and document limited/cloud/Live Photo behavior.
+- [x] Add development-client and installable artifact profiles, commit/checksum
       provenance and installed-app/native build automation on both platforms.
-- [ ] Build current native artifacts in isolated environments; exercise available
+- [x] Build current native artifacts in isolated environments; exercise available
       simulator/emulator flows and record device/performance/signing limits honestly.
 
 ## 4. Review and delivery

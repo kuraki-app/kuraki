@@ -3,7 +3,7 @@ import * as TaskManager from 'expo-task-manager';
 
 import { backupEngine } from '@/lib/backup-engine';
 import { drainBackgroundSync } from '@/lib/background-sync';
-import { throwIfAborted } from '@/lib/request';
+import { throwIfAborted, abortable } from '@/lib/request';
 
 // The OS wakes the app on its own schedule (Android >= ~15 min; iOS decides by
 // usage and power). Each wake runs one pass of the same backup engine used in
@@ -26,7 +26,7 @@ TaskManager.defineTask(BACKUP_TASK, async () => {
     // background trigger -- server-side edits previously reached the device
     // only while the app was open on the Library tab. Backup can consume the
     // entire window on a large library, so ordering it first would starve sync.
-    await drainBackgroundSync(controller.signal);
+    await abortable(drainBackgroundSync(controller.signal), controller.signal);
     throwIfAborted(controller.signal);
     await backupEngine.run({ background: true, signal: controller.signal });
     throwIfAborted(controller.signal);

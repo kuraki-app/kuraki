@@ -1,0 +1,122 @@
+name: Native mobile build and installed smoke
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  android:
+    name: Android standalone build and installed smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: android-actions/setup-android@v3
+      - run: cd mobile && npm ci
+      - run: cd mobile && CI=1 npx expo prebuild --platform android --no-install
+      - run: cd mobile && node scripts/check-native-config.mjs android
+      - name: Build standalone QA APK (no Metro)
+        working-directory: mobile/android
+        run: ./gradlew :app:assembleRelease -PreactNativeArchitectures=x86_64 --no-daemon
+      - name: Prepare disposable server and pinned UI runner
+        run: |
+          go build -o bin/kuraki ./cmd/kuraki
+          cd mobile
+          scripts/install-maestro.sh "$RUNNER_TEMP/mobile-ui"
+      - name: Install and exercise exact APK
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          disable-animations: true
+          script: |
+            cd mobile
+            node scripts/start-smoke-server.mjs "$RUNNER_TEMP/mobile-smoke.env"
+            . "$RUNNER_TEMP/mobile-smoke.env"
+            python3 scripts/create-smoke-photo.py "$RUNNER_TEMP/native-proof.png"
+            adb push "$RUNNER_TEMP/native-proof.png" /sdcard/Pictures/native-proof.png
+            adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Pictures/native-proof.png
+            adb install android/app/build/outputs/apk/release/app-release.apk
+            "$RUNNER_TEMP/mobile-ui/maestro/bin/maestro" test --debug-output "$RUNNER_TEMP/mobile-smoke-logs" -e SERVER_URL=http://10.0.2.2:39218 -e PAIR_CODE="$PAIR_CODE" .maestro/onboarding.yaml
+            python3 scripts/check-smoke-import.py "$SMOKE_SERVER_DIR"
+      - name: Record exact artifact provenance
+        working-directory: mobile
+        run: node scripts/artifact-manifest.mjs android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/android-provenance.json" android ci-standalone
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-native-proof
+          path: |
+            mobile/android/app/build/outputs/apk/release/app-release.apk
+            ${{ runner.temp }}/android-provenance.json
+            ${{ runner.temp }}/mobile-smoke-logs
+          retention-days: 7
+  ios:
+    name: iOS standalone build and installed smoke
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: cd mobile && npm ci
+      - run: cd mobile && CI=1 npx expo prebuild --platform ios --no-install
+      - run: cd mobile && node scripts/check-native-config.mjs ios
+      - run: cd mobile/ios && pod install
+      - name: Build standalone simulator app (no Metro)
+        working-directory: mobile/ios
+        run: >-
+          xcodebuild -workspace Kuraki.xcworkspace -scheme Kuraki -configuration Release
+          -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath "$RUNNER_TEMP/mobile-derived"
+          CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=NO
+          DEVELOPMENT_TEAM=KURAKIQA01 ONLY_ACTIVE_ARCH=YES ARCHS=arm64 build
+      - name: Install and exercise exact simulator app
+        run: |
+          go build -o bin/kuraki ./cmd/kuraki
+          cd mobile
+          scripts/install-maestro.sh "$RUNNER_TEMP/mobile-ui"
+          node scripts/start-smoke-server.mjs "$RUNNER_TEMP/mobile-smoke.env"
+          . "$RUNNER_TEMP/mobile-smoke.env"
+          simulator=$(xcrun simctl create Kuraki-CI 'iPhone 17 Pro')
+          xcrun simctl boot "$simulator"
+          xcrun simctl bootstatus "$simulator" -b
+          python3 scripts/create-smoke-photo.py "$RUNNER_TEMP/native-proof.png"
+          xcrun simctl addmedia "$simulator" "$RUNNER_TEMP/native-proof.png"
+          xcrun simctl install "$simulator" "$RUNNER_TEMP/mobile-derived/Build/Products/Release-iphonesimulator/Kuraki.app"
+          "$RUNNER_TEMP/mobile-ui/maestro/bin/maestro" --device "$simulator" test --debug-output "$RUNNER_TEMP/mobile-smoke-logs" -e SERVER_URL=http://127.0.0.1:39218 -e PAIR_CODE="$PAIR_CODE" .maestro/onboarding.yaml
+          python3 scripts/check-smoke-import.py "$SMOKE_SERVER_DIR"
+          xcrun simctl shutdown "$simulator"
+          xcrun simctl delete "$simulator"
+      - name: Record exact artifact provenance
+        working-directory: mobile
+        run: node scripts/artifact-manifest.mjs "$RUNNER_TEMP/mobile-derived/Build/Products/Release-iphonesimulator/Kuraki.app" "$RUNNER_TEMP/ios-provenance.json" ios ci-standalone-simulator
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-native-proof
+          path: |
+            ${{ runner.temp }}/ios-provenance.json
+            ${{ runner.temp }}/mobile-smoke-logs
+          retention-days: 7

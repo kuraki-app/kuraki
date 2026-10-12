@@ -1,3 +1,4 @@
+import { abortable, throwIfAborted } from '@/lib/cancellation';
 import { reportAuthLost } from '@/lib/session';
 import {
   assertActiveConnection,
@@ -15,17 +16,13 @@ export class RequestError extends Error {
     this.name = 'RequestError';
   }
 }
-export function abortError(): Error {
-  const error = new Error('Cancelled');
-  error.name = 'AbortError';
-  return error;
-}
-export function throwIfAborted(signal?: AbortSignal): void {
-  if (signal?.aborted) throw abortError();
-}
-export function isAbort(error: unknown): boolean {
-  return error instanceof Error && error.name === 'AbortError';
-}
+
+export {
+  abortable,
+  abortError,
+  throwIfAborted,
+  isAbort,
+} from '@/lib/cancellation';
 
 /** Keeps cancellation and identity ownership through body decoding as well as headers. */
 export async function request<T>(
@@ -48,21 +45,29 @@ export async function request<T>(
   const unsubscribe = onCaptureSettingsChange(abort);
   const timer = setTimeout(abort, timeoutMs);
   try {
-    const response = await fetch(`${settings.baseURL}${path}`, {
-      ...init,
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${settings.deviceToken}`,
-        ...(settings.ownerID ? { 'X-Kuraki-Owner-ID': settings.ownerID } : {}),
-        ...init.headers,
-      },
-    });
+    const response = await abortable(
+      fetch(`${settings.baseURL}${path}`, {
+        ...init,
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${settings.deviceToken}`,
+          ...(settings.ownerID
+            ? { 'X-Kuraki-Owner-ID': settings.ownerID }
+            : {}),
+          ...init.headers,
+        },
+      }),
+      controller.signal,
+    );
     await assertActiveConnection(settings);
     throwIfAborted(controller.signal);
-    const result = await read(response);
+    const result = await abortable(read(response), controller.signal);
     await assertActiveConnection(settings);
     throwIfAborted(controller.signal);
     return result;
+  } catch (error) {
+    await assertActiveConnection(settings);
+    throw error;
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener('abort', abort);
@@ -105,35 +110,4 @@ export async function jsonRequest<T>(
     signal,
     timeoutMs,
   );
-}
-
-// Native Photos/provider operations cannot always be cancelled internally.
-// Release this pass immediately, and refuse/clean up any later result.
-export function abortable<T>(
-  operation: Promise<T>,
-  signal?: AbortSignal,
-): Promise<T> {
-  if (signal?.aborted) {
-    void operation.catch(() => {});
-    return Promise.reject(abortError());
-  }
-  if (!signal) return operation;
-  return new Promise((resolve, reject) => {
-    const abort = () => {
-      signal.removeEventListener('abort', abort);
-      reject(abortError());
-    };
-    signal.addEventListener('abort', abort, { once: true });
-    operation.then(
-      (value) => {
-        signal.removeEventListener('abort', abort);
-        if (signal.aborted) reject(abortError());
-        else resolve(value);
-      },
-      (error) => {
-        signal.removeEventListener('abort', abort);
-        reject(error);
-      },
-    );
-  });
 }

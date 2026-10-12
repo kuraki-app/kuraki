@@ -8,21 +8,39 @@ import SetupStep, { SetupButton, SetupNotice } from '@/components/setup-step';
 import { markSetupComplete } from '@/lib/settings';
 
 export default function PermissionsStep() {
-  const [status, setStatus] = useState<MediaLibrary.PermissionStatus | null>(null);
+  const [status, setStatus] = useState<MediaLibrary.PermissionStatus | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
   async function requestAccess() {
     setBusy(true);
     try {
-      const result = await MediaLibrary.requestPermissionsAsync();
+      const result = await MediaLibrary.requestPermissionsAsync(false, [
+        'photo',
+        'video',
+      ]);
       setStatus(result.status);
+      setError('');
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Photo permissions could not be opened. Try again.',
+      );
     } finally {
       setBusy(false);
     }
   }
 
   async function finish() {
-    await markSetupComplete();
+    try {
+      await markSetupComplete();
+    } catch {
+      setError('Setup could not be saved. Unlock your device and retry.');
+      return;
+    }
     router.replace('/(app)/(gallery)');
   }
 
@@ -32,7 +50,9 @@ export default function PermissionsStep() {
       title="Allow photo access"
       description="Access lets Kuraki find new photos and back them up to your server. You stay in control."
       symbol="photo.badge.plus"
-      symbolFallback="04">
+      symbolFallback="04"
+    >
+      {error ? <SetupNotice tone="error">{error}</SetupNotice> : null}
       {status !== 'granted' ? (
         <SetupButton
           disabled={busy}
@@ -52,7 +72,9 @@ export default function PermissionsStep() {
       <SetupButton
         variant={status === 'granted' ? 'primary' : 'secondary'}
         onPress={() => void finish()}
-        label={status === 'granted' ? 'Start using Kuraki' : 'Finish without access'}
+        label={
+          status === 'granted' ? 'Start using Kuraki' : 'Finish without access'
+        }
       />
     </SetupStep>
   );

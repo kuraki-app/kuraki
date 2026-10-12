@@ -267,3 +267,27 @@ reserves history work and owns cancellation; trip/tag grids handle retry/paginat
 315 mobile tests and the server race suite passed before this milestone. Native
 builds, dependency remediation, CI release gates and hardware evidence follow.
 The historical probe files above are retained audit evidence, not passing-fix tests.
+
+## Native and review closure (2026-10-12)
+
+All twelve reported implementation findings have fixes. Follow-up review also
+closed full-byte pre-completion crash recovery, stalled error-body cancellation,
+page-budget starvation and cleanup scan continuation. Manual queued uploads now
+continue receipt checks without requiring automatic backup. Mobile security gates
+accept only two precise, source-checked local mitigations without upstream releases;
+all other advisories fail. Compatible Expo patches and current dev-client are locked.
+
+Fresh standalone Android release APK and iOS simulator app compile successfully.
+The Android37.1 QA process launched without native errors. On iOS26.5 the current
+app paired with a disposable server, persisted connection/setup through restart,
+browsed native tabs, imported seven simulator test photos (including one generated
+PNG), and matched six older local originals through real BLAKE3/server verification.
+No local deletion was executed. Permission manifests remove audio while retaining
+QR camera access; cold navigation and setup progress accessibility were corrected.
+
+325 mobile regressions, full Go race/vet/format, TypeScript/lint and workflow checks
+pass. Native CI now builds and installs each current candidate, exercises pairing,
+restart and real backup receipts, and records artifact provenance. Local build
+provenance and CI results are recorded separately; these foreground simulator checks
+do not replace physical-device locked scheduling, iCloud/Live Photo vendor behavior,
+large-library/video battery/RSS measurement or production store signing.

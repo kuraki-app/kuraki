@@ -58,10 +58,11 @@ func TestListEndpointsPaginateWithoutRepeatingRows(t *testing.T) {
 			name: "memories",
 			prepare: func(t *testing.T, ctx context.Context, f paginationFixture) string {
 				// On-this-day matches on month-day, so the fixture's dates have
-				// to land on today with distinct times.
+				// to land on an explicit date with distinct times, independent
+				// of the host timezone or a run crossing midnight.
 				mustExec(t, ctx, f.db, `
 					UPDATE assets
-					SET taken_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '-' || (rowid * 60) || ' seconds')`)
+					SET taken_at = strftime('%Y-%m-%dT%H:%M:%SZ', '2020-06-15T12:00:00Z', '-' || (rowid * 60) || ' seconds')`)
 				return "/api/memories"
 			},
 		},
@@ -85,6 +86,9 @@ func TestListEndpointsPaginateWithoutRepeatingRows(t *testing.T) {
 			// spinning — which is exactly what the old behaviour would do.
 			for page := 0; page < 10; page++ {
 				url := path + "?limit=2"
+				if tc.name == "memories" {
+					url += "&date=2020-06-15"
+				}
 				if cursor != "" {
 					url += "&cursor=" + cursor
 				}

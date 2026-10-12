@@ -64,10 +64,12 @@ export default function FreeUpSpaceSettings() {
   const deletionLock = useRef(false);
   const [candidates, setCandidates] = useState<LocalAsset[] | null>(null);
   const [error, setError] = useState('');
+  const [more, setMore] = useState(false);
+  const continuation = useRef<{ days: number; after?: string }>({ days: -1 });
   const operation = useRef<AbortController | null>(null);
   useEffect(() => () => operation.current?.abort(), []);
 
-  const scan = useCallback(async (days: number) => {
+  const scan = useCallback(async (days: number, nextPage = false) => {
     if (deletionLock.current) return;
     operation.current?.abort();
     const controller = new AbortController();
@@ -78,6 +80,7 @@ export default function FreeUpSpaceSettings() {
       const signal = controller.signal;
       if (days < 0) {
         setCandidates([]);
+        setMore(false);
         return;
       }
       const settings = await loadCaptureSettings();
@@ -94,14 +97,19 @@ export default function FreeUpSpaceSettings() {
           'Photo access is needed. Open Permissions in Settings.',
         );
       const verified: LocalAsset[] = [];
-      let after: string | undefined;
+      let after: string | undefined =
+        nextPage && continuation.current.days === days
+          ? continuation.current.after
+          : undefined;
+      let hasMore = false;
       let skipped = 0;
-      for (let pages = 0; pages < 20; pages++) {
+      for (let pages = 0; pages < 40; pages++) {
         throwIfAborted(signal);
         const page = await MediaLibrary.getAssetsAsync({
-          first: 100,
+          first: 50,
           after,
           mediaType: ['photo', 'video'],
+          sortBy: [['creationTime', true]],
         });
         const receipts = await loadBackupReceipts(
           libraryKey(settings),
@@ -129,11 +137,14 @@ export default function FreeUpSpaceSettings() {
           }
           if (verified.length >= 50) break;
         }
-        if (!page.hasNextPage || verified.length >= 50) break;
+        hasMore = page.hasNextPage;
         after = page.endCursor;
+        if (!page.hasNextPage || verified.length >= 50) break;
       }
       await assertActiveConnection(settings);
       throwIfAborted(signal);
+      continuation.current = { days, after };
+      setMore(hasMore);
       setCandidates(verified);
       if (skipped)
         setError(
@@ -345,11 +356,24 @@ export default function FreeUpSpaceSettings() {
           </ThemedText>
         ) : (
           <ThemedText type="small" themeColor="mutedForeground">
-            {keepLocalDays < 0
-              ? 'Nothing, because Keep all is on. Choose a window above to see what could go.'
-              : 'Nothing yet. Everything on this device is either newer than the window or not backed up.'}
+            {more
+              ? 'No verified copies in these pages. Check more of your library.'
+              : keepLocalDays < 0
+                ? 'Nothing, because Keep all is on. Choose a window above to see what could go.'
+                : 'Nothing yet. Everything on this device is either newer than the window or not backed up.'}
           </ThemedText>
         )}
+
+        {more ? (
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy}
+            style={styles.button}
+            onPress={() => void scan(keepLocalDays, true)}
+          >
+            <ThemedText>Check more photos</ThemedText>
+          </Pressable>
+        ) : null}
 
         <Pressable
           style={[

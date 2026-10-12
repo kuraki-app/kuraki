@@ -119,7 +119,7 @@ jobs:
           retention-days: 7
 
   mobile:
-    name: Mobile typecheck & lint
+    name: Mobile safety, compatibility & security
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -129,10 +129,17 @@ jobs:
           cache: npm
           cache-dependency-path: mobile/package-lock.json
       - run: cd mobile && npm ci
+      - run: cd mobile && npm run audit:security
+      - run: cd mobile && npm run check:compatibility
       - run: cd mobile && npx tsc --noEmit
       - run: cd mobile && npx expo lint
       - run: cd mobile && npm run test
       - run: cd mobile && npm run check-design
+
+  mobile-native:
+    name: Native mobile verification
+    needs: mobile
+    uses: ./.github/workflows/mobile-native.yml
 
   build:
     name: Cross-compile (pure-Go)

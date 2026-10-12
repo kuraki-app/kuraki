@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
   storage: new Map<string, string>(),
   upload: vi.fn(),
   network: 'wifi',
+  appState: 'background',
   available: true,
   pages: vi.fn(),
   asset: {
@@ -41,7 +42,13 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
     },
   },
 }));
-vi.mock('react-native', () => ({ AppState: { currentState: 'background' } }));
+vi.mock('react-native', () => ({
+  AppState: {
+    get currentState() {
+      return h.appState;
+    },
+  },
+}));
 vi.mock('expo-media-library/legacy', () => ({
   requestPermissionsAsync: async () => ({ granted: true }),
   getPermissionsAsync: async () => ({ granted: true }),
@@ -85,6 +92,7 @@ beforeEach(async () => {
   h.secrets.clear();
   h.storage.clear();
   h.network = 'wifi';
+  h.appState = 'background';
   h.available = true;
   h.pages
     .mockReset()
@@ -96,6 +104,7 @@ beforeEach(async () => {
   await saveCaptureSettings(connection);
 });
 afterEach(() => {
+  vi.useRealTimers();
   engine?.dispose();
   engine = undefined;
 });
@@ -207,5 +216,40 @@ it('makes historical progress when every recent item fails', async () => {
   expect(h.pages).toHaveBeenCalledWith(
     expect.objectContaining({ after: 'history' }),
   );
+  expect(h.upload).toHaveBeenCalledTimes(101);
+});
+
+it('does not starve position 51 of a short library after fifty failures', async () => {
+  const photos = Array.from({ length: 51 }, (_, i) => ({
+    ...h.asset,
+    id: 'item-' + i,
+  }));
+  h.pages.mockResolvedValue({ assets: photos, hasNextPage: false });
+  h.upload.mockRejectedValue(new Error('unavailable'));
+  const e = await freshEngine();
+  await e.run();
   expect(h.upload).toHaveBeenCalledTimes(51);
+});
+
+it('continues checking a manually requested pending original without enabling auto backup', async () => {
+  vi.useFakeTimers();
+  h.appState = 'active';
+  const { RequestError } = await import('./request');
+  h.upload
+    .mockRejectedValueOnce(new RequestError('Waiting for import', 202, true))
+    .mockResolvedValue({ id: 'u', status: 'completed', proof });
+  const e = await freshEngine();
+  await e.run();
+  expect(e.snapshot().auto).toBe(false);
+  await vi.advanceTimersByTimeAsync(15000);
+  expect(e.snapshot().done).toBe(1);
+  expect(h.upload).toHaveBeenCalledTimes(2);
+});
+
+it('does not upload on a late background wake after automatic backup was disabled', async () => {
+  h.upload.mockResolvedValue({ id: 'u', status: 'completed', proof });
+  const e = await freshEngine();
+  await e.run({ background: true });
+  expect(h.upload).not.toHaveBeenCalled();
+  expect(e.snapshot().message).toBe('Automatic backup is off.');
 });

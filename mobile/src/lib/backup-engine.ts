@@ -152,6 +152,7 @@ export class BackupEngine {
   private currentFile = '';
   private currentPercent = 0;
   private pending = 0;
+  private moreWork = false;
   private message = '';
   private allowRetry = true;
   private unsubscribeIdentity: () => void;
@@ -330,14 +331,13 @@ export class BackupEngine {
       this.emit();
       if (
         this.allowRetry &&
-        this.pending > 0 &&
-        this.state.auto &&
+        (this.pending > 0 || this.moreWork) &&
         !options.background &&
         AppState.currentState === 'active'
       )
         this.retryTimer = setTimeout(() => {
           this.retryTimer = null;
-          void this.run();
+          if (AppState.currentState === 'active') void this.run();
         }, 15_000);
     });
     this.emit();
@@ -351,7 +351,11 @@ export class BackupEngine {
     try {
       await abortable(this.ensureLoaded(), signal);
       throwIfAborted(signal);
-      let settings = await loadCaptureSettings();
+      if (background && !this.state.auto) {
+        this.message = 'Automatic backup is off.';
+        return;
+      }
+      let settings = await abortable(loadCaptureSettings(), signal);
       this.activeConnection = settings;
       if (!settings.baseURL || !settings.deviceToken) {
         this.message = 'Connect this device in Settings first.';
@@ -382,12 +386,19 @@ export class BackupEngine {
           this.controller?.abort();
       });
       this.pending = 0;
+      this.moreWork = false;
       let uploaded = 0;
       let attempts = 0;
-      let pageNumber = 0;
+
       this.message = 'Looking for new photos…';
       this.emit();
       for await (const page of this.assetPages(signal)) {
+        // Stop between complete pages. A mid-page budget would repeatedly retry
+        // its failures and permanently starve later originals in that page.
+        if (attempts >= 200) {
+          this.moreWork = true;
+          break;
+        }
         const receipts = await loadBackupReceipts(
           scope,
           page.map((a) => a.id),
@@ -408,20 +419,12 @@ export class BackupEngine {
           }
         }
         this.totalDone = await backedUpCount(scope);
-        let complete = true;
-        let pageAttempts = 0;
-        const newest = pageNumber++ === 0;
+
         for (const asset of page) {
           throwIfAborted(signal);
           if (receipts.get(asset.id)?.localVersion === localVersion(asset))
             continue;
-          // Reserve work for history even when every recent item fails.
-          if (newest && pageAttempts >= 50) continue;
-          if (attempts++ >= 100) {
-            complete = false;
-            break;
-          }
-          pageAttempts++;
+          attempts++;
           this.pending++;
           this.currentFile = asset.filename;
           this.currentPercent = 0;
@@ -520,17 +523,18 @@ export class BackupEngine {
           }
           this.emit();
         }
-        if (!complete) break;
         // The generator persists an opaque page cursor only after the entire
         // page has been consumed; an interrupted page is safely retried.
       }
       this.message = this.pending
         ? 'Waiting for the server to confirm originals.'
-        : this.state.failed.length
-          ? 'Some items need attention.'
-          : this.permission === 'limited'
-            ? 'Selected photos are backed up. Allow full access to include the rest.'
-            : 'All caught up.';
+        : this.moreWork
+          ? 'Continuing the remaining photos…'
+          : this.state.failed.length
+            ? 'Some items need attention.'
+            : this.permission === 'limited'
+              ? 'Selected photos are backed up. Allow full access to include the rest.'
+              : 'All caught up.';
       if (uploaded)
         void notify('backup-complete', {
           title: 'Backup finished',
@@ -551,7 +555,7 @@ export class BackupEngine {
   private async checkNetwork(signal: AbortSignal) {
     throwIfAborted(signal);
     const gate = evaluateNetworkGate(
-      await currentConnection(),
+      await abortable(currentConnection(), signal),
       this.state.wifiOnly,
     );
     if (gate !== 'allowed')
@@ -559,12 +563,13 @@ export class BackupEngine {
     throwIfAborted(signal);
   }
   private async ensurePermission(background: boolean, signal?: AbortSignal) {
-    const wanted = mediaTypesFor(await loadPrefs());
+    const wanted = mediaTypesFor(await abortable(loadPrefs(), signal));
     if (!wanted.length) return false;
     throwIfAborted(signal);
-    const result = background
-      ? await MediaLibrary.getPermissionsAsync(false, wanted)
-      : await MediaLibrary.requestPermissionsAsync(false, wanted);
+    const result =
+      background || AppState.currentState !== 'active'
+        ? await MediaLibrary.getPermissionsAsync(false, wanted)
+        : await MediaLibrary.requestPermissionsAsync(false, wanted);
     throwIfAborted(signal);
     this.permission = result.granted
       ? result.accessPrivileges === 'limited'
@@ -629,7 +634,10 @@ export class BackupEngine {
         after = page.endCursor;
         this.state.scan = { scope, album: index, after };
         await this.persist();
-        if (pages === 19) return;
+        if (pages === 19) {
+          this.moreWork = true;
+          return;
+        }
       }
     }
     this.state.scan = undefined;

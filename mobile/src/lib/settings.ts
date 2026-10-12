@@ -1,3 +1,4 @@
+import { abortable, throwIfAborted } from '@/lib/cancellation';
 import {
   deleteSecret,
   getSecret,
@@ -225,10 +226,13 @@ export async function connectCaptureSettings(
   const timer = setTimeout(abort, 8_000);
   try {
     if (signal?.aborted) abort();
-    const response = await fetch(`${next.baseURL}/api/capture/identity`, {
-      headers: { Authorization: `Bearer ${next.deviceToken}` },
-      signal: controller.signal,
-    });
+    const response = await abortable(
+      fetch(`${next.baseURL}/api/capture/identity`, {
+        headers: { Authorization: `Bearer ${next.deviceToken}` },
+        signal: controller.signal,
+      }),
+      controller.signal,
+    );
     if (response.status !== 404) {
       if (!response.ok)
         throw new Error(
@@ -236,7 +240,7 @@ export async function connectCaptureSettings(
             ? 'Pair this device with the selected server.'
             : 'Could not verify the connected library.',
         );
-      const body = (await response.json()) as {
+      const body = (await abortable(response.json(), controller.signal)) as {
         server_id?: unknown;
         owner_id?: unknown;
       };
@@ -250,6 +254,7 @@ export async function connectCaptureSettings(
       next.serverID = body.server_id;
       next.ownerID = body.owner_id;
     }
+    throwIfAborted(controller.signal);
     await saveCaptureSettings(next, expectedEpoch, signal);
     return next;
   } finally {

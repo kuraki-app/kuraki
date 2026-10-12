@@ -171,7 +171,9 @@ export default function RootLayout() {
   // got it. Rate-limited because the scan walks the whole camera roll.
   const lastForegroundBackup = useRef(0);
   useEffect(() => {
+    lastForegroundBackup.current = 0;
     const pass = () => {
+      if (AppState.currentState !== 'active') return;
       void (async () => {
         try {
           if (
@@ -291,7 +293,7 @@ export default function RootLayout() {
           {redirect ? (
             <Redirect href={redirect} />
           ) : (
-            <Slot key={activeConnectionEpoch} />
+            <Slot key={ready ? activeConnectionEpoch : 'setup'} />
           )}
         </ThemeProvider>
       </SafeAreaProvider>

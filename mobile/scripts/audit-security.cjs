@@ -3,9 +3,10 @@ const {spawnSync}=require('node:child_process');
 // are source-hash checked and exercised before accepting these two IDs.
 require('./patch-dependencies.cjs');
 require('./check-security-patches.cjs');
-const result=spawnSync('npm',['audit','--json'],{encoding:'utf8',cwd:require('node:path').join(__dirname,'..')});
+const result=spawnSync('npm',['audit','--json'],{encoding:'utf8',cwd:require('node:path').join(__dirname,'..'),timeout:120000});
 let report;
 try{report=JSON.parse(result.stdout);}catch{throw new Error('Dependency advisory service did not return valid audit evidence.');}
+if(!report.vulnerabilities||typeof report.vulnerabilities!=='object'||Array.isArray(report.vulnerabilities)||!report.metadata?.vulnerabilities)throw new Error('Dependency audit evidence has an unexpected format.');
 if(report.error)throw new Error(`Dependency audit failed: ${JSON.stringify(report.error)}`);
 const mitigated=new Set(['GHSA-vfj7-8cjw-p6xm','GHSA-86w9-cpqp-85rv']);
 const findings=new Map();

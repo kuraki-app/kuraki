@@ -54,21 +54,42 @@ export type PairedDevice = { id: string; name: string; token: string };
  * scanned from a QR). It is unauthenticated — the phone has no credentials yet —
  * and returns the device's own revocable token on success.
  */
-export async function claimPairing(baseURL:string,code:string,name:string,signal?:AbortSignal):Promise<PairedDevice>{
- const origin=baseURL.replace(/\/+$/,'');
- const controller=new AbortController();const abort=()=>controller.abort();
- signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();
- const deadline=setTimeout(abort,15000);
- try{
-  const response=await fetch(`${origin}/api/devices/pair/claim`,{
-   method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code,name}),signal:controller.signal,
-  });
-  const device=await unwrap<PairedDevice>(response,'Pairing failed. Generate a new code and try again.');
-  throwIfAborted(controller.signal);return device;
- }catch(cause){
-  if(signal?.aborted||cause instanceof CaptureAPIError)throw cause;
-  throw new CaptureAPIError(`Could not reach ${origin}. Check your network and server address, then try again.`,0,true);
- }finally{clearTimeout(deadline);signal?.removeEventListener('abort',abort);}
+export async function claimPairing(
+  baseURL: string,
+  code: string,
+  name: string,
+  signal?: AbortSignal,
+): Promise<PairedDevice> {
+  const origin = baseURL.replace(/\/+$/, '');
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener('abort', abort, { once: true });
+  if (signal?.aborted) abort();
+  const deadline = setTimeout(abort, 15000);
+  try {
+    const response = await fetch(`${origin}/api/devices/pair/claim`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, name }),
+      signal: controller.signal,
+    });
+    const device = await unwrap<PairedDevice>(
+      response,
+      'Pairing failed. Generate a new code and try again.',
+    );
+    throwIfAborted(controller.signal);
+    return device;
+  } catch (cause) {
+    if (signal?.aborted || cause instanceof CaptureAPIError) throw cause;
+    throw new CaptureAPIError(
+      `Could not reach ${origin}. Check your network and server address, then try again.`,
+      0,
+      true,
+    );
+  } finally {
+    clearTimeout(deadline);
+    signal?.removeEventListener('abort', abort);
+  }
 }
 
 export async function getCaptureStatus(
@@ -134,8 +155,9 @@ async function originalReceipt(
   id: string,
   size: number,
   signal?: AbortSignal,
+  polls = 4,
 ): Promise<OriginalProof> {
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < polls; attempt++) {
     const result = await jsonRequest<{ status: string; proof?: OriginalProof }>(
       settings,
       `/api/capture/uploads/${id}/receipt`,
@@ -150,7 +172,7 @@ async function originalReceipt(
       return result.proof;
     if (result.status !== 'pending')
       throw new Error('The server returned an invalid original receipt.');
-    await backoff(attempt, signal, 250);
+    if (attempt + 1 < polls) await backoff(attempt, signal, 250);
   }
   throw new RequestError(
     'Waiting for the server to finish importing this original.',
@@ -199,21 +221,29 @@ export async function uploadFile(
           offset === source.size &&
           options.requireReceipt
         ) {
-          const proof = await originalReceipt(
-            settings,
-            session.id,
-            source.size,
-            signal,
-          );
-          await resume?.clear();
-          return {
-            id: session.id,
-            filename: file.filename,
-            size_bytes: source.size,
-            received_bytes: source.size,
-            status: 'completed',
-            proof,
-          };
+          try {
+            const proof = await originalReceipt(
+              settings,
+              session.id,
+              source.size,
+              signal,
+              1,
+            );
+            await resume?.clear();
+            return {
+              id: session.id,
+              filename: file.filename,
+              size_bytes: source.size,
+              received_bytes: source.size,
+              status: 'completed',
+              proof,
+            };
+          } catch (cause) {
+            // The process may have died after persisting the last chunk but
+            // before completion. Pending still needs the idempotent handoff.
+            if (!(cause instanceof RequestError && cause.status === 202))
+              throw cause;
+          }
         }
         while (offset < source.size) {
           throwIfAborted(signal);
@@ -393,13 +423,26 @@ async function sendChunk(
           },
           body,
         },
-        async (response) => response,
+        async (response) => ({
+          ok: response.ok,
+          status: response.status,
+          headers: response.headers,
+          failure:
+            response.ok || response.status === 401
+              ? {}
+              : await response.json().catch(() => ({})),
+        }),
         signal,
         120_000,
       );
       if (response.ok) {
         const next = Number(response.headers.get('Upload-Offset'));
-        if (!Number.isSafeInteger(next) || next <= offset || next > total) {
+        if (
+          !Number.isSafeInteger(next) ||
+          next <= offset ||
+          next > total ||
+          next !== offset + body.byteLength
+        ) {
           throw new CaptureAPIError(
             'Server returned an invalid upload receipt.',
             response.status,
@@ -428,7 +471,7 @@ async function sendChunk(
       ) {
         return serverOffset;
       }
-      const failure = await response.json().catch(() => ({}));
+      const failure = response.failure;
       const message =
         typeof failure.error === 'string'
           ? failure.error

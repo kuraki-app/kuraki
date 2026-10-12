@@ -417,6 +417,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 
 | Area | Status |
 |---|---|
+| Mobile native verification (2026-10-12) | ✅ fresh Android/iOS standalone builds; iOS pairing/restart/7 real imports/6 hash-matched cleanup candidates; native CI + provenance gates added; physical-device certification pending |
 | Mobile original safety and isolation (2026-10-11) | ✅ migration 00031 + verified receipts/reclamation, scoped mirrors/ledger, cancellation and recovery; dependency/native milestone follows |
 | Pre-deployment review (2026-10-11) | ✅ audit complete; ⛔ deployment pending fixes in PRE_DEPLOYMENT_REVIEW.md |
 | Mobile review (2026-10-11) | ✅ audit and nine reproductions recorded; ⛔ backup/deletion, account identity and signed-artifact remediation required (MOBILE_READINESS_REVIEW.md) |
@@ -570,6 +571,24 @@ audited baseline and release checklist.
   (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/mobile-hardening` (2026-10-12, Codex) — **Native verification and review closure.**
+  Fixed review-found completed-byte handoff, error-body cancellation, late disabled
+  background wakes, stalled native sync, whole-page sweep
+  fairness, pending manual-upload continuation and reclaim scan continuation. Added shared
+  cancellation primitives and regressions. A midnight run exposed a timezone-dependent
+  existing memories pagination fixture; it now uses an explicit date. Native permissions
+  exclude audio and preserve QR camera access (image-picker's cameraPermission=false
+  would remove CAMERA across the whole Android app). Added Expo-compatible dev client,
+  APK/simulator profiles, artifact hashes/commit provenance, pinned-checksum Maestro and
+  standalone build/install/pair/camera-roll-import CI for both platforms. Current native
+  builds succeed using temporary JDK21 and simulator signing. iOS26.5 QA app paired,
+  survived restart, imported seven test originals, then verified six old local copies by
+  BLAKE3/server proofs; Keep all restored, no deletion. Android37.1 fresh APK launched
+  with no startup errors. Native navigation now anchors cold launches at Photos; setup
+  progress accessibility is a bounded percentage. 325 mobile tests, TypeScript/lint,
+  server race suite and workflow checks pass. Physical locked/iCloud/battery/signing
+  certification remains explicit in RELEASE_CHECKLIST.md. PR/CI delivery follows.
 
 - `codex/mobile-hardening` (2026-10-11, Codex) — **Original safety and recovery milestone.**
   New append-only migration 00031 persists library identity and capture import receipts.
