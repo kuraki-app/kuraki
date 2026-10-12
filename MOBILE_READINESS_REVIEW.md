@@ -278,7 +278,7 @@ accept only two precise, source-checked local mitigations without upstream relea
 all other advisories fail. Compatible Expo patches and current dev-client are locked.
 
 Fresh standalone Android release APK and iOS simulator app compile successfully.
-The Android37.1 QA process launched without native errors. On iOS26.5 the current
+The Android37.1 QA process launched without native errors. On iOS 26.5 the current
 app paired with a disposable server, persisted connection/setup through restart,
 browsed native tabs, imported seven simulator test photos (including one generated
 PNG), and matched six older local originals through real BLAKE3/server verification.
@@ -349,3 +349,11 @@ mid-review. The compatible patch set is now Expo 57.0.28/UI 57.0.23/dev-client 5
 router 57.0.26/splash 57.0.10. CI validates the installed SDK matrix reproducibly, and a
 negative React Native 0.0.1 probe correctly fails against expected 0.86.3. Fresh
 advisory checks remain online; all 344 mobile regressions and type/lint checks pass.
+
+CI 38279722296 at 5e90397 passed the full installed iOS 26.5 flow: pairing, selected
+Photos navigation, tab browsing, cold restart, confirmed real import receipts and
+artifact provenance. Android compilation passed, but the AVD ran with `-accel off`
+and aborted fixture creation before launching the app. Runner-only KVM access,
+required acceleration, an actual write/readiness probe, bounded initial ADB retries
+and retained storage/logcat diagnostics now gate the Android retry. No Android
+installed certification is inferred from its successful compilation.

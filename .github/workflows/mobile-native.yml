@@ -40,12 +40,20 @@ jobs:
           go build -o bin/kuraki ./cmd/kuraki
           cd mobile
           scripts/install-maestro.sh "$RUNNER_TEMP/mobile-ui"
+      - name: Enable runner-only KVM access
+        run: |
+          test -c /dev/kvm
+          sudo chown "$(id -u):$(id -g)" /dev/kvm
+          sudo chmod 0600 /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
       - name: Install and exercise exact APK
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
           arch: x86_64
           sdcard-path-or-size: 512M
+          disable-linux-hw-accel: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -accel on
           disable-animations: true
           script: bash mobile/scripts/smoke-android.sh "$RUNNER_TEMP"
       - name: Record exact artifact provenance

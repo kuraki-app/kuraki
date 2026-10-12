@@ -428,6 +428,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | Area | Status |
 |---|---|
 | Mobile queue/recovery review (2026-10-12) | ✅ terminal edit failures reported across screens;408/429 retain intent; scoped cache I/O frees credential recovery;344 mobile regressions |
+| Mobile installed iOS proof (2026-10-12) | ✅ CI 38279722296 passed standalone build, pairing, selected-tab navigation/restart, real import receipts and artifact provenance; Android environment correction follows |
 | Mobile SDK compatibility (2026-10-12) | ✅ Expo 57.0.28 compatible patches; CI validates the installed SDK matrix, rejects deliberately incompatible RN, and retains live security auditing |
 | Mobile launch routing (2026-10-12) | ✅ explicit root entry opens Photos after a true restart from Collections; native smoke requires the selected tab |
 | Mobile native verification (2026-10-12) | ✅ fresh Android/iOS standalone builds; iOS pairing/restart/7 real imports/6 hash-matched cleanup candidates; native CI + provenance gates added; physical-device certification pending |
@@ -585,6 +586,18 @@ audited baseline and release checklist.
 
 ## 11. Handoff log (append newest at top)
 
+- `codex/mobile-hardening` (2026-10-12, Codex) — **iOS installed proof and Android acceleration.**
+  CI 38279722296 on 5e90397 passes the full iOS installed flow and provenance. Local
+  updated iOS also renders the synthetic original and sends a favorite verified by
+  an owner-scoped server query (then restored). Android compilation passes, but its
+  emulator used `-accel off` and aborted the required media fixture write before app
+  launch. The job now grants /dev/kvm only to its runner UID (0600), requires hardware
+  acceleration, checks actual shared-storage writes, retries bounded initial ADB
+  transfer resets, and preserves timed storage/logcat diagnostics on failure. The
+  script targets an explicit emulator serial and rejects physical phones before I/O. This
+  remains an Android environment rerun, not claimed Android certification. No
+  operator library or local-photo deletion was used.
+
 - `codex/mobile-hardening` (2026-10-12, Codex) — **Reproducible SDK compatibility.**
   The 3b46e73 native jobs were skipped because Expo published new compatible patches
   while the review was running. Updated Expo 57.0.28, UI 57.0.23, dev-client 57.0.20,
@@ -662,7 +675,7 @@ audited baseline and release checklist.
   would remove CAMERA across the whole Android app). Added Expo-compatible dev client,
   APK/simulator profiles, artifact hashes/commit provenance, pinned-checksum Maestro and
   standalone build/install/pair/camera-roll-import CI for both platforms. Current native
-  builds succeed using temporary JDK21 and simulator signing. iOS26.5 QA app paired,
+  builds succeed using temporary JDK21 and simulator signing. iOS 26.5 QA app paired,
   survived restart, imported seven test originals, then verified six old local copies by
   BLAKE3/server proofs; Keep all restored, no deletion. Android37.1 fresh APK launched
   with no startup errors. Native navigation now anchors cold launches at Photos; setup
