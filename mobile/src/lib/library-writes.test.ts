@@ -252,7 +252,7 @@ it('reports deleted-album rejection and does not retain the rejected edit', asyn
   vi.stubGlobal('fetch', async () => response({ error: 'album_not_found' }, 404));
   const api = await import('./library-api');
   await expect(api.addToAlbum(settings, 'gone', ['asset'])).rejects.toMatchObject({
-    status: 404, message: 'album_not_found',
+    status: 404, message: 'This album no longer exists. Choose another album.',
   });
   const { getDB } = await import('./cache/db');
   expect(await (await getDB(settings)).getAllAsync('SELECT * FROM pending_mutations')).toHaveLength(0);
@@ -268,12 +268,12 @@ it('reports invalid tags even when another drain consumes the live intent', asyn
   const waiting = new Promise<void>((resolve) => (release = resolve));
   vi.stubGlobal('fetch', async (url: string) => {
     if (url.endsWith('/favorite')) { started(); await waiting; return response({}); }
-    return response({ error: 'unknown_tag' }, 400);
+    return response({ error: 'invalid_tag_ids' }, 400);
   });
   const first = api.flushFavorites(settings);
   await beginning;
   const pending = api.setAssetTags(settings, 'asset', ['gone']);
-  const rejected = expect(pending).rejects.toMatchObject({ status: 400, message: 'unknown_tag' });
+  const rejected = expect(pending).rejects.toMatchObject({ status: 400, message: 'Some selected tags are no longer available. Reopen Tags and choose again.' });
   const { getDB } = await import('./cache/db');
   const db = await getDB(settings);
   await vi.waitFor(async () => expect(await db.getAllAsync('SELECT * FROM pending_mutations')).toHaveLength(2));

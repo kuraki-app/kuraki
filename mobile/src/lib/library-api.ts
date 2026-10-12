@@ -806,7 +806,20 @@ async function queueIntent(
   }
   await assertActiveConnection(settings);
   const rejected = await intentRejection(settings, queued);
-  if (rejected) throw new LibraryError(rejected.message, rejected.status);
+  if (rejected)
+    throw new LibraryError(editFailureMessage(rejected.message, rejected.status), rejected.status);
+}
+
+function editFailureMessage(code: string, status: number): string {
+  const messages: Record<string, string> = {
+    album_not_found: 'This album no longer exists. Choose another album.',
+    asset_not_found: 'This photo is no longer available. Refresh your library.',
+    invalid_tag_ids: 'Some selected tags are no longer available. Reopen Tags and choose again.',
+    tag_not_found: 'This tag no longer exists. Refresh your tags.',
+  };
+  return messages[code] ?? (status === 403
+    ? 'You do not have permission to make this change.'
+    : 'The server could not apply this change. Refresh and try again.');
 }
 
 // flushMutationsQueue drains the offline mutation queue (favorites, album

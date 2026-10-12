@@ -45,16 +45,7 @@ jobs:
           api-level: 35
           arch: x86_64
           disable-animations: true
-          script: |
-            cd mobile
-            node scripts/start-smoke-server.mjs "$RUNNER_TEMP/mobile-smoke.env"
-            . "$RUNNER_TEMP/mobile-smoke.env"
-            python3 scripts/create-smoke-photo.py "$RUNNER_TEMP/native-proof.png"
-            adb push "$RUNNER_TEMP/native-proof.png" /sdcard/Pictures/native-proof.png
-            adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Pictures/native-proof.png
-            adb install android/app/build/outputs/apk/release/app-release.apk
-            "$RUNNER_TEMP/mobile-ui/maestro/bin/maestro" test --debug-output "$RUNNER_TEMP/mobile-smoke-logs" -e SERVER_URL=http://10.0.2.2:39218 -e PAIR_CODE="$PAIR_CODE" .maestro/onboarding.yaml
-            python3 scripts/check-smoke-import.py "$SMOKE_SERVER_DIR"
+          script: bash mobile/scripts/smoke-android.sh "$RUNNER_TEMP"
       - name: Record exact artifact provenance
         working-directory: mobile
         run: node scripts/artifact-manifest.mjs android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/android-provenance.json" android ci-standalone
@@ -68,6 +59,7 @@ jobs:
             ${{ runner.temp }}/mobile-smoke-logs
             ${{ runner.temp }}/mobile-driver-logs
           retention-days: 7
+          include-hidden-files: true
   ios:
     name: iOS standalone build and installed smoke
     runs-on: macos-26
@@ -129,3 +121,4 @@ jobs:
             ${{ runner.temp }}/mobile-smoke-logs
             ${{ runner.temp }}/mobile-driver-logs
           retention-days: 7
+          include-hidden-files: true

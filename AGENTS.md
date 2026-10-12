@@ -582,6 +582,20 @@ audited baseline and release checklist.
 
 ## 11. Handoff log (append newest at top)
 
+- `codex/mobile-hardening` (2026-10-12, Codex) — **Installed smoke-run corrections.**
+  Fresh32a51a2 standalone Android/iOS builds succeed, with clean-commit/checksum
+  provenance. The iOS candidate survives restart and the actual album-picker flow
+  retains rejection when its disposable QA album disappears through the API. Terminal
+  edit errors now use human-readable guidance. CI proved Androidbuild/emulatorboot,
+  but the runner executes each script line in a separate shell; its smoke sequence
+  now runs one checked-in script with driver warm-up before pairing-code creation.
+  iOSdriver startup succeeds; its next failure is the layout-dependent keyboard-hide
+  gesture before Continue, now replaced with a safe heading tap and action scrolling.
+  Hidden Maestro diagnostics and form screenshots are retained in QA artifacts.
+  Workflow validation, Go checks and targeted mobile checks pass; final rerun remains
+  required in PR36. The original reset-helper audit link now pins its historical
+  revision. No operator credentials or originals were used.
+
 - `codex/mobile-hardening` (2026-10-12, Codex) — **Edit failures and stalled-cache recovery.**
   Permanent HTTP failures now persist a short-lived rejection before removing the
   queued row; live callers retrieve status/message even when another drain handled

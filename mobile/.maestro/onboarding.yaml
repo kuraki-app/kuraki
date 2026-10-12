@@ -8,14 +8,46 @@ appId: app.kuraki.mobile
 - tapOn: "Get started"
 - tapOn: "Kuraki server address"
 - inputText: "${SERVER_URL}"
-- hideKeyboard
+# iOS keyboard hiding uses layout-dependent swipes. An unhandled heading tap
+# dismisses it without accidentally scrolling the next action out of view.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Find your server"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "Continue"
+    direction: DOWN
+    timeout: 30000
+- takeScreenshot: server-form
 - tapOn: "Continue"
 - extendedWaitUntil:
     visible: "Link this phone"
     timeout: 30000
 - tapOn: "Pairing code"
 - inputText: "${PAIR_CODE}"
-- hideKeyboard
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Link this phone"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "Pair with code"
+    direction: DOWN
+    timeout: 30000
+- takeScreenshot: pairing-form
 - tapOn: "Pair with code"
 - extendedWaitUntil:
     visible: "Allow photo access"

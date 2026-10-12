@@ -88,7 +88,7 @@ and album/tag reads. Mounted screens also commonly
 retain settings read once at mount.
 
 Sources: [library-api.ts](mobile/src/lib/library-api.ts),
-[settings.ts](mobile/src/lib/settings.ts), [reset.ts](mobile/src/lib/cache/reset.ts).
+[settings.ts](mobile/src/lib/settings.ts), [reset.ts at the audit baseline](https://github.com/kuraki-app/kuraki/blob/8f84b36/mobile/src/lib/cache/reset.ts).
 Add a serialized identity transition, cancel/fence old requests and writes, and
 update mounted consumers through a shared reactive connection identity. Consider
 separate library-scoped caches instead of a global cache with a best-effort reset.
@@ -326,3 +326,11 @@ lane. It releases only when the native transaction actually finishes, so a faile
 best-effort mirror cannot roll back an acknowledged offline edit. The real SQLite
 regression exercises overlapping public upsert/enqueue helpers and verifies the
 intent commits independently after the mirror rolls back.
+
+Installed QA follow-up at32a51a2: both standalone artifacts compile and have clean
+commit/lock checksums. The iOS candidate retains its connection on restart and keeps
+its album picker open with a terminal error after a newly created QA album is removed
+through the real server API. Terminal messages now provide plain-language guidance.
+Native CI exposed separate-shell Android script execution and an iOS keyboard-hide
+selector failure; the smoke sequence is corrected and hidden diagnostics/form
+screenshots are retained. Final installed CI remains pending in PR36.
