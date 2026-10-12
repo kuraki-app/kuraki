@@ -373,3 +373,11 @@ the assertion failed on visibility. The test now scrolls the action and final
 status into view while preserving the independent imported-original receipt gate.
 Local final artifacts record clean source 7d3d89d and dependency lock checksums.
 This failed smoke is not counted as installed certification.
+
+Native input follow-up (2026-10-13): the same final-code iOS run failed before
+pairing because the automation entered only “h” rather than the QA URL. The
+screenshot and driver log agree; the pinned driver sends a30Hz suffix after its
+slow first character. Smoke input now uses the slow one-character path on iOS
+and exact read-back assertions on both platforms for URL and pairing code. See
+[Maestro's pinned input helper](https://github.com/mobile-dev-inc/Maestro/blob/cli-2.11.0/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Helpers/TextInputHelper.swift).
+No flow retry, server assertion or authentication gate is weakened.

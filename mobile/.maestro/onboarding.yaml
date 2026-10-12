@@ -6,8 +6,11 @@ appId: app.kuraki.mobile
     visible: "Your photos. Your server."
     timeout: 30000
 - tapOn: "Get started"
-- tapOn: "Kuraki server address"
-- inputText: "${SERVER_URL}"
+- runFlow:
+    file: input-field.yaml
+    env:
+      SMOKE_FIELD: "Kuraki server address"
+      SMOKE_TEXT: "${SERVER_URL}"
 # iOS keyboard hiding uses layout-dependent swipes. An unhandled heading tap
 # dismisses it without accidentally scrolling the next action out of view.
 - runFlow:
@@ -30,8 +33,11 @@ appId: app.kuraki.mobile
 - extendedWaitUntil:
     visible: "Link this phone"
     timeout: 30000
-- tapOn: "Pairing code"
-- inputText: "${PAIR_CODE}"
+- runFlow:
+    file: input-field.yaml
+    env:
+      SMOKE_FIELD: "Pairing code"
+      SMOKE_TEXT: "${PAIR_CODE}"
 - runFlow:
     when:
       platform: iOS
