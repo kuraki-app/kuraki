@@ -427,6 +427,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 
 | Area | Status |
 |---|---|
+| Mobile Android smoke visibility (2026-10-13) | ✅ standalone build/accelerated pairing/tabs exercised; clipped completion notice now explicitly scrolled; strict original-receipt rerun pending |
 | Mobile queue/recovery review (2026-10-12) | ✅ terminal edit failures reported across screens;408/429 retain intent; scoped cache I/O frees credential recovery;344 mobile regressions |
 | Mobile sync cancellation (2026-10-12) | ✅ canceled same-owner drains cannot resume stale deletes/cursors; queued canceled cache work is skipped;346 mobile tests |
 | Mobile installed iOS proof (2026-10-12) | ✅ CI 38279722296 passed standalone build, pairing, selected-tab navigation/restart, real import receipts and artifact provenance; Android environment correction follows |
@@ -586,6 +587,17 @@ audited baseline and release checklist.
   (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/mobile-hardening` (2026-10-13, Codex) — **Installed Android status visibility.**
+  CI 38289309652 builds the final cancellation fix on both platforms. Android
+  passes mandatory KVM acceleration, storage, pairing and tab navigation; the
+  backup finishes, but the 320×640 viewport clips the idle “All caught up” notice
+  below the action. The captured native log explicitly reports this text as
+  invisible and the notification says Backup finished. The smoke now scrolls
+  the backup action and final status fully into view. Its server-import receipt
+  assertion is retained; this failed run is not reported as certification.
+  Local final Android/iOS builds succeeded with clean 7d3d89d provenance; 346
+  mobile regressions and all twelve non-native CI checks pass. Native retry follows.
 
 - `codex/mobile-hardening` (2026-10-12, Codex) — **Cancel stale cache continuations.**
   A public real-SQLite regression reproduced an old canceled same-owner drain

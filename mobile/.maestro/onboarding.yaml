@@ -66,6 +66,11 @@ appId: app.kuraki.mobile
 - assertVisible: "Search"
 - tapOn: "Settings"
 - tapOn: ".*Backup.*"
+- scrollUntilVisible:
+    element:
+      text: ".*Back up now.*"
+    direction: DOWN
+    timeout: 30000
 - tapOn: ".*Back up now.*"
 - runFlow:
     when:
@@ -79,8 +84,12 @@ appId: app.kuraki.mobile
       visible: ".*Allow all.*"
     commands:
       - tapOn: ".*Allow all.*"
-- extendedWaitUntil:
-    visible: ".*All caught up.*"
+# A short Android viewport clips this notice below the action. Require it to
+# become visible by scrolling; the server receipt check remains mandatory.
+- scrollUntilVisible:
+    element:
+      text: ".*All caught up.*"
+    direction: DOWN
     timeout: 120000
 
 - stopApp

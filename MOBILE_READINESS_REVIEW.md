@@ -365,3 +365,11 @@ native completion. Current full mobile suite:346 tests plus type/lint. The next
 Android retry also records Gradle stacktraces, filesystem space and build reports:
 e286f7f's unchanged app runtime failed at APK packaging before the emulator stage,
 while its iOS installed flow passed again.
+
+Installed Android smoke follow-up (2026-10-13): run 38289309652 passes standalone
+packaging, mandatory acceleration, pairing and tabs. Its captured log contains
+“All caught up” below the 320×640 viewport and a Backup finished notification;
+the assertion failed on visibility. The test now scrolls the action and final
+status into view while preserving the independent imported-original receipt gate.
+Local final artifacts record clean source 7d3d89d and dependency lock checksums.
+This failed smoke is not counted as installed certification.
