@@ -109,9 +109,10 @@ export default function AlbumDetail({ albumId, adding, onAddingChange, onSelecti
       if (settings) {
         try {
           await setFavorite(settings, id, next);
-          return; // synced online — nothing to queue
-        } catch {
-          // fall through: queue for the next reconnect flush
+          return; // accepted or retained for retry
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : 'Could not save this change.');
+          return; // retryable failures already retain their durable intent
         }
       }
       await enqueueFavorite(id, next, settings ?? undefined);
@@ -200,9 +201,10 @@ export default function AlbumDetail({ albumId, adding, onAddingChange, onSelecti
       if (settings) {
         try {
           await addToAlbum(settings, targetAlbumId, ids);
-          return; // synced online — nothing to queue
-        } catch {
-          // fall through: queue for the next reconnect flush
+          return; // accepted or retained for retry
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : 'Could not save this change.');
+          return; // retryable failures already retain their durable intent
         }
       }
       for (const id of ids) await enqueueAlbumAdd(id, targetAlbumId, settings ?? undefined);
@@ -219,9 +221,10 @@ export default function AlbumDetail({ albumId, adding, onAddingChange, onSelecti
       if (settings) {
         try {
           await trashAsset(settings, id);
-          return; // synced online — nothing to queue
-        } catch {
-          // fall through: queue for the next reconnect flush
+          return; // accepted or retained for retry
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : 'Could not save this change.');
+          return; // retryable failures already retain their durable intent
         }
       }
       await enqueueTrash(id, settings ?? undefined);

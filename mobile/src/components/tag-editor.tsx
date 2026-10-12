@@ -31,6 +31,7 @@ export default function TagEditor({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,11 +59,20 @@ export default function TagEditor({
   }
 
   async function apply() {
-    const ids = [...selected];
-    const state = await probeServer(settings.baseURL);
-    if (state === 'ok') await setAssetTags(settings, asset.id, ids);
-    else await enqueueSetTags(asset.id, ids, settings ?? undefined);
-    onClose();
+    if (saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      const ids = [...selected];
+      const state = await probeServer(settings.baseURL);
+      if (state === 'ok') await setAssetTags(settings, asset.id, ids);
+      else await enqueueSetTags(asset.id, ids, settings);
+      onClose();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save tags.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function addNew() {
@@ -82,7 +92,7 @@ export default function TagEditor({
     // Done is the header action rather than a row inside the body: it commits
     // the whole set, so it belongs beside the title and not below a list that
     // scrolls it out of reach.
-    <Dialog visible title="Tags" onClose={onClose} action={{ label: 'Done', onPress: () => void apply() }}>
+    <Dialog visible title="Tags" onClose={onClose} action={{ label: saving ? 'Saving…' : 'Done', disabled: saving, onPress: () => void apply() }}>
       <View style={styles.createRow}>
         <TextInput
           placeholder="New tag"

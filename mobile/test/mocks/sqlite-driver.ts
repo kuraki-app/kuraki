@@ -16,8 +16,10 @@ export async function openDatabaseAsync(name: string) {
   const database = db;
   return {
     execAsync: async (sql: string) => database.exec(sql),
-    runAsync: async (sql: string, ...args: unknown[]) =>
-      database.prepare(sql).run(...parameters(args)),
+    runAsync: async (sql: string, ...args: unknown[]) => {
+      const result = database.prepare(sql).run(...parameters(args));
+      return { changes: Number(result.changes), lastInsertRowId: Number(result.lastInsertRowid) };
+    },
     getAllAsync: async (sql: string, ...args: unknown[]) =>
       database.prepare(sql).all(...parameters(args)),
     getFirstAsync: async (sql: string, ...args: unknown[]) =>

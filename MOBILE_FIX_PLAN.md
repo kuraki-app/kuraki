@@ -40,10 +40,11 @@ substantial milestones; update the ledger/handoff and evidence in each milestone
 
 ## 4. Review and delivery
 
-- [ ] Full Go/web/mobile checks, contract/UI consistency, native smoke and regression
-      suites; standards/spec review against `079f119d` and the mobile audit.
-- [ ] Update findings with implemented behavior and evidence, commit major milestones,
-      push and create/attach a PR. No release/tag or operator library is deployed.
+- [x] Full Go/web/mobile checks, contract/UI consistency and regressions;
+      standards/spec review against `079f119d` and the mobile audit closed findings.
+- [ ] Final current-commit Android/iOS installed CI checks and artifact provenance.
+- [x] Update findings with implemented behavior and evidence, commit major milestones,
+      push and create/attach PR36. No release/tag or operator library is deployed.
 
 Physical device scheduling, iCloud and vendor battery behavior require hardware;
 implement the correct contracts and automated release gates, then retain the exact

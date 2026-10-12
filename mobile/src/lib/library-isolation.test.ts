@@ -75,7 +75,7 @@ describe('library transition ownership', () => {
     expect((await loadCaptureSettings()).deviceToken).toBe('B');
     expect(isAuthLost()).toBe(false);
   });
-  it('holds identity stable while a bounded cache transaction commits', async () => {
+  it('allows credential recovery while scoped native cache work is pending', async () => {
     let release!: () => void;
     let entered!: () => void;
     const started = new Promise<void>((r) => {
@@ -86,13 +86,13 @@ describe('library transition ownership', () => {
       await new Promise<void>((r) => {
         release = r;
       });
-      expect((await loadCaptureSettings()).ownerID).toBe('owner-A');
+      expect((await loadCaptureSettings()).ownerID).toBe('owner-B');
     });
     await started;
-    const switching = saveCaptureSettings(b);
+    const rejected = expect(write).rejects.toBeInstanceOf(StaleConnectionError);
+    await saveCaptureSettings(b);
     release();
-    await write;
-    await switching;
+    await rejected;
     expect((await loadCaptureSettings()).ownerID).toBe('owner-B');
   });
   it('serializes the trip query instead of fetching the unfiltered timeline', async () => {

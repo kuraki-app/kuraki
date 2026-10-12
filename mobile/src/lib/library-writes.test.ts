@@ -232,3 +232,116 @@ it('refuses local cleanup while trash/purge of the matching server original is q
     ]),
   ).resolves.toBeUndefined();
 });
+
+it.each([408, 429])('retains a temporary %s once and applies it on recovery', async (status) => {
+  const api = await import('./library-api');
+  const { getDB } = await import('./cache/db');
+  const db = await getDB(settings);
+  vi.stubGlobal('fetch', async () => response({ error: 'try later' }, status));
+  await api.setFavorite(settings, 'asset', true);
+  expect(await db.getAllAsync('SELECT * FROM pending_mutations')).toHaveLength(1);
+  const send = vi.fn(async () => response({}));
+  vi.stubGlobal('fetch', send);
+  await api.flushFavorites(settings);
+  await api.flushFavorites(settings);
+  expect(send).toHaveBeenCalledTimes(1);
+  expect(await db.getAllAsync('SELECT * FROM pending_mutations')).toHaveLength(0);
+});
+
+it('reports deleted-album rejection and does not retain the rejected edit', async () => {
+  vi.stubGlobal('fetch', async () => response({ error: 'album_not_found' }, 404));
+  const api = await import('./library-api');
+  await expect(api.addToAlbum(settings, 'gone', ['asset'])).rejects.toMatchObject({
+    status: 404, message: 'album_not_found',
+  });
+  const { getDB } = await import('./cache/db');
+  expect(await (await getDB(settings)).getAllAsync('SELECT * FROM pending_mutations')).toHaveLength(0);
+});
+
+it('reports invalid tags even when another drain consumes the live intent', async () => {
+  const mutations = await import('./cache/mutations');
+  await mutations.enqueueFavorite('older', true, settings);
+  const api = await import('./library-api');
+  let release!: () => void;
+  let started!: () => void;
+  const beginning = new Promise<void>((resolve) => (started = resolve));
+  const waiting = new Promise<void>((resolve) => (release = resolve));
+  vi.stubGlobal('fetch', async (url: string) => {
+    if (url.endsWith('/favorite')) { started(); await waiting; return response({}); }
+    return response({ error: 'unknown_tag' }, 400);
+  });
+  const first = api.flushFavorites(settings);
+  await beginning;
+  const pending = api.setAssetTags(settings, 'asset', ['gone']);
+  const rejected = expect(pending).rejects.toMatchObject({ status: 400, message: 'unknown_tag' });
+  const { getDB } = await import('./cache/db');
+  const db = await getDB(settings);
+  await vi.waitFor(async () => expect(await db.getAllAsync('SELECT * FROM pending_mutations')).toHaveLength(2));
+  release();
+  await first;
+  await rejected;
+  expect(await db.getAllAsync('SELECT * FROM pending_mutations')).toHaveLength(0);
+});
+
+it('can switch credentials after canceling sync stalled in a native cursor read', async () => {
+  const api = await import('./library-api');
+  const { getDB } = await import('./cache/db');
+  const { saveCaptureSettings, loadCaptureSettings, StaleConnectionError } = await import('./settings');
+  const db = await getDB(settings);
+  let release!: () => void;
+  let started!: () => void;
+  const beginning = new Promise<void>((resolve) => (started = resolve));
+  const waiting = new Promise<void>((resolve) => (release = resolve));
+  const read = db.getFirstAsync.bind(db);
+  vi.spyOn(db, 'getFirstAsync').mockImplementation(async (sql, ...args) => {
+    if (sql.includes("key = 'cursor'")) { started(); await waiting; }
+    return read(sql, ...args);
+  });
+  const controller = new AbortController();
+  const pending = api.syncChanges(settings, controller.signal);
+  const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  await beginning;
+  controller.abort();
+  await rejected;
+  const next = { ...settings, ownerID: 'other', deviceToken: 'B' };
+  await saveCaptureSettings(next);
+  expect(await loadCaptureSettings()).toEqual(next);
+  vi.stubGlobal('fetch', vi.fn());
+  release();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(fetch).not.toHaveBeenCalled();
+  // The late cache operation cannot move work into the freshly paired mirror.
+  expect(await (await getDB(next)).getAllAsync('SELECT * FROM assets')).toHaveLength(0);
+  await expect(api.syncChanges(settings)).rejects.toBeInstanceOf(StaleConnectionError);
+});
+
+it('keeps durable intent out of a failed concurrent mirror transaction', async () => {
+  const { getDB } = await import('./cache/db');
+  const { upsertAssets } = await import('./cache/assets');
+  const { enqueueFavorite } = await import('./cache/mutations');
+  const db = await getDB(settings);
+  let release!: () => void;
+  let started!: () => void;
+  const beginning = new Promise<void>((resolve) => (started = resolve));
+  const waiting = new Promise<void>((resolve) => (release = resolve));
+  const run = db.runAsync.bind(db);
+  vi.spyOn(db, 'runAsync').mockImplementation(async (sql, ...args) => {
+    if (sql.includes('INSERT INTO assets')) {
+      started(); await waiting;
+      throw new Error('failed cache refresh');
+    }
+    return run(sql, ...args);
+  });
+  const mirroring = upsertAssets([{ id: 'asset', filename: 'a.jpg', media_type: 'image', favorite: false, web_viewable: true }], settings);
+  const rejected = expect(mirroring).rejects.toThrow('failed cache refresh');
+  await beginning;
+  let acknowledged = false;
+  const intent = enqueueFavorite('asset', true, settings).then(() => { acknowledged = true; });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(acknowledged).toBe(false); // acknowledgement waits for its own commit
+  release();
+  await rejected;
+  await intent;
+  expect(await db.getAllAsync('SELECT * FROM pending_mutations')).toHaveLength(1);
+  expect(await db.getAllAsync('SELECT * FROM assets')).toHaveLength(0);
+});

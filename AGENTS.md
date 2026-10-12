@@ -23,6 +23,14 @@ Phase 1 = single-owner personal backup.
 
 ## 2. Current state
 
+- **Mobile hardening implemented (2026-10-12, PR36).** The twelve audit findings
+  now have code fixes and regression coverage: verified original receipts and cleanup,
+  library-scoped state, bounded/cancellable backup and upload recovery, native permission
+  and dependency gates, safe ordered edits and recoverable credential transitions.
+  Full344-test mobile/type/lint and Go suites pass. Fresh standalone builds and local
+  iOS pairing/import/hash checks are recorded in MOBILE_READINESS_REVIEW.md. Final
+  installed CI is tracked in PR36; physical-device and store certification remain open.
+
 - **Mobile follow-up audit (2026-10-11).** Before a mobile release, read
   [MOBILE_READINESS_REVIEW.md](./MOBILE_READINESS_REVIEW.md). Nine targeted probes
   reproduce premature deletion eligibility, unscoped backup history, stale cross-account
@@ -32,7 +40,8 @@ Phase 1 = single-owner personal backup.
   both production JS exports pass; fresh iOS native compilation passes, but current signed
   runtime/physical-device certification remains open. Android SDK/Pixel emulator **is now
   available**; the old optional APK launches, but a fresh Android build needs missing Java.
-  This audit changes evidence/documentation only; application fixes remain outstanding.
+  This entry records the original audit; the hardening milestone above supersedes
+  its implementation status.
 
 - **Pre-deployment hardening complete (2026-10-11).** Branch `codex/pre-deployment-hardening`
   fixes the 22 findings in `PRE_DEPLOYMENT_REVIEW.md`; consult its remediation/evidence
@@ -417,6 +426,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 
 | Area | Status |
 |---|---|
+| Mobile queue/recovery review (2026-10-12) | ✅ terminal edit failures reported across screens;408/429 retain intent; scoped cache I/O frees credential recovery;344 mobile regressions |
 | Mobile native verification (2026-10-12) | ✅ fresh Android/iOS standalone builds; iOS pairing/restart/7 real imports/6 hash-matched cleanup candidates; native CI + provenance gates added; physical-device certification pending |
 | Mobile original safety and isolation (2026-10-11) | ✅ migration 00031 + verified receipts/reclamation, scoped mirrors/ledger, cancellation and recovery; dependency/native milestone follows |
 | Pre-deployment review (2026-10-11) | ✅ audit complete; ⛔ deployment pending fixes in PRE_DEPLOYMENT_REVIEW.md |
@@ -571,6 +581,20 @@ audited baseline and release checklist.
   (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/mobile-hardening` (2026-10-12, Codex) — **Edit failures and stalled-cache recovery.**
+  Permanent HTTP failures now persist a short-lived rejection before removing the
+  queued row; live callers retrieve status/message even when another drain handled
+  the row. Album/tag dialogs retain the error and online mutation callers report
+  rejection without recreating it. HTTP408/429 retain one intent for later retry.
+  Cache schema8 stores these outcomes for24 hours. Per-library SQL write lanes keep
+  mirror rollback from absorbing acknowledged offline intent; a real SQLite regression
+  verifies enqueue waits for the failed mirror transaction and then commits independently. Request-owned cache functions
+  always use their captured library namespace; native SQLite work no longer holds
+  the credential-write queue. Canceling a stalled public sync then switching owner
+  succeeds, and late old work cannot access the new cache.344 mobile tests plus type
+  and lint checks pass. Native CI remains tracked in PR36; hardware/store certification
+  is unchanged. No operator library used.
 
 - `codex/mobile-hardening` (2026-10-12, Codex) — **Final offline ordering review.**
   Review reproduced old offline favorites/tags/membership overwriting newer online

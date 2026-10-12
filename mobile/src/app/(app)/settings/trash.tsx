@@ -111,9 +111,10 @@ export default function TrashScreen() {
       if (settings && !disconnected) {
         try {
           await restoreAsset(settings, id);
-          continue; // synced online — nothing to queue
-        } catch {
-          // fall through: queue for the next reconnect flush
+          continue; // accepted or retained for retry
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : 'Could not save this change.');
+          continue; // retryable failures already retain their durable intent
         }
       }
       await enqueueRestore(id, settings ?? undefined);
@@ -134,9 +135,10 @@ export default function TrashScreen() {
       if (settings && !disconnected) {
         try {
           await purgeAsset(settings, id);
-          continue; // synced online — nothing to queue
-        } catch {
-          // fall through: queue for the next reconnect flush
+          continue; // accepted or retained for retry
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : 'Could not save this change.');
+          continue; // retryable failures already retain their durable intent
         }
       }
       await enqueuePurge(id, settings ?? undefined);

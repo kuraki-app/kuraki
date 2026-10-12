@@ -313,3 +313,16 @@ Origin changes clear the old device credential before authenticated traffic; the
 address must be paired. Invalid pairing codes do not trigger revocation state. Local
 cleanup refuses originals with known queued trash/purge intents. These safety cases
 are included in the338-test suite.
+
+Final queue/recovery review also preserves HTTP408/429 intents and reports terminal
+album/tag/edit errors through the existing screens without re-enqueuing rejection.
+A per-library cache rejection record survives concurrent drains for24 hours. All
+request-owned cache reads/writes capture their library explicitly; stalled native
+I/O cannot hold the credential commit queue. The real public sync cancellation and
+re-pairing regression passes. Full mobile suite:344 tests, type and lint checks pass.
+
+Cache writes also share a per-library SQL lane distinct from the cancellable network
+lane. It releases only when the native transaction actually finishes, so a failed
+best-effort mirror cannot roll back an acknowledged offline edit. The real SQLite
+regression exercises overlapping public upsert/enqueue helpers and verifies the
+intent commits independently after the mirror rolls back.

@@ -115,8 +115,7 @@ export default function AlbumAddPicker({
       onAdded();
       onClose();
     } catch (cause) {
-      // A storage failure means the intent was not queued; retain the picker
-      // so the selection can be retried.
+      // Retain the picker and report storage failures or terminal rejection.
       setError(
         cause instanceof Error ? cause.message : 'Could not add to this album.',
       );

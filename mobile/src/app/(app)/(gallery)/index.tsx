@@ -207,10 +207,8 @@ export default function LibraryScreen() {
     return () => sub.remove();
   }, [probe, settings, syncAndRefresh]);
 
-  // Optimistic favorite: write the cache and UI immediately so the toggle never
-  // waits on the network. Only enqueue for later when we're offline or the
-  // direct send fails — a successful online write must not leave a queue row
-  // behind (it would be replayed and never resolved).
+  // Optimistic feedback is immediate. Online writes own their durable queue
+  // entry; report terminal rejection without recreating that rejected intent.
   const toggleFavorite = useCallback(
     async (id: string, next: boolean) => {
       setAssets((prev) => prev.map((a) => (a.id === id ? { ...a, favorite: next } : a)));
@@ -219,9 +217,10 @@ export default function LibraryScreen() {
       if (settings && !disconnected) {
         try {
           await setFavorite(settings, id, next);
-          return; // synced online — nothing to queue
-        } catch {
-          // fall through: queue for the next reconnect flush
+          return; // accepted or retained for retry
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : 'Could not save this change.');
+          return; // retryable failures already retain their durable intent
         }
       }
       await enqueueFavorite(id, next, settings ?? undefined);
@@ -317,9 +316,10 @@ export default function LibraryScreen() {
       if (settings && !disconnected) {
         try {
           await addToAlbum(settings, albumId, ids);
-          return; // synced online — nothing to queue
-        } catch {
-          // fall through: queue for the next reconnect flush
+          return; // accepted or retained for retry
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : 'Could not save this change.');
+          return; // retryable failures already retain their durable intent
         }
       }
       for (const id of ids) await enqueueAlbumAdd(id, albumId, settings ?? undefined);
@@ -340,9 +340,10 @@ export default function LibraryScreen() {
       if (settings && !disconnected) {
         try {
           await trashAsset(settings, id);
-          return; // synced online — nothing to queue
-        } catch {
-          // fall through: queue for the next reconnect flush
+          return; // accepted or retained for retry
+        } catch (cause) {
+          setError(cause instanceof Error ? cause.message : 'Could not save this change.');
+          return; // retryable failures already retain their durable intent
         }
       }
       await enqueueTrash(id, settings ?? undefined);

@@ -1,39 +1,42 @@
+import { writeLibraryCache } from '@/lib/cache/writes';
 import type { CaptureSettings } from '@/lib/settings';
 import type { LibraryAsset } from '@/lib/library-api';
 import { getDB } from '@/lib/cache/db';
 
-export async function upsertAssets(assets: LibraryAsset[]): Promise<void> {
+export async function upsertAssets(assets: LibraryAsset[], settings?: CaptureSettings): Promise<void> {
   if (!assets.length) return;
-  const db = await getDB();
-  const now = new Date().toISOString();
-  await db.withTransactionAsync(async () => {
-    for (const a of assets) {
-      await db.runAsync(
-        `INSERT INTO assets (id, filename, media_type, taken_at, taken_day, size_bytes, favorite, thumbnail_url, preview_url, web_viewable, place_city, place_country, cached_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO UPDATE SET
-           filename=excluded.filename, media_type=excluded.media_type, taken_at=excluded.taken_at,
-           taken_day=excluded.taken_day, size_bytes=excluded.size_bytes,
-           favorite=excluded.favorite, thumbnail_url=excluded.thumbnail_url, preview_url=excluded.preview_url,
-           web_viewable=excluded.web_viewable, place_city=excluded.place_city, place_country=excluded.place_country,
-           cached_at=excluded.cached_at`,
-        [
-          a.id,
-          a.filename,
-          a.media_type,
-          a.taken_at ?? null,
-          a.taken_day ?? null,
-          a.size_bytes ?? null,
-          a.favorite ? 1 : 0,
-          a.thumbnail_url ?? null,
-          a.preview_url ?? null,
-          a.web_viewable ? 1 : 0,
-          a.place_city ?? null,
-          a.place_country ?? null,
-          now,
-        ],
-      );
-    }
+  const db = await getDB(settings);
+  return writeLibraryCache(db, async () => {
+    const now = new Date().toISOString();
+    await db.withTransactionAsync(async () => {
+      for (const a of assets) {
+        await db.runAsync(
+          `INSERT INTO assets (id, filename, media_type, taken_at, taken_day, size_bytes, favorite, thumbnail_url, preview_url, web_viewable, place_city, place_country, cached_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             filename=excluded.filename, media_type=excluded.media_type, taken_at=excluded.taken_at,
+             taken_day=excluded.taken_day, size_bytes=excluded.size_bytes,
+             favorite=excluded.favorite, thumbnail_url=excluded.thumbnail_url, preview_url=excluded.preview_url,
+             web_viewable=excluded.web_viewable, place_city=excluded.place_city, place_country=excluded.place_country,
+             cached_at=excluded.cached_at`,
+          [
+            a.id,
+            a.filename,
+            a.media_type,
+            a.taken_at ?? null,
+            a.taken_day ?? null,
+            a.size_bytes ?? null,
+            a.favorite ? 1 : 0,
+            a.thumbnail_url ?? null,
+            a.preview_url ?? null,
+            a.web_viewable ? 1 : 0,
+            a.place_city ?? null,
+            a.place_country ?? null,
+            now,
+          ],
+        );
+      }
+    });
   });
 }
 
@@ -68,8 +71,8 @@ type CacheFilter = {
   limit?: number;
 };
 
-export async function readAssets(filter: CacheFilter): Promise<LibraryAsset[]> {
-  const db = await getDB();
+export async function readAssets(filter: CacheFilter, settings?: CaptureSettings): Promise<LibraryAsset[]> {
+  const db = await getDB(settings);
   // Trashed rows stay in the mirror (Trash's offline fallback reads them via
   // readTrashed), but the Timeline's offline fallback must never resurrect
   // them — always exclude, regardless of the caller's other filters.
@@ -101,16 +104,18 @@ export async function setCachedFavorite(
   settings?: CaptureSettings,
 ): Promise<void> {
   const db = await getDB(settings);
-  await db.runAsync(`UPDATE assets SET favorite = ? WHERE id = ?`, [
-    favorite ? 1 : 0,
-    id,
-  ]);
+  return writeLibraryCache(db, async () => {
+    await db.runAsync(`UPDATE assets SET favorite = ? WHERE id = ?`, [
+      favorite ? 1 : 0,
+      id,
+    ]);
+  });
 }
 
 // Delta-sync cursor persistence. The cursor is the last change_log id the mirror
 // has applied; the server echoes it back so we resume instead of replaying.
-export async function getSyncCursor(): Promise<number> {
-  const db = await getDB();
+export async function getSyncCursor(settings?: CaptureSettings): Promise<number> {
+  const db = await getDB(settings);
   const row = await db.getFirstAsync<{ value: string }>(
     `SELECT value FROM sync_meta WHERE key = 'cursor'`,
   );
@@ -118,20 +123,24 @@ export async function getSyncCursor(): Promise<number> {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
-export async function setSyncCursor(cursor: number): Promise<void> {
-  const db = await getDB();
-  await db.runAsync(
-    `INSERT INTO sync_meta (key, value) VALUES ('cursor', ?)
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    [String(cursor)],
-  );
+export async function setSyncCursor(cursor: number, settings?: CaptureSettings): Promise<void> {
+  const db = await getDB(settings);
+  return writeLibraryCache(db, async () => {
+    await db.runAsync(
+      `INSERT INTO sync_meta (key, value) VALUES ('cursor', ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      [String(cursor)],
+    );
+  });
 }
 
 // clearCachedAssets wipes the asset mirror. Used on a delta-feed reset: when the
 // sync cursor has fallen below the pruned change_log floor, the mirror may hold
 // assets that were deleted while we were behind, so it's discarded and rebuilt
 // from a fresh fetchLibrary rather than incrementally reconciled.
-export async function clearCachedAssets(): Promise<void> {
-  const db = await getDB();
-  await db.runAsync('DELETE FROM assets');
+export async function clearCachedAssets(settings?: CaptureSettings): Promise<void> {
+  const db = await getDB(settings);
+  return writeLibraryCache(db, async () => {
+    await db.runAsync('DELETE FROM assets');
+  });
 }

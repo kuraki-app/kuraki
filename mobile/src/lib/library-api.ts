@@ -2,6 +2,7 @@ import { orderedLibraryWork } from '@/lib/cache/operations';
 import {
   flushMutations,
   enqueueMutation,
+  intentRejection,
   type PendingMutation,
 } from '@/lib/cache/mutations';
 import { upsertAssets, getSyncCursor, setSyncCursor } from '@/lib/cache/assets';
@@ -192,7 +193,7 @@ export async function fetchLibrary(
     {},
     signal,
   );
-  if (isUnfiltered(filters)) mirror(settings, () => upsertAssets(page.assets));
+  if (isUnfiltered(filters)) mirror(settings, () => upsertAssets(page.assets, settings));
   return page;
 }
 
@@ -262,10 +263,10 @@ export async function fetchAlbums(
         '/api/albums',
       );
       const albums = body.albums.map(toCachedAlbum);
-      await withActiveConnection(settings, () => upsertAlbums(albums));
+      await withActiveConnection(settings, () => upsertAlbums(albums, settings));
       return albums;
     },
-    () => withActiveConnection(settings, readAlbums),
+    () => withActiveConnection(settings, () => readAlbums(settings)),
   );
 }
 
@@ -293,12 +294,12 @@ export async function fetchAlbum(
       );
       if (!cursor)
         await withActiveConnection(settings, () =>
-          setAlbumAssets(id, page.assets),
+          setAlbumAssets(id, page.assets, settings),
         );
       return page;
     },
     async () => ({
-      assets: await withActiveConnection(settings, () => readAlbumAssets(id)),
+      assets: await withActiveConnection(settings, () => readAlbumAssets(id, settings)),
     }),
   );
 }
@@ -403,10 +404,10 @@ export async function fetchTags(settings: CaptureSettings): Promise<Tag[]> {
   return withMirrorFallback(
     async () => {
       const body = await authedGet<{ tags: Tag[] }>(settings, '/api/tags');
-      await withActiveConnection(settings, () => upsertTags(body.tags));
+      await withActiveConnection(settings, () => upsertTags(body.tags, settings));
       return body.tags;
     },
-    () => withActiveConnection(settings, readTags),
+    () => withActiveConnection(settings, () => readTags(settings)),
   );
 }
 
@@ -446,7 +447,7 @@ export async function fetchMemories(
 ): Promise<LibraryPage> {
   const params = cursor ? `?cursor=${encodeURIComponent(cursor)}` : '';
   const page = await authedGet<LibraryPage>(settings, `/api/memories${params}`);
-  mirror(settings, () => upsertAssets(page.assets));
+  mirror(settings, () => upsertAssets(page.assets, settings));
   return page;
 }
 
@@ -546,13 +547,13 @@ export async function fetchTrash(
         `/api/trash${params}`,
       );
       await withActiveConnection(settings, async () => {
-        await upsertAssets(page.assets);
-        for (const a of page.assets) await setTrashed(a.id, true);
+        await upsertAssets(page.assets, settings);
+        for (const a of page.assets) await setTrashed(a.id, true, settings);
       });
       return page;
     },
     async () => ({
-      assets: await withActiveConnection(settings, () => readTrashed()),
+      assets: await withActiveConnection(settings, () => readTrashed(settings)),
     }),
   );
 }
@@ -618,7 +619,7 @@ async function applyChange(
       // Trash screen refetches /api/trash live, so we don't try to
       // reconstruct trashed state here (getAsset can't return a deleted asset).
       await withActiveConnection(settings, () =>
-        deleteCachedAsset(c.entity_id),
+        deleteCachedAsset(c.entity_id, settings),
       );
       return;
     case 'refetch': {
@@ -626,10 +627,10 @@ async function applyChange(
       // this refetch — treat it the same as a delete.
       const asset = await fetchAsset(settings, c.entity_id, signal);
       if (asset)
-        await withActiveConnection(settings, () => upsertAssets([asset]));
+        await withActiveConnection(settings, () => upsertAssets([asset], settings));
       else
         await withActiveConnection(settings, () =>
-          deleteCachedAsset(c.entity_id),
+          deleteCachedAsset(c.entity_id, settings),
         );
       return;
     }
@@ -665,7 +666,7 @@ async function drainChanges(
   // Bound the catch-up so a huge backlog can't block one call indefinitely;
   // the next run picks up where the cursor left off.
   for (let page = 0; page < 20; page++) {
-    const since = await withActiveConnection(settings, () => getSyncCursor());
+    const since = await withActiveConnection(settings, () => getSyncCursor(settings));
     const res = await authedGet<ChangesResponse>(
       settings,
       `/api/changes?since=${since}`,
@@ -677,8 +678,8 @@ async function drainChanges(
     if (res.reset) {
       const { clearCachedAssets } = await import('@/lib/cache/assets');
       await withActiveConnection(settings, async () => {
-        await clearCachedAssets();
-        await setSyncCursor(res.cursor);
+        await clearCachedAssets(settings);
+        await setSyncCursor(res.cursor, settings);
       });
       return { applied, reset: true };
     }
@@ -688,7 +689,7 @@ async function drainChanges(
     }
     // Advance only after the page's changes are applied, so a crash mid-page
     // re-fetches that page rather than skipping unapplied changes.
-    await withActiveConnection(settings, () => setSyncCursor(res.cursor));
+    await withActiveConnection(settings, () => setSyncCursor(res.cursor, settings));
     if (!res.has_more) break;
   }
   return { applied, reset: false };
@@ -793,14 +794,19 @@ async function queueIntent(
   kind: MutationKind,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  await withActiveConnection(settings, async () => {
-    for (const id of ids) await enqueueMutation(id, kind, payload, settings);
+  const queued = await withActiveConnection(settings, async () => {
+    const rows: number[] = [];
+    for (const id of ids) rows.push(await enqueueMutation(id, kind, payload, settings));
+    return rows;
   });
   try {
     await flushMutationsQueue(settings);
   } catch {
     /* the durable intent remains for recovery */
   }
+  await assertActiveConnection(settings);
+  const rejected = await intentRejection(settings, queued);
+  if (rejected) throw new LibraryError(rejected.message, rejected.status);
 }
 
 // flushMutationsQueue drains the offline mutation queue (favorites, album
@@ -849,14 +855,21 @@ export async function flushMutationsQueue(
               ? { body: JSON.stringify(call.body) }
               : {}),
           },
-          async (response) => response,
+          async (response) => {
+            let message: string | undefined;
+            if (!response.ok) {
+              const body = await response.json().catch(() => ({})) as { error?: unknown };
+              if (typeof body.error === 'string') message = body.error;
+            }
+            return { status: response.status, message };
+          },
           signal,
         );
         if (response.status === 401) {
           reportAuthLost(settings);
           return { status: 401, networkError: false };
         }
-        return { status: response.status, networkError: false };
+        return { status: response.status, message: response.message, networkError: false };
       } catch (error) {
         if (signal?.aborted) throw error;
         return { status: 0, networkError: true }; // network -> retry

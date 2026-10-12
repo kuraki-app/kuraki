@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import PhotoGrid from '@/components/photo-grid';
 import { ThemedText } from '@/components/themed-text';
@@ -74,8 +74,9 @@ export default function CollectionGrid({ loadPage, emptyMessage, removeWhenUnfav
       try {
         await setFavorite(settings, id, favorite);
         return;
-      } catch {
-        // Preserve the optimistic change and replay it after reconnect.
+      } catch (cause) {
+        Alert.alert('Could not save this change', cause instanceof Error ? cause.message : 'Please try again.');
+        return; // the central queue owns retryable failures
       }
     }
     await enqueueFavorite(id, favorite, settings ?? undefined);

@@ -133,6 +133,19 @@ export async function getDB(
           COMMIT;
         `);
       }
+      if (v < 8) {
+        // A concurrent drain may reject a live edit before its caller owns the
+        // lane. Persist that result so the caller can still report the failure.
+        await db.execAsync(`
+          BEGIN;
+          CREATE TABLE IF NOT EXISTS mutation_rejections (
+            id INTEGER PRIMARY KEY, status INTEGER NOT NULL,
+            message TEXT NOT NULL, created_at TEXT NOT NULL
+          );
+          PRAGMA user_version = 8;
+          COMMIT;
+        `);
+      }
       return db;
     })();
     databases.set(scope, dbPromise);

@@ -133,16 +133,16 @@ export async function assertActiveConnection(
   if (!sameConnection(await readConnection(), settings))
     throw new StaleConnectionError();
 }
-// Cache writes and credential commits share this narrow queue. HTTP and media
-// work never hold it, so a slow request cannot delay switching libraries.
-export function withActiveConnection<T>(
+// Cache work must use settings' explicit library namespace. Native SQLite can
+// stall, so it must never hold the credential queue and block recovery.
+export async function withActiveConnection<T>(
   settings: CaptureSettings,
-  write: () => Promise<T>,
+  work: () => Promise<T>,
 ): Promise<T> {
-  return serialized(async () => {
-    await assertActiveConnection(settings);
-    return write();
-  });
+  await assertActiveConnection(settings);
+  const result = await work();
+  await assertActiveConnection(settings);
+  return result;
 }
 export function switchedLibrary(
   previous: CaptureSettings,
