@@ -22,10 +22,9 @@ export type NetworkGate = 'allowed' | 'offline' | 'metered' | 'unverified';
 /**
  * evaluateNetworkGate decides whether a run may proceed.
  *
- * Unknown types are allowed rather than refused: VPNs and some tethering
- * setups report an unclassifiable type, and silently stopping backup on a
- * network we merely failed to identify is a worse failure than an occasional
- * unexpected upload. Cellular is the only type positively refused.
+ * With Wi-Fi-only enabled, unknown/VPN/tethering types wait rather than
+ * risking a cellular upload. Explicitly disabling that preference permits
+ * unknown connections; known Ethernet connections are also unmetered.
  */
 export function evaluateNetworkGate(
   connection: Connection,

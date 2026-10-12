@@ -572,6 +572,22 @@ audited baseline and release checklist.
 
 ## 11. Handoff log (append newest at top)
 
+- `codex/mobile-hardening` (2026-10-12, Codex) — **Final offline ordering review.**
+  Review reproduced old offline favorites/tags/membership overwriting newer online
+  edits and concurrent drains racing the same FIFO snapshot. All offline-capable
+  writes now persist intent before transport and share a per-library push/pull lane;
+  canceled native waits release the lane, failures retain intent once, and a new
+  account never waits on another library. The Settings address workflow now flushes
+  with the resolved server/owner identity; a real SQL/HTTP regression covers saving
+  the same paired address. Album-add completion no longer invents a server count for
+  a queued intent. Added thirteen ordering/cancellation regressions (338 mobile tests).
+  Foreground metadata sync now runs independently of photo-backup preferences;
+  drains use bounded500-item/30s passes. Native CI first run passed all ordinary checks; Android SDK setup failed because
+  upstream removed the legacy tools package, now explicitly platform-tools. iOS test-driver cold startup is warmed with a
+  bounded budget before minting its short-lived pairing code. Full
+  browser suite passes124 tests. Exact iOS/Android candidates compile successfully;
+  final native CI/install/provenance evidence is tracked in PR36. No operator data.
+
 - `codex/mobile-hardening` (2026-10-12, Codex) — **Native verification and review closure.**
   Fixed review-found completed-byte handoff, error-body cancellation, late disabled
   background wakes, stalled native sync, whole-page sweep

@@ -291,3 +291,25 @@ restart and real backup receipts, and records artifact provenance. Local build
 provenance and CI results are recorded separately; these foreground simulator checks
 do not replace physical-device locked scheduling, iCloud/Live Photo vendor behavior,
 large-library/video battery/RSS measurement or production store signing.
+
+## Final offline ordering review (2026-10-12)
+
+Public API regressions reproduced older offline favorites, tags and album changes
+replaying after newer online writes. All offline-capable writes now enter one durable
+FIFO before transport, and pushes/pulls are serialized separately per verified library.
+Canceled native waits release that lane; a failed send retains the intent once. Saving
+an address uses the resolved identity while draining its queue. Thirteen real-SQL/HTTP and
+cancellation regressions bring the mobile suite to338 tests; the browser suite passes
+124 tests. PR36 tracks current CI results and native artifact provenance. The first
+native Android CI attempt exposed a removed SDK tools package; its setup now requests
+platform-tools explicitly. No application rollback or older binary is used as evidence.
+
+Foreground metadata recovery also runs when automatic photo backup is off. Its
+ordered queue drains at most500 rows in bounded100-row pages, under a30-second
+pass deadline. Native iOS CI warms its cold test driver before generating pairing
+codes; its driver startup has an explicit budget and anonymous analytics are disabled.
+
+Origin changes clear the old device credential before authenticated traffic; the new
+address must be paired. Invalid pairing codes do not trigger revocation state. Local
+cleanup refuses originals with known queued trash/purge intents. These safety cases
+are included in the338-test suite.

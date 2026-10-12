@@ -205,7 +205,30 @@ it('aborts stalled upload error-body decoding and releases the source', async ()
   expect(h.close).toHaveBeenCalledOnce();
 });
 
-it('rejects a successful response that acknowledges unsent bytes',async()=>{
- const fetcher=vi.fn().mockResolvedValueOnce(json({id:'session',received_bytes:0})).mockResolvedValue(new Response(null,{status:204,headers:{'Upload-Offset':'3'}}));vi.stubGlobal('fetch',fetcher);
- const {uploadFile}=await import('./capture-api');await expect(uploadFile(settings,{uri:'file:///x',filename:'x.jpg'})).rejects.toThrow('invalid upload receipt');expect(fetcher).toHaveBeenCalledTimes(2);
+it('rejects a successful response that acknowledges unsent bytes', async () => {
+  const fetcher = vi
+    .fn()
+    .mockResolvedValueOnce(json({ id: 'session', received_bytes: 0 }))
+    .mockResolvedValue(
+      new Response(null, { status: 204, headers: { 'Upload-Offset': '3' } }),
+    );
+  vi.stubGlobal('fetch', fetcher);
+  const { uploadFile } = await import('./capture-api');
+  await expect(
+    uploadFile(settings, { uri: 'file:///x', filename: 'x.jpg' }),
+  ).rejects.toThrow('invalid upload receipt');
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});
+
+it('does not mark an unpaired device revoked when its pairing code is invalid', async () => {
+  const { saveCaptureSettings } = await import('./settings');
+  await saveCaptureSettings({ baseURL: settings.baseURL, deviceToken: '' });
+  vi.stubGlobal('fetch', async () =>
+    json({ error: 'invalid_pairing_code' }, 401),
+  );
+  const { claimPairing } = await import('./capture-api');
+  await expect(claimPairing(settings.baseURL, 'bad', 'test')).rejects.toThrow(
+    'Pairing code is invalid or expired',
+  );
+  expect((await import('./session')).isAuthLost()).toBe(false);
 });

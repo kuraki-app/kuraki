@@ -6,6 +6,7 @@ import {
   throwIfAborted,
   isAbort,
   abortError,
+  abortable,
 } from '@/lib/request';
 import { canResume, validProof, type OriginalProof } from '@/lib/backup-ledger';
 
@@ -73,9 +74,12 @@ export async function claimPairing(
       body: JSON.stringify({ code, name }),
       signal: controller.signal,
     });
-    const device = await unwrap<PairedDevice>(
-      response,
-      'Pairing failed. Generate a new code and try again.',
+    const device = await abortable(
+      unwrap<PairedDevice>(
+        response,
+        'Pairing failed. Generate a new code and try again.',
+      ),
+      controller.signal,
     );
     throwIfAborted(controller.signal);
     return device;
@@ -511,20 +515,13 @@ async function deviceRequest<T>(
   }
 }
 
-// `token` is the credential the request carried, so a 401 can be attributed to
-// it rather than to whatever happens to be stored by the time it is handled.
-async function unwrap<T>(
-  response: Response,
-  fallback: string,
-  token = '',
-): Promise<T> {
-  if (response.status === 401) {
-    reportAuthLost(token);
+// Pairing is unauthenticated: an invalid/expired code is not device revocation.
+async function unwrap<T>(response: Response, fallback: string): Promise<T> {
+  if (response.status === 401)
     throw new CaptureAPIError(
-      'This device was disconnected. Re-pair it in Settings.',
+      'Pairing code is invalid or expired. Generate a new code and try again.',
       401,
     );
-  }
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     const message = typeof body.error === 'string' ? body.error : fallback;

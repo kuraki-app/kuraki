@@ -160,6 +160,18 @@ export async function saveCaptureSettings(
     if (expectedEpoch !== undefined && epoch !== expectedEpoch)
       throw new StaleConnectionError();
     const previous = await readConnection();
+    // Editing the server address is not authorization to forward its long-lived
+    // credential to another origin. A newly claimed credential may activate it.
+    if (
+      previous.baseURL &&
+      previous.baseURL !== next.baseURL &&
+      previous.deviceToken &&
+      previous.deviceToken === next.deviceToken
+    ) {
+      next.deviceToken = '';
+      next.serverID = undefined;
+      next.ownerID = undefined;
+    }
     // Keep authenticated identity only when these are exactly the same
     // credentials. New pairings resolve identity before activation.
     if (
@@ -216,6 +228,16 @@ export async function connectCaptureSettings(
   expectedEpoch = connectionEpoch(),
 ): Promise<CaptureSettings> {
   const next = clean(settings);
+  const previous = await loadCaptureSettings();
+  if (
+    previous.baseURL &&
+    previous.baseURL !== next.baseURL &&
+    previous.deviceToken &&
+    previous.deviceToken === next.deviceToken
+  )
+    throw new Error(
+      'Pair with the new server address before using its credentials.',
+    );
   if (!next.deviceToken) {
     await saveCaptureSettings(next, expectedEpoch, signal);
     return next;

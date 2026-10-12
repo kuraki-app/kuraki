@@ -1,3 +1,4 @@
+import { assertNoPendingRemoval } from '@/lib/cache/mutations';
 import { type BackupReceipt, validProof } from '@/lib/backup-ledger';
 import {
   localVersion,
@@ -25,6 +26,10 @@ export async function verifyLocalReceipt(
     throw new Error(
       'This local item changed. Back it up again before removing it.',
     );
+  await assertNoPendingRemoval(
+    settings,
+    receipt.originals.map((proof) => proof.asset_id),
+  );
   const components = await resolveComponents(asset, signal, false);
   if (components.length !== receipt.originals.length)
     throw new Error('Every component needs a verified backup.');

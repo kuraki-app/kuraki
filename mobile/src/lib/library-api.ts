@@ -1,4 +1,9 @@
-import { flushMutations, type PendingMutation } from '@/lib/cache/mutations';
+import { orderedLibraryWork } from '@/lib/cache/operations';
+import {
+  flushMutations,
+  enqueueMutation,
+  type PendingMutation,
+} from '@/lib/cache/mutations';
 import { upsertAssets, getSyncCursor, setSyncCursor } from '@/lib/cache/assets';
 import {
   upsertAlbums,
@@ -197,16 +202,14 @@ export async function setFavorite(
   id: string,
   favorite: boolean,
 ): Promise<void> {
-  return authedMutate(settings, `/api/assets/${id}/favorite`, 'POST', {
-    favorite,
-  });
+  return queueIntent(settings, [id], 'favorite', { favorite });
 }
 
 // ---- Albums, memories, trash --------------------------------------------
 //
 // Same Bearer/401/error shape as fetchLibrary/setFavorite above, factored
-// into two small helpers: authedGet (GET + JSON parse) and authedMutate
-// (POST/DELETE with no meaningful response body). withMirrorFallback wraps a
+// into authedGet (GET + JSON parse) and the durable mutation queue.
+// withMirrorFallback wraps a
 // read so a real network failure (fetch itself throwing) falls back to the
 // SQLite mirror, while an explicit server error — including 401, already
 // reported via reportAuthLost inside authedGet — still propagates instead of
@@ -236,41 +239,6 @@ async function authedGet<T>(
 ): Promise<T> {
   return libraryJSON<T>(settings, path, {}, signal);
 }
-async function authedMutate(
-  settings: CaptureSettings,
-  path: string,
-  method: string,
-  body?: unknown,
-): Promise<void> {
-  return request(
-    settings,
-    path,
-    {
-      method,
-      ...(body !== undefined
-        ? {
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-          }
-        : {}),
-    },
-    async (response) => {
-      if (response.status === 401) {
-        reportAuthLost(settings);
-        throw new LibraryError(
-          'This device was disconnected. Re-pair it in Settings.',
-          401,
-        );
-      }
-      if (!response.ok)
-        throw new LibraryError(
-          `Request failed (${response.status})`,
-          response.status,
-        );
-    },
-  );
-}
-
 async function withMirrorFallback<T>(
   load: () => Promise<T>,
   fallback: () => Promise<T>,
@@ -389,13 +357,8 @@ export async function addToAlbum(
   settings: CaptureSettings,
   albumId: string,
   ids: string[],
-): Promise<number> {
-  const res = await authedPost<{ added?: number }>(
-    settings,
-    `/api/albums/${albumId}/assets`,
-    { ids },
-  );
-  return res.added ?? 0;
+): Promise<void> {
+  return queueIntent(settings, ids, 'album_add', { album_id: albumId });
 }
 
 /** removeFromAlbum unlinks assets and reports how many rows actually went. */
@@ -404,9 +367,7 @@ export async function removeFromAlbum(
   albumId: string,
   ids: string[],
 ): Promise<void> {
-  return authedMutate(settings, `/api/albums/${albumId}/assets`, 'DELETE', {
-    ids,
-  });
+  return queueIntent(settings, ids, 'album_remove', { album_id: albumId });
 }
 
 // ---- Tags ----------------------------------------------------------------
@@ -466,9 +427,7 @@ export async function setAssetTags(
   assetId: string,
   tagIDs: string[],
 ): Promise<void> {
-  await authedMutate(settings, `/api/assets/${assetId}/tags`, 'PUT', {
-    ids: tagIDs,
-  });
+  return queueIntent(settings, [assetId], 'set_tags', { tag_ids: tagIDs });
 }
 
 // createTag is online-only: a queued create can't be referenced by a later
@@ -691,6 +650,17 @@ export async function syncChanges(
 ): Promise<{ applied: number; reset: boolean }> {
   if (!settings.baseURL || !settings.deviceToken)
     return { applied: 0, reset: false };
+  const { getDB } = await import('@/lib/cache/db');
+  const db = await getDB(settings);
+  return orderedLibraryWork(db, () => drainChanges(settings, signal), signal);
+}
+
+async function drainChanges(
+  settings: CaptureSettings,
+  signal?: AbortSignal,
+): Promise<{ applied: number; reset: boolean }> {
+  if (!settings.baseURL || !settings.deviceToken)
+    return { applied: 0, reset: false };
   let applied = 0;
   // Bound the catch-up so a huge backlog can't block one call indefinitely;
   // the next run picks up where the cursor left off.
@@ -728,21 +698,21 @@ export async function restoreAsset(
   settings: CaptureSettings,
   id: string,
 ): Promise<void> {
-  return authedMutate(settings, `/api/assets/${id}/restore`, 'POST');
+  return queueIntent(settings, [id], 'restore', {});
 }
 
 export async function trashAsset(
   settings: CaptureSettings,
   id: string,
 ): Promise<void> {
-  return authedMutate(settings, `/api/assets/${id}`, 'DELETE');
+  return queueIntent(settings, [id], 'trash', {});
 }
 
 export async function purgeAsset(
   settings: CaptureSettings,
   id: string,
 ): Promise<void> {
-  return authedMutate(settings, `/api/trash/${id}`, 'DELETE');
+  return queueIntent(settings, [id], 'purge', {});
 }
 
 export type MutationKind =
@@ -814,6 +784,25 @@ export function routeForMutation(
   }
 }
 
+// Durable ordering applies to online edits too: an older offline operation must
+// never replay after a newer successful edit. Transport failures retain the
+// already queued intent, so UI fallback paths do not enqueue it twice.
+async function queueIntent(
+  settings: CaptureSettings,
+  ids: string[],
+  kind: MutationKind,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  await withActiveConnection(settings, async () => {
+    for (const id of ids) await enqueueMutation(id, kind, payload, settings);
+  });
+  try {
+    await flushMutationsQueue(settings);
+  } catch {
+    /* the durable intent remains for recovery */
+  }
+}
+
 // flushMutationsQueue drains the offline mutation queue (favorites, album
 // add/remove, trash, restore, purge) over a reconnected link. Each queued write
 // maps to the {status, networkError} shape flushMutations expects: a clean send
@@ -828,46 +817,57 @@ export function routeForMutation(
 // instead of being dropped.
 export async function flushMutationsQueue(
   settings: CaptureSettings,
-  signal?: AbortSignal,
+  callerSignal?: AbortSignal,
 ): Promise<void> {
-  const send = async (m: PendingMutation) => {
-    let call: { method: string; path: string; body?: unknown };
-    try {
-      call = routeForMutation(m.kind, m.asset_id, m.payload);
-    } catch {
-      return { status: 422, networkError: false }; // undispatchable -> drop
-    }
-    try {
-      const response = await request(
-        settings,
-        call.path,
-        {
-          method: call.method,
-          headers: {
-            Authorization: `Bearer ${settings.deviceToken}`,
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  callerSignal?.addEventListener('abort', abort, { once: true });
+  if (callerSignal?.aborted) abort();
+  const deadline = setTimeout(abort, 30000);
+  const signal = controller.signal;
+  try {
+    const send = async (m: PendingMutation) => {
+      let call: { method: string; path: string; body?: unknown };
+      try {
+        call = routeForMutation(m.kind, m.asset_id, m.payload);
+      } catch {
+        return { status: 422, networkError: false }; // undispatchable -> drop
+      }
+      try {
+        const response = await request(
+          settings,
+          call.path,
+          {
+            method: call.method,
+            headers: {
+              Authorization: `Bearer ${settings.deviceToken}`,
+              ...(call.body !== undefined
+                ? { 'Content-Type': 'application/json' }
+                : {}),
+            },
             ...(call.body !== undefined
-              ? { 'Content-Type': 'application/json' }
+              ? { body: JSON.stringify(call.body) }
               : {}),
           },
-          ...(call.body !== undefined
-            ? { body: JSON.stringify(call.body) }
-            : {}),
-        },
-        async (response) => response,
-        signal,
-      );
-      if (response.status === 401) {
-        reportAuthLost(settings);
-        return { status: 401, networkError: false };
+          async (response) => response,
+          signal,
+        );
+        if (response.status === 401) {
+          reportAuthLost(settings);
+          return { status: 401, networkError: false };
+        }
+        return { status: response.status, networkError: false };
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        return { status: 0, networkError: true }; // network -> retry
       }
-      return { status: response.status, networkError: false };
-    } catch (error) {
-      if (signal?.aborted) throw error;
-      return { status: 0, networkError: true }; // network -> retry
-    }
-  };
-  await assertActiveConnection(settings);
-  await flushMutations(send, settings, signal);
+    };
+    await assertActiveConnection(settings);
+    await flushMutations(send, settings, signal);
+  } finally {
+    clearTimeout(deadline);
+    callerSignal?.removeEventListener('abort', abort);
+  }
 }
 
 // Spec 1 call sites (Settings on Save, Library on recovery) keep calling this

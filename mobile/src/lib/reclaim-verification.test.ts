@@ -5,6 +5,8 @@ import { verifyLocalReceipt } from './reclaim-verification';
 import { localVersion, type LibraryAsset } from './backup-engine';
 import type { BackupReceipt } from './backup-ledger';
 
+vi.mock('@/lib/cache/mutations',()=>({assertNoPendingRemoval:async()=>{}}));
+
 const h = vi.hoisted(() => ({
   data: new Map<string, Uint8Array>(),
   deleted: [] as string[],

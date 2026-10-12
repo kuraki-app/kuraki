@@ -189,3 +189,16 @@ LAN. No local removal was performed in the automated/native validation recorded 
 upstream advisories without published fixes. `npm run check:compatibility` checks
 Expo versions. Artifact provenance records commit, dirty state, SDK versions, lockfile
 and exact artifact hashes; local QA builds are not store-signed releases.
+
+
+Online and offline edits share the same durable FIFO. Favorites, tags, album membership
+and trash/restore/purge intents are recorded before transport; reconnect/background
+pushes and change-feed pulls are serialized per library. A lost response retains the
+intent for idempotent replay, and a newer online edit cannot be undone by older queued
+work. A canceled native wait releases the library lane without starting late HTTP work.
+
+
+Changing the server address requires pairing at the new address; an existing device
+credential is never forwarded to a different origin. Saving the same verified address
+keeps its identity and flushes pending edits. Cleanup also retains local originals
+whose server trash/purge operation is queued, even before that deletion reaches the server.

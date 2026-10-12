@@ -3,6 +3,9 @@ on:
   workflow_call:
 permissions:
   contents: read
+env:
+  MAESTRO_CLI_NO_ANALYTICS: '1'
+  MAESTRO_DRIVER_STARTUP_TIMEOUT: '600000'
 jobs:
   android:
     name: Android standalone build and installed smoke
@@ -23,6 +26,8 @@ jobs:
         with:
           go-version-file: go.mod
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - run: cd mobile && npm ci
       - run: cd mobile && CI=1 npx expo prebuild --platform android --no-install
       - run: cd mobile && node scripts/check-native-config.mjs android
@@ -61,6 +66,7 @@ jobs:
             mobile/android/app/build/outputs/apk/release/app-release.apk
             ${{ runner.temp }}/android-provenance.json
             ${{ runner.temp }}/mobile-smoke-logs
+            ${{ runner.temp }}/mobile-driver-logs
           retention-days: 7
   ios:
     name: iOS standalone build and installed smoke
@@ -93,18 +99,20 @@ jobs:
           CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=NO
           DEVELOPMENT_TEAM=KURAKIQA01 ONLY_ACTIVE_ARCH=YES ARCHS=arm64 build
       - name: Install and exercise exact simulator app
+        timeout-minutes: 30
         run: |
           go build -o bin/kuraki ./cmd/kuraki
           cd mobile
           scripts/install-maestro.sh "$RUNNER_TEMP/mobile-ui"
-          node scripts/start-smoke-server.mjs "$RUNNER_TEMP/mobile-smoke.env"
-          . "$RUNNER_TEMP/mobile-smoke.env"
           simulator=$(xcrun simctl create Kuraki-CI 'iPhone 17 Pro')
           xcrun simctl boot "$simulator"
           xcrun simctl bootstatus "$simulator" -b
           python3 scripts/create-smoke-photo.py "$RUNNER_TEMP/native-proof.png"
           xcrun simctl addmedia "$simulator" "$RUNNER_TEMP/native-proof.png"
           xcrun simctl install "$simulator" "$RUNNER_TEMP/mobile-derived/Build/Products/Release-iphonesimulator/Kuraki.app"
+          "$RUNNER_TEMP/mobile-ui/maestro/bin/maestro" --device "$simulator" test --debug-output "$RUNNER_TEMP/mobile-driver-logs" .maestro/launch.yaml
+          node scripts/start-smoke-server.mjs "$RUNNER_TEMP/mobile-smoke.env"
+          . "$RUNNER_TEMP/mobile-smoke.env"
           "$RUNNER_TEMP/mobile-ui/maestro/bin/maestro" --device "$simulator" test --debug-output "$RUNNER_TEMP/mobile-smoke-logs" -e SERVER_URL=http://127.0.0.1:39218 -e PAIR_CODE="$PAIR_CODE" .maestro/onboarding.yaml
           python3 scripts/check-smoke-import.py "$SMOKE_SERVER_DIR"
           xcrun simctl shutdown "$simulator"
@@ -119,4 +127,5 @@ jobs:
           path: |
             ${{ runner.temp }}/ios-provenance.json
             ${{ runner.temp }}/mobile-smoke-logs
+            ${{ runner.temp }}/mobile-driver-logs
           retention-days: 7

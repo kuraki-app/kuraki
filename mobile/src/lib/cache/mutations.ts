@@ -1,3 +1,4 @@
+import { orderedLibraryWork } from '@/lib/cache/operations';
 import type { CaptureSettings } from '@/lib/settings';
 export type MutationOutcome = 'sent' | 'drop' | 'retry';
 export type PendingMutation = {
@@ -164,6 +165,20 @@ export async function pendingFavorites(): Promise<Map<string, boolean>> {
   return map;
 }
 
+export async function enqueueMutation(
+  assetID: string,
+  kind: string,
+  payload: Record<string, unknown>,
+  settings: CaptureSettings,
+): Promise<void> {
+  const { getDB } = await import('@/lib/cache/db');
+  const db = await getDB(settings);
+  await db.runAsync(
+    'INSERT INTO pending_mutations(asset_id,kind,payload,created_at) VALUES(?,?,?,?)',
+    [assetID, kind, JSON.stringify(payload), new Date().toISOString()],
+  );
+}
+
 // flushMutations sends queued writes FIFO. The caller supplies the transport so
 // this module stays testable and free of fetch/settings coupling. A retry is
 // left in place (attempts bumped) to be picked up on the next flush.
@@ -176,21 +191,56 @@ export async function flushMutations(
 ): Promise<void> {
   const { getDB } = await import('@/lib/cache/db');
   const db = await getDB(settings);
-  const rows = await db.getAllAsync<PendingMutation>(
-    `SELECT id, asset_id, kind, payload, attempts FROM pending_mutations ORDER BY id ASC LIMIT 100`,
+  return orderedLibraryWork(
+    db,
+    async () => {
+      for (let page = 0; page < 5; page++) {
+        const rows = await db.getAllAsync<PendingMutation>(
+          `SELECT id, asset_id, kind, payload, attempts FROM pending_mutations ORDER BY id ASC LIMIT 100`,
+        );
+        for (const m of rows) {
+          if (signal?.aborted)
+            throw Object.assign(new Error('Sync canceled.'), {
+              name: 'AbortError',
+            });
+          const { status, networkError } = await send(m);
+          if (signal?.aborted)
+            throw Object.assign(new Error('Sync canceled.'), {
+              name: 'AbortError',
+            });
+          const outcome = classifyMutationResult(status, networkError);
+          if (outcome === 'retry') {
+            await db.runAsync(
+              `UPDATE pending_mutations SET attempts = attempts + 1 WHERE id = ?`,
+              [m.id],
+            );
+            return; // preserve order: stop at the first unsent item
+          }
+          await db.runAsync(`DELETE FROM pending_mutations WHERE id = ?`, [
+            m.id,
+          ]);
+        }
+        if (rows.length < 100) return;
+      }
+    },
+    signal,
   );
-  for (const m of rows) {
-    if (signal?.aborted)
-      throw Object.assign(new Error('Sync canceled.'), { name: 'AbortError' });
-    const { status, networkError } = await send(m);
-    const outcome = classifyMutationResult(status, networkError);
-    if (outcome === 'retry') {
-      await db.runAsync(
-        `UPDATE pending_mutations SET attempts = attempts + 1 WHERE id = ?`,
-        [m.id],
-      );
-      break; // preserve order: stop at the first unsent item
-    }
-    await db.runAsync(`DELETE FROM pending_mutations WHERE id = ?`, [m.id]);
-  }
+}
+
+/** A queued deletion is already known to invalidate this future backup copy. */
+export async function assertNoPendingRemoval(
+  settings: CaptureSettings,
+  assetIDs: string[],
+): Promise<void> {
+  if (!assetIDs.length) return;
+  const { getDB } = await import('@/lib/cache/db');
+  const db = await getDB(settings);
+  const row = await db.getFirstAsync(
+    `SELECT id FROM pending_mutations WHERE kind IN ('trash','purge') AND asset_id IN (${assetIDs.map(() => '?').join(',')}) LIMIT 1`,
+    assetIDs,
+  );
+  if (row)
+    throw new Error(
+      'This original has a pending server deletion. Finish library changes before removing its local copy.',
+    );
 }

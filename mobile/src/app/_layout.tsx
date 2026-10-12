@@ -1,3 +1,5 @@
+import { drainBackgroundSync } from '@/lib/background-sync';
+import { abortable } from '@/lib/cancellation';
 import {
   DarkTheme,
   DefaultTheme,
@@ -155,6 +157,35 @@ export default function RootLayout() {
       }
     })();
   }, []);
+
+  // Flush metadata edits on cold/foreground launch even when photo backup is
+  // off. Own the whole pass deadline and abort it when the app leaves foreground.
+  useEffect(() => {
+    let current: AbortController | null = null;
+    const run = () => {
+      if (AppState.currentState !== 'active') return;
+      current?.abort();
+      const controller = new AbortController();
+      current = controller;
+      const deadline = setTimeout(() => controller.abort(), 30000);
+      void abortable(drainBackgroundSync(controller.signal), controller.signal)
+        .catch(() => {})
+        .finally(() => clearTimeout(deadline));
+    };
+    run();
+    const app = AppState.addEventListener('change', (state) => {
+      if (state === 'active') run();
+      else current?.abort();
+    });
+    const network = onConnectionChange((connection) => {
+      if (connection.isConnected === true) run();
+    });
+    return () => {
+      current?.abort();
+      app.remove();
+      network();
+    };
+  }, [activeConnectionEpoch]);
 
   // Automatic backup has to run while the app is open, not only from an OS wake.
   //
