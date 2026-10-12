@@ -2,7 +2,7 @@ import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
 import { useTokens } from '@/constants/theme';
 
-// A cold launch at / must start at Photos; groups otherwise tie alphabetically.
+// Keep native screen ordering anchored to Photos; the root index owns / launch routing.
 export const unstable_settings = { initialRouteName: '(gallery)' };
 
 // The real UITabBar, not a lookalike. iOS 26 already provides everything this

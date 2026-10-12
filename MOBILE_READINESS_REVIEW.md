@@ -334,3 +334,12 @@ through the real server API. Terminal messages now provide plain-language guidan
 Native CI exposed separate-shell Android script execution and an iOS keyboard-hide
 selector failure; the smoke sequence is corrected and hidden diagnostics/form
 screenshots are retained. Final installed CI remains pending in PR36.
+
+The launch-route follow-up reproduces and fixes cold / opening Collections despite
+NativeTabs initial-route metadata. An explicit root entry now opens Photos, verified
+on the rebuilt iOS app after a true restart from Collections. Smoke assertions require
+the selected Photos tab. Run38209516210 passed all twelve ordinary CI checks; iOS
+paired and navigated to Settings before a combined accessibility-label mismatch,
+while Android stopped before fixture injection because its AVD lacked shared storage.
+The selector, AVD storage/mount precondition, and failure-time artifact provenance
+are corrected; the final installed rerun remains pending in PR36.

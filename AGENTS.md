@@ -29,7 +29,8 @@ Phase 1 = single-owner personal backup.
   and dependency gates, safe ordered edits and recoverable credential transitions.
   Full344-test mobile/type/lint and Go suites pass. Fresh standalone builds and local
   iOS pairing/import/hash checks are recorded in MOBILE_READINESS_REVIEW.md. Final
-  installed CI is tracked in PR36; physical-device and store certification remain open.
+  installed CI is tracked in PR36; / now explicitly launches Photos, verified on
+  simulator after restarting from Collections. Physical/store certification remain open.
 
 - **Mobile follow-up audit (2026-10-11).** Before a mobile release, read
   [MOBILE_READINESS_REVIEW.md](./MOBILE_READINESS_REVIEW.md). Nine targeted probes
@@ -427,6 +428,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | Area | Status |
 |---|---|
 | Mobile queue/recovery review (2026-10-12) | ✅ terminal edit failures reported across screens;408/429 retain intent; scoped cache I/O frees credential recovery;344 mobile regressions |
+| Mobile launch routing (2026-10-12) | ✅ explicit root entry opens Photos after a true restart from Collections; native smoke requires the selected tab |
 | Mobile native verification (2026-10-12) | ✅ fresh Android/iOS standalone builds; iOS pairing/restart/7 real imports/6 hash-matched cleanup candidates; native CI + provenance gates added; physical-device certification pending |
 | Mobile original safety and isolation (2026-10-11) | ✅ migration 00031 + verified receipts/reclamation, scoped mirrors/ledger, cancellation and recovery; dependency/native milestone follows |
 | Pre-deployment review (2026-10-11) | ✅ audit complete; ⛔ deployment pending fixes in PRE_DEPLOYMENT_REVIEW.md |
@@ -581,6 +583,18 @@ audited baseline and release checklist.
   (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/mobile-hardening` (2026-10-12, Codex) — **Verified launch and smoke diagnostics.**
+  A true cold launch still chose Collections: NativeTabs initial-route metadata did
+  not disambiguate the shared / URL. A root index redirects explicitly to Gallery;
+  rebuilt iOS now starts Photos, including after selecting Collections and terminating
+  the app. Smoke checks require the Photos tab's selected trait (not its permanent
+  label). Latest CI passed all twelve ordinary checks. iOS paired and reached Settings;
+  its Backup row exposes a combined icon/text label, now matched by the same regex
+  already used for the tap. Android's AVD had no usable shared storage; it now gets
+  an explicit512M SD card and a bounded mount wait before the mandatory photo fixture.
+  Artifact provenance is produced after successful compilation even if smoke fails.
+  Type/lint and workflow syntax pass; final installed rerun remains in PR36.
 
 - `codex/mobile-hardening` (2026-10-12, Codex) — **Installed smoke-run corrections.**
   Fresh32a51a2 standalone Android/iOS builds succeed, with clean-commit/checksum

@@ -4,6 +4,10 @@ cd "$(dirname "$0")/.."
 qa_output=${1:?Provide the CI temporary output directory}
 
 python3 scripts/create-smoke-photo.py "$qa_output/native-proof.png"
+# AVD boot completion can precede the shared-storage mount. Require the
+# fixture destination before uploading; never silently skip the backup proof.
+adb shell 'for attempt in $(seq 1 30); do [ -d /sdcard ] && exit 0; sleep 1; done; exit 1'
+adb shell mkdir -p /sdcard/Pictures
 adb push "$qa_output/native-proof.png" /sdcard/Pictures/native-proof.png
 adb shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Pictures/native-proof.png
 adb install android/app/build/outputs/apk/release/app-release.apk

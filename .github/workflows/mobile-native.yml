@@ -32,6 +32,7 @@ jobs:
       - run: cd mobile && CI=1 npx expo prebuild --platform android --no-install
       - run: cd mobile && node scripts/check-native-config.mjs android
       - name: Build standalone QA APK (no Metro)
+        id: standalone_build
         working-directory: mobile/android
         run: ./gradlew :app:assembleRelease -PreactNativeArchitectures=x86_64 --no-daemon
       - name: Prepare disposable server and pinned UI runner
@@ -44,9 +45,11 @@ jobs:
         with:
           api-level: 35
           arch: x86_64
+          sdcard-path-or-size: 512M
           disable-animations: true
           script: bash mobile/scripts/smoke-android.sh "$RUNNER_TEMP"
       - name: Record exact artifact provenance
+        if: ${{ always() && steps.standalone_build.outcome == 'success' }}
         working-directory: mobile
         run: node scripts/artifact-manifest.mjs android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/android-provenance.json" android ci-standalone
       - uses: actions/upload-artifact@v4
@@ -83,6 +86,7 @@ jobs:
       - run: cd mobile && node scripts/check-native-config.mjs ios
       - run: cd mobile/ios && pod install
       - name: Build standalone simulator app (no Metro)
+        id: standalone_build
         working-directory: mobile/ios
         run: >-
           xcodebuild -workspace Kuraki.xcworkspace -scheme Kuraki -configuration Release
@@ -110,6 +114,7 @@ jobs:
           xcrun simctl shutdown "$simulator"
           xcrun simctl delete "$simulator"
       - name: Record exact artifact provenance
+        if: ${{ always() && steps.standalone_build.outcome == 'success' }}
         working-directory: mobile
         run: node scripts/artifact-manifest.mjs "$RUNNER_TEMP/mobile-derived/Build/Products/Release-iphonesimulator/Kuraki.app" "$RUNNER_TEMP/ios-provenance.json" ios ci-standalone-simulator
       - uses: actions/upload-artifact@v4

@@ -54,12 +54,14 @@ appId: app.kuraki.mobile
     timeout: 30000
 - tapOn: "Finish without access"
 - extendedWaitUntil:
-    visible: "Photos"
+    visible:
+      text: "Photos"
+      selected: true
     timeout: 30000
 - tapOn: "Collections"
 - assertVisible: "ALBUMS"
 - tapOn: "Settings"
-- assertVisible: "Backup"
+- assertVisible: ".*Backup.*"
 - tapOn: "Search"
 - assertVisible: "Search"
 - tapOn: "Settings"
@@ -83,4 +85,6 @@ appId: app.kuraki.mobile
 
 - stopApp
 - launchApp
-- assertVisible: "Photos"
+- assertVisible:
+    text: "Photos"
+    selected: true
