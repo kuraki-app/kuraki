@@ -28,3 +28,11 @@ original and resulting source hashes are both checked.
 The mobile app does not use forge to authenticate Kuraki server requests. These
 fixes also protect the development/build toolchain. Do not substitute a speculative
 Expo or React Native downgrade for leaf remediation.
+
+CI compatibility uses `expo install --check` against the **installed SDK's bundled
+version matrix**, with `EXPO_OFFLINE=1` scoped to that step. This prevents a new remote
+patch recommendation from changing the result for an unchanged lockfile. A negative
+probe with React Native 0.0.1 fails against the SDK's 0.86.3 requirement. Expo CLI's
+`install --check` still validates that matrix; its separate automatic startup doctor
+has different offline behavior. `audit:security` remains a separate online check,
+and Android/iOS candidates must compile and pass installed smoke checks.

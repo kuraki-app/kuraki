@@ -428,6 +428,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | Area | Status |
 |---|---|
 | Mobile queue/recovery review (2026-10-12) | ✅ terminal edit failures reported across screens;408/429 retain intent; scoped cache I/O frees credential recovery;344 mobile regressions |
+| Mobile SDK compatibility (2026-10-12) | ✅ Expo 57.0.28 compatible patches; CI validates the installed SDK matrix, rejects deliberately incompatible RN, and retains live security auditing |
 | Mobile launch routing (2026-10-12) | ✅ explicit root entry opens Photos after a true restart from Collections; native smoke requires the selected tab |
 | Mobile native verification (2026-10-12) | ✅ fresh Android/iOS standalone builds; iOS pairing/restart/7 real imports/6 hash-matched cleanup candidates; native CI + provenance gates added; physical-device certification pending |
 | Mobile original safety and isolation (2026-10-11) | ✅ migration 00031 + verified receipts/reclamation, scoped mirrors/ledger, cancellation and recovery; dependency/native milestone follows |
@@ -583,6 +584,17 @@ audited baseline and release checklist.
   (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/mobile-hardening` (2026-10-12, Codex) — **Reproducible SDK compatibility.**
+  The 3b46e73 native jobs were skipped because Expo published new compatible patches
+  while the review was running. Updated Expo 57.0.28, UI 57.0.23, dev-client 57.0.20,
+  router 57.0.26 and splash 57.0.10 without changing SDK/RN major versions. CI's explicit
+  install --check now uses the installed SDK's bundled matrix (EXPO_OFFLINE scoped
+  only to that step); security auditing still queries live advisories independently.
+  A disposable probe with RN 0.0.1 correctly fails against the SDK's 0.86.3 requirement,
+  so this changes reproducibility rather than bypassing compatibility validation.
+  All 344 mobile tests, type/lint and security/compatibility checks pass. Updated native
+  candidates rebuild in isolation; final installed CI evidence remains in PR36.
 
 - `codex/mobile-hardening` (2026-10-12, Codex) — **Verified launch and smoke diagnostics.**
   A true cold launch still chose Collections: NativeTabs initial-route metadata did

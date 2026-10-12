@@ -343,3 +343,9 @@ paired and navigated to Settings before a combined accessibility-label mismatch,
 while Android stopped before fixture injection because its AVD lacked shared storage.
 The selector, AVD storage/mount precondition, and failure-time artifact provenance
 are corrected; the final installed rerun remains pending in PR36.
+
+Run 38277720343 skipped native jobs after Expo's remote recommended patches changed
+mid-review. The compatible patch set is now Expo 57.0.28/UI 57.0.23/dev-client 57.0.20/
+router 57.0.26/splash 57.0.10. CI validates the installed SDK matrix reproducibly, and a
+negative React Native 0.0.1 probe correctly fails against expected 0.86.3. Fresh
+advisory checks remain online; all 344 mobile regressions and type/lint checks pass.
