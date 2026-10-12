@@ -428,6 +428,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 | Area | Status |
 |---|---|
 | Mobile queue/recovery review (2026-10-12) | ✅ terminal edit failures reported across screens;408/429 retain intent; scoped cache I/O frees credential recovery;344 mobile regressions |
+| Mobile sync cancellation (2026-10-12) | ✅ canceled same-owner drains cannot resume stale deletes/cursors; queued canceled cache work is skipped;346 mobile tests |
 | Mobile installed iOS proof (2026-10-12) | ✅ CI 38279722296 passed standalone build, pairing, selected-tab navigation/restart, real import receipts and artifact provenance; Android environment correction follows |
 | Mobile SDK compatibility (2026-10-12) | ✅ Expo 57.0.28 compatible patches; CI validates the installed SDK matrix, rejects deliberately incompatible RN, and retains live security auditing |
 | Mobile launch routing (2026-10-12) | ✅ explicit root entry opens Photos after a true restart from Collections; native smoke requires the selected tab |
@@ -585,6 +586,19 @@ audited baseline and release checklist.
   (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/mobile-hardening` (2026-10-12, Codex) — **Cancel stale cache continuations.**
+  A public real-SQLite regression reproduced an old canceled same-owner drain
+  resuming after native I/O, deleting a restored asset and replacing cursor3 with2.
+  Initial since=0 can see a newly pruned feed without reset, so the race is valid
+  under the server contract. Cache work now checks cancellation at queue entry,
+  after native completion and before each subsequent change/reset/cursor phase.
+  The SQL lane remains held until real native completion; durable user intents keep
+  their existing semantics. A second regression skips canceled queued transactions.
+  All346 mobile tests, type/lint pass; prior iOS installed proof remains recorded.
+  e286f7f iOS also passed, while Android's unchanged runtime failed during APK
+  packaging with an uninformative nested Gradle error. Build stacktraces, filesystem
+  space and reports are now retained alongside the accelerated emulator retry.
 
 - `codex/mobile-hardening` (2026-10-12, Codex) — **iOS installed proof and Android acceleration.**
   CI 38279722296 on 5e90397 passes the full iOS installed flow and provenance. Local

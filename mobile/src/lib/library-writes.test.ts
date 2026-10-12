@@ -345,3 +345,90 @@ it('keeps durable intent out of a failed concurrent mirror transaction', async (
   expect(await db.getAllAsync('SELECT * FROM pending_mutations')).toHaveLength(1);
   expect(await db.getAllAsync('SELECT * FROM assets')).toHaveLength(0);
 });
+
+it('a canceled same-owner sync cannot erase a restored asset or rewind a fresh cursor', async () => {
+  const { getDB } = await import('./cache/db');
+  const cache = await import('./cache/assets');
+  const api = await import('./library-api');
+  const db = await getDB(settings);
+  await cache.upsertAssets([
+    { id: 'first', filename: 'first.jpg', media_type: 'image', favorite: false, web_viewable: true },
+    { id: 'second', filename: 'second.jpg', media_type: 'image', favorite: false, web_viewable: true },
+  ], settings);
+  let release!: () => void;
+  let entered!: () => void;
+  const waiting = new Promise<void>((resolve) => (release = resolve));
+  const beginning = new Promise<void>((resolve) => (entered = resolve));
+  const run = db.runAsync.bind(db);
+  let held = false;
+  vi.spyOn(db, 'runAsync').mockImplementation(async (sql, ...args) => {
+    if (sql === 'DELETE FROM assets WHERE id = ?' && !held) {
+      held = true; entered(); await waiting;
+    }
+    return run(sql, ...args);
+  });
+  let feeds = 0;
+  let fetched!: () => void;
+  const restored = new Promise<void>((resolve) => (fetched = resolve));
+  vi.stubGlobal('fetch', async (url: string) => {
+    if (url.includes('/api/changes')) {
+      if (++feeds === 1) return response({ changes: [
+        { id: 1, entity: 'asset', entity_id: 'first', op: 'delete' },
+        { id: 2, entity: 'asset', entity_id: 'second', op: 'delete' },
+      ], cursor: 2, has_more: false });
+      // Retention may prune the old rows during the native stall. The server
+      // deliberately does not reset an initial since=0 cursor at a new floor.
+      return response({ changes: [{ id: 3, entity: 'asset', entity_id: 'second', op: 'update' }], cursor: 3, has_more: false });
+    }
+    if (url.endsWith('/api/assets/second')) {
+      fetched();
+      return response({ id: 'second', filename: 'restored.jpg', media_type: 'image', favorite: false, web_viewable: true });
+    }
+    throw new Error('Unexpected request');
+  });
+  const controller = new AbortController();
+  const old = api.syncChanges(settings, controller.signal);
+  const canceled = expect(old).rejects.toMatchObject({ name: 'AbortError' });
+  await beginning;
+  controller.abort();
+  await canceled;
+  const fresh = api.syncChanges(settings);
+  await restored;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  release();
+  await fresh;
+  // Drain the resumed native promise's microtasks before observing final SQL.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const assets = await cache.readAssets({}, settings);
+  expect(assets.find((asset) => asset.id === 'second')?.filename).toBe('restored.jpg');
+  expect(await cache.getSyncCursor(settings)).toBe(3);
+});
+
+it('skips canceled cache writes that are waiting behind another native transaction', async () => {
+  const { getDB } = await import('./cache/db');
+  const { upsertAssets, readAssets } = await import('./cache/assets');
+  const db = await getDB(settings);
+  const run = db.runAsync.bind(db);
+  let release!: () => void;
+  let entered!: () => void;
+  const waiting = new Promise<void>((resolve) => (release = resolve));
+  const beginning = new Promise<void>((resolve) => (entered = resolve));
+  let held = false;
+  vi.spyOn(db, 'runAsync').mockImplementation(async (sql, ...args) => {
+    if (sql.includes('INSERT INTO assets') && !held) {
+      held = true; entered(); await waiting;
+    }
+    return run(sql, ...args);
+  });
+  const asset = { id: 'first', filename: 'first.jpg', media_type: 'image' as const, favorite: false, web_viewable: true };
+  const first = upsertAssets([asset], settings);
+  await beginning;
+  const controller = new AbortController();
+  const queued = upsertAssets([{ ...asset, id: 'canceled' }], settings, controller.signal);
+  const rejected = expect(queued).rejects.toMatchObject({ name: 'AbortError' });
+  controller.abort();
+  release();
+  await first;
+  await rejected;
+  expect((await readAssets({}, settings)).map((row) => row.id)).toEqual(['first']);
+});

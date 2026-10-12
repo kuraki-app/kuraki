@@ -357,3 +357,11 @@ and aborted fixture creation before launching the app. Runner-only KVM access,
 required acceleration, an actual write/readiness probe, bounded initial ADB retries
 and retained storage/logcat diagnostics now gate the Android retry. No Android
 installed certification is inferred from its successful compilation.
+
+A final same-owner cancellation regression catches resumed stale cache deletes and
+cursor rewind after uncancelable native I/O. Cache queue-entry/post-I/O checks and
+per-change/reset/cursor fences prevent this; the SQL lane still waits for actual
+native completion. Current full mobile suite:346 tests plus type/lint. The next
+Android retry also records Gradle stacktraces, filesystem space and build reports:
+e286f7f's unchanged app runtime failed at APK packaging before the emulator stage,
+while its iOS installed flow passed again.

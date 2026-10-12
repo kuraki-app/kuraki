@@ -34,7 +34,9 @@ jobs:
       - name: Build standalone QA APK (no Metro)
         id: standalone_build
         working-directory: mobile/android
-        run: ./gradlew :app:assembleRelease -PreactNativeArchitectures=x86_64 --no-daemon
+        run: |
+          df -h .
+          ./gradlew :app:assembleRelease -PreactNativeArchitectures=x86_64 --no-daemon --stacktrace
       - name: Prepare disposable server and pinned UI runner
         run: |
           go build -o bin/kuraki ./cmd/kuraki
@@ -66,6 +68,8 @@ jobs:
           name: android-native-proof
           path: |
             mobile/android/app/build/outputs/apk/release/app-release.apk
+            mobile/android/build/reports
+            mobile/android/app/build/reports
             ${{ runner.temp }}/android-provenance.json
             ${{ runner.temp }}/mobile-smoke-logs
             ${{ runner.temp }}/mobile-driver-logs

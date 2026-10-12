@@ -1,3 +1,4 @@
+import { throwIfAborted } from '@/lib/cancellation';
 import { orderedLibraryWork } from '@/lib/cache/operations';
 import {
   flushMutations,
@@ -611,6 +612,7 @@ async function applyChange(
   c: ChangeEntry,
   signal?: AbortSignal,
 ): Promise<void> {
+  throwIfAborted(signal);
   switch (changeAction(c)) {
     case 'ignore':
       return;
@@ -619,7 +621,7 @@ async function applyChange(
       // Trash screen refetches /api/trash live, so we don't try to
       // reconstruct trashed state here (getAsset can't return a deleted asset).
       await withActiveConnection(settings, () =>
-        deleteCachedAsset(c.entity_id, settings),
+        deleteCachedAsset(c.entity_id, settings, signal), signal,
       );
       return;
     case 'refetch': {
@@ -627,10 +629,10 @@ async function applyChange(
       // this refetch — treat it the same as a delete.
       const asset = await fetchAsset(settings, c.entity_id, signal);
       if (asset)
-        await withActiveConnection(settings, () => upsertAssets([asset], settings));
+        await withActiveConnection(settings, () => upsertAssets([asset], settings, signal), signal);
       else
         await withActiveConnection(settings, () =>
-          deleteCachedAsset(c.entity_id, settings),
+          deleteCachedAsset(c.entity_id, settings, signal), signal,
         );
       return;
     }
@@ -651,6 +653,7 @@ export async function syncChanges(
 ): Promise<{ applied: number; reset: boolean }> {
   if (!settings.baseURL || !settings.deviceToken)
     return { applied: 0, reset: false };
+  throwIfAborted(signal);
   const { getDB } = await import('@/lib/cache/db');
   const db = await getDB(settings);
   return orderedLibraryWork(db, () => drainChanges(settings, signal), signal);
@@ -666,7 +669,8 @@ async function drainChanges(
   // Bound the catch-up so a huge backlog can't block one call indefinitely;
   // the next run picks up where the cursor left off.
   for (let page = 0; page < 20; page++) {
-    const since = await withActiveConnection(settings, () => getSyncCursor(settings));
+    throwIfAborted(signal);
+    const since = await withActiveConnection(settings, () => getSyncCursor(settings, signal), signal);
     const res = await authedGet<ChangesResponse>(
       settings,
       `/api/changes?since=${since}`,
@@ -678,18 +682,21 @@ async function drainChanges(
     if (res.reset) {
       const { clearCachedAssets } = await import('@/lib/cache/assets');
       await withActiveConnection(settings, async () => {
-        await clearCachedAssets(settings);
-        await setSyncCursor(res.cursor, settings);
-      });
+        await clearCachedAssets(settings, signal);
+        throwIfAborted(signal);
+        await setSyncCursor(res.cursor, settings, signal);
+      }, signal);
       return { applied, reset: true };
     }
     for (const c of res.changes) {
+      throwIfAborted(signal);
       await applyChange(settings, c, signal);
+      throwIfAborted(signal);
       applied++;
     }
     // Advance only after the page's changes are applied, so a crash mid-page
     // re-fetches that page rather than skipping unapplied changes.
-    await withActiveConnection(settings, () => setSyncCursor(res.cursor, settings));
+    await withActiveConnection(settings, () => setSyncCursor(res.cursor, settings, signal), signal);
     if (!res.has_more) break;
   }
   return { applied, reset: false };

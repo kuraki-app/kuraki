@@ -138,10 +138,15 @@ export async function assertActiveConnection(
 export async function withActiveConnection<T>(
   settings: CaptureSettings,
   work: () => Promise<T>,
+  signal?: AbortSignal,
 ): Promise<T> {
+  throwIfAborted(signal);
   await assertActiveConnection(settings);
+  throwIfAborted(signal);
   const result = await work();
+  throwIfAborted(signal);
   await assertActiveConnection(settings);
+  throwIfAborted(signal);
   return result;
 }
 export function switchedLibrary(

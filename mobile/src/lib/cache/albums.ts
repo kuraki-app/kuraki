@@ -1,3 +1,4 @@
+import { throwIfAborted } from '@/lib/cancellation';
 import { writeLibraryCache } from '@/lib/cache/writes';
 import type { CaptureSettings } from '@/lib/settings';
 import type { LibraryAsset } from '@/lib/library-api';
@@ -139,10 +140,13 @@ export async function readTrashed(settings?: CaptureSettings): Promise<LibraryAs
 export async function deleteCachedAsset(
   id: string,
   settings?: CaptureSettings,
+  signal?: AbortSignal,
 ): Promise<void> {
+  throwIfAborted(signal);
   const db = await getDB(settings);
   return writeLibraryCache(db, async () => {
     await db.runAsync('DELETE FROM album_assets WHERE asset_id = ?', [id]);
+    throwIfAborted(signal);
     await db.runAsync('DELETE FROM assets WHERE id = ?', [id]);
-  });
+  }, signal);
 }

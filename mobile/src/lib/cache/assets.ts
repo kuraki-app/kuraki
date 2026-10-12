@@ -1,15 +1,18 @@
+import { throwIfAborted } from '@/lib/cancellation';
 import { writeLibraryCache } from '@/lib/cache/writes';
 import type { CaptureSettings } from '@/lib/settings';
 import type { LibraryAsset } from '@/lib/library-api';
 import { getDB } from '@/lib/cache/db';
 
-export async function upsertAssets(assets: LibraryAsset[], settings?: CaptureSettings): Promise<void> {
+export async function upsertAssets(assets: LibraryAsset[], settings?: CaptureSettings, signal?: AbortSignal): Promise<void> {
   if (!assets.length) return;
+  throwIfAborted(signal);
   const db = await getDB(settings);
   return writeLibraryCache(db, async () => {
     const now = new Date().toISOString();
     await db.withTransactionAsync(async () => {
       for (const a of assets) {
+        throwIfAborted(signal);
         await db.runAsync(
           `INSERT INTO assets (id, filename, media_type, taken_at, taken_day, size_bytes, favorite, thumbnail_url, preview_url, web_viewable, place_city, place_country, cached_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -35,9 +38,10 @@ export async function upsertAssets(assets: LibraryAsset[], settings?: CaptureSet
             now,
           ],
         );
+        throwIfAborted(signal);
       }
     });
-  });
+  }, signal);
 }
 
 // Shared row -> LibraryAsset mapping, reused by albums.ts so the cache mirror
@@ -114,16 +118,20 @@ export async function setCachedFavorite(
 
 // Delta-sync cursor persistence. The cursor is the last change_log id the mirror
 // has applied; the server echoes it back so we resume instead of replaying.
-export async function getSyncCursor(settings?: CaptureSettings): Promise<number> {
+export async function getSyncCursor(settings?: CaptureSettings, signal?: AbortSignal): Promise<number> {
+  throwIfAborted(signal);
   const db = await getDB(settings);
+  throwIfAborted(signal);
   const row = await db.getFirstAsync<{ value: string }>(
     `SELECT value FROM sync_meta WHERE key = 'cursor'`,
   );
+  throwIfAborted(signal);
   const n = row ? Number(row.value) : 0;
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
-export async function setSyncCursor(cursor: number, settings?: CaptureSettings): Promise<void> {
+export async function setSyncCursor(cursor: number, settings?: CaptureSettings, signal?: AbortSignal): Promise<void> {
+  throwIfAborted(signal);
   const db = await getDB(settings);
   return writeLibraryCache(db, async () => {
     await db.runAsync(
@@ -131,16 +139,17 @@ export async function setSyncCursor(cursor: number, settings?: CaptureSettings):
        ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
       [String(cursor)],
     );
-  });
+  }, signal);
 }
 
 // clearCachedAssets wipes the asset mirror. Used on a delta-feed reset: when the
 // sync cursor has fallen below the pruned change_log floor, the mirror may hold
 // assets that were deleted while we were behind, so it's discarded and rebuilt
 // from a fresh fetchLibrary rather than incrementally reconciled.
-export async function clearCachedAssets(settings?: CaptureSettings): Promise<void> {
+export async function clearCachedAssets(settings?: CaptureSettings, signal?: AbortSignal): Promise<void> {
+  throwIfAborted(signal);
   const db = await getDB(settings);
   return writeLibraryCache(db, async () => {
     await db.runAsync('DELETE FROM assets');
-  });
+  }, signal);
 }
