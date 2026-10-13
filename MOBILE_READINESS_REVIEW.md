@@ -390,3 +390,10 @@ code immediately before entry; production expiry/authentication are retained.
 Invalid, used and expired codes now explain recovery in Settings → Devices;
 three response-boundary tests verify preserved credentials/no false revocation.
 349 mobile tests cover the final implementation; current-source native rerun follows.
+
+Final static review (2026-10-13): the fresh-code POST must supply `body: ''`
+for Maestro's pinned OkHttp client, although the server endpoint consumes no body.
+This client-contract mismatch is corrected before final validation. Session/owner
+headers, five-minute expiry, single-use redemption, exact native input, imported
+original receipts and restart assertions remain required. No further manual UI
+checks or repeated full mobile runs are performed; final automated CI owns validation.

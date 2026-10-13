@@ -19,6 +19,7 @@ const cookieKey = Object.keys(login.headers).find(
 if (!cookieKey) throw new Error('Disposable QA login omitted its session');
 const cookie = login.headers[cookieKey].split(';')[0];
 const paired = http.post(origin + '/api/devices/pair', {
+  body: '', // OkHttp requires a body for POST, even for this bodyless endpoint.
   headers: { Cookie: cookie, 'X-Kuraki-Owner-ID': owner.id },
 });
 if (paired.status !== 201) throw new Error('Disposable pairing-code creation failed');

@@ -427,6 +427,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 
 | Area | Status |
 |---|---|
+| Mobile native HTTP fixture (2026-10-13) | ✅ final static review caught required empty POST body in pinned Maestro/OkHttp; authentication and expiry gates retained |
 | Mobile pairing expiry (2026-10-13) | ✅ invalid/used/expired codes give recovery instructions;349 mobile tests; QA mints the real five-minute code immediately before entry |
 | Mobile native input verification (2026-10-13) | ✅ pinned iOS driver fast-suffix loss reproduced in screenshot/log; slow character path plus exact field assertions; native rerun pending |
 | Mobile Android smoke visibility (2026-10-13) | ✅ standalone build/accelerated pairing/tabs exercised; clipped completion notice now explicitly scrolled; strict original-receipt rerun pending |
@@ -589,6 +590,18 @@ audited baseline and release checklist.
   (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/mobile-hardening` (2026-10-13, Codex) — **Close native fixture client contract.**
+  The resumed final spec review caught an omitted body in the fresh-code POST:
+  pinned Maestro forwards null to OkHttp, which rejects POST before transport.
+  An explicit empty body now matches the bodyless server endpoint while keeping
+  session/owner authentication, fresh five-minute expiry and single-use claims.
+  The Node/fetch response harness could not detect this native-client constraint.
+  Final standards review cleared the pairing recovery increment; spec review's
+  only finding is closed. User requests implementation first and coded validation,
+  so no further manual simulator checks or repeated full mobile runs are performed.
+  The 349-test application suite remains green; final automated CI follows this
+  static correction. Superseded known-bad CI 38346793332 is canceled.
 
 - `codex/mobile-hardening` (2026-10-13, Codex) — **Fresh pairing fixtures and expiry recovery.**
   CI 38293304684 passes Android, including exact input and an imported original.
