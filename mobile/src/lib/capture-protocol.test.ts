@@ -232,3 +232,21 @@ it('does not mark an unpaired device revoked when its pairing code is invalid', 
   );
   expect((await import('./session')).isAuthLost()).toBe(false);
 });
+
+it.each([
+  [404, 'invalid_code', 'invalid'],
+  [409, 'code_already_used', 'already been used'],
+  [410, 'code_expired', 'expired'],
+])('explains pairing rejection %s without revoking the device', async (status, code, explanation) => {
+  const { saveCaptureSettings, loadCaptureSettings } = await import('./settings');
+  await saveCaptureSettings(settings);
+  vi.stubGlobal('fetch', async () => json({ error: code }, status));
+  const { claimPairing } = await import('./capture-api');
+  await expect(claimPairing(settings.baseURL, 'rejected', 'test')).rejects.toMatchObject({
+    status,
+    retryable: false,
+    message: expect.stringContaining(explanation),
+  });
+  expect((await loadCaptureSettings()).deviceToken).toBe(settings.deviceToken);
+  expect((await import('./session')).isAuthLost()).toBe(false);
+});

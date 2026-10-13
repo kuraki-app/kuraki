@@ -381,3 +381,12 @@ slow first character. Smoke input now uses the slow one-character path on iOS
 and exact read-back assertions on both platforms for URL and pairing code. See
 [Maestro's pinned input helper](https://github.com/mobile-dev-inc/Maestro/blob/cli-2.11.0/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/Helpers/TextInputHelper.swift).
 No flow retry, server assertion or authentication gate is weakened.
+
+Pairing expiry follow-up (2026-10-13): all14 checks pass on f1c3fdd in run
+38291971152 (Android one confirmed original, iOS seven, both cold Photos restart).
+Run38293304684 passes Android and iOS exact input, but the five-minute production
+code expires during the slow iOS flow. QA now creates its authenticated single-use
+code immediately before entry; production expiry/authentication are retained.
+Invalid, used and expired codes now explain recovery in Settings → Devices;
+three response-boundary tests verify preserved credentials/no false revocation.
+349 mobile tests cover the final implementation; current-source native rerun follows.

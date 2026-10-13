@@ -522,6 +522,13 @@ async function unwrap<T>(response: Response, fallback: string): Promise<T> {
       'Pairing code is invalid or expired. Generate a new code and try again.',
       401,
     );
+  const pairingMessages: Record<number, string> = {
+    404: 'That pairing code is invalid. Generate a new code in Kuraki Settings → Devices and try again.',
+    409: 'That pairing code has already been used. Generate a new code in Kuraki Settings → Devices and try again.',
+    410: 'That pairing code has expired. Generate a new code in Kuraki Settings → Devices and try again.',
+  };
+  if (pairingMessages[response.status])
+    throw new CaptureAPIError(pairingMessages[response.status], response.status);
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     const message = typeof body.error === 'string' ? body.error : fallback;

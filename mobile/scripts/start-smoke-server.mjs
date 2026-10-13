@@ -1,4 +1,4 @@
-// Creates an empty, disposable server and short-lived pairing code for native CI.
+// Creates an empty disposable server for native CI. The flow mints its code later.
 import { spawn } from 'node:child_process';
 import { mkdtempSync, openSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -18,11 +18,7 @@ for(let attempt=0;attempt<60;attempt++){
 }
 const setup=await fetch(origin+'/api/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'native-smoke',password:'native-smoke-test-password'})});
 if(!setup.ok)throw new Error(`Setup failed: ${setup.status}`);
-const {user}=await setup.json();
-const cookie=setup.headers.get('set-cookie').split(';')[0];
-const pair=await fetch(origin+'/api/devices/pair',{method:'POST',headers:{Cookie:cookie,'X-Kuraki-Owner-ID':user.id}});
-if(!pair.ok)throw new Error(`Pairing failed: ${pair.status}`);
-const {code}=await pair.json();
+await setup.json();
 const file=process.argv[2];if(!file)throw new Error('Provide an output env-file path.');
-writeFileSync(file,`export PAIR_CODE='${code}'\nexport SMOKE_SERVER_PID='${child.pid}'\nexport SMOKE_SERVER_DIR='${dir}'\n`);
+writeFileSync(file,`export SMOKE_SERVER_PID='${child.pid}'\nexport SMOKE_SERVER_DIR='${dir}'\n`);
 console.log(`Disposable smoke server ready; connection info in ${file}`);

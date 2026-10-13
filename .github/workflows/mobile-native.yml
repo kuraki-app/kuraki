@@ -121,7 +121,7 @@ jobs:
           "$RUNNER_TEMP/mobile-ui/maestro/bin/maestro" --device "$simulator" test --debug-output "$RUNNER_TEMP/mobile-driver-logs" .maestro/launch.yaml
           node scripts/start-smoke-server.mjs "$RUNNER_TEMP/mobile-smoke.env"
           . "$RUNNER_TEMP/mobile-smoke.env"
-          "$RUNNER_TEMP/mobile-ui/maestro/bin/maestro" --device "$simulator" test --debug-output "$RUNNER_TEMP/mobile-smoke-logs" -e SERVER_URL=http://127.0.0.1:39218 -e PAIR_CODE="$PAIR_CODE" .maestro/onboarding.yaml
+          "$RUNNER_TEMP/mobile-ui/maestro/bin/maestro" --device "$simulator" test --debug-output "$RUNNER_TEMP/mobile-smoke-logs" -e SERVER_URL=http://127.0.0.1:39218 .maestro/onboarding.yaml
           python3 scripts/check-smoke-import.py "$SMOKE_SERVER_DIR"
           xcrun simctl shutdown "$simulator"
           xcrun simctl delete "$simulator"

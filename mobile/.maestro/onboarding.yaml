@@ -33,11 +33,13 @@ appId: app.kuraki.mobile
 - extendedWaitUntil:
     visible: "Link this phone"
     timeout: 30000
+# Mint the real five-minute code only when its field is ready.
+- runScript: fresh-pairing.js
 - runFlow:
     file: input-field.yaml
     env:
       SMOKE_FIELD: "Pairing code"
-      SMOKE_TEXT: "${PAIR_CODE}"
+      SMOKE_TEXT: "${output.freshPairCode}"
 - runFlow:
     when:
       platform: iOS

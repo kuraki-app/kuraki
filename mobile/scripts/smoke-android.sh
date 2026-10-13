@@ -48,9 +48,9 @@ if [ "$fixture_ready" != true ]; then
 fi
 adb -s "$qa_device" shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Pictures/native-proof.png
 adb -s "$qa_device" install android/app/build/outputs/apk/release/app-release.apk
-# Warm the native driver before minting the short-lived pairing code.
+# Warm the native driver before starting the disposable server.
 "$qa_output/mobile-ui/maestro/bin/maestro" --device "$qa_device" test --debug-output "$qa_output/mobile-driver-logs" .maestro/launch.yaml
 node scripts/start-smoke-server.mjs "$qa_output/mobile-smoke.env"
 . "$qa_output/mobile-smoke.env"
-"$qa_output/mobile-ui/maestro/bin/maestro" --device "$qa_device" test --debug-output "$qa_output/mobile-smoke-logs" -e SERVER_URL=http://10.0.2.2:39218 -e PAIR_CODE="$PAIR_CODE" .maestro/onboarding.yaml
+"$qa_output/mobile-ui/maestro/bin/maestro" --device "$qa_device" test --debug-output "$qa_output/mobile-smoke-logs" -e SERVER_URL=http://10.0.2.2:39218 .maestro/onboarding.yaml
 python3 scripts/check-smoke-import.py "$SMOKE_SERVER_DIR"

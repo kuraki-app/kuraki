@@ -427,6 +427,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 
 | Area | Status |
 |---|---|
+| Mobile pairing expiry (2026-10-13) | ✅ invalid/used/expired codes give recovery instructions;349 mobile tests; QA mints the real five-minute code immediately before entry |
 | Mobile native input verification (2026-10-13) | ✅ pinned iOS driver fast-suffix loss reproduced in screenshot/log; slow character path plus exact field assertions; native rerun pending |
 | Mobile Android smoke visibility (2026-10-13) | ✅ standalone build/accelerated pairing/tabs exercised; clipped completion notice now explicitly scrolled; strict original-receipt rerun pending |
 | Mobile queue/recovery review (2026-10-12) | ✅ terminal edit failures reported across screens;408/429 retain intent; scoped cache I/O frees credential recovery;344 mobile regressions |
@@ -588,6 +589,21 @@ audited baseline and release checklist.
   (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/mobile-hardening` (2026-10-13, Codex) — **Fresh pairing fixtures and expiry recovery.**
+  CI 38293304684 passes Android, including exact input and an imported original.
+  iOS exact URL/code read-back also passes, but the pre-flow code expires during
+  slow input: production TTL is five minutes, not ten. The flow now authenticates
+  only its disposable local QA account and mints through the existing endpoint
+  immediately before code entry; expiry and single-use enforcement are unchanged.
+  The app also explains invalid, used and expired codes with Settings → Devices
+  recovery instructions rather than raw server codes. Three real response-boundary
+  regressions preserve existing credentials and avoid false revocation (349 total).
+  The prior f1c3fdd run 38291971152 passes all14 checks, including Android one/iOS
+  seven original receipts and cold Photos restart; final current-source rerun follows.
+  Required checks and workflow lint pass. Independent reviewers were unavailable
+  for this final increment due to the account usage cap; prior increments were
+  independently cleared. The primary review found no additional defect.
 
 - `codex/mobile-hardening` (2026-10-13, Codex) — **Verify native smoke input.**
   The final-code iOS run 38289309652 built successfully, but its server field
