@@ -413,3 +413,16 @@ The intentional worker-blocking warning is scoped only to those regression tests
 Completed browser recovery validation: the focused coded upload cases pass,
 including real202 delivery after overlap,408 and429. Web type/build and required
 Go checks pass; standards/spec reviews are clear. Final branch CI follows.
+
+## Delivery evidence (2026-10-13)
+
+All twelve findings and follow-ups are implemented and reviewed. Final mobile
+code eeb858f passes both installed Android/iOS jobs in run 38347315759. Final web
+revision 676cbcc passes all twelve other checks in run 38349437771, including 349
+mobile tests and 127 browser cases. Mobile/shared trees, native CI and Go backend
+source except embedded web UI are identical between those implementation revisions.
+The configured automatic native rebuilds are still running and are reported
+separately; no manual UI passes or repeated full local suites are added.
+See [exact verification/provenance](mobile/NATIVE_VERIFICATION.md) and the release
+checklist for remaining physical-device, iCloud/Live Photo, resource and signing
+certification. PR36 contains the completed changes; production is not deployed.

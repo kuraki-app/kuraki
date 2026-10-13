@@ -427,6 +427,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 
 | Area | Status |
 |---|---|
+| Mobile hardening delivery (2026-10-13) | ✅ all twelve findings and follow-ups fixed;349 mobile tests,127 browser cases, Android/iOS installed mobile-code checks and exact provenance; PR36 |
 | Browser upload recovery (2026-10-13) | ✅ preserve reconnect wake and queued originals after408/429; coded response/overlap tests pass; foreground/worker policy shared |
 | Mobile native HTTP fixture (2026-10-13) | ✅ final static review caught required empty POST body in pinned Maestro/OkHttp; authentication and expiry gates retained |
 | Mobile pairing expiry (2026-10-13) | ✅ invalid/used/expired codes give recovery instructions;349 mobile tests; QA mints the real five-minute code immediately before entry |
@@ -591,6 +592,23 @@ audited baseline and release checklist.
   (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/mobile-hardening` (2026-10-13, Codex) — **Deliver coded validation and provenance.**
+  All implementation findings and follow-ups are fixed. Native run 38347315759
+  passes Android and iOS installed checks on eeb858f, with exact field read-back,
+  real fresh-code redemption, imported-original receipts and cold Photos restart.
+  Delivery run 38349437771 on 676cbcc passes all twelve non-native checks, including
+  349 mobile tests and 127 browser cases. Mobile/shared trees, native CI and Go API
+  source excluding embedded web assets are identical across these revisions;
+  its configured automatic native rebuilds remain separate, ongoing checks.
+  `mobile/NATIVE_VERIFICATION.md` and `mobile/native-proof/*-ci.json` retain exact
+  tested merge/lock/artifact hashes; downloaded Android SHA256 matches. The final
+  plan milestone is closed against this explicitly scoped source evidence.
+  User requests implementation first, coded tests and fewer manual checks; no
+  further manual simulator/browser passes or repeated full local suites are used.
+  Physical/store certification remains in RELEASE_CHECKLIST.md. PR36 is updated;
+  no merge, release or production deployment is performed. This commit adds only
+  delivery documentation/provenance, leaving validated runtime source unchanged.
 
 - `codex/mobile-hardening` (2026-10-13, Codex) — **Preserve browser reconnect wakes.**
   Final CI 38347315759 exposed an actual browser race: online arrives while an

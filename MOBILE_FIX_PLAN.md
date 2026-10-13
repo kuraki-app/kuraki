@@ -42,7 +42,11 @@ substantial milestones; update the ledger/handoff and evidence in each milestone
 
 - [x] Full Go/web/mobile checks, contract/UI consistency and regressions;
       standards/spec review against `079f119d` and the mobile audit closed findings.
-- [ ] Final current-commit Android/iOS installed CI checks and artifact provenance.
+- [x] Installed Android/iOS mobile-code checks and exact artifact provenance;
+      native run 38347315759 passes. Mobile/shared/backend API source is unchanged
+      in final web revision 676cbcc; its twelve other checks/127 browser cases pass.
+      See mobile/NATIVE_VERIFICATION.md for the exact tested revisions and ongoing
+      automatic rebuild status, following the requested coded-validation workflow.
 - [x] Update findings with implemented behavior and evidence, commit major milestones,
       push and create/attach PR36. No release/tag or operator library is deployed.
 

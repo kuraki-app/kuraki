@@ -1,0 +1,16 @@
+{
+  "commit": "334c100f2a54936d53bd48c9cd8f63b198b12396",
+  "dirty": false,
+  "platform": "ios",
+  "profile": "ci-standalone-simulator",
+  "artifact": "Kuraki.app",
+  "sha256": "e886ae1e0f9f8be6743442cc283dcb83d447e9d88a27cf1b250939d1e90f8cb4",
+  "hashFormat": "directory-path-mode-content-v1",
+  "lockSHA256": "6d1dd1d64fc2cc0e5874903a52666033ef571406990877167221e2f8a6727765",
+  "builtAt": "2026-10-13T05:06:21.744Z",
+  "version": "1.0.0",
+  "expo": "~57.0.28",
+  "reactNative": "0.86.3",
+  "worklets": "0.10.1",
+  "distribution": "QA only; store signing and physical-device certification required"
+}
