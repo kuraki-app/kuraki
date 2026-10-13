@@ -35,6 +35,11 @@ type StoredBatch = {
 
 export class PermanentUploadError extends Error {}
 
+/** Authentication changes, timeouts and throttling retain the original for retry. */
+export function permanentUploadStatus(status: number): boolean {
+  return status >= 400 && status < 500 && ![401, 403, 408, 429].includes(status);
+}
+
 export type UploadQueueState = {
   batches: number;
   files: number;

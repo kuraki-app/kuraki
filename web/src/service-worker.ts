@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 
 import { build, files, version } from '$service-worker';
-import { drainUploads, PermanentUploadError, UPLOAD_SYNC_TAG } from '$lib/upload-queue';
+import { drainUploads, permanentUploadStatus, PermanentUploadError, UPLOAD_SYNC_TAG } from '$lib/upload-queue';
 
 const worker = self as unknown as ServiceWorkerGlobalScope;
 const APP_FILES = [...build, ...files];
@@ -79,7 +79,7 @@ async function sendBatch(filesToSend: File[], ownerId: string): Promise<unknown>
     headers: { 'X-Kuraki-Owner-ID': ownerId }
   });
   if (!response.ok) {
-    if (response.status >= 400 && response.status < 500 && response.status !== 401 && response.status !== 403) {
+    if (permanentUploadStatus(response.status)) {
       throw new PermanentUploadError(`Upload rejected (${response.status})`);
     }
     throw new Error(`Upload unavailable (${response.status})`);

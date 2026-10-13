@@ -397,3 +397,19 @@ This client-contract mismatch is corrected before final validation. Session/owne
 headers, five-minute expiry, single-use redemption, exact native input, imported
 original receipts and restart assertions remain required. No further manual UI
 checks or repeated full mobile runs are performed; final automated CI owns validation.
+
+Browser reconnect follow-up (2026-10-13): automated CI38347315759 exposes a
+lost online event while the foreground offline-upload drain still holds its lease.
+The page now preserves that wake and reruns after release. A deterministic coded
+regression holds the first POST through reconnect and requires a real202 retry,
+with optional Background Sync disabled. No manual UI verification is used.
+The unrelated Chromium native segfault recovered on its existing test retry.
+
+The browser foreground and service worker also share retry classification now:
+HTTP408/429 retain queued originals rather than deleting them as unsupported files.
+Two coded response-boundary cases require successful real202 delivery after retry.
+The intentional worker-blocking warning is scoped only to those regression tests.
+
+Completed browser recovery validation: the focused coded upload cases pass,
+including real202 delivery after overlap,408 and429. Web type/build and required
+Go checks pass; standards/spec reviews are clear. Final branch CI follows.

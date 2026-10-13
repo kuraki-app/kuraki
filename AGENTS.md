@@ -427,6 +427,7 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 
 | Area | Status |
 |---|---|
+| Browser upload recovery (2026-10-13) | ✅ preserve reconnect wake and queued originals after408/429; coded response/overlap tests pass; foreground/worker policy shared |
 | Mobile native HTTP fixture (2026-10-13) | ✅ final static review caught required empty POST body in pinned Maestro/OkHttp; authentication and expiry gates retained |
 | Mobile pairing expiry (2026-10-13) | ✅ invalid/used/expired codes give recovery instructions;349 mobile tests; QA mints the real five-minute code immediately before entry |
 | Mobile native input verification (2026-10-13) | ✅ pinned iOS driver fast-suffix loss reproduced in screenshot/log; slow character path plus exact field assertions; native rerun pending |
@@ -590,6 +591,24 @@ audited baseline and release checklist.
   (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/mobile-hardening` (2026-10-13, Codex) — **Preserve browser reconnect wakes.**
+  Final CI 38347315759 exposed an actual browser race: online arrives while an
+  offline upload still holds its foreground drain/IndexedDB lease, and the
+  reentrant resume returned without preserving that wake. The trace shows the
+  first offline POST failing immediately before online, with no later POST.
+  The page now records a pending resume and drains once more after the current
+  attempt finishes, using the current account. A coded regression holds the
+  failed sender until after online and requires a real202 retry, independently
+  of Background Sync. The foreground and worker now share permanent-status
+  policy:408/429 retain originals for retry, matching401/403 and5xx. Two coded
+  response-boundary cases require those files to reach a real202 after retry.
+  No manual browser/device verification is performed.
+  Chromium also segfaulted on an unrelated route and passed its existing retry;
+  this environmental event is recorded separately from the reconnect defect.
+  Completed focused upload cases pass, including real 202 retries for reconnect,
+  408 and 429. Web type/build, required Go checks and both static reviews pass;
+  no full mobile rerun or manual UI verification is used for this web-only unit.
 
 - `codex/mobile-hardening` (2026-10-13, Codex) — **Close native fixture client contract.**
   The resumed final spec review caught an omitted body in the fresh-code POST:

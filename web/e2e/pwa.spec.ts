@@ -102,3 +102,69 @@ test('a cookie switch during a drain retains the next file in its original accou
     await request.delete(`/api/users/${other}?purge=true`);
   }
 });
+
+test.describe('foreground upload recovery', () => {
+  // Exercise the page's retry independently of optional Background Sync timing.
+  test.use({ serviceWorkers: 'block' });
+
+  test('preserves a reconnect that arrives before the failed upload releases its lease', async ({ page, context, consoleGuard }) => {
+    consoleGuard.allow(/^Service Worker registration blocked by Playwright$/);
+    await gotoApp(page, '/');
+    consoleGuard.allow(/ERR_INTERNET_DISCONNECTED/);
+    let releaseFailure!: () => void;
+    const failureHeld = new Promise<void>(resolve => { releaseFailure = resolve; });
+    let started!: () => void;
+    const firstStarted = new Promise<void>(resolve => { started = resolve; });
+    let first = true;
+    await page.route('**/api/assets', async route => {
+      if (route.request().method() !== 'POST' || !first) {
+        await route.continue();
+        return;
+      }
+      first = false;
+      started();
+      await failureHeld;
+      await route.abort('internetdisconnected');
+    });
+    await context.setOffline(true);
+    await page.locator('input[type="file"]').setInputFiles('e2e/.tmp/fixtures/20240314-0.png');
+    await firstStarted;
+    await context.setOffline(false);
+    // The sender is still held, so this wake deterministically overlaps the
+    // active drain regardless of the browser's network-event delivery timing.
+    await page.evaluate(() => window.dispatchEvent(new Event('online')));
+    const accepted = page.waitForResponse(response =>
+      new URL(response.url()).pathname === '/api/assets' &&
+      response.request().method() === 'POST' && response.status() === 202,
+    );
+    releaseFailure();
+    expect((await accepted).status()).toBe(202);
+    await expect(page.getByText('1 upload queued', { exact: true })).toBeHidden();
+  });
+  for (const status of [408, 429]) {
+    test(`retains a queued original after HTTP ${status}`, async ({ page, consoleGuard }) => {
+      consoleGuard.allow(/^Service Worker registration blocked by Playwright$/);
+      consoleGuard.allow(new RegExp(`status of ${status}`));
+      await gotoApp(page, '/');
+      let first = true;
+      await page.route('**/api/assets', async route => {
+        if (route.request().method() === 'POST' && first) {
+          first = false;
+          await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify({ error: 'try_later' }) });
+          return;
+        }
+        await route.continue();
+      });
+      await page.locator('input[type="file"]').setInputFiles('e2e/.tmp/fixtures/20240314-0.png');
+      await expect(page.getByText('1 upload queued', { exact: true })).toBeVisible();
+      const accepted = page.waitForResponse(response =>
+        new URL(response.url()).pathname === '/api/assets' &&
+        response.request().method() === 'POST' && response.status() === 202,
+      );
+      await page.evaluate(() => window.dispatchEvent(new Event('online')));
+      expect((await accepted).status()).toBe(202);
+      await expect(page.getByText('1 upload queued', { exact: true })).toBeHidden();
+    });
+  }
+
+});
