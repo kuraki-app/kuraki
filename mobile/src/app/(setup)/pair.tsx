@@ -9,7 +9,7 @@ import { ThemedText } from '@/components/themed-text';
 import { Space, useTokens } from '@/constants/theme';
 import { claimPairing } from '@/lib/capture-api';
 import { clearAuthLost } from '@/lib/session';
-import { loadCaptureSettings, saveCaptureSettings } from '@/lib/settings';
+import { loadCaptureSettings, connectCaptureSettings, connectionEpoch } from '@/lib/settings';
 import { normalizeServerURL } from '@/lib/url';
 
 export default function PairStep() {
@@ -41,8 +41,9 @@ export default function PairStep() {
     setClaiming(true);
     try {
       const server = normalizeServerURL(baseURL);
+      const expectedEpoch=connectionEpoch();
       const device = await claimPairing(server, code.trim(), Device.deviceName ?? 'My phone');
-      await saveCaptureSettings({ baseURL: server, deviceToken: device.token });
+      await connectCaptureSettings({ baseURL: server, deviceToken: device.token },undefined,expectedEpoch);
       clearAuthLost();
       router.push('/(setup)/permissions');
     } catch (cause) {

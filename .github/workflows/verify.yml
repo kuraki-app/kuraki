@@ -119,7 +119,7 @@ jobs:
           retention-days: 7
 
   mobile:
-    name: Mobile typecheck & lint
+    name: Mobile safety, compatibility & security
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -129,10 +129,21 @@ jobs:
           cache: npm
           cache-dependency-path: mobile/package-lock.json
       - run: cd mobile && npm ci
+      - run: cd mobile && npm run audit:security
+      # Validate the installed SDK's bundled matrix, not a mutable latest-patch
+      # endpoint. The independent security audit above still queries live data.
+      - run: cd mobile && npm run check:compatibility
+        env:
+          EXPO_OFFLINE: '1'
       - run: cd mobile && npx tsc --noEmit
       - run: cd mobile && npx expo lint
       - run: cd mobile && npm run test
       - run: cd mobile && npm run check-design
+
+  mobile-native:
+    name: Native mobile verification
+    needs: mobile
+    uses: ./.github/workflows/mobile-native.yml
 
   build:
     name: Cross-compile (pure-Go)

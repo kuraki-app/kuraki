@@ -23,14 +23,25 @@ export type BackgroundSyncResult = {
  * that cannot reach the server is an ordinary condition, not a task failure,
  * and reporting Failed to the OS invites it to back off scheduling us.
  */
-export async function drainBackgroundSync(): Promise<BackgroundSyncResult> {
-  const idle: BackgroundSyncResult = { ran: false, applied: 0, reset: false, reason: null };
+export async function drainBackgroundSync(
+  signal?: AbortSignal,
+): Promise<BackgroundSyncResult> {
+  const idle: BackgroundSyncResult = {
+    ran: false,
+    applied: 0,
+    reset: false,
+    reason: null,
+  };
 
+  if (signal?.aborted) return { ...idle, reason: 'Sync canceled.' };
   let settings;
   try {
     settings = await loadCaptureSettings();
   } catch (cause) {
-    return { ...idle, reason: describe(cause, 'Could not read this device’s settings.') };
+    return {
+      ...idle,
+      reason: describe(cause, 'Could not read this device’s settings.'),
+    };
   }
   if (!settings.baseURL || !settings.deviceToken) {
     return { ...idle, reason: 'This device is not connected to a server.' };
@@ -40,24 +51,32 @@ export async function drainBackgroundSync(): Promise<BackgroundSyncResult> {
   // the server before we ask what changed, otherwise the pull can hand back the
   // pre-mutation state and the mirror briefly contradicts what the user did.
   try {
-    await flushMutationsQueue(settings);
+    await flushMutationsQueue(settings, signal);
   } catch (cause) {
     // A failed flush must not block the pull: the queue is durable and retries,
     // whereas skipping the pull leaves the mirror stale for another interval.
     return {
-      ...(await pull(settings)),
+      ...(await pull(settings, signal)),
       reason: describe(cause, 'Queued changes could not be sent.'),
     };
   }
-  return pull(settings);
+  return pull(settings, signal);
 }
 
-async function pull(settings: Awaited<ReturnType<typeof loadCaptureSettings>>): Promise<BackgroundSyncResult> {
+async function pull(
+  settings: Awaited<ReturnType<typeof loadCaptureSettings>>,
+  signal?: AbortSignal,
+): Promise<BackgroundSyncResult> {
   try {
-    const { applied, reset } = await syncChanges(settings);
+    const { applied, reset } = await syncChanges(settings, signal);
     return { ran: true, applied, reset, reason: null };
   } catch (cause) {
-    return { ran: false, applied: 0, reset: false, reason: describe(cause, 'Could not reach the server.') };
+    return {
+      ran: false,
+      applied: 0,
+      reset: false,
+      reason: describe(cause, 'Could not reach the server.'),
+    };
   }
 }
 

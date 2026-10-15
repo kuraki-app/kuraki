@@ -1,7 +1,7 @@
 import { SegmentedControl } from '@expo/ui/community/segmented-control';
 import { Stack, router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import PhotoGrid from '@/components/photo-grid';
 import { headerOptions } from '@/components/screen-header';
@@ -151,16 +151,17 @@ export default function SearchScreen() {
   const toggleFavorite = useCallback(
     async (id: string, next: boolean) => {
       setAssets((prev) => prev.map((a) => (a.id === id ? { ...a, favorite: next } : a)));
-      await setCachedFavorite(id, next);
+      await setCachedFavorite(id, next, settings ?? undefined);
       if (settings) {
         try {
           await setFavorite(settings, id, next);
           return;
-        } catch {
-          // fall through: queue for the next reconnect flush
+        } catch (cause) {
+          Alert.alert('Could not save this change', cause instanceof Error ? cause.message : 'Please try again.');
+          return; // retryable failures already retain their durable intent
         }
       }
-      await enqueueFavorite(id, next);
+      await enqueueFavorite(id, next, settings ?? undefined);
     },
     [settings],
   );

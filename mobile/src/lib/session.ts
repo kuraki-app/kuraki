@@ -1,4 +1,4 @@
-import { clearDeviceToken } from '@/lib/settings';
+import { clearDeviceToken, type CaptureSettings } from '@/lib/settings';
 
 // A tiny process-wide signal for "the server rejected our device token" (401).
 // Any device request that sees a 401 reports it here; screens subscribe and show
@@ -36,23 +36,21 @@ export function onAuthLost(listener: Listener): () => void {
  *     401 already in flight would delete the token a successful pair had just
  *     written — the server kept an active device, the app said "Not paired".
  */
-export function reportAuthLost(failedToken: string): void {
-  if (!failedToken) return;
-  if (lost) return;
-  lost = true;
-  void clearDeviceToken(failedToken);
-  // A revoked device stops backing up silently, which is the one state the
-  // user cannot discover on their own. The `lost` guard above means this fires
-  // once per revocation, not once per failing request. Imported lazily so this
-  // module keeps no dependency on the notification stack, which pulls in native
-  // code and would otherwise load on every session import.
-  void import('@/lib/notifications').then(({ notify }) =>
-    notify('disconnected', {
-      title: 'Kuraki disconnected',
-      body: 'This device was disconnected and is no longer backing up. Re-pair it in Settings.',
-    }),
-  );
-  for (const listener of listeners) listener();
+export function reportAuthLost(failed: string | CaptureSettings): void {
+  if (typeof failed === 'string' ? !failed : !failed.deviceToken) return;
+  void clearDeviceToken(failed, () => {
+    if (lost) return;
+    lost = true;
+    for (const listener of listeners) listener();
+    void import('@/lib/notifications')
+      .then(({ notify }) =>
+        notify('disconnected', {
+          title: 'Kuraki disconnected',
+          body: 'This device was disconnected and is no longer backing up. Re-pair it in Settings.',
+        }),
+      )
+      .catch(() => {});
+  }).catch(() => {});
 }
 
 /** clearAuthLost is called after the user re-pairs successfully. */

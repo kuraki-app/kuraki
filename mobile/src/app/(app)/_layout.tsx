@@ -2,6 +2,9 @@ import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
 import { useTokens } from '@/constants/theme';
 
+// Keep native screen ordering anchored to Photos; the root index owns / launch routing.
+export const unstable_settings = { initialRouteName: '(gallery)' };
+
 // The real UITabBar, not a lookalike. iOS 26 already provides everything this
 // screen needs: `minimizeBehavior="onScrollDown"` collapses the bar to a pill
 // as the grid scrolls and restores it on the way back up, and a trigger with
@@ -22,7 +25,8 @@ export default function AppLayout() {
       minimizeBehavior="onScrollDown"
       backgroundColor={tokens.background}
       indicatorColor={tokens.card}
-      labelStyle={{ selected: { color: tokens.foreground } }}>
+      labelStyle={{ selected: { color: tokens.foreground } }}
+    >
       <NativeTabs.Trigger name="(gallery)">
         <NativeTabs.Trigger.Label>Photos</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="photo.on.rectangle" md="photo_library" />

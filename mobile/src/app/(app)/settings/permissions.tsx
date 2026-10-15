@@ -1,12 +1,22 @@
 import * as MediaLibrary from 'expo-media-library/legacy';
 import { useCallback, useEffect, useState } from 'react';
-import { AppState, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  AppState,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 
 import { SettingsSection } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Space, useTokens } from '@/constants/theme';
 import { backgroundAvailable } from '@/lib/background';
-import { ensureNotificationPermission, notificationsAvailable } from '@/lib/notifications';
+import {
+  ensureNotificationPermission,
+  notificationsAvailable,
+} from '@/lib/notifications';
 import {
   classifyPermission,
   permissionAction,
@@ -23,11 +33,16 @@ import {
 export default function PermissionsSettings() {
   const tokens = useTokens();
   const [photos, setPhotos] = useState<PermissionStatus>('unavailable');
-  const [notifications, setNotifications] = useState<PermissionStatus>('unavailable');
+  const [notifications, setNotifications] =
+    useState<PermissionStatus>('unavailable');
   const [background, setBackground] = useState<PermissionStatus>('unavailable');
 
   const refresh = useCallback(async () => {
-    setPhotos(classifyPermission(await MediaLibrary.getPermissionsAsync()));
+    setPhotos(
+      classifyPermission(
+        await MediaLibrary.getPermissionsAsync(false, ['photo', 'video']),
+      ),
+    );
 
     if (notificationsAvailable()) {
       // getPermissionsAsync only reads; nothing here prompts on mount.
@@ -58,7 +73,7 @@ export default function PermissionsSettings() {
   }, [refresh]);
 
   async function grantPhotos() {
-    await MediaLibrary.requestPermissionsAsync();
+    await MediaLibrary.requestPermissionsAsync(false, ['photo', 'video']);
     await refresh();
   }
 
@@ -71,10 +86,15 @@ export default function PermissionsSettings() {
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
       style={[styles.fill, { backgroundColor: tokens.background }]}
-      contentContainerStyle={styles.content}>
+      contentContainerStyle={styles.content}
+    >
       <SettingsSection
         title="Photo access"
-        info={{ message: 'Kuraki reads the camera roll only to copy selected media to your own server.' }}>
+        info={{
+          message:
+            'Kuraki reads the camera roll only to copy selected media to your own server.',
+        }}
+      >
         <PermissionRow
           label="Photo library"
           status={photos}
@@ -88,7 +108,11 @@ export default function PermissionsSettings() {
 
       <SettingsSection
         title="Background refresh"
-        info={{ message: 'Without background refresh, backup and sync run only while Kuraki is open.' }}>
+        info={{
+          message:
+            'Without background refresh, backup and sync run only while Kuraki is open.',
+        }}
+      >
         <PermissionRow
           label="Background refresh"
           status={background}
@@ -100,7 +124,11 @@ export default function PermissionsSettings() {
 
       <SettingsSection
         title="Notifications"
-        info={{ message: 'Used only for backup and connection messages from this device.' }}>
+        info={{
+          message:
+            'Used only for backup and connection messages from this device.',
+        }}
+      >
         <PermissionRow
           label="Notifications"
           status={notifications}
@@ -151,7 +179,11 @@ function PermissionRow({
   // Limited access is a warning, not a success: it reads as granted everywhere
   // else while hiding most of the library from backup.
   const tone =
-    status === 'granted' ? tokens.foreground : status === 'limited' ? tokens.stamp : tokens.destructive;
+    status === 'granted'
+      ? tokens.foreground
+      : status === 'limited'
+        ? tokens.stamp
+        : tokens.destructive;
   const badge =
     status === 'granted'
       ? 'On'
@@ -175,7 +207,10 @@ function PermissionRow({
         {note}
       </ThemedText>
       {action === 'grant' && onGrant ? (
-        <Pressable style={[styles.button, { backgroundColor: tokens.primary }]} onPress={onGrant}>
+        <Pressable
+          style={[styles.button, { backgroundColor: tokens.primary }]}
+          onPress={onGrant}
+        >
           <ThemedText type="smallBold" themeColor="primaryForeground">
             Allow
           </ThemedText>
@@ -183,7 +218,8 @@ function PermissionRow({
       ) : action === 'system' ? (
         <Pressable
           style={[styles.buttonGhost, { borderColor: tokens.input }]}
-          onPress={() => void Linking.openSettings()}>
+          onPress={() => void Linking.openSettings()}
+        >
           <ThemedText type="smallBold">Open Settings</ThemedText>
         </Pressable>
       ) : null}
@@ -197,7 +233,12 @@ const styles = StyleSheet.create({
   row: { paddingVertical: Space.two, gap: Space.half },
   head: { flexDirection: 'row', alignItems: 'center', gap: Space.two },
   rowLabel: { flex: 1 },
-  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Space.two, marginTop: Space.one },
+  button: {
+    alignItems: 'center',
+    borderRadius: Radius.sm,
+    padding: Space.two,
+    marginTop: Space.one,
+  },
   buttonGhost: {
     alignItems: 'center',
     borderRadius: Radius.sm,

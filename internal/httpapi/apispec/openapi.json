@@ -1350,6 +1350,138 @@
                 }
             }
         },
+        "/api/capture/identity": {
+            "get": {
+                "tags": [
+                    "capture"
+                ],
+                "summary": "Authenticated library identity",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.CaptureIdentity"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/capture/originals/available": {
+            "post": {
+                "tags": [
+                    "capture"
+                ],
+                "summary": "Check bounded original availability for backup recovery",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/apitypes.CaptureAvailability"
+                            }
+                        }
+                    },
+                    "description": "expected originals (maximum 200)",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.CaptureAvailabilityResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/capture/originals/verify": {
+            "post": {
+                "tags": [
+                    "capture"
+                ],
+                "summary": "Verify current immutable original before removing a local copy",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/apitypes.OriginalProof"
+                            }
+                        }
+                    },
+                    "description": "expected original content",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.CaptureReceiptResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/capture/status": {
             "get": {
                 "tags": [
@@ -1582,6 +1714,77 @@
                     },
                     "503": {
                         "description": "Service Unavailable",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/capture/uploads/{id}/receipt": {
+            "get": {
+                "tags": [
+                    "capture"
+                ],
+                "summary": "Original import receipt",
+                "parameters": [
+                    {
+                        "description": "upload id",
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.CaptureReceiptResponse"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "Accepted",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.CaptureReceiptResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/apitypes.Error"
+                                }
+                            }
+                        }
+                    },
+                    "410": {
+                        "description": "Gone",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -4344,6 +4547,60 @@
                     }
                 }
             },
+            "apitypes.CaptureAvailability": {
+                "type": "object",
+                "properties": {
+                    "originals": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/apitypes.OriginalProof"
+                        }
+                    }
+                }
+            },
+            "apitypes.CaptureAvailabilityResponse": {
+                "type": "object",
+                "properties": {
+                    "available": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "apitypes.CaptureIdentity": {
+                "type": "object",
+                "required": [
+                    "owner_id",
+                    "server_id"
+                ],
+                "properties": {
+                    "owner_id": {
+                        "type": "string"
+                    },
+                    "server_id": {
+                        "type": "string"
+                    }
+                }
+            },
+            "apitypes.CaptureReceiptResponse": {
+                "type": "object",
+                "required": [
+                    "status"
+                ],
+                "properties": {
+                    "error": {
+                        "type": "string"
+                    },
+                    "proof": {
+                        "$ref": "#/components/schemas/apitypes.OriginalProof"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
+                }
+            },
             "apitypes.CaptureSessionResponse": {
                 "type": "object",
                 "required": [
@@ -4881,6 +5138,25 @@
                         "items": {
                             "$ref": "#/components/schemas/apitypes.MediaIssue"
                         }
+                    }
+                }
+            },
+            "apitypes.OriginalProof": {
+                "type": "object",
+                "required": [
+                    "asset_id",
+                    "content_hash",
+                    "size_bytes"
+                ],
+                "properties": {
+                    "asset_id": {
+                        "type": "string"
+                    },
+                    "content_hash": {
+                        "type": "string"
+                    },
+                    "size_bytes": {
+                        "type": "integer"
                     }
                 }
             },

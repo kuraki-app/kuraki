@@ -1,16 +1,37 @@
 import * as MediaLibrary from 'expo-media-library/legacy';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, ScrollView, StyleSheet, View, type AlertButton } from 'react-native';
+import { useCallback, useEffect, useState, useRef } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  type AlertButton,
+} from 'react-native';
 
 import { SettingsSection } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Space, useTokens } from '@/constants/theme';
 import { backupEngine } from '@/lib/backup-engine';
-import { loadBackedUpIds } from '@/lib/backup-ledger';
+import { loadBackupReceipts } from '@/lib/backup-ledger';
+import { verifyLocalReceipt } from '@/lib/reclaim-verification';
+import {
+  libraryKey,
+  loadCaptureSettings,
+  assertActiveConnection,
+} from '@/lib/settings';
+import { isAbort, throwIfAborted, abortable } from '@/lib/request';
 import { formatBytes } from '@/lib/format';
 import { usePrefs } from '@/hooks/use-prefs';
 import { savePrefs } from '@/lib/prefs';
-import { RETENTION_DAYS, reclaimSummary, reclaimable, type LocalAsset } from '@/lib/reclaim';
+import {
+  RETENTION_DAYS,
+  reclaimSummary,
+  reclaimable,
+  type LocalAsset,
+} from '@/lib/reclaim';
 
 const RETENTION_LABELS: Record<number, string> = {
   [-1]: 'Keep all',
@@ -23,11 +44,8 @@ const RETENTION_LABELS: Record<number, string> = {
 /**
  * Free up space removes the phone's copy of photos the server already has.
  *
- * The whole screen is built around one rule: **nothing is offered unless the
- * ledger says the server accepted it.** `loadBackedUpIds()` records an id only
- * after a successful upload, so "I think it uploaded" is never enough. See
- * `reclaimable` in lib/reclaim.ts, which is where that decision actually lives
- * and where it is tested.
+ * Eligibility requires a library-scoped successful original receipt plus
+ * matching current local and server bytes. Both are rechecked before removal.
  *
  * Retention is the second guard, defaulting to "Keep all" — a screen that
  * deletes photographs must be opted into, not merely visited.
@@ -42,43 +60,106 @@ export default function FreeUpSpaceSettings() {
   const { keepLocalDays } = usePrefs();
   const [scanning, setScanning] = useState(false);
   const [backingUp, setBackingUp] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const deletionLock = useRef(false);
   const [candidates, setCandidates] = useState<LocalAsset[] | null>(null);
   const [error, setError] = useState('');
+  const [more, setMore] = useState(false);
+  const continuation = useRef<{ days: number; after?: string }>({ days: -1 });
+  const operation = useRef<AbortController | null>(null);
+  useEffect(() => () => operation.current?.abort(), []);
 
-  const scan = useCallback(async (days: number) => {
+  const scan = useCallback(async (days: number, nextPage = false) => {
+    if (deletionLock.current) return;
+    operation.current?.abort();
+    const controller = new AbortController();
+    operation.current = controller;
     setScanning(true);
     setError('');
     try {
-      const permission = await MediaLibrary.getPermissionsAsync();
-      if (!permission.granted) {
-        setError('Photo access is off, so there is nothing to look at. Turn it on in Settings > Permissions.');
+      const signal = controller.signal;
+      if (days < 0) {
         setCandidates([]);
+        setMore(false);
         return;
       }
-      const backedUp = await loadBackedUpIds();
-      // One pass over the roll. `first` is the library's page size; the ledger
-      // is the filter, so there is no server round trip here at all — this
-      // screen works offline, which matters because it is about the phone.
-      const local: LocalAsset[] = [];
-      let after: string | undefined;
-      for (;;) {
+      const settings = await loadCaptureSettings();
+      if (!settings.serverID || !settings.ownerID || !settings.deviceToken)
+        throw new Error(
+          'Connect to your updated server before verifying local copies.',
+        );
+      const permission = await MediaLibrary.getPermissionsAsync(false, [
+        'photo',
+        'video',
+      ]);
+      if (!permission.granted)
+        throw new Error(
+          'Photo access is needed. Open Permissions in Settings.',
+        );
+      const verified: LocalAsset[] = [];
+      let after: string | undefined =
+        nextPage && continuation.current.days === days
+          ? continuation.current.after
+          : undefined;
+      let hasMore = false;
+      let skipped = 0;
+      for (let pages = 0; pages < 40; pages++) {
+        throwIfAborted(signal);
         const page = await MediaLibrary.getAssetsAsync({
-          first: 500,
+          first: 50,
           after,
           mediaType: ['photo', 'video'],
+          sortBy: [['creationTime', true]],
         });
-        for (const a of page.assets) {
-          local.push({ id: a.id, creationTime: a.creationTime, size: undefined });
+        const receipts = await loadBackupReceipts(
+          libraryKey(settings),
+          page.assets.map((a) => a.id),
+        );
+        const eligible = new Set(
+          reclaimable(page.assets, new Set(receipts.keys()), days).map(
+            (a) => a.id,
+          ),
+        );
+        for (const asset of page.assets) {
+          if (!eligible.has(asset.id)) continue;
+          try {
+            verified.push(
+              await verifyLocalReceipt(
+                settings,
+                asset,
+                receipts.get(asset.id)!,
+                signal,
+              ),
+            );
+          } catch (cause) {
+            if (isAbort(cause) || signal.aborted) throw cause;
+            skipped++;
+          }
+          if (verified.length >= 50) break;
         }
-        if (!page.hasNextPage) break;
+        hasMore = page.hasNextPage;
         after = page.endCursor;
+        if (!page.hasNextPage || verified.length >= 50) break;
       }
-      setCandidates(reclaimable(local, backedUp, days));
+      await assertActiveConnection(settings);
+      throwIfAborted(signal);
+      continuation.current = { days, after };
+      setMore(hasMore);
+      setCandidates(verified);
+      if (skipped)
+        setError(
+          `${skipped} items could not be verified and will stay on this device.`,
+        );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not read your camera roll.');
+      if (isAbort(cause)) return;
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Could not verify your local copies.',
+      );
       setCandidates([]);
     } finally {
-      setScanning(false);
+      if (operation.current === controller) setScanning(false);
     }
   }, []);
 
@@ -117,48 +198,100 @@ export default function FreeUpSpaceSettings() {
     const body =
       `${count} item${count === 1 ? '' : 's'} will be removed from this device.` +
       (bytes > 0 ? ` About ${formatBytes(bytes)}.` : '') +
-      ` They stay on your server.${Platform.OS === 'ios' ? ' iOS moves them to Recently Deleted first.' : ''}`;
+      ` Their current originals have been verified on your server.${Platform.OS === 'ios' ? ' iOS moves them to Recently Deleted first.' : ''}`;
     // Android's Alert ignores `style` and assigns roles by position — the LAST
     // button is the emphasised one — so Cancel goes last there and first on
     // iOS, leaving the destructive path de-emphasised on both.
     const buttons: AlertButton[] =
       Platform.OS === 'android'
         ? [
-            { text: 'Remove from device', style: 'destructive', onPress: () => void remove() },
+            {
+              text: 'Remove from device',
+              style: 'destructive',
+              onPress: () => void remove(),
+            },
             { text: 'Cancel', style: 'cancel' },
           ]
         : [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Remove from device', style: 'destructive', onPress: () => void remove() },
+            {
+              text: 'Remove from device',
+              style: 'destructive',
+              onPress: () => void remove(),
+            },
           ];
     Alert.alert('Remove local copies?', body, buttons);
   }
 
   async function remove() {
-    if (!candidates || candidates.length === 0) return;
+    if (!candidates || candidates.length === 0 || deletionLock.current) return;
+    deletionLock.current = true;
+    setDeleting(true);
     try {
       // The OS raises its own confirmation on top of ours and returns false if
       // the user declines there. That is not an error — it is the answer.
-      const ok = await MediaLibrary.deleteAssetsAsync(candidates.map((a) => a.id));
+      operation.current?.abort();
+      const controller = new AbortController();
+      operation.current = controller;
+      const signal = controller.signal;
+      const settings = await loadCaptureSettings();
+      if (!settings.serverID || !settings.ownerID || !settings.deviceToken)
+        throw new Error(
+          'Reconnect to verify originals before removing local copies.',
+        );
+      const receipts = await loadBackupReceipts(
+        libraryKey(settings),
+        candidates.map((a) => a.id),
+      );
+      // Refresh both local metadata/bytes and server bytes after our confirmation,
+      // immediately before the OS takes over its deletion confirmation.
+      for (const candidate of candidates) {
+        const asset = await abortable(
+          MediaLibrary.getAssetInfoAsync(candidate.id, {
+            shouldDownloadFromNetwork: false,
+          }),
+          signal,
+        );
+        const receipt = receipts.get(candidate.id);
+        if (!receipt)
+          throw new Error('A backup receipt is missing. Nothing was removed.');
+        await verifyLocalReceipt(settings, asset, receipt, signal);
+      }
+      throwIfAborted(signal);
+      await assertActiveConnection(settings);
+      const ok = await MediaLibrary.deleteAssetsAsync(
+        candidates.map((a) => a.id),
+      );
       if (!ok) return;
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not remove the local copies.');
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Could not remove the local copies.',
+      );
     } finally {
+      deletionLock.current = false;
+      setDeleting(false);
       await scan(keepLocalDays);
     }
   }
 
   const summary = candidates ? reclaimSummary(candidates) : null;
-  const busy = scanning || backingUp;
+  const busy = scanning || backingUp || deleting;
 
   return (
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
       style={[styles.fill, { backgroundColor: tokens.background }]}
-      contentContainerStyle={styles.content}>
+      contentContainerStyle={styles.content}
+    >
       <SettingsSection
         title="Keep on this device"
-        info={{ message: 'Newer items stay on this phone after backup. Keep all never removes a local copy.' }}>
+        info={{
+          message:
+            'Only current local originals verified against your connected server are offered, up to 50 at a time. Keep all removes nothing. iCloud may sync photo removal across your devices.',
+        }}
+      >
         <View style={styles.choiceRow}>
           {RETENTION_DAYS.map((days) => {
             const active = days === keepLocalDays;
@@ -171,9 +304,16 @@ export default function FreeUpSpaceSettings() {
                 style={[
                   styles.choice,
                   { borderColor: tokens.input },
-                  active && { backgroundColor: tokens.primary, borderColor: tokens.primary },
-                ]}>
-                <ThemedText type="small" themeColor={active ? 'primaryForeground' : undefined}>
+                  active && {
+                    backgroundColor: tokens.primary,
+                    borderColor: tokens.primary,
+                  },
+                ]}
+              >
+                <ThemedText
+                  type="small"
+                  themeColor={active ? 'primaryForeground' : undefined}
+                >
                   {RETENTION_LABELS[days] ?? `${days}d`}
                 </ThemedText>
               </Pressable>
@@ -184,9 +324,17 @@ export default function FreeUpSpaceSettings() {
 
       <SettingsSection
         title="Safe to remove"
-        info={{ message: 'Only items confirmed by the server are eligible. Anything waiting to upload stays on this phone.' }}>
+        info={{
+          message:
+            'Only items confirmed by the server are eligible. Anything waiting to upload stays on this phone.',
+        }}
+      >
         {error ? (
-          <ThemedText type="small" style={{ color: tokens.destructive }} selectable>
+          <ThemedText
+            type="small"
+            style={{ color: tokens.destructive }}
+            selectable
+          >
             {error}
           </ThemedText>
         ) : null}
@@ -194,36 +342,63 @@ export default function FreeUpSpaceSettings() {
           <View style={styles.busy}>
             <ActivityIndicator />
             <ThemedText type="small" themeColor="mutedForeground">
-              {backingUp ? 'Backing up what is left…' : 'Checking your camera roll…'}
+              {deleting
+                ? 'Verifying before removal…'
+                : backingUp
+                  ? 'Backing up what is left…'
+                  : 'Checking your camera roll…'}
             </ThemedText>
           </View>
         ) : summary && summary.count > 0 ? (
           <ThemedText type="smallBold">
-            {summary.count.toLocaleString()} item{summary.count === 1 ? '' : 's'} can be removed
+            {summary.count.toLocaleString()} item
+            {summary.count === 1 ? '' : 's'} can be removed
           </ThemedText>
         ) : (
           <ThemedText type="small" themeColor="mutedForeground">
-            {keepLocalDays < 0
-              ? 'Nothing, because Keep all is on. Choose a window above to see what could go.'
-              : 'Nothing yet. Everything on this device is either newer than the window or not backed up.'}
+            {more
+              ? 'No verified copies in these pages. Check more of your library.'
+              : keepLocalDays < 0
+                ? 'Nothing, because Keep all is on. Choose a window above to see what could go.'
+                : 'Nothing yet. Everything on this device is either newer than the window or not backed up.'}
           </ThemedText>
         )}
 
+        {more ? (
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy}
+            style={styles.button}
+            onPress={() => void scan(keepLocalDays, true)}
+          >
+            <ThemedText>Check more photos</ThemedText>
+          </Pressable>
+        ) : null}
+
         <Pressable
-          style={[styles.button, { borderColor: tokens.input }, busy && styles.disabled]}
+          style={[
+            styles.button,
+            { borderColor: tokens.input },
+            busy && styles.disabled,
+          ]}
           disabled={busy}
-          onPress={() => void backupFirst()}>
+          onPress={() => void backupFirst()}
+        >
           <ThemedText type="smallBold">Back up everything first</ThemedText>
         </Pressable>
 
         <Pressable
           style={[
             styles.button,
-            { backgroundColor: tokens.destructive, borderColor: tokens.destructive },
+            {
+              backgroundColor: tokens.destructive,
+              borderColor: tokens.destructive,
+            },
             (busy || !summary?.count) && styles.disabled,
           ]}
           disabled={busy || !summary?.count}
-          onPress={confirmDelete}>
+          onPress={confirmDelete}
+        >
           <ThemedText type="smallBold" themeColor="primaryForeground">
             Remove local copies
           </ThemedText>
@@ -236,14 +411,24 @@ export default function FreeUpSpaceSettings() {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   content: { paddingBottom: Space.seven },
-  choiceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.one, paddingTop: Space.one },
+  choiceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Space.one,
+    paddingTop: Space.one,
+  },
   choice: {
     borderWidth: 1,
     borderRadius: Radius.sm,
     paddingVertical: Space.one,
     paddingHorizontal: Space.two,
   },
-  busy: { flexDirection: 'row', alignItems: 'center', gap: Space.two, paddingVertical: Space.one },
+  busy: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Space.two,
+    paddingVertical: Space.one,
+  },
   button: {
     alignItems: 'center',
     borderWidth: 1,

@@ -1,0 +1,141 @@
+name: Native mobile build and installed smoke
+on:
+  workflow_call:
+permissions:
+  contents: read
+env:
+  MAESTRO_CLI_NO_ANALYTICS: '1'
+  MAESTRO_DRIVER_STARTUP_TIMEOUT: '600000'
+jobs:
+  android:
+    name: Android standalone build and installed smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - run: cd mobile && npm ci
+      - run: cd mobile && CI=1 npx expo prebuild --platform android --no-install
+      - run: cd mobile && node scripts/check-native-config.mjs android
+      - name: Build standalone QA APK (no Metro)
+        id: standalone_build
+        working-directory: mobile/android
+        run: |
+          df -h .
+          ./gradlew :app:assembleRelease -PreactNativeArchitectures=x86_64 --no-daemon --stacktrace
+      - name: Prepare disposable server and pinned UI runner
+        run: |
+          go build -o bin/kuraki ./cmd/kuraki
+          cd mobile
+          scripts/install-maestro.sh "$RUNNER_TEMP/mobile-ui"
+      - name: Enable runner-only KVM access
+        run: |
+          test -c /dev/kvm
+          sudo chown "$(id -u):$(id -g)" /dev/kvm
+          sudo chmod 0600 /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
+      - name: Install and exercise exact APK
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          sdcard-path-or-size: 512M
+          disable-linux-hw-accel: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -accel on
+          disable-animations: true
+          script: bash mobile/scripts/smoke-android.sh "$RUNNER_TEMP"
+      - name: Record exact artifact provenance
+        if: ${{ always() && steps.standalone_build.outcome == 'success' }}
+        working-directory: mobile
+        run: node scripts/artifact-manifest.mjs android/app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/android-provenance.json" android ci-standalone
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-native-proof
+          path: |
+            mobile/android/app/build/outputs/apk/release/app-release.apk
+            mobile/android/build/reports
+            mobile/android/app/build/reports
+            ${{ runner.temp }}/android-provenance.json
+            ${{ runner.temp }}/mobile-smoke-logs
+            ${{ runner.temp }}/mobile-driver-logs
+          retention-days: 7
+          include-hidden-files: true
+  ios:
+    name: iOS standalone build and installed smoke
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: cd mobile && npm ci
+      - run: cd mobile && CI=1 npx expo prebuild --platform ios --no-install
+      - run: cd mobile && node scripts/check-native-config.mjs ios
+      - run: cd mobile/ios && pod install
+      - name: Build standalone simulator app (no Metro)
+        id: standalone_build
+        working-directory: mobile/ios
+        run: >-
+          xcodebuild -workspace Kuraki.xcworkspace -scheme Kuraki -configuration Release
+          -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath "$RUNNER_TEMP/mobile-derived"
+          CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=NO
+          DEVELOPMENT_TEAM=KURAKIQA01 ONLY_ACTIVE_ARCH=YES ARCHS=arm64 build
+      - name: Install and exercise exact simulator app
+        timeout-minutes: 30
+        run: |
+          go build -o bin/kuraki ./cmd/kuraki
+          cd mobile
+          scripts/install-maestro.sh "$RUNNER_TEMP/mobile-ui"
+          simulator=$(xcrun simctl create Kuraki-CI 'iPhone 17 Pro')
+          xcrun simctl boot "$simulator"
+          xcrun simctl bootstatus "$simulator" -b
+          python3 scripts/create-smoke-photo.py "$RUNNER_TEMP/native-proof.png"
+          xcrun simctl addmedia "$simulator" "$RUNNER_TEMP/native-proof.png"
+          xcrun simctl install "$simulator" "$RUNNER_TEMP/mobile-derived/Build/Products/Release-iphonesimulator/Kuraki.app"
+          "$RUNNER_TEMP/mobile-ui/maestro/bin/maestro" --device "$simulator" test --debug-output "$RUNNER_TEMP/mobile-driver-logs" .maestro/launch.yaml
+          node scripts/start-smoke-server.mjs "$RUNNER_TEMP/mobile-smoke.env"
+          . "$RUNNER_TEMP/mobile-smoke.env"
+          "$RUNNER_TEMP/mobile-ui/maestro/bin/maestro" --device "$simulator" test --debug-output "$RUNNER_TEMP/mobile-smoke-logs" -e SERVER_URL=http://127.0.0.1:39218 .maestro/onboarding.yaml
+          python3 scripts/check-smoke-import.py "$SMOKE_SERVER_DIR"
+          xcrun simctl shutdown "$simulator"
+          xcrun simctl delete "$simulator"
+      - name: Record exact artifact provenance
+        if: ${{ always() && steps.standalone_build.outcome == 'success' }}
+        working-directory: mobile
+        run: node scripts/artifact-manifest.mjs "$RUNNER_TEMP/mobile-derived/Build/Products/Release-iphonesimulator/Kuraki.app" "$RUNNER_TEMP/ios-provenance.json" ios ci-standalone-simulator
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-native-proof
+          path: |
+            ${{ runner.temp }}/ios-provenance.json
+            ${{ runner.temp }}/mobile-smoke-logs
+            ${{ runner.temp }}/mobile-driver-logs
+          retention-days: 7
+          include-hidden-files: true

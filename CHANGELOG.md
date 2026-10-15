@@ -9,6 +9,18 @@ line under `Unreleased` as part of the same change that introduces it.
 
 ## [Unreleased]
 
+### Fixed
+
+- Mobile backup now requires imported-original receipts; local cleanup verifies
+  current local and server bytes, with complete Live Photo components and library
+  isolation across server/account switches.
+- Resumed uploads recover import handoff, bound offset conflicts and honor full
+  background cancellation/network policy. Camera-roll and cleanup scans continue
+  safely across bounded pages; trip/tag lists handle retries and stale pagination.
+- Compatible mobile dependencies and narrow verified security patches are gated
+  in CI; native Android/iOS build/install/backup checks and artifact provenance
+  prevent stale binaries from serving as release evidence.
+
 ### Added
 
 - **Trips: photos taken away from home group themselves.** A run of captures that sits

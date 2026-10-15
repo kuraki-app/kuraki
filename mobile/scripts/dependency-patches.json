@@ -1,0 +1,79 @@
+[
+  {
+    "file": "braces/lib/compile.js",
+    "originalSHA256": "dc98f22eee3d511785d92a00758d5f0d48efed5f5813bdecc2de430c529b5c9f",
+    "patchedSHA256": "76b1ac1fbacd7e53a2d74485b114d9d917410608f9cfd3a9dbf42b7add902666",
+    "replacements": [
+      [
+        "const compile = (ast, options = {}) => {",
+        "const compile = (ast, options = {}) => {\n  // Kuraki GHSA-vfj7-8cjw-p6xm: bound recursive walkers, including caller ASTs.\n  const pending = [[ast, 0]];\n  while (pending.length) {\n    const [node, depth] = pending.pop();\n    if (depth > 64) throw new SyntaxError('Brace nesting exceeds 64 levels');\n    if (node && node.nodes) for (const child of node.nodes) pending.push([child, depth + 1]);\n  }\n"
+      ]
+    ]
+  },
+  {
+    "file": "braces/lib/expand.js",
+    "originalSHA256": "41ccc196ebfa7b7781a634e721eb744e4e7bcb54cba427a7e3d6806a1b9e58f7",
+    "patchedSHA256": "248d4fe4200182a1ca84b9799298ba45d79573be0a1836f0fb9344226f718ed5",
+    "replacements": [
+      [
+        "const expand = (ast, options = {}) => {",
+        "const expand = (ast, options = {}) => {\n  // Kuraki GHSA-vfj7-8cjw-p6xm: bound recursive walkers, including caller ASTs.\n  const pending = [[ast, 0]];\n  while (pending.length) {\n    const [node, depth] = pending.pop();\n    if (depth > 64) throw new SyntaxError('Brace nesting exceeds 64 levels');\n    if (node && node.nodes) for (const child of node.nodes) pending.push([child, depth + 1]);\n  }\n"
+      ]
+    ]
+  },
+  {
+    "file": "braces/lib/stringify.js",
+    "originalSHA256": "379f22d77bfa1478341ccd49c5e4267464aabcbba03558bab332aac23fc6f23a",
+    "patchedSHA256": "b2f1325dbbbf5722277826033c3499916a858d22ec7356efad302d862ceb8fe2",
+    "replacements": [
+      [
+        "module.exports = (ast, options = {}) => {",
+        "module.exports = (ast, options = {}) => {\n  // Kuraki GHSA-vfj7-8cjw-p6xm: bound recursive walkers, including caller ASTs.\n  const pending = [[ast, 0]];\n  while (pending.length) {\n    const [node, depth] = pending.pop();\n    if (depth > 64) throw new SyntaxError('Brace nesting exceeds 64 levels');\n    if (node && node.nodes) for (const child of node.nodes) pending.push([child, depth + 1]);\n  }\n"
+      ]
+    ]
+  },
+  {
+    "file": "braces/lib/parse.js",
+    "originalSHA256": "e572166565f15fa6ad9865ae49d678218e32aabfd1b3720f6d0d43d39800d310",
+    "patchedSHA256": "03b0f29f7ecf564d2377ac472bd6e7c520d711e46917585a00caa698224d9ad4",
+    "replacements": [
+      [
+        "  while (index < length) {",
+        "  while (index < length) {\n    if (stack.length > 65) throw new SyntaxError('Brace nesting exceeds 64 levels');"
+      ]
+    ]
+  },
+  {
+    "file": "node-forge/lib/rsa.js",
+    "originalSHA256": "fd4740238145ec26470eb3f06a627c72039538ce1307dbdce40521f94dfd0a50",
+    "patchedSHA256": "b78a9456ec44d27eeab5c7dab084bef52783a50ce7d87072dab56032a4255871",
+    "replacements": [
+      [
+        "            obj.value.length !== 2) {",
+        "            obj.value.length !== 2 ||\n            // Kuraki GHSA-86w9-cpqp-85rv: strict nested AlgorithmIdentifier.\n            obj.value[0].value.length < 1 || obj.value[0].value.length > 2) {"
+      ]
+    ]
+  },
+  {
+    "file": "decode-uri-component/index.js",
+    "originalSHA256": "9401353df38f8010ad7035fe8d666bce6a4902bc1cff809afc4ab23fa2e0bdaa",
+    "patchedSHA256": "684ba79779327ba789733a3a563050370a928a57eb7dd33d19b346f43b32cbb7",
+    "replacements": [
+      [
+        "export default function decodeUriComponent(encodedURI) {",
+        "module.exports = function decodeUriComponent(encodedURI) {"
+      ]
+    ]
+  },
+  {
+    "file": "decode-uri-component/package.json",
+    "originalSHA256": "8900e5bd4176ce39e17c647facc5aaa0726db4cd0a3e789ed7582da60c22e185",
+    "patchedSHA256": "ce20738b9ed0e834bfac8280b43bf0cbe2b1464195bb93e4e47471c4ea42f653",
+    "replacements": [
+      [
+        "{\n\t\"name\": \"decode-uri-component\",\n\t\"version\": \"0.5.0\",\n\t\"description\": \"A better decodeURIComponent\",\n\t\"license\": \"MIT\",\n\t\"repository\": \"SamVerschueren/decode-uri-component\",\n\t\"sideEffects\": false,\n\t\"author\": {\n\t\t\"name\": \"Sam Verschueren\",\n\t\t\"email\": \"sam.verschueren@gmail.com\",\n\t\t\"url\": \"github.com/SamVerschueren\"\n\t},\n\t\"type\": \"module\",\n\t\"exports\": {\n\t\t\"types\": \"./index.d.ts\",\n\t\t\"default\": \"./index.js\"\n\t},\n\t\"engines\": {\n\t\t\"node\": \">=14.16\"\n\t},\n\t\"scripts\": {\n\t\t\"test\": \"xo && nyc ava && tsd\",\n\t\t\"coveralls\": \"nyc report --reporter=text-lcov | coveralls\"\n\t},\n\t\"files\": [\n\t\t\"index.js\",\n\t\t\"index.d.ts\"\n\t],\n\t\"keywords\": [\n\t\t\"decode\",\n\t\t\"uri\",\n\t\t\"component\",\n\t\t\"decodeuricomponent\",\n\t\t\"components\",\n\t\t\"decoder\",\n\t\t\"url\"\n\t],\n\t\"devDependencies\": {\n\t\t\"ava\": \"^5.1.0\",\n\t\t\"coveralls\": \"^3.1.1\",\n\t\t\"nyc\": \"^15.1.0\",\n\t\t\"tsd\": \"^0.25.0\",\n\t\t\"xo\": \"^0.53.1\"\n\t},\n\t\"overrides\": {\n\t\t\"eslint\": \"8.39.0\"\n\t},\n\t\"tsd\": {\n\t\t\"compilerOptions\": {\n\t\t\t\"module\": \"node16\"\n\t\t}\n\t}\n}\n",
+        "{\n  \"name\": \"decode-uri-component\",\n  \"version\": \"0.5.0\",\n  \"description\": \"A better decodeURIComponent\",\n  \"license\": \"MIT\",\n  \"repository\": \"SamVerschueren/decode-uri-component\",\n  \"sideEffects\": false,\n  \"author\": {\n    \"name\": \"Sam Verschueren\",\n    \"email\": \"sam.verschueren@gmail.com\",\n    \"url\": \"github.com/SamVerschueren\"\n  },\n  \"type\": \"commonjs\",\n  \"exports\": {\n    \"types\": \"./index.d.ts\",\n    \"default\": \"./index.js\"\n  },\n  \"engines\": {\n    \"node\": \">=14.16\"\n  },\n  \"scripts\": {\n    \"test\": \"xo && nyc ava && tsd\",\n    \"coveralls\": \"nyc report --reporter=text-lcov | coveralls\"\n  },\n  \"files\": [\n    \"index.js\",\n    \"index.d.ts\"\n  ],\n  \"keywords\": [\n    \"decode\",\n    \"uri\",\n    \"component\",\n    \"decodeuricomponent\",\n    \"components\",\n    \"decoder\",\n    \"url\"\n  ],\n  \"devDependencies\": {\n    \"ava\": \"^5.1.0\",\n    \"coveralls\": \"^3.1.1\",\n    \"nyc\": \"^15.1.0\",\n    \"tsd\": \"^0.25.0\",\n    \"xo\": \"^0.53.1\"\n  },\n  \"overrides\": {\n    \"eslint\": \"8.39.0\"\n  },\n  \"tsd\": {\n    \"compilerOptions\": {\n      \"module\": \"node16\"\n    }\n  }\n}\n"
+      ]
+    ]
+  }
+]

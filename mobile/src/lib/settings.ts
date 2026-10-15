@@ -1,92 +1,294 @@
-import { deleteSecret, getSecret, rewriteSecretForBackgroundAccess, setSecret } from '@/lib/secret-store';
+import { abortable, throwIfAborted } from '@/lib/cancellation';
+import {
+  deleteSecret,
+  getSecret,
+  rewriteSecretForBackgroundAccess,
+  setSecret,
+} from '@/lib/secret-store';
+
+import { blake3 } from '@noble/hashes/blake3.js';
+import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
 
 const baseURLKey = 'kuraki.capture.base-url';
 const deviceTokenKey = 'kuraki.capture.device-token';
+const connectionKey = 'kuraki.capture.connection.v2';
 
 export type CaptureSettings = {
   baseURL: string;
   deviceToken: string;
+  serverID?: string;
+  ownerID?: string;
 };
-
-export async function loadCaptureSettings(): Promise<CaptureSettings> {
-  const [baseURL, deviceToken] = await Promise.all([getSecret(baseURLKey), getSecret(deviceTokenKey)]);
-  return { baseURL: baseURL ?? '', deviceToken: deviceToken ?? '' };
+let serial: Promise<unknown> = Promise.resolve();
+let epoch = 0;
+let committed: CaptureSettings | null = null;
+export function captureSettingsSnapshot(): CaptureSettings | null {
+  return committed;
 }
-
-/**
- * migrateSecretsForBackgroundAccess re-saves the capture credentials under the
- * background-readable keychain class. A keychain item keeps whatever
- * accessibility it was created with, so devices paired before that change would
- * keep failing every locked-device background wake until re-paired by hand.
- * Idempotent, and a no-op when nothing is stored.
- */
-export async function migrateSecretsForBackgroundAccess(): Promise<void> {
-  await Promise.all([
-    rewriteSecretForBackgroundAccess(baseURLKey),
-    rewriteSecretForBackgroundAccess(deviceTokenKey),
-  ]);
+const connectionListeners = new Set<() => void>();
+export function connectionEpoch(): number {
+  return epoch;
 }
-
-/**
- * switchedLibrary reports whether moving from one set of capture settings to
- * another means the app is now looking at a different library.
- *
- * Both halves matter and neither is sufficient. A changed address is a
- * different server. A changed device token at the same address is a different
- * *account* on it — Kuraki isolates libraries per owner, so re-pairing as
- * someone else swaps the library out from under a mirror that has no idea.
- *
- * First-time values are not a switch: going from nothing to something is
- * setup, and there is no previous library to leave behind. Re-pairing to the
- * same account rotates the token and does count, which discards a cache that
- * would have been correct — an acceptable trade, because re-pairing is rare and
- * the mirror rebuilds itself from the first request, whereas keeping another
- * library's photos is wrong until someone notices.
- */
-export function switchedLibrary(previous: CaptureSettings, next: CaptureSettings): boolean {
-  const movedServer = previous.baseURL !== '' && previous.baseURL !== next.baseURL;
-  const movedAccount =
-    previous.deviceToken !== '' && next.deviceToken !== '' && previous.deviceToken !== next.deviceToken;
-  return movedServer || movedAccount;
-}
-
-export async function saveCaptureSettings(settings: CaptureSettings): Promise<void> {
-  const next: CaptureSettings = {
-    baseURL: settings.baseURL.trim().replace(/\/+$/, ''),
-    deviceToken: settings.deviceToken.trim(),
+export function onCaptureSettingsChange(listener: () => void): () => void {
+  connectionListeners.add(listener);
+  return () => {
+    connectionListeners.delete(listener);
   };
+}
+function publishConnection(current: CaptureSettings): void {
+  committed = { ...current };
+  epoch++;
+  for (const listener of connectionListeners) listener();
+}
+function serialized<T>(operation: () => Promise<T>): Promise<T> {
+  const result = serial.then(operation);
+  serial = result.catch(() => {});
+  return result;
+}
+function clean(settings: CaptureSettings): CaptureSettings {
+  const baseURL = settings.baseURL.trim().replace(/\/+$/, '');
+  if (baseURL) {
+    const url = new URL(baseURL);
+    if (
+      !['http:', 'https:'].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash
+    ) {
+      throw new Error(
+        'Enter an HTTP or HTTPS server address without credentials or query parameters.',
+      );
+    }
+  }
+  return {
+    baseURL,
+    deviceToken: settings.deviceToken.trim(),
+    ...(settings.serverID && settings.ownerID
+      ? { serverID: settings.serverID, ownerID: settings.ownerID }
+      : {}),
+  };
+}
+async function readConnection(): Promise<CaptureSettings> {
+  const raw = await getSecret(connectionKey);
+  if (raw) {
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      !('baseURL' in parsed) ||
+      !('deviceToken' in parsed) ||
+      typeof parsed.baseURL !== 'string' ||
+      typeof parsed.deviceToken !== 'string'
+    )
+      throw new Error(
+        'Connection settings could not be read. Reconnect this device.',
+      );
+    const ids = parsed as { serverID?: unknown; ownerID?: unknown };
+    return clean({
+      baseURL: parsed.baseURL,
+      deviceToken: parsed.deviceToken,
+      ...(typeof ids.serverID === 'string' && typeof ids.ownerID === 'string'
+        ? { serverID: ids.serverID, ownerID: ids.ownerID }
+        : {}),
+    });
+  }
+  const [baseURL, deviceToken] = await Promise.all([
+    getSecret(baseURLKey),
+    getSecret(deviceTokenKey),
+  ]);
+  return clean({ baseURL: baseURL ?? '', deviceToken: deviceToken ?? '' });
+}
+export async function loadCaptureSettings(): Promise<CaptureSettings> {
+  return readConnection();
+}
+export function libraryKey(s: CaptureSettings): string {
+  // Verified ownership survives token rotation. Unverified/legacy credentials
+  // get a private namespace, never ownership of legacy unscoped databases.
+  const identity =
+    s.serverID && s.ownerID
+      ? [s.baseURL, s.serverID, s.ownerID]
+      : [s.baseURL, 'unverified', s.deviceToken];
+  return bytesToHex(blake3(utf8ToBytes(JSON.stringify(identity))));
+}
+export function sameConnection(
+  a: CaptureSettings,
+  b: CaptureSettings,
+): boolean {
+  return (
+    a.baseURL === b.baseURL &&
+    a.deviceToken === b.deviceToken &&
+    libraryKey(a) === libraryKey(b)
+  );
+}
+export class StaleConnectionError extends Error {
+  constructor() {
+    super('The connected library changed.');
+    this.name = 'StaleConnectionError';
+  }
+}
+export async function assertActiveConnection(
+  settings: CaptureSettings,
+): Promise<void> {
+  if (!sameConnection(await readConnection(), settings))
+    throw new StaleConnectionError();
+}
+// Cache work must use settings' explicit library namespace. Native SQLite can
+// stall, so it must never hold the credential queue and block recovery.
+export async function withActiveConnection<T>(
+  settings: CaptureSettings,
+  work: () => Promise<T>,
+  signal?: AbortSignal,
+): Promise<T> {
+  throwIfAborted(signal);
+  await assertActiveConnection(settings);
+  throwIfAborted(signal);
+  const result = await work();
+  throwIfAborted(signal);
+  await assertActiveConnection(settings);
+  throwIfAborted(signal);
+  return result;
+}
+export function switchedLibrary(
+  previous: CaptureSettings,
+  next: CaptureSettings,
+): boolean {
+  return !!previous.baseURL && libraryKey(previous) !== libraryKey(next);
+}
+export async function saveCaptureSettings(
+  settings: CaptureSettings,
+  expectedEpoch?: number,
+  signal?: AbortSignal,
+): Promise<void> {
+  const next = clean(settings);
+  await serialized(async () => {
+    if (expectedEpoch !== undefined && epoch !== expectedEpoch)
+      throw new StaleConnectionError();
+    const previous = await readConnection();
+    // Editing the server address is not authorization to forward its long-lived
+    // credential to another origin. A newly claimed credential may activate it.
+    if (
+      previous.baseURL &&
+      previous.baseURL !== next.baseURL &&
+      previous.deviceToken &&
+      previous.deviceToken === next.deviceToken
+    ) {
+      next.deviceToken = '';
+      next.serverID = undefined;
+      next.ownerID = undefined;
+    }
+    // Keep authenticated identity only when these are exactly the same
+    // credentials. New pairings resolve identity before activation.
+    if (
+      !next.serverID &&
+      previous.baseURL === next.baseURL &&
+      previous.deviceToken === next.deviceToken
+    ) {
+      next.serverID = previous.serverID;
+      next.ownerID = previous.ownerID;
+    }
+    if (signal?.aborted)
+      throw Object.assign(new Error('Connection canceled.'), {
+        name: 'AbortError',
+      });
+    await setSecret(connectionKey, JSON.stringify(next));
+    if (!sameConnection(previous, next)) publishConnection(next);
+  });
+}
+export async function clearDeviceToken(
+  failed?: string | CaptureSettings,
+  onCleared?: () => void,
+): Promise<boolean> {
+  return serialized(async () => {
+    const current = await readConnection();
+    if (
+      failed !== undefined &&
+      (typeof failed === 'string'
+        ? current.deviceToken !== failed
+        : !sameConnection(current, failed))
+    )
+      return false;
+    await setSecret(
+      connectionKey,
+      JSON.stringify({ ...current, deviceToken: '' }),
+    );
+    // Remove legacy credentials so fallback/migration can never resurrect them.
+    await deleteSecret(deviceTokenKey);
+    publishConnection({ ...current, deviceToken: '' });
+    onCleared?.();
+    return true;
+  });
+}
+export async function migrateSecretsForBackgroundAccess(): Promise<void> {
+  await serialized(async () => {
+    for (const key of [baseURLKey, deviceTokenKey, connectionKey])
+      await rewriteSecretForBackgroundAccess(key);
+  });
+}
+
+/** Resolve authenticated identity before activating newly paired credentials. */
+export async function connectCaptureSettings(
+  settings: CaptureSettings,
+  signal?: AbortSignal,
+  expectedEpoch = connectionEpoch(),
+): Promise<CaptureSettings> {
+  const next = clean(settings);
   const previous = await loadCaptureSettings();
-
-  await Promise.all([setSecret(baseURLKey, next.baseURL), setSecret(deviceTokenKey, next.deviceToken)]);
-
-  // Imported lazily so this module stays free of expo-sqlite: it is imported by
-  // the background task, which must not drag the cache layer in to write an
-  // address.
-  if (switchedLibrary(previous, next)) {
-    const { resetMirror } = await import('@/lib/cache/reset');
-    await resetMirror();
+  if (
+    previous.baseURL &&
+    previous.baseURL !== next.baseURL &&
+    previous.deviceToken &&
+    previous.deviceToken === next.deviceToken
+  )
+    throw new Error(
+      'Pair with the new server address before using its credentials.',
+    );
+  if (!next.deviceToken) {
+    await saveCaptureSettings(next, expectedEpoch, signal);
+    return next;
+  }
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal?.addEventListener('abort', abort, { once: true });
+  const timer = setTimeout(abort, 8_000);
+  try {
+    if (signal?.aborted) abort();
+    const response = await abortable(
+      fetch(`${next.baseURL}/api/capture/identity`, {
+        headers: { Authorization: `Bearer ${next.deviceToken}` },
+        signal: controller.signal,
+      }),
+      controller.signal,
+    );
+    if (response.status !== 404) {
+      if (!response.ok)
+        throw new Error(
+          response.status === 401
+            ? 'Pair this device with the selected server.'
+            : 'Could not verify the connected library.',
+        );
+      const body = (await abortable(response.json(), controller.signal)) as {
+        server_id?: unknown;
+        owner_id?: unknown;
+      };
+      if (
+        typeof body.server_id !== 'string' ||
+        !body.server_id ||
+        typeof body.owner_id !== 'string' ||
+        !body.owner_id
+      )
+        throw new Error('Server returned an invalid library identity.');
+      next.serverID = body.server_id;
+      next.ownerID = body.owner_id;
+    }
+    throwIfAborted(controller.signal);
+    await saveCaptureSettings(next, expectedEpoch, signal);
+    return next;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
   }
 }
-
-/**
- * clearDeviceToken removes the stored token, but only if it is still the one
- * that failed.
- *
- * The compare is the whole point. A 401 clears the token asynchronously, and
- * nothing ordered that against a re-pair storing a new one — so a rejection
- * that was already in flight when the user paired deleted the credential
- * pairing had just written, leaving a device the server considers active and an
- * app that says "Not paired". Passing the token that actually failed makes the
- * clear a no-op once it has been replaced.
- */
-export async function clearDeviceToken(failed?: string): Promise<void> {
-  if (failed !== undefined) {
-    const current = await getSecret(deviceTokenKey);
-    if (current !== failed) return;
-  }
-  await deleteSecret(deviceTokenKey);
-}
-
 const setupCompleteKey = 'kuraki.setup.complete';
 
 // The setup-complete flag is a reactive signal (mirroring session.ts): a
@@ -124,4 +326,15 @@ export async function clearSetupComplete(): Promise<void> {
   await deleteSecret(setupCompleteKey);
   setupCompleteMirror = false;
   notifySetupChange();
+}
+
+/** Explicit recovery action; never silently discard credentials on a read error. */
+export async function resetCaptureConnection(): Promise<void> {
+  await serialized(async () => {
+    const empty = { baseURL: '', deviceToken: '' };
+    await setSecret(connectionKey, JSON.stringify(empty));
+    await deleteSecret(baseURLKey);
+    await deleteSecret(deviceTokenKey);
+    publishConnection(empty);
+  });
 }

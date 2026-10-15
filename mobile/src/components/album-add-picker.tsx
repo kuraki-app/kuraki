@@ -21,8 +21,8 @@ type Props = {
    *  offered again as if they were new. */
   existing: Set<string>;
   onClose: () => void;
-  /** Called after a successful add, with how many the server actually linked. */
-  onAdded: (added: number) => void;
+  /** Called after the add intent is durable; refresh the server/mirror view. */
+  onAdded: () => void;
 };
 
 /**
@@ -37,10 +37,9 @@ type Props = {
  * `selectionMode` so a tap always toggles rather than opening the viewer —
  * picking is the only thing to do here.
  *
- * Adding is idempotent server-side (`INSERT OR IGNORE`, owner-scoped), so an
- * asset already in the album costs nothing and the response's `added` count is
- * the truth about what changed. Those assets are still marked, because offering
- * them as if they were new would make the picker lie about the album's contents.
+ * Adds are durable and idempotent. Already linked assets stay marked so
+ * the picker does not offer them as if they were new; failed network sends
+ * retain their ordered intent for recovery.
  */
 export default function AlbumAddPicker({
   visible,
@@ -67,7 +66,9 @@ export default function AlbumAddPicker({
       setAssets(page.assets);
       setCursor(page.next_cursor);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not load your library.');
+      setError(
+        cause instanceof Error ? cause.message : 'Could not load your library.',
+      );
       setAssets([]);
     } finally {
       setLoading(false);
@@ -110,13 +111,14 @@ export default function AlbumAddPicker({
     if (!settings || selected.size === 0 || saving) return;
     setSaving(true);
     try {
-      const added = await addToAlbum(settings, albumId, [...selected]);
-      onAdded(added);
+      await addToAlbum(settings, albumId, [...selected]);
+      onAdded();
       onClose();
     } catch (cause) {
-      // Online-only: the album's contents are server state, and queuing a
-      // silent add would leave the album looking wrong until the next flush.
-      setError(cause instanceof Error ? cause.message : 'Could not add to this album.');
+      // Retain the picker and report storage failures or terminal rejection.
+      setError(
+        cause instanceof Error ? cause.message : 'Could not add to this album.',
+      );
     } finally {
       setSaving(false);
     }
@@ -127,7 +129,15 @@ export default function AlbumAddPicker({
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <ThemedView style={styles.fill}>
-        <View style={[styles.bar, { paddingTop: insets.top + Space.two, borderBottomColor: tokens.border }]}>
+        <View
+          style={[
+            styles.bar,
+            {
+              paddingTop: insets.top + Space.two,
+              borderBottomColor: tokens.border,
+            },
+          ]}
+        >
           <Pressable onPress={onClose} hitSlop={8} accessibilityRole="button">
             <ThemedText type="smallBold" themeColor="mutedForeground">
               Cancel
@@ -140,10 +150,17 @@ export default function AlbumAddPicker({
             onPress={() => void confirm()}
             hitSlop={8}
             disabled={count === 0 || saving}
-            accessibilityRole="button">
+            accessibilityRole="button"
+          >
             <ThemedText
               type="smallBold"
-              style={{ color: count === 0 || saving ? tokens.mutedForeground : tokens.primary }}>
+              style={{
+                color:
+                  count === 0 || saving
+                    ? tokens.mutedForeground
+                    : tokens.primary,
+              }}
+            >
               {saving ? 'Adding…' : 'Add'}
             </ThemedText>
           </Pressable>
@@ -151,7 +168,11 @@ export default function AlbumAddPicker({
 
         {error ? (
           <View style={styles.center}>
-            <ThemedText themeColor="mutedForeground" style={styles.msg} selectable>
+            <ThemedText
+              themeColor="mutedForeground"
+              style={styles.msg}
+              selectable
+            >
               {error}
             </ThemedText>
           </View>
@@ -196,6 +217,11 @@ const styles = StyleSheet.create({
     paddingBottom: Space.two,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
   msg: { textAlign: 'center' },
 });

@@ -12,6 +12,7 @@
   import { api, uploadFiles, UploadHTTPError } from '$lib/api';
   import {
     drainUploads,
+    permanentUploadStatus,
     enqueueUploads,
     PermanentUploadError,
     uploadQueueState,
@@ -43,6 +44,7 @@
   let uploadBatchFiles = 0;
   let queuedFiles = 0;
   let drainingUploads = false;
+  let uploadResumeRequested = false;
   let importStatus = '';
   let fileInput: HTMLInputElement;
   let signingOut = false;
@@ -180,7 +182,13 @@
 
   async function resumeQueuedUploads() {
     const user = get(session).user;
-    if (!user || drainingUploads) return;
+    if (!user) return;
+    if (drainingUploads) {
+      // Reconnect or a newly queued file can arrive before the failing sender
+      // releases its lease. Preserve that wake instead of dropping it.
+      uploadResumeRequested = true;
+      return;
+    }
     drainingUploads = true;
     const abort = new AbortController();
     uploadAbort = abort;
@@ -198,10 +206,7 @@
         } catch (error) {
           if (
             error instanceof UploadHTTPError &&
-            error.status >= 400 &&
-            error.status < 500 &&
-            error.status !== 401 &&
-            error.status !== 403
+            permanentUploadStatus(error.status)
           ) {
             throw new PermanentUploadError(error.message);
           }
@@ -236,7 +241,9 @@
       importStatus = '';
       drainingUploads = false;
       if (uploadAbort === abort) uploadAbort = null;
-      if (get(session).user && get(session).user?.id !== user.id) void resumeQueuedUploads();
+      const resumeAgain = uploadResumeRequested || get(session).user?.id !== user.id;
+      uploadResumeRequested = false;
+      if (get(session).user && resumeAgain) void resumeQueuedUploads();
     }
   }
 

@@ -31,7 +31,11 @@ export default function SettingsIndex() {
     // address is spelled.
     setHost(serverHost(s.baseURL));
     setHasToken(Boolean(s.deviceToken));
-    setPhotos(classifyPermission(await MediaLibrary.getPermissionsAsync()));
+    setPhotos(
+      classifyPermission(
+        await MediaLibrary.getPermissionsAsync(false, ['photo', 'video']),
+      ),
+    );
   }, []);
 
   // Deferred a tick so the first setState does not fire synchronously inside
@@ -55,11 +59,22 @@ export default function SettingsIndex() {
     }, [reload]),
   );
 
-  const view = connectionView({ hasToken, connection: isAuthLost() ? 'disconnected' : 'online' });
+  const view = connectionView({
+    hasToken,
+    connection: isAuthLost() ? 'disconnected' : 'online',
+  });
   const connectionDetail =
-    view === 'unpaired' ? 'Not paired' : view === 'disconnected' ? 'Disconnected' : host;
+    view === 'unpaired'
+      ? 'Not paired'
+      : view === 'disconnected'
+        ? 'Disconnected'
+        : host;
   const permissionsDetail =
-    photos === 'granted' ? undefined : photos === 'limited' ? 'Limited' : 'Photo access off';
+    photos === 'granted'
+      ? undefined
+      : photos === 'limited'
+        ? 'Limited'
+        : 'Photo access off';
 
   return (
     // The ScrollView is the screen's direct child on purpose. Wrapped in a
@@ -70,11 +85,16 @@ export default function SettingsIndex() {
     <ScrollView
       contentInsetAdjustmentBehavior="automatic"
       style={[styles.fill, { backgroundColor: tokens.background }]}
-      contentContainerStyle={styles.content}>
+      contentContainerStyle={styles.content}
+    >
       <LibraryStatsCard />
 
       <SettingsSection>
-        <SettingsRow label="Backup" icon="arrow.up.circle" href="/(app)/settings/backup" />
+        <SettingsRow
+          label="Backup"
+          icon="arrow.up.circle"
+          href="/(app)/settings/backup"
+        />
         <SettingsRow
           label="Connection"
           icon="wifi"
@@ -92,19 +112,43 @@ export default function SettingsIndex() {
       </SettingsSection>
 
       <SettingsSection title="Preferences">
-        <SettingsRow label="Notifications" icon="bell" href="/(app)/settings/notifications" />
-        <SettingsRow label="Photo Grid" icon="square.grid.3x3" href="/(app)/settings/grid" />
-        <SettingsRow label="Appearance" icon="circle.lefthalf.filled" href="/(app)/settings/appearance" />
+        <SettingsRow
+          label="Notifications"
+          icon="bell"
+          href="/(app)/settings/notifications"
+        />
+        <SettingsRow
+          label="Photo Grid"
+          icon="square.grid.3x3"
+          href="/(app)/settings/grid"
+        />
+        <SettingsRow
+          label="Appearance"
+          icon="circle.lefthalf.filled"
+          href="/(app)/settings/appearance"
+        />
       </SettingsSection>
 
       <SettingsSection title="Library">
-        <SettingsRow label="Free up space" icon="internaldrive" href="/(app)/settings/free-up-space" />
+        <SettingsRow
+          label="Free up space"
+          icon="internaldrive"
+          href="/(app)/settings/free-up-space"
+        />
         <SettingsRow label="Trash" icon="trash" href="/(app)/settings/trash" />
-        <SettingsRow label="Duplicates" icon="square.on.square" href="/(app)/settings/duplicates" />
+        <SettingsRow
+          label="Duplicates"
+          icon="square.on.square"
+          href="/(app)/settings/duplicates"
+        />
       </SettingsSection>
 
       <SettingsSection title="More">
-        <SettingsRow label="Advanced" icon="gearshape.2" href="/(app)/settings/advanced" />
+        <SettingsRow
+          label="Advanced"
+          icon="gearshape.2"
+          href="/(app)/settings/advanced"
+        />
       </SettingsSection>
 
       <View style={styles.spacer} />
@@ -114,6 +158,11 @@ export default function SettingsIndex() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  content: { width: '100%', maxWidth: MaxContentWidth, alignSelf: 'center', paddingBottom: Space.five },
+  content: {
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
+    paddingBottom: Space.five,
+  },
   spacer: { height: Space.five },
 });

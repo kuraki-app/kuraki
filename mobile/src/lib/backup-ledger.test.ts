@@ -25,13 +25,13 @@ describe('canResume', () => {
     expect(canResume(stored(), 2_000)).toBe(false);
   });
 
-  it('does not resume from a zero offset', () => {
+  it('resumes a durably saved initial session', () => {
     // Nothing was transferred, so a fresh session is equivalent and simpler.
-    expect(canResume(stored({ offsetBytes: 0 }), 1_000)).toBe(false);
+    expect(canResume(stored({ offsetBytes: 0 }), 1_000)).toBe(true);
   });
 
-  it('does not resume from a complete offset', () => {
-    expect(canResume(stored({ offsetBytes: 1_000 }), 1_000)).toBe(false);
+  it('resumes completion without resending bytes', () => {
+    expect(canResume(stored({ offsetBytes: 1_000 }), 1_000)).toBe(true);
   });
 
   it('does not resume from an impossible offset past the end', () => {

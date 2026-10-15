@@ -56,11 +56,12 @@ export default function DuplicatesScreen() {
         if (online) {
           try {
             await trashAsset(settings, id);
-          } catch {
-            await enqueueTrash(id);
+          } catch (cause) {
+            setError(cause instanceof Error ? cause.message : 'Could not move this photo to trash.');
+            return;
           }
         } else {
-          await enqueueTrash(id);
+          await enqueueTrash(id, settings ?? undefined);
         }
       }
       setGroups((prev) => removeIds(prev, ids));

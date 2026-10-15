@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 // Imports the pure policy, not ./network -- expo-network drags the React
 // Native runtime in and this suite is node-only (see vitest.config.ts).
-import { evaluateNetworkGate, gateMessage, type Connection } from './network-policy';
+import {
+  evaluateNetworkGate,
+  gateMessage,
+  type Connection,
+} from './network-policy';
 
 const wifi: Connection = { isConnected: true, type: 'wifi' };
 const cellular: Connection = { isConnected: true, type: 'cellular' };
@@ -23,24 +27,32 @@ describe('evaluateNetworkGate', () => {
 
   it('reports offline before considering the restriction', () => {
     // Offline must win over 'metered' so the user is told the useful thing.
-    expect(evaluateNetworkGate({ isConnected: false, type: 'wifi' }, true)).toBe('offline');
-    expect(evaluateNetworkGate({ isConnected: false, type: 'wifi' }, false)).toBe('offline');
+    expect(
+      evaluateNetworkGate({ isConnected: false, type: 'wifi' }, true),
+    ).toBe('offline');
+    expect(
+      evaluateNetworkGate({ isConnected: false, type: 'wifi' }, false),
+    ).toBe('offline');
   });
 
   it('allows ethernet/VPN and similar un-metered types', () => {
-    expect(evaluateNetworkGate({ isConnected: true, type: 'other' }, true)).toBe('allowed');
+    expect(
+      evaluateNetworkGate({ isConnected: true, type: 'other' }, true),
+    ).toBe('allowed');
   });
 
-  it('allows an unclassifiable connection rather than stranding backup', () => {
+  it('keeps Wi-Fi-only backup paused on an unverified connection', () => {
     // VPNs and some tethering setups report UNKNOWN. Refusing those would
     // silently stop backup on networks we merely failed to identify, which is
     // worse than an occasional unexpected upload.
-    expect(evaluateNetworkGate(unknown, true)).toBe('allowed');
+    expect(evaluateNetworkGate(unknown, true)).toBe('unverified');
   });
 
-  it('treats an unreadable connection state as allowed', () => {
+  it('fails closed when the connection cannot be read', () => {
     // currentConnection degrades to isConnected: null when the read throws.
-    expect(evaluateNetworkGate({ isConnected: null, type: 'unknown' }, true)).toBe('allowed');
+    expect(
+      evaluateNetworkGate({ isConnected: null, type: 'unknown' }, true),
+    ).toBe('unverified');
   });
 });
 

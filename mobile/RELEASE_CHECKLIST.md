@@ -9,6 +9,9 @@ Before a TestFlight, Play internal-track, or public build:
 - [ ] Confirm ownership of `app.kuraki.mobile` in Apple Developer and Google
       Play before creating store records; change identifiers before any external
       release if the organization requires a different namespace.
+- [ ] Require green mobile security/compatibility and native build/install smoke jobs.
+- [ ] Record artifact commit/lockfile/checksum provenance; never certify an older APK
+      or a simulator binary with different native module versions.
 - [ ] Run a signed EAS `development` build on physical iOS and Android hardware.
 - [ ] Exercise fresh install, full/limited/denied photo permissions, QR pairing,
       manually entered credentials, revoked device credentials, and reconnect.
@@ -44,3 +47,25 @@ Before the Spec 2 release build, exercise the following flows on both iOS and An
       without crashing.
 - [ ] **Trash navigation.** Settings → Trash → back button (native/custom affordance); verify the
       back gesture or button navigates correctly to Settings on both iOS (swipe) and Android.
+
+
+## Backup safety certification
+
+- [ ] On each platform, fail an import, purge an original and restore an older server
+      snapshot: the phone retains its local original and repairs missing backup history.
+- [ ] Change server/account while uploads, lists and mutation writes are in flight;
+      confirm no old library metadata or backup permission enters the new account.
+- [ ] Interrupt after the last chunk but before completion and while an error response
+      body stalls; resume once and confirm imported original hashes without retransfers.
+- [ ] Switch Wi-Fi to cellular/unknown/VPN during a large transfer with Wi-Fi-only on;
+      confirm pause and reconnect continuation. Stop and OS expiration must stop sync too.
+- [ ] Edit a backed-up photo and exercise Live Photo motion missing/available states;
+      only current, complete originals are eligible for local cleanup.
+- [ ] Profile a multi-gigabyte video/content provider and a 100k+ camera roll: record
+      peak RSS, network bytes, scan time and battery use. Current code bounds chunks to
+      4 MiB, hashing buffers to 256 KiB and pages to 100; these are code limits, not
+      measured physical-device memory/battery guarantees.
+
+CI uses standalone QA signing, not Apple/Google production credentials. Simulator
+foreground checks do not certify locked-device scheduling, vendor battery restrictions,
+iCloud download cancellation or store distribution. Those remain release gates.

@@ -1,0 +1,23 @@
+appId: app.kuraki.mobile
+---
+- tapOn: "${SMOKE_FIELD}"
+# Maestro 2.11's iOS driver slows only the first character; its 30Hz suffix can
+# be dropped by the simulator keyboard. Every one-character call uses its slow
+# native path. Validate the exact field value before continuing on either OS.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - evalScript: ${output.inputIndex = 0}
+      - repeat:
+          times: ${SMOKE_TEXT.length}
+          commands:
+            - inputText: ${SMOKE_TEXT.charAt(output.inputIndex)}
+            - evalScript: ${output.inputIndex = output.inputIndex + 1}
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - inputText: "${SMOKE_TEXT}"
+- copyTextFrom: "${SMOKE_FIELD}"
+- assertTrue: ${maestro.copiedText === SMOKE_TEXT}

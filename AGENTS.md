@@ -23,6 +23,27 @@ Phase 1 = single-owner personal backup.
 
 ## 2. Current state
 
+- **Mobile hardening implemented (2026-10-12, PR36).** The twelve audit findings
+  now have code fixes and regression coverage: verified original receipts and cleanup,
+  library-scoped state, bounded/cancellable backup and upload recovery, native permission
+  and dependency gates, safe ordered edits and recoverable credential transitions.
+  Full344-test mobile/type/lint and Go suites pass. Fresh standalone builds and local
+  iOS pairing/import/hash checks are recorded in MOBILE_READINESS_REVIEW.md. Final
+  installed CI is tracked in PR36; / now explicitly launches Photos, verified on
+  simulator after restarting from Collections. Physical/store certification remain open.
+
+- **Mobile follow-up audit (2026-10-11).** Before a mobile release, read
+  [MOBILE_READINESS_REVIEW.md](./MOBILE_READINESS_REVIEW.md). Nine targeted probes
+  reproduce premature deletion eligibility, unscoped backup history, stale cross-account
+  cache writes, overlapping backup passes, one-time Wi-Fi policy, stale auth-loss state,
+  dropped trip filters and zero-progress conflict loops. Further cancellation/UI gaps
+  and dependency/artifact checks are recorded there. Mobile type/lint and 288 tests plus
+  both production JS exports pass; fresh iOS native compilation passes, but current signed
+  runtime/physical-device certification remains open. Android SDK/Pixel emulator **is now
+  available**; the old optional APK launches, but a fresh Android build needs missing Java.
+  This entry records the original audit; the hardening milestone above supersedes
+  its implementation status.
+
 - **Pre-deployment hardening complete (2026-10-11).** Branch `codex/pre-deployment-hardening`
   fixes the 22 findings in `PRE_DEPLOYMENT_REVIEW.md`; consult its remediation/evidence
   section for release decisions. Go 1.26.9 and patched dependencies, private proxy/mount
@@ -406,7 +427,21 @@ Config env: `KURAKI_DATA_DIR` (`./kuraki-data`), `KURAKI_ADDR` (`:39170`),
 
 | Area | Status |
 |---|---|
+| Mobile hardening delivery (2026-10-13) | ✅ all twelve findings and follow-ups fixed;349 mobile tests,127 browser cases, Android/iOS installed mobile-code checks and exact provenance; PR36 |
+| Browser upload recovery (2026-10-13) | ✅ preserve reconnect wake and queued originals after408/429; coded response/overlap tests pass; foreground/worker policy shared |
+| Mobile native HTTP fixture (2026-10-13) | ✅ final static review caught required empty POST body in pinned Maestro/OkHttp; authentication and expiry gates retained |
+| Mobile pairing expiry (2026-10-13) | ✅ invalid/used/expired codes give recovery instructions;349 mobile tests; QA mints the real five-minute code immediately before entry |
+| Mobile native input verification (2026-10-13) | ✅ pinned iOS driver fast-suffix loss reproduced in screenshot/log; slow character path plus exact field assertions; native rerun pending |
+| Mobile Android smoke visibility (2026-10-13) | ✅ standalone build/accelerated pairing/tabs exercised; clipped completion notice now explicitly scrolled; strict original-receipt rerun pending |
+| Mobile queue/recovery review (2026-10-12) | ✅ terminal edit failures reported across screens;408/429 retain intent; scoped cache I/O frees credential recovery;344 mobile regressions |
+| Mobile sync cancellation (2026-10-12) | ✅ canceled same-owner drains cannot resume stale deletes/cursors; queued canceled cache work is skipped;346 mobile tests |
+| Mobile installed iOS proof (2026-10-12) | ✅ CI 38279722296 passed standalone build, pairing, selected-tab navigation/restart, real import receipts and artifact provenance; Android environment correction follows |
+| Mobile SDK compatibility (2026-10-12) | ✅ Expo 57.0.28 compatible patches; CI validates the installed SDK matrix, rejects deliberately incompatible RN, and retains live security auditing |
+| Mobile launch routing (2026-10-12) | ✅ explicit root entry opens Photos after a true restart from Collections; native smoke requires the selected tab |
+| Mobile native verification (2026-10-12) | ✅ fresh Android/iOS standalone builds; iOS pairing/restart/7 real imports/6 hash-matched cleanup candidates; native CI + provenance gates added; physical-device certification pending |
+| Mobile original safety and isolation (2026-10-11) | ✅ migration 00031 + verified receipts/reclamation, scoped mirrors/ledger, cancellation and recovery; dependency/native milestone follows |
 | Pre-deployment review (2026-10-11) | ✅ audit complete; ⛔ deployment pending fixes in PRE_DEPLOYMENT_REVIEW.md |
+| Mobile review (2026-10-11) | ✅ audit and nine reproductions recorded; ⛔ backup/deletion, account identity and signed-artifact remediation required (MOBILE_READINESS_REVIEW.md) |
 | Deployment hardening | ✅ all 22 code findings fixed; local candidate recovery/TLS/scans and regression suites passed; target-host/hardware certification stays explicit (DEPLOYMENT_FIX_PLAN.md) |
 | Recovery hardening | ✅ stable soft deletion, cleanup journal (00030), cross-process backup/purge coordination, complete archive validation, bounded manual maintenance and external lifecycle regressions |
 | Web hardening | ✅ account-bound upload/read transport, scoped/live sync cursors, HTTP LAN IDs, admin status gating, patched dependencies (zero npm advisories), focused browser regressions |
@@ -557,6 +592,232 @@ audited baseline and release checklist.
   (Claude, Codex, or any other). Enforced for Claude Code by `.claude/settings.json`.
 
 ## 11. Handoff log (append newest at top)
+
+- `codex/mobile-hardening` (2026-10-13, Codex) — **Deliver coded validation and provenance.**
+  All implementation findings and follow-ups are fixed. Native run 38347315759
+  passes Android and iOS installed checks on eeb858f, with exact field read-back,
+  real fresh-code redemption, imported-original receipts and cold Photos restart.
+  Delivery run 38349437771 on 676cbcc passes all twelve non-native checks, including
+  349 mobile tests and 127 browser cases. Mobile/shared trees, native CI and Go API
+  source excluding embedded web assets are identical across these revisions;
+  its configured automatic native rebuilds remain separate, ongoing checks.
+  `mobile/NATIVE_VERIFICATION.md` and `mobile/native-proof/*-ci.json` retain exact
+  tested merge/lock/artifact hashes; downloaded Android SHA256 matches. The final
+  plan milestone is closed against this explicitly scoped source evidence.
+  User requests implementation first, coded tests and fewer manual checks; no
+  further manual simulator/browser passes or repeated full local suites are used.
+  Physical/store certification remains in RELEASE_CHECKLIST.md. PR36 is updated;
+  no merge, release or production deployment is performed. This commit adds only
+  delivery documentation/provenance, leaving validated runtime source unchanged.
+
+- `codex/mobile-hardening` (2026-10-13, Codex) — **Preserve browser reconnect wakes.**
+  Final CI 38347315759 exposed an actual browser race: online arrives while an
+  offline upload still holds its foreground drain/IndexedDB lease, and the
+  reentrant resume returned without preserving that wake. The trace shows the
+  first offline POST failing immediately before online, with no later POST.
+  The page now records a pending resume and drains once more after the current
+  attempt finishes, using the current account. A coded regression holds the
+  failed sender until after online and requires a real202 retry, independently
+  of Background Sync. The foreground and worker now share permanent-status
+  policy:408/429 retain originals for retry, matching401/403 and5xx. Two coded
+  response-boundary cases require those files to reach a real202 after retry.
+  No manual browser/device verification is performed.
+  Chromium also segfaulted on an unrelated route and passed its existing retry;
+  this environmental event is recorded separately from the reconnect defect.
+  Completed focused upload cases pass, including real 202 retries for reconnect,
+  408 and 429. Web type/build, required Go checks and both static reviews pass;
+  no full mobile rerun or manual UI verification is used for this web-only unit.
+
+- `codex/mobile-hardening` (2026-10-13, Codex) — **Close native fixture client contract.**
+  The resumed final spec review caught an omitted body in the fresh-code POST:
+  pinned Maestro forwards null to OkHttp, which rejects POST before transport.
+  An explicit empty body now matches the bodyless server endpoint while keeping
+  session/owner authentication, fresh five-minute expiry and single-use claims.
+  The Node/fetch response harness could not detect this native-client constraint.
+  Final standards review cleared the pairing recovery increment; spec review's
+  only finding is closed. User requests implementation first and coded validation,
+  so no further manual simulator checks or repeated full mobile runs are performed.
+  The 349-test application suite remains green; final automated CI follows this
+  static correction. Superseded known-bad CI 38346793332 is canceled.
+
+- `codex/mobile-hardening` (2026-10-13, Codex) — **Fresh pairing fixtures and expiry recovery.**
+  CI 38293304684 passes Android, including exact input and an imported original.
+  iOS exact URL/code read-back also passes, but the pre-flow code expires during
+  slow input: production TTL is five minutes, not ten. The flow now authenticates
+  only its disposable local QA account and mints through the existing endpoint
+  immediately before code entry; expiry and single-use enforcement are unchanged.
+  The app also explains invalid, used and expired codes with Settings → Devices
+  recovery instructions rather than raw server codes. Three real response-boundary
+  regressions preserve existing credentials and avoid false revocation (349 total).
+  The prior f1c3fdd run 38291971152 passes all14 checks, including Android one/iOS
+  seven original receipts and cold Photos restart; final current-source rerun follows.
+  Required checks and workflow lint pass. Independent reviewers were unavailable
+  for this final increment due to the account usage cap; prior increments were
+  independently cleared. The primary review found no additional defect.
+
+- `codex/mobile-hardening` (2026-10-13, Codex) — **Verify native smoke input.**
+  The final-code iOS run 38289309652 built successfully, but its server field
+  contained only “h”, although Maestro claimed it typed the full QA URL. The
+  native driver log confirms first-character and fast-suffix dispatch. Pinned
+  Maestro 2.11 TextInputHelper sends the suffix at30Hz and explicitly documents
+  dropped-character behavior. iOS smoke input now uses one-character calls,
+  each on the slow native path; both platforms read back and assert the exact
+  server URL and pairing code before submission. No whole-flow retry or product
+  navigation bypass is introduced. The previously passing iOS runs remain
+  separate evidence; this failed automation is not certification. 346 mobile
+  regressions and final local builds remain valid; native rerun follows.
+
+- `codex/mobile-hardening` (2026-10-13, Codex) — **Installed Android status visibility.**
+  CI 38289309652 builds the final cancellation fix on both platforms. Android
+  passes mandatory KVM acceleration, storage, pairing and tab navigation; the
+  backup finishes, but the 320×640 viewport clips the idle “All caught up” notice
+  below the action. The captured native log explicitly reports this text as
+  invisible and the notification says Backup finished. The smoke now scrolls
+  the backup action and final status fully into view. Its server-import receipt
+  assertion is retained; this failed run is not reported as certification.
+  Local final Android/iOS builds succeeded with clean 7d3d89d provenance; 346
+  mobile regressions and all twelve non-native CI checks pass. Native retry follows.
+
+- `codex/mobile-hardening` (2026-10-12, Codex) — **Cancel stale cache continuations.**
+  A public real-SQLite regression reproduced an old canceled same-owner drain
+  resuming after native I/O, deleting a restored asset and replacing cursor3 with2.
+  Initial since=0 can see a newly pruned feed without reset, so the race is valid
+  under the server contract. Cache work now checks cancellation at queue entry,
+  after native completion and before each subsequent change/reset/cursor phase.
+  The SQL lane remains held until real native completion; durable user intents keep
+  their existing semantics. A second regression skips canceled queued transactions.
+  All346 mobile tests, type/lint pass; prior iOS installed proof remains recorded.
+  e286f7f iOS also passed, while Android's unchanged runtime failed during APK
+  packaging with an uninformative nested Gradle error. Build stacktraces, filesystem
+  space and reports are now retained alongside the accelerated emulator retry.
+
+- `codex/mobile-hardening` (2026-10-12, Codex) — **iOS installed proof and Android acceleration.**
+  CI 38279722296 on 5e90397 passes the full iOS installed flow and provenance. Local
+  updated iOS also renders the synthetic original and sends a favorite verified by
+  an owner-scoped server query (then restored). Android compilation passes, but its
+  emulator used `-accel off` and aborted the required media fixture write before app
+  launch. The job now grants /dev/kvm only to its runner UID (0600), requires hardware
+  acceleration, checks actual shared-storage writes, retries bounded initial ADB
+  transfer resets, and preserves timed storage/logcat diagnostics on failure. The
+  script targets an explicit emulator serial and rejects physical phones before I/O. This
+  remains an Android environment rerun, not claimed Android certification. No
+  operator library or local-photo deletion was used.
+
+- `codex/mobile-hardening` (2026-10-12, Codex) — **Reproducible SDK compatibility.**
+  The 3b46e73 native jobs were skipped because Expo published new compatible patches
+  while the review was running. Updated Expo 57.0.28, UI 57.0.23, dev-client 57.0.20,
+  router 57.0.26 and splash 57.0.10 without changing SDK/RN major versions. CI's explicit
+  install --check now uses the installed SDK's bundled matrix (EXPO_OFFLINE scoped
+  only to that step); security auditing still queries live advisories independently.
+  A disposable probe with RN 0.0.1 correctly fails against the SDK's 0.86.3 requirement,
+  so this changes reproducibility rather than bypassing compatibility validation.
+  All 344 mobile tests, type/lint and security/compatibility checks pass. Updated native
+  candidates rebuild in isolation; final installed CI evidence remains in PR36.
+
+- `codex/mobile-hardening` (2026-10-12, Codex) — **Verified launch and smoke diagnostics.**
+  A true cold launch still chose Collections: NativeTabs initial-route metadata did
+  not disambiguate the shared / URL. A root index redirects explicitly to Gallery;
+  rebuilt iOS now starts Photos, including after selecting Collections and terminating
+  the app. Smoke checks require the Photos tab's selected trait (not its permanent
+  label). Latest CI passed all twelve ordinary checks. iOS paired and reached Settings;
+  its Backup row exposes a combined icon/text label, now matched by the same regex
+  already used for the tap. Android's AVD had no usable shared storage; it now gets
+  an explicit512M SD card and a bounded mount wait before the mandatory photo fixture.
+  Artifact provenance is produced after successful compilation even if smoke fails.
+  Type/lint and workflow syntax pass; final installed rerun remains in PR36.
+
+- `codex/mobile-hardening` (2026-10-12, Codex) — **Installed smoke-run corrections.**
+  Fresh32a51a2 standalone Android/iOS builds succeed, with clean-commit/checksum
+  provenance. The iOS candidate survives restart and the actual album-picker flow
+  retains rejection when its disposable QA album disappears through the API. Terminal
+  edit errors now use human-readable guidance. CI proved Androidbuild/emulatorboot,
+  but the runner executes each script line in a separate shell; its smoke sequence
+  now runs one checked-in script with driver warm-up before pairing-code creation.
+  iOSdriver startup succeeds; its next failure is the layout-dependent keyboard-hide
+  gesture before Continue, now replaced with a safe heading tap and action scrolling.
+  Hidden Maestro diagnostics and form screenshots are retained in QA artifacts.
+  Workflow validation, Go checks and targeted mobile checks pass; final rerun remains
+  required in PR36. The original reset-helper audit link now pins its historical
+  revision. No operator credentials or originals were used.
+
+- `codex/mobile-hardening` (2026-10-12, Codex) — **Edit failures and stalled-cache recovery.**
+  Permanent HTTP failures now persist a short-lived rejection before removing the
+  queued row; live callers retrieve status/message even when another drain handled
+  the row. Album/tag dialogs retain the error and online mutation callers report
+  rejection without recreating it. HTTP408/429 retain one intent for later retry.
+  Cache schema8 stores these outcomes for24 hours. Per-library SQL write lanes keep
+  mirror rollback from absorbing acknowledged offline intent; a real SQLite regression
+  verifies enqueue waits for the failed mirror transaction and then commits independently. Request-owned cache functions
+  always use their captured library namespace; native SQLite work no longer holds
+  the credential-write queue. Canceling a stalled public sync then switching owner
+  succeeds, and late old work cannot access the new cache.344 mobile tests plus type
+  and lint checks pass. Native CI remains tracked in PR36; hardware/store certification
+  is unchanged. No operator library used.
+
+- `codex/mobile-hardening` (2026-10-12, Codex) — **Final offline ordering review.**
+  Review reproduced old offline favorites/tags/membership overwriting newer online
+  edits and concurrent drains racing the same FIFO snapshot. All offline-capable
+  writes now persist intent before transport and share a per-library push/pull lane;
+  canceled native waits release the lane, failures retain intent once, and a new
+  account never waits on another library. The Settings address workflow now flushes
+  with the resolved server/owner identity; a real SQL/HTTP regression covers saving
+  the same paired address. Album-add completion no longer invents a server count for
+  a queued intent. Added thirteen ordering/cancellation regressions (338 mobile tests).
+  Foreground metadata sync now runs independently of photo-backup preferences;
+  drains use bounded500-item/30s passes. Native CI first run passed all ordinary checks; Android SDK setup failed because
+  upstream removed the legacy tools package, now explicitly platform-tools. iOS test-driver cold startup is warmed with a
+  bounded budget before minting its short-lived pairing code. Full
+  browser suite passes124 tests. Exact iOS/Android candidates compile successfully;
+  final native CI/install/provenance evidence is tracked in PR36. No operator data.
+
+- `codex/mobile-hardening` (2026-10-12, Codex) — **Native verification and review closure.**
+  Fixed review-found completed-byte handoff, error-body cancellation, late disabled
+  background wakes, stalled native sync, whole-page sweep
+  fairness, pending manual-upload continuation and reclaim scan continuation. Added shared
+  cancellation primitives and regressions. A midnight run exposed a timezone-dependent
+  existing memories pagination fixture; it now uses an explicit date. Native permissions
+  exclude audio and preserve QR camera access (image-picker's cameraPermission=false
+  would remove CAMERA across the whole Android app). Added Expo-compatible dev client,
+  APK/simulator profiles, artifact hashes/commit provenance, pinned-checksum Maestro and
+  standalone build/install/pair/camera-roll-import CI for both platforms. Current native
+  builds succeed using temporary JDK21 and simulator signing. iOS 26.5 QA app paired,
+  survived restart, imported seven test originals, then verified six old local copies by
+  BLAKE3/server proofs; Keep all restored, no deletion. Android37.1 fresh APK launched
+  with no startup errors. Native navigation now anchors cold launches at Photos; setup
+  progress accessibility is a bounded percentage. 325 mobile tests, TypeScript/lint,
+  server race suite and workflow checks pass. Physical locked/iCloud/battery/signing
+  certification remains explicit in RELEASE_CHECKLIST.md. PR/CI delivery follows.
+
+- `codex/mobile-hardening` (2026-10-11, Codex) — **Original safety and recovery milestone.**
+  New append-only migration 00031 persists library identity and capture import receipts.
+  Queue finalization links only successfully imported originals; device endpoints scope
+  proofs to owners, check bounded availability after purge/restore, and rehash originals
+  before reclamation. Mobile stores atomic credentials, serializes/fences identity changes,
+  scopes cache/receipt/resume databases, ignores old-token failures, and checks current
+  local BLAKE3 bytes plus server proofs before OS deletion. Live Photos require both parts.
+  The engine claims runs synchronously, streams pages/chunks, bounds offsets/restarts,
+  reserves history work, honors network changes, and propagates whole-wake expiration.
+  Trip/tag grids catch failures, lock paging and support retry. Noble hashes is justified
+  by matching Go BLAKE3 without a native hashing dependency; Expo dev-client fulfills the
+  already-declared development profile. Tests: server race suite, mobile 317 regressions,
+  TypeScript/lint and regenerated API contracts. Review findings (purge recovery, history
+  starvation, canceled identity commits, terminal import retry) fixed. Compatible Expo patches and narrow URI/UUID overrides applied; two no-upstream-fix
+  advisories have source-hash checked local patches and real attack regressions. Native
+  provenance and installed-app certification are still the next milestone; no device
+  deletion performed, no operator data touched.
+
+- `codex/mobile-readiness-review` (2026-10-11, Codex) — **Android/iOS follow-up review.**
+  Recorded 12 prioritized findings, nine runnable historical defect probes and platform
+  optimization/certification limits in MOBILE_READINESS_REVIEW.md. Type/lint and 288 normal
+  tests pass; both Hermes exports and fresh isolated iOS native compilation pass. The old
+  iOS binary mismatches native Worklets; unsigned/ad-hoc fresh simulator signing/keychain
+  failures prevent full runtime certification. A read-only Android 37.1 Pixel emulator
+  launches the preserved July APK with older UI; Java is absent for a fresh native build.
+  Temporary simulator/emulator/server/bundler cleaned up; no operator photos or credentials
+  used. Application implementation remains unchanged. Next work: verified import/content
+  receipts and fail-closed local deletion, library-scoped ledger/cache with fenced identity
+  changes, then run/network/cancellation/protocol fixes and native artifact/security gates.
+  Probe suite passing means those historical defects were reproduced, not fixed.
 
 - `codex/pre-deployment-hardening` (2026-10-11, Codex) — **Release/deployment milestone completed.**
   Shared verification gates binary/image/manifest/release jobs; each architecture's exact

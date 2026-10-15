@@ -1,0 +1,6 @@
+appId: app.kuraki.mobile
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Your photos. Your server."
+    timeout: 30000

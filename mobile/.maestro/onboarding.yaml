@@ -1,0 +1,107 @@
+appId: app.kuraki.mobile
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible: "Your photos. Your server."
+    timeout: 30000
+- tapOn: "Get started"
+- runFlow:
+    file: input-field.yaml
+    env:
+      SMOKE_FIELD: "Kuraki server address"
+      SMOKE_TEXT: "${SERVER_URL}"
+# iOS keyboard hiding uses layout-dependent swipes. An unhandled heading tap
+# dismisses it without accidentally scrolling the next action out of view.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Find your server"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "Continue"
+    direction: DOWN
+    timeout: 30000
+- takeScreenshot: server-form
+- tapOn: "Continue"
+- extendedWaitUntil:
+    visible: "Link this phone"
+    timeout: 30000
+# Mint the real five-minute code only when its field is ready.
+- runScript: fresh-pairing.js
+- runFlow:
+    file: input-field.yaml
+    env:
+      SMOKE_FIELD: "Pairing code"
+      SMOKE_TEXT: "${output.freshPairCode}"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Link this phone"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: "Pair with code"
+    direction: DOWN
+    timeout: 30000
+- takeScreenshot: pairing-form
+- tapOn: "Pair with code"
+- extendedWaitUntil:
+    visible: "Allow photo access"
+    timeout: 30000
+- tapOn: "Finish without access"
+- extendedWaitUntil:
+    visible:
+      text: "Photos"
+      selected: true
+    timeout: 30000
+- tapOn: "Collections"
+- assertVisible: "ALBUMS"
+- tapOn: "Settings"
+- assertVisible: ".*Backup.*"
+- tapOn: "Search"
+- assertVisible: "Search"
+- tapOn: "Settings"
+- tapOn: ".*Backup.*"
+- scrollUntilVisible:
+    element:
+      text: ".*Back up now.*"
+    direction: DOWN
+    timeout: 30000
+- tapOn: ".*Back up now.*"
+- runFlow:
+    when:
+      platform: iOS
+      visible: ".*Allow Full Access.*"
+    commands:
+      - tapOn: ".*Allow Full Access.*"
+- runFlow:
+    when:
+      platform: Android
+      visible: ".*Allow all.*"
+    commands:
+      - tapOn: ".*Allow all.*"
+# A short Android viewport clips this notice below the action. Require it to
+# become visible by scrolling; the server receipt check remains mandatory.
+- scrollUntilVisible:
+    element:
+      text: ".*All caught up.*"
+    direction: DOWN
+    timeout: 120000
+
+- stopApp
+- launchApp
+- assertVisible:
+    text: "Photos"
+    selected: true

@@ -1,0 +1,25 @@
+import {beforeEach,expect,it,vi} from 'vitest';
+const h=vi.hoisted(()=>({writes:[] as unknown[]}));
+vi.mock('@/lib/cache/assets',()=>({upsertAssets:async(rows:unknown[])=>{h.writes.push(...rows)},getSyncCursor:async()=>0,setSyncCursor:async()=>{}}));
+vi.mock('@/lib/cache/db',()=>({getDB:async()=>({execAsync:async()=>{h.writes=[]}})}));
+vi.mock('@/lib/notifications',()=>({notify:async()=>{}}));
+import {fetchLibrary} from '@/lib/library-api';
+import {saveCaptureSettings,loadCaptureSettings,clearDeviceToken} from '@/lib/settings';
+import {reportAuthLost,isAuthLost,clearAuthLost} from '@/lib/session';
+import {__reset} from '../../test/mocks/expo-secure-store';
+beforeEach(()=>{__reset();h.writes=[];clearAuthLost();vi.unstubAllGlobals();});
+it('reproduces dropped trip filter at the public API boundary',async()=>{const fetcher=vi.fn(async()=>new Response(JSON.stringify({assets:[]})));vi.stubGlobal('fetch',fetcher);await fetchLibrary({baseURL:'https://audit.test',deviceToken:'test'},{trip:'trip-1'});const url=String(fetcher.mock.calls[0][0]);expect(new URL(url).searchParams.has('trip')).toBe(false);});
+it('reproduces an old response refilling the mirror after an account switch',async()=>{
+ const a={baseURL:'https://audit.test',deviceToken:'A'},b={...a,deviceToken:'B'};
+ await saveCaptureSettings(a);
+ let release!:(r:Response)=>void;vi.stubGlobal('fetch',()=>new Promise<Response>(r=>{release=r}));
+ const pending=fetchLibrary(a,{});await saveCaptureSettings(b);expect(h.writes).toEqual([]);
+ release(new Response(JSON.stringify({assets:[{id:'private-A-photo',filename:'private-A.jpg'}]})));
+ await pending;await Promise.resolve();expect(h.writes).toEqual([{id:'private-A-photo',filename:'private-A.jpg'}]);
+});
+it('reproduces an old token rejection marking a fresh pairing disconnected',async()=>{
+ await saveCaptureSettings({baseURL:'https://audit.test',deviceToken:'B'});reportAuthLost('A');
+ await new Promise(r=>setTimeout(r,0));expect((await loadCaptureSettings()).deviceToken).toBe('B');expect(isAuthLost()).toBe(true);
+});
+
+it('reproduces re-pairing after token clearing retaining the previous account mirror',async()=>{const a={baseURL:'https://audit.test',deviceToken:'A'};await saveCaptureSettings(a);h.writes=[{id:'private-A-photo'}];await clearDeviceToken('A');await saveCaptureSettings({...a,deviceToken:'B'});expect(h.writes).toEqual([{id:'private-A-photo'}]);});

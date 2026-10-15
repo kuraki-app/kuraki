@@ -1,17 +1,27 @@
+import { commitServerAddress } from '@/lib/connection-settings';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 
 import PairSheet from '@/components/pair-sheet';
 import { SettingsRow, SettingsSection } from '@/components/settings-ui';
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Space, useTokens } from '@/constants/theme';
-import { nextConnectionState, probeServer, resolveServerURL, type ConnectionState } from '@/lib/connection';
+import {
+  nextConnectionState,
+  probeServer,
+  type ConnectionState,
+} from '@/lib/connection';
 import { connectionView, showsCodeInput } from '@/lib/connection-view';
 import { flushFavorites } from '@/lib/library-api';
 import { clearAuthLost, isAuthLost, onAuthLost } from '@/lib/session';
-import { loadCaptureSettings, saveCaptureSettings } from '@/lib/settings';
+import { loadCaptureSettings } from '@/lib/settings';
 import { DEFAULT_SERVER_PORT } from '@/design/ports';
-import { normalizeServerURL } from '@/lib/url';
 
 function hostOf(url: string): string {
   return url.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
@@ -60,7 +70,9 @@ export default function ConnectionSettings() {
   useEffect(
     () =>
       onAuthLost(() => {
-        setConnection((c) => nextConnectionState(c, isAuthLost() ? 'auth-lost' : 'reconnected'));
+        setConnection((c) =>
+          nextConnectionState(c, isAuthLost() ? 'auth-lost' : 'reconnected'),
+        );
         void reload();
       }),
     [reload],
@@ -70,7 +82,12 @@ export default function ConnectionSettings() {
     const s = await loadCaptureSettings();
     if (!s.baseURL) return;
     const result = await probeServer(s.baseURL);
-    setConnection((c) => nextConnectionState(c, result === 'ok' ? 'probe-ok' : 'probe-unreachable'));
+    setConnection((c) =>
+      nextConnectionState(
+        c,
+        result === 'ok' ? 'probe-ok' : 'probe-unreachable',
+      ),
+    );
   }, []);
 
   // Saving an address only counts as a reconnect once the server actually
@@ -84,38 +101,25 @@ export default function ConnectionSettings() {
     } catch (cause) {
       // normalizeServerURL/serverURLCandidates reject input that is not an
       // address at all. That is a sentence worth showing, not a crash.
-      setAddressError(cause instanceof Error ? cause.message : 'That address did not work.');
+      setAddressError(
+        cause instanceof Error ? cause.message : 'That address did not work.',
+      );
     } finally {
       setSaving(false);
     }
   }
 
   async function commitAddress() {
-    const s = await loadCaptureSettings();
-    // Resolve before storing: a typed domain is HTTPS on 443 and a typed LAN
-    // address is HTTP on the server's own port, and only a probe can tell which
-    // one this is. A
-    // resolved address is known-reachable, so the reconnect below needs no
-    // second probe; nothing answering leaves the stored address alone rather
-    // than overwriting a working one with a guess.
-    const resolved = await resolveServerURL(baseURL);
-    // Nothing answered: still store the best guess, because someone repointing
-    // the app at a server that is currently down should not have their typing
-    // thrown away. The status line below says it is unreachable.
-    const url = resolved ?? normalizeServerURL(baseURL);
-    await saveCaptureSettings({ baseURL: url, deviceToken: s.deviceToken });
-    setBaseURL(url);
-    setActiveURL(url);
+    const { settings, reachable } = await commitServerAddress(baseURL);
+    setBaseURL(settings.baseURL);
+    setActiveURL(settings.baseURL);
     setSaved(true);
-    if (!resolved) {
-      setConnection((c) => nextConnectionState(c, 'probe-unreachable'));
-      return;
-    }
-    if (s.deviceToken) {
-      clearAuthLost();
-      setConnection((c) => nextConnectionState(c, 'reconnected'));
-      await flushFavorites({ baseURL: url, deviceToken: s.deviceToken });
-    }
+    setConnection((current) =>
+      nextConnectionState(
+        current,
+        reachable ? 'reconnected' : 'probe-unreachable',
+      ),
+    );
   }
 
   async function onPaired(url: string) {
@@ -142,10 +146,15 @@ export default function ConnectionSettings() {
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         style={[styles.fill, { backgroundColor: tokens.background }]}
-        contentContainerStyle={styles.content}>
+        contentContainerStyle={styles.content}
+      >
         <SettingsSection
           title="Server address"
-          info={{ message: 'Use the address reachable from this phone. Localhost points back to the phone, not the server.' }}>
+          info={{
+            message:
+              'Use the address reachable from this phone. Localhost points back to the phone, not the server.',
+          }}
+        >
           <View style={styles.field}>
             <TextInput
               autoCapitalize="none"
@@ -157,13 +166,17 @@ export default function ConnectionSettings() {
               }}
               placeholder={`http://192.168.1.20:${DEFAULT_SERVER_PORT}`}
               placeholderTextColor={tokens.textFaint}
-              style={[styles.input, { borderColor: tokens.input, color: tokens.foreground }]}
+              style={[
+                styles.input,
+                { borderColor: tokens.input, color: tokens.foreground },
+              ]}
               value={baseURL}
             />
             <Pressable
               disabled={saving}
               style={[styles.button, { backgroundColor: tokens.primary }]}
-              onPress={() => void saveAddress()}>
+              onPress={() => void saveAddress()}
+            >
               <ThemedText type="smallBold" themeColor="primaryForeground">
                 {saving ? 'Checking…' : saved ? 'Saved' : 'Save address'}
               </ThemedText>
@@ -180,7 +193,11 @@ export default function ConnectionSettings() {
           <View style={styles.statusRow}>
             <ThemedText
               type="smallBold"
-              style={{ color: view === 'connected' ? tokens.foreground : tokens.destructive }}>
+              style={{
+                color:
+                  view === 'connected' ? tokens.foreground : tokens.destructive,
+              }}
+            >
               {status}
             </ThemedText>
             {view === 'unreachable' ? (
@@ -199,9 +216,12 @@ export default function ConnectionSettings() {
             message: showsCodeInput(view)
               ? 'Pair this phone to back up and browse your library.'
               : 'Re-pairing replaces this phone’s credentials. Backed-up photos are not affected.',
-          }}>
+          }}
+        >
           <SettingsRow
-            label={showsCodeInput(view) ? 'Pair this device' : 'Re-pair this device'}
+            label={
+              showsCodeInput(view) ? 'Pair this device' : 'Re-pair this device'
+            }
             icon="qrcode.viewfinder"
             onPress={() => setPairing(true)}
           />
@@ -229,6 +249,15 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingHorizontal: Space.two,
   },
-  button: { alignItems: 'center', borderRadius: Radius.sm, padding: Space.four },
-  statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Space.two },
+  button: {
+    alignItems: 'center',
+    borderRadius: Radius.sm,
+    padding: Space.four,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Space.two,
+  },
 });

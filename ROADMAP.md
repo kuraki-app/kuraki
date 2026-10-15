@@ -56,6 +56,11 @@ certification below is still required.
   and exact-image private-TLS/restore smoke gates. Actual target-host validation,
   systematic audit evidence and alert thresholds still remain required.
 
+The Android/iOS follow-up in [MOBILE_READINESS_REVIEW.md](./MOBILE_READINESS_REVIEW.md)
+reproduces additional client backup/deletion and account-switch defects. Resolve verified
+receipt/local-removal safety and library-scoped ledger/cache transitions before signed
+mobile release testing; existing pure-logic tests do not establish those guarantees.
+
 - **[production blocker] Mobile release certification — Mobile users — M.** Add
   iOS/Android identifiers and signed release profiles, decide crash/error
   reporting, and pass a physical-device matrix covering permissions, pairing,

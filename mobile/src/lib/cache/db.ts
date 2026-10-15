@@ -1,14 +1,23 @@
 import * as SQLite from 'expo-sqlite';
+import {
+  libraryKey,
+  loadCaptureSettings,
+  type CaptureSettings,
+} from '@/lib/settings';
 
 // One connection for the app. The schema is created idempotently on first open;
 // there is no migration framework here because this is a disposable read cache —
 // if the shape ever changes incompatibly, dropping the file is acceptable.
-let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
+const databases = new Map<string, Promise<SQLite.SQLiteDatabase>>();
 
-export function getDB(): Promise<SQLite.SQLiteDatabase> {
+export async function getDB(
+  settings?: CaptureSettings,
+): Promise<SQLite.SQLiteDatabase> {
+  const scope = libraryKey(settings ?? (await loadCaptureSettings()));
+  let dbPromise = databases.get(scope);
   if (!dbPromise) {
     dbPromise = (async () => {
-      const db = await SQLite.openDatabaseAsync('kuraki.db');
+      const db = await SQLite.openDatabaseAsync(`kuraki-cache-${scope}.db`);
       await db.execAsync(`
         PRAGMA journal_mode = WAL;
         CREATE TABLE IF NOT EXISTS assets (
@@ -34,7 +43,9 @@ export function getDB(): Promise<SQLite.SQLiteDatabase> {
           attempts INTEGER NOT NULL DEFAULT 0
         );
       `);
-      const { user_version: v } = (await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version')) ?? { user_version: 0 };
+      const { user_version: v } = (await db.getFirstAsync<{
+        user_version: number;
+      }>('PRAGMA user_version')) ?? { user_version: 0 };
       if (v < 2) {
         // Wrapped in an explicit transaction so this migration is all-or-nothing:
         // ALTER TABLE and PRAGMA user_version are both transactional in SQLite,
@@ -122,8 +133,25 @@ export function getDB(): Promise<SQLite.SQLiteDatabase> {
           COMMIT;
         `);
       }
+      if (v < 8) {
+        // A concurrent drain may reject a live edit before its caller owns the
+        // lane. Persist that result so the caller can still report the failure.
+        await db.execAsync(`
+          BEGIN;
+          CREATE TABLE IF NOT EXISTS mutation_rejections (
+            id INTEGER PRIMARY KEY, status INTEGER NOT NULL,
+            message TEXT NOT NULL, created_at TEXT NOT NULL
+          );
+          PRAGMA user_version = 8;
+          COMMIT;
+        `);
+      }
       return db;
     })();
+    databases.set(scope, dbPromise);
+    void dbPromise.catch(() => {
+      databases.delete(scope);
+    });
   }
   return dbPromise;
 }

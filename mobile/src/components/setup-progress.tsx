@@ -3,7 +3,13 @@ import { StyleSheet, View } from 'react-native';
 import MotionProgress from '@/components/motion-progress';
 import { Space, useTokens } from '@/constants/theme';
 
-export default function SetupProgress({ step, total }: { step: number; total: number }) {
+export default function SetupProgress({
+  step,
+  total,
+}: {
+  step: number;
+  total: number;
+}) {
   const tokens = useTokens();
 
   return (
@@ -12,9 +18,19 @@ export default function SetupProgress({ step, total }: { step: number; total: nu
         accessible
         accessibilityRole="progressbar"
         accessibilityLabel="Setup progress"
-        accessibilityValue={{ min: 1, max: total, now: step }}
-        style={[styles.track, { backgroundColor: tokens.secondary }]}>
-        <MotionProgress fraction={step / total} color={tokens.stamp} style={styles.fill} />
+        accessibilityValue={{
+          min: 0,
+          max: 100,
+          now: Math.round((step / total) * 100),
+          text: `Step ${step} of ${total}`,
+        }}
+        style={[styles.track, { backgroundColor: tokens.secondary }]}
+      >
+        <MotionProgress
+          fraction={step / total}
+          color={tokens.stamp}
+          style={styles.fill}
+        />
       </View>
     </View>
   );

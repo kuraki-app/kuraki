@@ -113,7 +113,7 @@ The app distinguishes two very different failures:
 
 ```sh
 npm install
-npx expo start        # then open in Expo Go, or a dev build, on a device
+npx expo start --dev-client  # requires a current development build; Expo Go lacks native modules
 ```
 
 Point the app at a running Kuraki server through the on-device setup flow above
@@ -149,7 +149,56 @@ Kura/Vault registers live in `src/design/registers.ts`, and both platforms use I
 
 ### Release builds
 
-Signed internal and production build profiles live in `eas.json`. Because CI only
-runs typecheck/lint/unit tests (no device pass), work through
+Development, installable APK preview, simulator and production profiles live in
+`eas.json`. CI builds standalone Android/iOS candidates, installs them, pairs to a
+disposable server and requires a real import receipt. Physical-device certification
+is still separate: work through
 [RELEASE_CHECKLIST.md](./RELEASE_CHECKLIST.md) on real hardware before any
 TestFlight, Play internal-track, or public build.
+
+
+### Verified backup and local cleanup
+
+Backup is confirmed only after the server imports an original, not after it queues
+an upload. Install the matching server version for identity and receipt endpoints.
+Old ID-only history is retained for recovery but cannot authorize local removal.
+Each server/account has separate receipt, resumable upload and offline cache state;
+re-pairing to the same verified library retains its history.
+
+Camera-roll scans and uploads are bounded and continue in later passes. Network
+policy is checked per file/chunk; unknown networks wait when Wi-Fi-only is on.
+Completed-byte sessions retry import handoff without resending successful originals.
+Stopping or task expiration cancels the entire wake, including sync and response
+bodies. Native cloud/provider operations may finish internally after cancellation;
+their late results cannot start more work, and temporary copies are cleaned up.
+
+Limited access backs up only selected photos. Live Photos require both the still
+and motion component; a missing component remains a visible failure. iCloud originals
+may download for backup but are not downloaded solely to reclaim space. Local cleanup
+requires matching current local BLAKE3 bytes and current owner-scoped server originals,
+checks both again before OS removal, and defaults to Keep all. It checks up to 50
+verified candidates at a time, with continuation for large libraries. Photos deletion
+can synchronize through iCloud; Recently Deleted is controlled by the OS.
+
+Verification trusts your configured server and transport. Use HTTPS outside a trusted
+LAN. No local removal was performed in the automated/native validation recorded in
+`../MOBILE_READINESS_REVIEW.md`.
+
+`npm run audit:security` gates every unmitigated advisory. See
+[DEPENDENCY_SECURITY.md](./DEPENDENCY_SECURITY.md) for the two narrowly patched
+upstream advisories without published fixes. `npm run check:compatibility` checks
+Expo versions. Artifact provenance records commit, dirty state, SDK versions, lockfile
+and exact artifact hashes; local QA builds are not store-signed releases.
+
+
+Online and offline edits share the same durable FIFO. Favorites, tags, album membership
+and trash/restore/purge intents are recorded before transport; reconnect/background
+pushes and change-feed pulls are serialized per library. A lost response retains the
+intent for idempotent replay, and a newer online edit cannot be undone by older queued
+work. A canceled native wait releases the library lane without starting late HTTP work.
+
+
+Changing the server address requires pairing at the new address; an existing device
+credential is never forwarded to a different origin. Saving the same verified address
+keeps its identity and flushes pending edits. Cleanup also retains local originals
+whose server trash/purge operation is queued, even before that deletion reaches the server.

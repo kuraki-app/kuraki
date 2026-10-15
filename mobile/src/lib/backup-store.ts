@@ -17,6 +17,7 @@ export type FailedItem = {
 };
 
 export type BackupState = {
+  scan?: { scope: string; album: number; after?: string };
   auto: boolean;
   failed: FailedItem[];
   lastSuccess: { filename: string; at: number } | null;
@@ -38,7 +39,7 @@ const empty: BackupState = {
   legacyDoneIds: [],
 };
 
-export async function loadBackupState(): Promise<BackupState> {
+export async function loadBackupState(library?: string): Promise<BackupState> {
   // The read itself is inside the guard: on Android a row that outgrew the
   // CursorWindow throws here, and letting that escape took down every caller
   // (run, setAuto, subscribe) rather than degrading to defaults.
@@ -50,13 +51,22 @@ export async function loadBackupState(): Promise<BackupState> {
   }
   if (!raw) return { ...empty };
   try {
-    const parsed = JSON.parse(raw) as Partial<BackupState> & { doneIds?: string[] };
+    const history = library
+      ? await AsyncStorage.getItem(`${stateKey}.library.${library}`)
+      : null;
+    const scoped = history ? (JSON.parse(history) as Partial<BackupState>) : {};
+    const parsed = JSON.parse(raw) as Partial<BackupState> & {
+      doneIds?: string[];
+    };
     return {
-      auto: parsed.auto ?? false,
-      failed: parsed.failed ?? [],
-      lastSuccess: parsed.lastSuccess ?? null,
-      albumIds: parsed.albumIds ?? [],
-      wifiOnly: parsed.wifiOnly ?? true,
+      auto: parsed.auto === true,
+      failed: Array.isArray(scoped.failed) ? scoped.failed : [],
+      lastSuccess: scoped.lastSuccess ?? null,
+      scan: scoped.scan,
+      albumIds: Array.isArray(parsed.albumIds)
+        ? parsed.albumIds.filter((id) => typeof id === 'string')
+        : [],
+      wifiOnly: parsed.wifiOnly !== false,
       legacyDoneIds: parsed.doneIds ?? [],
     };
   } catch {
@@ -64,9 +74,18 @@ export async function loadBackupState(): Promise<BackupState> {
   }
 }
 
-export async function saveBackupState(state: BackupState): Promise<void> {
+export async function saveBackupState(
+  state: BackupState,
+  library?: string,
+): Promise<void> {
   // legacyDoneIds is never written back -- persisting it would recreate the
   // unbounded array this format was moved away from.
   const { legacyDoneIds: _drop, ...persisted } = state;
-  await AsyncStorage.setItem(stateKey, JSON.stringify(persisted));
+  const { failed, lastSuccess, scan, ...preferences } = persisted;
+  await AsyncStorage.setItem(stateKey, JSON.stringify(preferences));
+  if (library)
+    await AsyncStorage.setItem(
+      `${stateKey}.library.${library}`,
+      JSON.stringify({ failed, lastSuccess, scan }),
+    );
 }
